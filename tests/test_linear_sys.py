@@ -1,7 +1,8 @@
 import numpy as np
 from numpy import cos, sin
 from numpy.random import random
-from cv_rate import get_Y, get_Y_star, solve_linear
+from utils_numeric import solve_linear
+from finite_difference import get_Y, get_Y_star
 
 """
     Test of the solver in with D!= 0, a != 0 and c!=0.
@@ -184,4 +185,3 @@ def launch_all_tests():
     print("Test get_Y:", test_get_Y())
     print("Test heat equation:", test_heat_eq())
     print("Test parabolic equation:", test_full_eq())
-

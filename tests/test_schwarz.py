@@ -1,7 +1,10 @@
 import numpy as np
 from numpy import cos, sin
 from numpy.random import random
-from cv_rate import *
+from cv_rate import solve_u_time_domain
+from utils_numeric import integration
+from utils_linalg import solve_linear
+from finite_difference import get_Y, get_Y_star
 
 def test_integration():
 
@@ -235,4 +238,3 @@ def launch_all_tests():
     print("Test Schwarz method:", test_schwarz())
     print("Test time integration:", test_integration())
     print("Test time domain solution:", test_time_domain())
-
