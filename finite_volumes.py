@@ -119,7 +119,8 @@ def get_Y_star(M1, M2, h1, h2, D1, D2, a, c, dt):
     Y_2 = np.concatenate(([Y_2_bd], Y_2))
 
     ######## MAIN DIAGONAL:
-    Y_1 = dt/(1+dt*c) * (1 / h_m + 1/h_mp1) + (h_m/D_minus + h_mp1/D_plus)/3
+    Y_1 = dt/(1+dt*c) * (1 / h_m + 1/h_mp1 + a/2 * (1/D_plus - 1/D_minus)) \
+            + (h_m/D_minus + h_mp1/D_plus)/3
     Y_1_bd = -dt/(1+dt*c) * (1/h[0] + a/(2*D1[0])) - h[0]/(3*D1[0])
     Y_1 = np.concatenate(([Y_1_bd], Y_1, [1]))
 
@@ -128,19 +129,22 @@ def get_Y_star(M1, M2, h1, h2, D1, D2, a, c, dt):
 
     return (Y_0, Y_1, Y_2)
 
-def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f, neumann, dirichlet,
+def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2, neumann, dirichlet,
         u0):
-    #TODO en production, mettre f1 et f2...
     D1 = np.zeros(M1+1) + D1
     D2 = np.zeros(M2+1) + D2
     h1 = np.zeros(M1) + h1
     h2 = np.zeros(M2) + h2
 
+    f1 = np.zeros(M1) + f1
+    f2 = np.zeros(M2) + f2
+
     Y = get_Y_star(M1=M1, M2=M2, h1=h1, h2=h2, D1=D1, D2=D2, a=a, c=c, dt=dt)
 
     D1 = D1[::-1]
     h1 = h1[::-1]
-
+    f1 = f1[::-1]
+    f = np.concatenate((f1, f2))
 
     rhs = dt / (1+dt*c) * (f[1:] - f[:-1] + (u0[1:] - u0[:-1]) /dt)
     dirichlet = dirichlet - dt / (1+dt*c) * (f[0] + u0[0])

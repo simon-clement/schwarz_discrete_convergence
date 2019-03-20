@@ -33,7 +33,7 @@ def test_integrate_one_step_with_a_c():
     D1 = 2.2
     D2 = 1.2
     a = 1.1
-    c = 0.0
+    c = 0.4
 
     u_theoric = -pi*(1-D2/D1) + np.concatenate((pi*x1*D2/D1, pi*x2))
     partial_xu = pi * np.concatenate((np.ones_like(x1) * D2/D1,
@@ -41,10 +41,13 @@ def test_integrate_one_step_with_a_c():
     neumann = pi
     dirichlet = -pi
     f = c * u_theoric + a*partial_xu
+    f1 = f[:M1]
+    f1 = f1[::-1]
+    f2 = f[M1:]
 
     u0 = np.zeros_like(u_theoric)
     u = integrate_one_step_star(M1=M1, M2=M2, h1=h1, h2=h2, D1=D1,
-                D2=D2, a=a, c=c, dt=dt, f=f,
+                D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
                 neumann=neumann, dirichlet=dirichlet, u0=u0)
 
     u1 = u[:M1]
