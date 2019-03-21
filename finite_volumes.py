@@ -2,10 +2,31 @@ import numpy as np
 from tests import test_finite_volumes
 from utils_numeric import solve_linear
 
-H_DEFAULT = 1e-4
-D_DEFAULT = 1.0
-A_DEFAULT = 0.0
-C_DEFAULT = 0.0
+def get_Y(M, h, D, a, c, dt, Lambda, upper_domain=True):
+    # We first use our great function get_Y_star:
+    if upper_domain:
+        Y_0, Y_1, Y_2 = get_Y_star(M1=1, M2=M,
+                h1=1.0, h2=h, D1=D, D2=D, a=a, c=c, dt=dt)
+        Y_0 = Y_0[1:]
+        Y_1 = Y_1[1:]
+        Y_2 = Y_2[1:]
+    else:
+        Y_0, Y_1, Y_2 = get_Y_star(M1=1, M2=M,
+                h1=1.0, h2=h, D1=D, D2=D, a=a, c=c, dt=dt)
+        # Here Y_0 and Y_2 are inverted because we need to take the symmetric
+        Y_2 = Y_0[-2::-1]
+        Y_1 = Y_1[-2::-1]
+        Y_0 = Y_2[-2::-1]
+    # Now we have the tridiagonal matrices, except for the Robin bd condition
+    dirichlet_cond_extreme_point = -dt/(1+dt*c) * (1/h[0] +a/(2*D[0])) - h[0]/(3*D[0])
+    dirichlet_cond_interior_point = dt/(1+dt*c) * (1/h[0] -a/(2*D[1])) - h[0]/(6*D[1])
+    # Robin bd condition are Lambda * Dirichlet + Neumann:
+    # Except we work with fluxes:
+    # Neumann condition is actually a Dirichlet bd condition
+    # and Dirichlet is just a... pseudo-differential operator
+    Y_0[0] = Lambda * dirichlet_cond_extreme_point + 1
+    Y_2[0] = Lambda * dirichlet_cond_interior_point
+    return (Y_0, Y_1, Y_2)
 
 """
     Returns the tridiagonal matrix Y* in the shape asked by solve_linear.
@@ -177,6 +198,67 @@ def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2, neumann, d
     assert u2_np1.shape[0] == M2
 
     return np.concatenate((u1_np1, u2_np1))
+
+
+def integrate_one_step(M, h, D, a, c, dt, f, Lambda, u_nm1,
+        u_interface, phi_interface, upper_domain=True):
+
+    h = np.zeros(M) + h
+
+    Y = get_Y(M=M, h=h, D=D, a=a, c=c, dt=dt,
+            Lambda=Lambda, upper_domain=upper_domain)
+
+    cond_robin = Lambda * u_interface + phi_interface
+    # TODO need for f:
+    # dt*Lambda/ (1+dt*c)* (f[0] + u_nm1[0]) + phi_3mj[0] 
+    #       + Lambda*(u_3mj[0] - h_3mj[0]/4 * (phi_3mj[1/2])
+    #           + (phi_3mj[1 - 0]) * h / 12
+
+
+    #TODO cond_M
+    rhs = dt / (1+dt*c) * (f[1:] - f[:-1] + (u_nm1[1:] - u_nm1[:-1]) /dt)
+    dirichlet = dirichlet - dt / (1+dt*c) * (f[0] + u_nm1[0])
+    neumann = neumann * D2[-1]
+    rhs = np.concatenate(([cond_robin], rhs, [neumann]))
+
+    phi_ret = solve_linear(Y, rhs)
+
+    d1 = phi_ret[:M1+1] / D1 # we go until interface
+    d2 = phi_ret[M1:] / D2 # we start from interface
+
+    d1_kp1 = d1[1:]
+    d2_kp1 = d2[1:]
+    d1_km1 = d1[:-1]
+    d2_km1 = d2[:-1]
+    D1_kp1_2 = D1[1:]
+    D1_km1_2 = D1[:-1]
+    D2_kp1_2 = D2[1:]
+    D2_km1_2 = D2[:-1]
+
+    u1_np1 = dt / (1+dt*c) * ( f[:M1] + u_nm1[:M1] / dt \
+            + (D1_kp1_2*d1_kp1 - D1_km1_2*d1_km1)/ h1 \
+            - a * (d1_kp1 + d1_km1) / 2 )
+
+    u2_np1 = dt / (1+dt*c) * ( f[M1:] + u_nm1[M1:] / dt \
+            + (D2_kp1_2*d2_kp1 - D2_km1_2*d2_km1)/h2 \
+            - a * (d2_kp1 + d2_km1) / 2 )
+
+    assert u1_np1.shape[0] == M1
+    assert u2_np1.shape[0] == M2
+
+    """ TODO return u_interface, phi_interface, u
+    dirichlet_cond_extreme_point = -dt/(1+dt*c) * \
+            (1/h_3mj[0] + a/(2*D_3mj[0])) - h_3mj[0]/(3*D_3mj[0])
+    dirichlet_cond_interior_point = dt/(1+dt*c) * \
+            (1/h_3mj[0] -a/(2*D_3mj[1])) - h_3mj[0]/(6*D_3mj[1])
+    """
+
+    return np.concatenate((u1_np1, u2_np1))
+
+
+
+
+
 
 if __name__ == "__main__":
     test_finite_volumes.launch_all_tests()
