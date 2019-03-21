@@ -6,17 +6,16 @@ def get_Y(M, h, D, a, c, dt, Lambda, upper_domain=True):
     # We first use our great function get_Y_star:
     if upper_domain:
         Y_0, Y_1, Y_2 = get_Y_star(M1=1, M2=M,
-                h1=1.0, h2=h, D1=D, D2=D, a=a, c=c, dt=dt)
+                h1=1.0, h2=h, D1=D[0], D2=D, a=a, c=c, dt=dt)
         Y_0 = Y_0[1:]
         Y_1 = Y_1[1:]
         Y_2 = Y_2[1:]
     else:
-        Y_0, Y_1, Y_2 = get_Y_star(M1=1, M2=M,
-                h1=1.0, h2=h, D1=D, D2=D, a=a, c=c, dt=dt)
+        Y_0, Y_1, Y_2 = get_Y_star(M1=M, M2=1,
+                h1=h, h2=1.0, D1=D, D2=D[0], a=a, c=c, dt=dt)
         # Here Y_0 and Y_2 are inverted because we need to take the symmetric
-        Y_2 = Y_0[-2::-1]
+        Y_2, Y_0 = Y_0[-2::-1], Y_2[-2::-1]
         Y_1 = Y_1[-2::-1]
-        Y_0 = Y_2[-2::-1]
     # Now we have the tridiagonal matrices, except for the Robin bd condition
     dirichlet_cond_extreme_point = -dt/(1+dt*c) * (1/h[0] +a/(2*D[0])) - h[0]/(3*D[0])
     dirichlet_cond_interior_point = dt/(1+dt*c) * (1/h[0] -a/(2*D[1])) - h[0]/(6*D[1])
@@ -24,7 +23,7 @@ def get_Y(M, h, D, a, c, dt, Lambda, upper_domain=True):
     # Except we work with fluxes:
     # Neumann condition is actually a Dirichlet bd condition
     # and Dirichlet is just a... pseudo-differential operator
-    Y_0[0] = Lambda * dirichlet_cond_extreme_point + 1
+    Y_1[0] = Lambda * dirichlet_cond_extreme_point + 1
     Y_2[0] = Lambda * dirichlet_cond_interior_point
     return (Y_0, Y_1, Y_2)
 
@@ -76,6 +75,7 @@ def get_Y_star(M1, M2, h1, h2, D1, D2, a, c, dt):
     assert M2 > 0
     for arg in (h1, D1):
         assert type(arg) is float or \
+                type(arg) is np.float64 or \
                 type(arg) is np.ndarray and \
                 arg.ndim == 1
     if (np.array(h1) < 0).any():
@@ -93,6 +93,7 @@ def get_Y_star(M1, M2, h1, h2, D1, D2, a, c, dt):
     assert M2 > 0
     for arg in (h2, D2):
         assert type(arg) is float or \
+                type(arg) is np.float64 or \
                 type(arg) is np.ndarray and \
                 arg.ndim == 1
     if (np.array(h2) < 0).any():
@@ -150,8 +151,9 @@ def get_Y_star(M1, M2, h1, h2, D1, D2, a, c, dt):
 
     return (Y_0, Y_1, Y_2)
 
-def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2, neumann, dirichlet,
-        u0):
+def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
+        neumann, dirichlet, u0):
+
     D1 = np.zeros(M1+1) + D1
     D2 = np.zeros(M2+1) + D2
     h1 = np.zeros(M1) + h1
@@ -168,7 +170,7 @@ def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2, neumann, d
     f = np.concatenate((f1, f2))
 
     rhs = dt / (1+dt*c) * (f[1:] - f[:-1] + (u0[1:] - u0[:-1]) /dt)
-    dirichlet = dirichlet - dt / (1+dt*c) * (f[0] + u0[0])
+    dirichlet = dirichlet - dt / (1+dt*c) * (f[0] + u0[0]/dt)
     neumann = neumann * D2[-1]
     rhs = np.concatenate(([dirichlet], rhs, [neumann]))
 
@@ -197,67 +199,58 @@ def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2, neumann, d
     assert u1_np1.shape[0] == M1
     assert u2_np1.shape[0] == M2
 
-    return np.concatenate((u1_np1, u2_np1))
+    u2_interface = u2_np1[0] - h2[0]*d2[1]/6 - h2[0]*d2[0]/3
+    u1_interface = u1_np1[-1] + h1[-1]*d1[-2]/6 + h1[-1]*d1[-1]/3
+    u1_bottom = u1_np1[0] - h1[0]*d1[1]/6 - h1[0]*d1[0]/3
+    assert abs(u1_interface - u2_interface) < 1e-5
+    phi_interface = phi_ret[M1]
+
+    return np.concatenate((u1_np1, u2_np1)), u1_interface, phi_interface
 
 
-def integrate_one_step(M, h, D, a, c, dt, f, Lambda, u_nm1,
+def integrate_one_step(M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
         u_interface, phi_interface, upper_domain=True):
+    assert type(u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M
 
+    D = np.zeros(M+1) + D
     h = np.zeros(M) + h
+    f = np.zeros(M) + f
 
     Y = get_Y(M=M, h=h, D=D, a=a, c=c, dt=dt,
             Lambda=Lambda, upper_domain=upper_domain)
 
-    cond_robin = Lambda * u_interface + phi_interface
-    # TODO need for f:
-    # dt*Lambda/ (1+dt*c)* (f[0] + u_nm1[0]) + phi_3mj[0] 
-    #       + Lambda*(u_3mj[0] - h_3mj[0]/4 * (phi_3mj[1/2])
-    #           + (phi_3mj[1 - 0]) * h / 12
+    cond_robin = Lambda * u_interface + phi_interface \
+            - Lambda * dt /(1+dt*c) * (f[0] + u_nm1[0]/dt)
 
-
-    #TODO cond_M
     rhs = dt / (1+dt*c) * (f[1:] - f[:-1] + (u_nm1[1:] - u_nm1[:-1]) /dt)
-    dirichlet = dirichlet - dt / (1+dt*c) * (f[0] + u_nm1[0])
-    neumann = neumann * D2[-1]
-    rhs = np.concatenate(([cond_robin], rhs, [neumann]))
+    if upper_domain: # Neumann condition: user give derivative but I need flux
+        cond_M = bd_cond * D[-1]
+    else: # Dirichlet condition: user gives value, rhs is more complicated
+        cond_M = bd_cond - dt / (1+dt*c) * (f[-1] + u_nm1[-1]/dt)
+
+    rhs = np.concatenate(([cond_robin], rhs, [cond_M]))
 
     phi_ret = solve_linear(Y, rhs)
 
-    d1 = phi_ret[:M1+1] / D1 # we go until interface
-    d2 = phi_ret[M1:] / D2 # we start from interface
+    d = phi_ret / D # We take the derivative
 
-    d1_kp1 = d1[1:]
-    d2_kp1 = d2[1:]
-    d1_km1 = d1[:-1]
-    d2_km1 = d2[:-1]
-    D1_kp1_2 = D1[1:]
-    D1_km1_2 = D1[:-1]
-    D2_kp1_2 = D2[1:]
-    D2_km1_2 = D2[:-1]
+    d_kp1 = d[1:]
+    d_km1 = d[:-1]
+    D_kp1_2 = D[1:]
+    D_km1_2 = D[:-1]
 
-    u1_np1 = dt / (1+dt*c) * ( f[:M1] + u_nm1[:M1] / dt \
-            + (D1_kp1_2*d1_kp1 - D1_km1_2*d1_km1)/ h1 \
-            - a * (d1_kp1 + d1_km1) / 2 )
+    u_np1 = dt / (1+dt*c) * ( f + u_nm1 / dt \
+            + (D_kp1_2*d_kp1 - D_km1_2*d_km1)/h \
+            - a * (d_kp1 + d_km1) / 2 )
 
-    u2_np1 = dt / (1+dt*c) * ( f[M1:] + u_nm1[M1:] / dt \
-            + (D2_kp1_2*d2_kp1 - D2_km1_2*d2_km1)/h2 \
-            - a * (d2_kp1 + d2_km1) / 2 )
+    assert u_np1.shape[0] == M
+    if upper_domain:
+        u_interface = u_np1[0] - h[0]*d[1]/6 - h[0]*d[0]/3
+    else: #TODO be sure...
+        u_interface = u_np1[0] + h[0]*d[1]/6 + h[0]*d[0]/3
+    phi_interface = phi_ret[0]
 
-    assert u1_np1.shape[0] == M1
-    assert u2_np1.shape[0] == M2
-
-    """ TODO return u_interface, phi_interface, u
-    dirichlet_cond_extreme_point = -dt/(1+dt*c) * \
-            (1/h_3mj[0] + a/(2*D_3mj[0])) - h_3mj[0]/(3*D_3mj[0])
-    dirichlet_cond_interior_point = dt/(1+dt*c) * \
-            (1/h_3mj[0] -a/(2*D_3mj[1])) - h_3mj[0]/(6*D_3mj[1])
-    """
-
-    return np.concatenate((u1_np1, u2_np1))
-
-
-
-
+    return u_np1, u_interface, phi_interface
 
 
 if __name__ == "__main__":
