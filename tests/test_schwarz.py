@@ -169,6 +169,8 @@ def test_schwarz():
     a = 1.2
     c = 0.3
     d = 1.2
+    dt=1000.0
+    #TODO ajouter terme correctif
 
     Lambda1 = 1.0
     Lambda2 = 2.0
@@ -183,7 +185,7 @@ def test_schwarz():
     D2_send = D2((x2[1:] + x2[:-1])/2)
     function_f2 = lambda x : d*d*D2(x)*sin(d*x) - d*D2_prime(x)*cos(d*x) \
         + d*a*cos(d*x) + c*sin(d*x)
-    Y2 = get_Y(M=M, Lambda=Lambda2, h=h2, D=D2_send,
+    Y2 = get_Y(M=M, Lambda=Lambda2, h=h2, D=D2_send, dt=dt,
                a=a, c=c, upper_domain=True)
 
     # Omega_1 values:
@@ -218,6 +220,7 @@ def test_schwarz():
     initial_error2 = np.linalg.norm(sin(d*x2) - solve_linear(Y2, f2))
 
     f1[0] = f2[0] = -3
+    #TODO ajuster terme correctif
 
     for i in range(1, 100):
         u1 = solve_linear(Y1, f1)
@@ -227,8 +230,8 @@ def test_schwarz():
 
         f1[0] = D2_send[0] * (u2[1] - u2[0]) / h2[0] + Lambda1 * u2[0]
 
-    # we tolerate 5% additional error
-    tol_err = 1.05 * max(initial_error1, initial_error2)
+    # we tolerate 0.1% additional error (before it was 5%)
+    tol_err = 1.001 * max(initial_error1, initial_error2)
     assert np.linalg.norm(sin(d*x1) - solve_linear(Y1, f1)) < tol_err
     assert np.linalg.norm(sin(d*x2) - solve_linear(Y2, f2)) < tol_err
 

@@ -18,6 +18,7 @@ def test_full_eq():
     a = 1.2
     c = 0.3
     d = 1.2
+    dt = 100000.0
 
     x = np.linspace(0,1,M)**3
     h = np.diff(x)
@@ -39,9 +40,10 @@ def test_full_eq():
     Y = get_Y_star(M_star=M, h_star=h, D_star=D_star, a=a, c=c)
     assert np.linalg.norm(sin(d*x) - solve_linear(Y, f)) < 1e-7
 
-    Y = get_Y(M=M, Lambda=1.0, h=h, D=D_star, a=a, c=c, upper_domain=True)
+    Y = get_Y(M=M, Lambda=1.0, h=h, D=D_star, a=a, c=c, dt=dt, upper_domain=True)
     f = np.zeros(M)
-    f[0] = d*cos(d*x[1]/2)*D_star[0] # Robin bd condition, u(0) = 0
+    # Robin bd condition, u(0) = 0 :
+    f[0] = d*cos(d*x[1]/2)*D_star[0] - h[0] / 2 * function_f(x[1]/2)
     f[1:M-1] = function_f(x[1:M-1]) * (hm1 + hm)
     f[-1] = d*cos(d*middle_grid_last) # Neumann bd condition
     assert np.linalg.norm(sin(d*x) - solve_linear(Y, f)) < 1e-7
@@ -58,9 +60,10 @@ def test_full_eq():
     function_f = lambda x : d*d*D(x)*sin(d*x) - d*D_prime(x)*cos(d*x) \
         + d*a*cos(d*x) + c*sin(d*x)
 
-    Y = get_Y(M=M, Lambda=1.0, h=h, D=D_star, a=a, c=c, upper_domain=False)
+    Y = get_Y(M=M, Lambda=1.0, h=h, D=D_star, a=a, c=c, dt=dt, upper_domain=False)
     f = np.zeros(M)
-    f[0] = D_star[0] * d*cos(d*(x[1]/2)) # Robin bd condition, u(0) = 0
+    # Robin bd condition, u(0) = 0
+    f[0] = D_star[0] * d*cos(d*(x[1]/2)) - h[0] / 2 * function_f(x[1]/2)
     f[1:M-1] = function_f(x[1:M-1]) * (hm1 + hm)
     f[-1] = sin(d*x[-1]) # Dirichlet bd condition
     assert np.linalg.norm(sin(d*x) - solve_linear(Y, f)) < 2e-6
@@ -124,10 +127,11 @@ def test_get_Y():
 
     FLOAT_TOL = 1e-6
     M = 100
+    dt = 1.0
     for _ in range(1000): # tests of multiple coeffs: \Omega_2
         a, c, h, D, Lambda = [abs(random())+1e-8 for _ in range(5)]
 
-        Y_0, Y_1, Y_2 = get_Y(M=M, Lambda=Lambda, h=h, D=D, a=a, c=c,
+        Y_0, Y_1, Y_2 = get_Y(M=M, Lambda=Lambda, h=h, D=D, a=a, c=c, dt=dt,
                 upper_domain=True)
         # constant coefficients case:
         for i in range(M-2):
@@ -135,7 +139,7 @@ def test_get_Y():
             assert abs(Y_0[i+0] - (-2*D/h-a)) < FLOAT_TOL
             assert abs(Y_2[i+1] - (-2*D/h+a)) < FLOAT_TOL
 
-        assert abs(Y_2[0] + Y_1[0] - Lambda) < FLOAT_TOL # Robin
+        assert abs(Y_2[0] + Y_1[0] - Lambda + h/2 * (1/dt + c)) < FLOAT_TOL # Robin
         assert abs(Y_0[-1] + Y_1[-1]) < FLOAT_TOL # Neumann
         Y_1 = Y_1[1:-1]
         Y_0 = Y_0[:-1]
@@ -146,7 +150,7 @@ def test_get_Y():
     for _ in range(1000): # tests of multiple coeffs: \Omega_1
         a, c, h, D, Lambda = [abs(random())+1e-12 for _ in range(5)]
         h = -h
-        Y_0, Y_1, Y_2 = get_Y(M=M, Lambda=Lambda, h=h, D=D, a=a, c=c,
+        Y_0, Y_1, Y_2 = get_Y(M=M, Lambda=Lambda, h=h, D=D, a=a, c=c, dt=dt,
                 upper_domain=False)
         # constant coefficients case:
         for i in range(M-2):
@@ -154,7 +158,7 @@ def test_get_Y():
             assert abs(Y_0[i+0] - (-2*D/h-a)) < FLOAT_TOL
             assert abs(Y_2[i+1] - (-2*D/h+a)) < FLOAT_TOL
 
-        assert abs(Y_2[0] + Y_1[0] - Lambda) < FLOAT_TOL # Robin
+        assert abs(Y_2[0] + Y_1[0] - Lambda + h/2 * (1/dt + c)) < FLOAT_TOL # Robin
         assert abs(Y_0[-1]) < FLOAT_TOL # Dirichlet
         assert abs(Y_1[-1] - 1) < FLOAT_TOL # Dirichlet
         Y_1 = Y_1[1:-1]

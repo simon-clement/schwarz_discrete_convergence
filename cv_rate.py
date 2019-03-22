@@ -56,5 +56,7 @@ def solve_u_time_domain(u1_init, u2_init,
 if __name__ == "__main__":
     import tests.test_linear_sys
     import tests.test_schwarz
+    import tests.test_finite_volumes
     tests.test_linear_sys.launch_all_tests()
     tests.test_schwarz.launch_all_tests()
+    tests.test_finite_volumes.launch_all_tests()

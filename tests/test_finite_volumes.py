@@ -124,9 +124,9 @@ def not_constant_test_schwarz():
                 u_interface=u_interface, phi_interface=phi_interface,
                 upper_domain=False)
         u_inter1, phi_inter1 = old_interface
-        print("error:", (u_interface - real_u_interface))
-        print("convergence_rate:", (u_interface - real_u_interface) / (old_u_interface - real_u_interface))
-        input()
+        #print("error:", (u_interface - real_u_interface))
+        #print("convergence_rate:", (u_interface - real_u_interface) / (old_u_interface - real_u_interface))
+        #input()
 
     assert Lambda_2*u_inter1 + phi_inter1 - Lambda_2*u_interface - phi_interface < 1e-15
     assert abs(u_inter1 - real_u_interface) + abs(phi_inter1 - real_phi_interface) < 1e-13

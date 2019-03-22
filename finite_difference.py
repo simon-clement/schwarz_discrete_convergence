@@ -1,5 +1,6 @@
 import numpy as np
 
+DT_DEFAULT = 1e-4
 H_DEFAULT = 1e-4
 D_DEFAULT = 1.0
 A_DEFAULT = 0.0
@@ -29,7 +30,7 @@ C_DEFAULT = 0.0
 
 """
 def get_Y(M, Lambda, h=H_DEFAULT, D=D_DEFAULT, a=A_DEFAULT,
-                        c=C_DEFAULT, upper_domain=True):
+                        c=C_DEFAULT, dt=DT_DEFAULT, upper_domain=True):
     assert type(a) is float or type(a) is int
     assert type(c) is float or type(c) is int
     if type(h) is int:
@@ -72,7 +73,8 @@ def get_Y(M, Lambda, h=H_DEFAULT, D=D_DEFAULT, a=A_DEFAULT,
 
     Y_1[1:M-1] = c*sum_both_h + 2*(h_mm1*D_mp1_2 + h_m* D_mm1_2) / \
             (h_m*h_mm1)
-    Y_1[0] = Lambda - D[0] / h[0] # Robin bd conditions at interface
+    corrective_term = h[0] / 2 * (.5 / dt - a / h[0] + c / 2)
+    Y_1[0] = Lambda - D[0] / h[0] - corrective_term # Robin bd conditions at interface
     Y_1[M-1] = 1 # Neumann bd conditions for \Omega_2, Dirichlet for \Omega_1
     if upper_domain:
         Y_1[M-1] /= h[-1]
@@ -80,7 +82,8 @@ def get_Y(M, Lambda, h=H_DEFAULT, D=D_DEFAULT, a=A_DEFAULT,
     ######## RIGHT DIAGONAL
     Y_2 = np.empty(M-1)
     Y_2[1:] = -2 * D_mp1_2 / h_m
-    Y_2[0] = D[0] / h[0]
+    corrective_term = h[0] / 2 * (.5 / dt + a / h[0] + c / 2)
+    Y_2[0] = D[0] / h[0] - corrective_term
     Y_2[1:] += a
 
     ######## LEFT DIAGONAL
