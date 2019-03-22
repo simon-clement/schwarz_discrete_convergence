@@ -1,19 +1,143 @@
+"""
+    Simple test module of finite_volumes
+"""
 import numpy as np
-"""
-import matplotlib
-import matplotlib.pyplot as plt
-"""
 from numpy import cos, sin, pi
 from numpy.random import random
 from utils_numeric import solve_linear
 from finite_volumes import get_Y_star, integrate_one_step_star, integrate_one_step
 
 """
+    Test function of the module.
+    If you don't want to print anything, use test_integrate_one_step.
+"""
+def launch_all_tests():
+    print("Test of compact scheme.")
+    print("Test integration with finite volumes:", test_integrate_one_step())
+
+"""
+    Silent test function of the module.
+    Tests the integration functions of finite_volumes module.
+"""
+def test_integrate_one_step():
+    assert "ok" == test_integrate_one_step_simplest()
+    assert "ok" == test_integrate_one_step_with_a_c()
+    assert "ok" == test_integrate_multi_step_with_a_c()
+    assert "ok" == test_integrate_half_domain()
+    assert "ok" == not_constant_test_schwarz()
+    return "ok"
+
+
+"""
+    Tests the function "integrate_one_step" of finite_volumes.
+    h and D are NOT constant, a and c are != 0.
+    Schwarz algorithm is used to converge to the exact solution.
+    If this test pass, then the module should be correct.
+    It would be better to use a more advanced function than a linear one,
+    but at least we have analytical results (no approximations are done in
+    the finite volumes framework)
+"""
+def not_constant_test_schwarz():
+    # Our domain is [0,1]
+    # first function : 
+    # u = -pi(1 - D2/D1) + pi*x         if x>0
+    # u = -pi(1 - D2/D1) + pi*x*D2/D1   if x<0
+
+    dt = 0.01
+    M1, M2 = 14, 10
+    h1, h2 = 1/M1, 1/M2
+    h1 = 1/M1 + np.zeros(M1)
+    h2 = 1/M2 + np.zeros(M2)
+    h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**3)
+    h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**2)
+
+    # Center of the volumes are x, sizes are h
+    x1 = np.cumsum(np.concatenate(([h1[0]/2],(h1[1:] + h1[:-1])/2)))
+    x2 = np.cumsum(np.concatenate(([h2[0]/2],(h2[1:] + h2[:-1])/2)))
+    x1 = np.flipud(x1)
+
+    # coordinates at half-points:
+    x1_1_2 = np.cumsum(np.concatenate(([0],h1)))
+    x2_1_2 = np.cumsum(np.concatenate(([0],h2)))
+    x_1_2 = np.concatenate((np.flipud(x1_1_2[:-1]), x2_1_2))
+
+    x = np.concatenate((x1, x2))
+
+    D1 = 2.2 + x1_1_2 **2
+    D2 = 1.2 + x2_1_2 **2
+    D_prime_mean = np.concatenate((np.diff(np.flipud(D1))/h1, np.diff(D2)/h2))
+    D1_prime = 2*x1_1_2
+    D2_prime = 2*x2_1_2
+    D_prime = 2*x_1_2
+
+    a = 1.3
+    c = 0.3
+
+    u_theoric = -pi*(1-D2[0]/D1[0]) + np.concatenate((pi*x1*D2[0]/D1[0], pi*x2))
+    partial_xu = pi * np.concatenate((np.ones_like(x1) * D2[0]/D1[0],
+        np.ones_like(x2)))
+    neumann = pi
+    dirichlet = -pi
+    # Note: f is an average and not a local approximation !
+    f = c * u_theoric + (a - D_prime_mean)*partial_xu
+    f1 = np.flipud(f[:M1])
+    f2 = f[M1:]
+
+    u0 = np.zeros_like(u_theoric)
+    u_n, u_interface, phi_interface = integrate_one_step_star(M1=M1, \
+            M2=M2, h1=h1, h2=h2, D1=D1,
+            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+
+    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
+            M2=M2, h1=h1, h2=h2, D1=D1,
+            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+            neumann=neumann, dirichlet=dirichlet, u_nm1=u_n)
+
+    u1_n = np.flipud(u_n[:M1])
+    u2_n = u_n[M1:]
+    u1_np1 = np.flipud(u_np1[:M1])
+    u2_np1 = u_np1[M1:]
+
+    # Schwarz:
+    Lambda_1 = 3.0
+    Lambda_2 = 0.3
+
+    # random fixed false initialization:
+    u_interface=3.0
+    phi_interface=16.0
+
+    # Beginning of iterations:
+    for i in range(200):
+        old_u_interface = u_interface
+        u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
+                h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
+                bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_n,
+                u_interface=u_interface, phi_interface=phi_interface,
+                upper_domain=True)
+
+        old_interface = u_interface, phi_interface
+
+        u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
+                h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
+                bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=u1_n,
+                u_interface=u_interface, phi_interface=phi_interface,
+                upper_domain=False)
+        u_inter1, phi_inter1 = old_interface
+        print("error:", (u_interface - real_u_interface))
+        print("convergence_rate:", (u_interface - real_u_interface) / (old_u_interface - real_u_interface))
+        input()
+
+    assert Lambda_2*u_inter1 + phi_inter1 - Lambda_2*u_interface - phi_interface < 1e-15
+    assert abs(u_inter1 - real_u_interface) + abs(phi_inter1 - real_phi_interface) < 1e-13
+    return "ok"
+
+"""
     Tests the function "integrate_one_step" of finite_volumes.
     h and D are constant, a and c are != 0.
-    We don't care about interface here.
-    We compute full solution and compare it to half solutions
-    when the bd condition is exact
+    Schwarz algorithm is used to converge to the exact solution.
+    If this test pass, then the module should be correct,
+    except for the variability of D and h.
 """
 def test_integrate_half_domain():
     # Our domain is [0,1]
@@ -23,7 +147,7 @@ def test_integrate_half_domain():
 
     M1, M2 = 10, 10
     h1, h2 = 1/M1, 1/M2
-    dt = 0.0000001
+    dt = 0.01
     # Center of the volumes are x, sizes are h
     x1 = np.linspace(-1 + h1/2, -h1 / 2, M1)
     x2 = np.linspace(h2/2, 1 - h2 / 2, M2)
@@ -31,8 +155,8 @@ def test_integrate_half_domain():
 
     D1 = 2.2
     D2 = 1.2
-    a = 1.1
-    c = 0.4
+    a = 1.3
+    c = 0.3
 
     u_theoric = -pi*(1-D2/D1) + np.concatenate((pi*x1*D2/D1, pi*x2))
     partial_xu = pi * np.concatenate((np.ones_like(x1) * D2/D1,
@@ -41,114 +165,52 @@ def test_integrate_half_domain():
     dirichlet = -pi
     # Note: f should be an average and not a local approximation
     f = c * u_theoric + a*partial_xu
-    f1 = f[:M1]
-    f1 = f1[::-1]
+    f1 = np.flipud(f[:M1])
     f2 = f[M1:]
 
-    u0 = u_theoric # np.zeros_like(u_theoric)
+    u0 = np.zeros_like(u_theoric)
     u_n, u_interface, phi_interface = integrate_one_step_star(M1=M1, \
             M2=M2, h1=h1, h2=h2, D1=D1,
             D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u0=u0)
+            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
 
     u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
             M2=M2, h1=h1, h2=h2, D1=D1,
             D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u0=u_n)
+            neumann=neumann, dirichlet=dirichlet, u_nm1=u_n)
 
-    real_u_interface, real_phi_interface = u_interface, phi_interface
-    u1_n = u_n[:M1]
+    u1_n = np.flipud(u_n[:M1])
     u2_n = u_n[M1:]
-    u1_np1 = u_np1[:M1]
+    u1_np1 = np.flipud(u_np1[:M1])
     u2_np1 = u_np1[M1:]
 
     # Schwarz:
-    value_interface = 0.0
+    Lambda_1 = 3.0
+    Lambda_2 = 0.3
 
-    Lambda_1 = 0.0
-    Lambda_2 = 1.0
+    # random fixed false initialization:
+    u_interface=3.0
+    phi_interface=16.0
 
-    u1_n = u1_n[::-1]
-    u1_np1 = u1_np1[::-1]
-
-    """
-    # Schwarz:
+    # Beginning of iterations:
     for i in range(200):
-        print("robin condition:", Lambda_1*u_interface + phi_interface)
-        print("interface was (", u_interface, phi_interface,"): ")
         u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
                 h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
-                bd_cond=neumann, Lambda=Lambda_1, u_nm1=u2_n,
+                bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_n,
                 u_interface=u_interface, phi_interface=phi_interface,
                 upper_domain=True)
-        print(u_interface, phi_interface)
-        print("robin condition:", Lambda_1*u_interface + phi_interface)
-        print("robin condition:", Lambda_2*u_interface + phi_interface)
-        u2_plot = np.concatenate(([u_interface],u2_ret))
+
+        old_interface = u_interface, phi_interface
+
         u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
                 h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
-                bd_cond=dirichlet, Lambda=Lambda_2, u_nm1=u1_n,
+                bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=u1_n,
                 u_interface=u_interface, phi_interface=phi_interface,
                 upper_domain=False)
-        print("robin condition:", Lambda_2*u_interface + phi_interface)
-    """
+        u_inter1, phi_inter1 = old_interface
 
-    u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
-            h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
-            bd_cond=neumann, Lambda=Lambda_1, u_nm1=u2_n,
-            u_interface=u_interface, phi_interface=phi_interface,
-            upper_domain=True)
-    u2_plot = np.concatenate(([u_interface],u2_ret))
-    u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
-            h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
-            bd_cond=dirichlet, Lambda=Lambda_2, u_nm1=u1_n,
-            u_interface=u_interface, phi_interface=phi_interface,
-            upper_domain=False)
-
-
-    import matplotlib.pyplot as plt
-    import matplotlib.animation as animation
-    fig, ax = plt.subplots()
-    ax.plot(x, u_np1, "g")
-    u1_plot = np.concatenate(([u_interface], u1_ret))
-
-    x1_plot = np.concatenate(([0],x1[::-1]))
-    x2_plot = np.concatenate(([0], x2))
-    line_1, = ax.plot(x1_plot, u1_plot, "r")
-    line_2, = ax.plot(x2_plot, u2_plot, "b")
-    u_inter = u_interface
-    phi_inter = phi_interface
-    def animate(k):
-        u_interface=u_inter
-        phi_interface=phi_inter
-        for i in range(k):
-            u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
-                    h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
-                    bd_cond=neumann, Lambda=Lambda_1, u_nm1=u2_n,
-                    u_interface=u_interface, phi_interface=phi_interface,
-                    upper_domain=True)
-            u2_plot = np.concatenate(([u_interface],u2_ret))
-            u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
-                    h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
-                    bd_cond=dirichlet, Lambda=Lambda_2, u_nm1=u1_n,
-                    u_interface=u_interface, phi_interface=phi_interface,
-                    upper_domain=False)
-            u1_plot = np.concatenate(([u_interface], u1_ret))
-        line_1.set_ydata(u1_plot)  # update the data
-        line_2.set_ydata(u2_plot)  # update the data
-        return line_1, line_2
-
-    # Init only required for blitting to give a clean slate.
-    def init():
-        line_1.set_ydata(np.ma.array(x1_plot, mask=True))
-        line_2.set_ydata(np.ma.array(x2_plot, mask=True))
-        return line_1, line_2
-
-    ani = animation.FuncAnimation(fig, animate, np.arange(1, 700), init_func=init,
-                                  interval=1, blit=True)
-    plt.show()
-
-
+    assert Lambda_2*u_inter1 + phi_inter1 - Lambda_2*u_interface - phi_interface < 1e-15
+    assert abs(u_inter1 - real_u_interface) + abs(phi_inter1 - real_phi_interface) < 1e-15
     return "ok"
 
 """
@@ -191,7 +253,7 @@ def test_integrate_multi_step_with_a_c():
     for i in range(13):
         u = integrate_one_step_star(M1=M1, M2=M2, h1=h1, h2=h2, D1=D1,
                     D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-                    neumann=neumann, dirichlet=dirichlet, u0=u)[0]
+                    neumann=neumann, dirichlet=dirichlet, u_nm1=u)[0]
 
     u1 = u[:M1]
     u2 = u[M1+1:]
@@ -240,7 +302,7 @@ def test_integrate_one_step_with_a_c():
     u0 = np.zeros_like(u_theoric)
     u = integrate_one_step_star(M1=M1, M2=M2, h1=h1, h2=h2, D1=D1,
                 D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-                neumann=neumann, dirichlet=dirichlet, u0=u0)[0]
+                neumann=neumann, dirichlet=dirichlet, u_nm1=u0)[0]
 
     u1 = u[:M1]
     u2 = u[M1+1:]
@@ -289,7 +351,7 @@ def test_integrate_one_step_simplest():
     u0 = np.zeros_like(x)
     u = integrate_one_step_star(M1=M1, M2=M2, h1=h1, h2=h2, D1=D1,
                 D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-                neumann=neumann, dirichlet=dirichlet, u0=u0)[0]
+                neumann=neumann, dirichlet=dirichlet, u_nm1=u0)[0]
 
     u1 = u[:M1]
     u2 = u[M1+1:]
@@ -299,15 +361,4 @@ def test_integrate_one_step_simplest():
     assert np.linalg.norm(np.diff(u1) - pi*h1*D2/D1) < 1e-6
     assert np.linalg.norm(np.diff(u2) - pi*h2) < 1e-6
     return "ok"
-
-def test_integrate_one_step():
-    assert "ok" == test_integrate_one_step_simplest()
-    assert "ok" == test_integrate_one_step_with_a_c()
-    assert "ok" == test_integrate_multi_step_with_a_c()
-    assert "ok" == test_integrate_half_domain()
-    return "ok"
-
-def launch_all_tests():
-    print("Test of compact scheme.")
-    print("Test integration with finite volumes:", test_integrate_one_step())
 
