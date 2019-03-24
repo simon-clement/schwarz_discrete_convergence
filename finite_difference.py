@@ -1,10 +1,155 @@
+"""
+    Finite differences for diffusion advection reaction equation.
+    The functions to use are integrate_one_step and integrate_one_step_star.
+    Theses function make a single step in time. It is not efficient
+    (need to compute the matrix each time) but it is simple.
+"""
+
 import numpy as np
+from utils_numeric import solve_linear
 
 DT_DEFAULT = 1e-4
 H_DEFAULT = 1e-4
 D_DEFAULT = 1.0
 A_DEFAULT = 0.0
 C_DEFAULT = 0.0
+
+"""
+    Entry point in the module.
+    Provided equation parameters M, h, D, a, c, dt, f;
+    Provided boundary condition bd_cond, phi_interface, u_interface, Lambda;
+    Provided former state of the equation u_nm1;
+    Returns (u_n, u_interface, phi_interface)
+    u_n is the next state vector, {u, phi}_interface are the
+    values of the state vector at interface,
+    necessary to compute Robin conditions.
+
+    If upper_domain is True, the considered domain is Omega_2 (atmosphere)
+    bd_cond is then the Neumann condition of the top of the atmosphere.
+    If upper_domain is False, the considered domain is Omega_1 (ocean)
+    bd_cond is then the Dirichlet condition of the bottom of the ocean.
+    h, D, f and u_nm1 have their first values ([0,1,..]) at the interface
+    and their last values ([..,M-2, M-1]) at
+    the top of the atmosphere (Omega_2) or bottom of the ocean (Omega_1)
+
+    M is int
+    a, c, dt, bd_cond, Lambda, u_interface, phi_interface are float
+    h, D, f can be float or np.ndarray of dimension 1.
+    if h is a ndarray: its size must be M
+    if f is a ndarray: its size must be M
+    if D is a ndarray: its size must be M+1
+    u_nm1 must be a np.ndarray of dimension 1 and size M
+
+"""
+def integrate_one_step(M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
+        u_interface, phi_interface, upper_domain=True):
+    a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
+            float(c), float(dt), float(bd_cond), float(Lambda), \
+            float(u_interface), float(phi_interface)
+
+    # Broadcasting / verification of type:
+    D = np.zeros(M-1) + D
+    h = np.zeros(M-1) + h
+    f = np.zeros(M) + f
+
+    assert type(u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M
+    assert upper_domain is True or upper_domain is False
+
+    #TODO include integration in time in Y, so that
+    # it can be uniformized with finite_volumes.get_Y ?
+    Y = get_Y(M=M, h=h, D=D, a=a, c=c, dt=dt,
+            Lambda=Lambda, upper_domain=upper_domain)
+    Y[1][1:-1] += np.ones(M-2) / dt
+
+    #TODO right hand side of the right shape
+    rhs = f[1:-1] * (h[1:] + h[:-1]) + u_nm1[1:-1] / dt
+
+    cond_robin = Lambda * u_interface + phi_interface \
+            - h[0] / 2 * ((f[0] + f[1]) / 2 + \
+                          (u_nm1[0] + u_nm1[1]) / (2*dt))
+
+    rhs = np.concatenate(([cond_robin], rhs, [bd_cond]))
+
+    u_n = solve_linear(Y, rhs)
+    u_s = u_n[1] + u_n[0]
+    u_sm1 = u_nm1[1] + u_nm1[0]
+    old_robin_cond = Lambda * u_interface + phi_interface
+
+    u_interface = u_n[0]
+    # Finite difference approx with the corrective term:
+    phi_interface = D[0]/h[0] * (u_n[1] - u_n[0]) \
+        - h[0] / 2 * (.5*(u_s-u_sm1)/dt + a*(u_n[1] - u_n[0])/h[0] \
+                      + c * u_s/2 -(f[1] + f[0])/2)
+
+    assert u_n.shape[0] == M
+    return u_n, u_interface, phi_interface
+
+"""
+    See integrate_one_step. This function integrates in time
+    the full system: should work better if D1[0] == D2[0].
+    h1 should be negative, and h1[0] is the interface.
+"""
+def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
+        neumann, dirichlet, u_nm1):
+    a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
+            float(neumann), float(dirichlet)
+    # Theses assertions cannot be used because of the unit tests:
+    # for arg, name in zip((a, c, neumann, dirichlet), 
+    #         ("a", "c", "neumann", "dirichlet")):
+    #     assert arg >= 0, name + " should be positive !"
+    assert dt > 0, "dt should be strictly positive"
+
+    assert type(M2) is int and type(M1) is int
+    assert M2 > 0 and M1 > 0
+    if type(D1) is int:
+        print("Warning: type of diffusivity is int. casting to float...")
+        D1 = float(D1)
+    if type(D2) is int:
+        print("Warning: type of diffusivity is int. casting to float...")
+        D2 = float(D2)
+    for arg, name in zip((h2, D1, D2), ("h1", "h2", "D1", "D2")):
+        assert type(arg) is float or \
+                type(arg) is np.float64 or \
+                type(arg) is np.ndarray and \
+                arg.ndim == 1, name
+        assert (np.array(arg) > 0).all(), name + " is negative or 0 !"
+
+    assert (np.array(h1) < 0).all(), "h1 is positive or 0 ! should be <0."
+
+    #Broadcasting / verification of types:
+    D1 = np.zeros(M1-1) + D1
+    D2 = np.zeros(M2-1) + D2
+    h1 = np.zeros(M1-1) + h1
+    h2 = np.zeros(M2-1) + h2
+    f1 = np.zeros(M1) + f1
+    f2 = np.zeros(M2) + f2
+    # Flipping arrays to have [0] at low altitudes rather than interface
+    h1f, f1f, D1f = np.flipud(h1), np.flipud(f1), np.flipud(D1)
+    h1f = -h1f # return to positive h1
+
+    D = np.concatenate((D1f, D2))
+    h = np.concatenate((h1f, h2))
+    f = np.concatenate((f1f[:-1], f2))
+    M = M1 + M2 - 1
+    f[1:-1] *= h[1:] + h[:-1]
+
+    Y = get_Y_star(M_star=M, h_star=h, D_star=D, a=a, c=c)
+
+
+    rhs = np.concatenate(([dirichlet], f[1:-1] + u_nm1[1:-1] / dt, [neumann]))
+
+    Y[1][1:-1] += np.ones(M-2) / dt
+
+    u_n = solve_linear(Y, rhs)
+
+    u1_n = np.flipud(u_n[:M1])
+    u2_n = u_n[M1-1:]
+
+    assert u2_n.shape[0] == M2
+
+    phi_interface = (D1[0] + D2[0]) * (u2_n[1] - u1_n[1]) / (h2[0]-h1[0])
+
+    return u_n, u1_n[0], phi_interface
 
 """
     Returns the tridiagonal matrix Y in the shape asked by solve_linear.
@@ -26,6 +171,10 @@ C_DEFAULT = 0.0
     If upper_domain is True, returns Y2; otherwise returns Y1
     (The upper domain is \Omega_2)
 
+    It is assumed that we use an implicit Euler discretisation in time.
+    However, contrary to finite_volumes.get_Y the time discretisation
+    is not contained in the returned matrix.
+    (The assumption is for the corrective term)
     /!\ WARNING : DUPLICATE CODE between get_Y_star and get_Y (for lisibility)
 
 """
@@ -147,7 +296,7 @@ def get_Y_star(M_star, h_star=H_DEFAULT, D_star=D_DEFAULT,
     for arg in (h, D):
         assert type(arg) is float or \
                 type(arg) is np.ndarray and \
-                arg.ndim == 1 and arg.shape[0] == M-1
+                arg.ndim == 1
     if (np.array(h) < 0).any():
         print("Warning : h should never be negative")
     if (np.array(D) < 0).any():
@@ -186,3 +335,5 @@ def get_Y_star(M_star, h_star=H_DEFAULT, D_star=D_DEFAULT,
     Y_0[-1] = -1/h[-1] # Neumann bd conditions on top
 
     return (Y_0, Y_1, Y_2)
+
+

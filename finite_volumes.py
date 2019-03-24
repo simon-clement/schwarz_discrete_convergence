@@ -5,7 +5,6 @@
     (need to compute the matrix each time) but it is simple.
 """
 import numpy as np
-from tests import test_finite_volumes
 from utils_numeric import solve_linear
 
 
@@ -24,7 +23,7 @@ from utils_numeric import solve_linear
     If upper_domain is False, the considered domain is Omega_1 (ocean)
     bd_cond is then the Dirichlet condition of the bottom of the ocean.
     h, D, f and u_nm1 have their first values ([0,1,..]) at the interface
-    and their last values ([..,M-2, M-1]) at 
+    and their last values ([..,M-2, M-1]) at
     the top of the atmosphere (Omega_2) or bottom of the ocean (Omega_1)
 
     M is int
@@ -374,5 +373,6 @@ def get_Y_star(M1, M2, h1, h2, D1, D2, a, c, dt):
 
 
 if __name__ == "__main__":
+    from tests import test_finite_volumes
     test_finite_volumes.launch_all_tests()
 

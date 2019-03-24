@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import cos, sin
 from numpy.random import random
-from cv_rate import solve_u_time_domain
+from solve_full_domain import solve_u_time_domain
 from utils_numeric import integration
 from utils_linalg import solve_linear
 from finite_difference import get_Y, get_Y_star
@@ -169,7 +169,7 @@ def test_schwarz():
     a = 1.2
     c = 0.3
     d = 1.2
-    dt=1000.0
+    dt= 1000.0
     #TODO ajouter terme correctif
 
     Lambda1 = 1.0
@@ -199,7 +199,7 @@ def test_schwarz():
     function_f1 = lambda x : d*d*D1(x)*sin(d*x) - d*D1_prime(x)*cos(d*x) \
         + d*a*cos(d*x) + c*sin(d*x)
 
-    Y1 = get_Y(M=M, Lambda=Lambda1, h=h1, D=D1_send,
+    Y1 = get_Y(M=M, Lambda=Lambda1, h=h1, D=D1_send, dt=dt,
                a=a, c=c, upper_domain=False)
 
     f1 = np.zeros(M)
@@ -221,17 +221,35 @@ def test_schwarz():
 
     f1[0] = f2[0] = -3
     #TODO ajuster terme correctif
+    ur2 = sin(d*x2) # ureal 2
+    ur1 = sin(d*x1) # ureal 1
+    """
+    print("real flux:", D1_send[0]*d) # note: it's not even real, D[0] is D(1/2)
+    print("approximated by:", D1_send[0] * (ur1[1] - ur1[0]) / h1[0])
+    print("or by:", D1_send[0] * (ur1[1] - ur1[0]) / h1[0] \
+            - h1[0] / 2 * ((ur1[0] + ur1[1])/(2*dt) + a*(ur1[1] - ur1[0]) / h1[0] \
+                           + c * (ur1[0] + ur1[1])/2 - function_f1(x1[1]/2)))
+    print("or by:", D2_send[0] * (ur2[1] - ur2[0]) / h2[0] \
+            - h2[0] / 2 * ((ur2[0] + ur2[1])/(2*dt) + a*(ur2[1] - ur2[0]) / h2[0] \
+                           + c * (ur2[0] + ur2[1])/2 - function_f2(x2[1]/2)) )
+    """
 
     for i in range(1, 100):
         u1 = solve_linear(Y1, f1)
 
-        f2[0] = D1_send[0] * (u1[1] - u1[0]) / h1[0] + Lambda2 * u1[0]
+        f2[0] = D1_send[0] * (u1[1] - u1[0]) / h1[0] + Lambda2 * u1[0] \
+            - h1[0] / 2 * ((u1[0] + u1[1])/(2*dt) + a*(u1[1] - u1[0]) / h1[0] \
+                           + c * (u1[0] + u1[1])/2 - function_f1(x1[1]/2)) \
+            - h2[0] / 2 * function_f2(x2[1]/2)
         u2 = solve_linear(Y2, f2)
 
-        f1[0] = D2_send[0] * (u2[1] - u2[0]) / h2[0] + Lambda1 * u2[0]
+        f1[0] = D2_send[0] * (u2[1] - u2[0]) / h2[0] + Lambda1 * u2[0] \
+            - h2[0] / 2 * ((u2[0] + u2[1])/(2*dt) + a*(u2[1] - u2[0]) / h2[0] \
+                           + c * (u2[0] + u2[1])/2 - function_f2(x2[1]/2)) \
+            - h1[0] / 2 * function_f1(x1[1]/2)
 
-    # we tolerate 0.1% additional error (before it was 5%)
-    tol_err = 1.001 * max(initial_error1, initial_error2)
+    # we tolerate 1% additional error (before it was 5%)
+    tol_err = 1.01 * max(initial_error1, initial_error2)
     assert np.linalg.norm(sin(d*x1) - solve_linear(Y1, f1)) < tol_err
     assert np.linalg.norm(sin(d*x2) - solve_linear(Y2, f2)) < tol_err
 
