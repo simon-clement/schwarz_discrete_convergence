@@ -131,6 +131,7 @@ def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
     #         ("a", "c", "neumann", "dirichlet")):
     #     assert arg >= 0, name + " should be positive !"
     assert dt > 0, "dt should be strictly positive"
+    assert type(u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M1+M2
 
     assert type(M2) is int and type(M1) is int
     assert M2 > 0 and M1 > 0

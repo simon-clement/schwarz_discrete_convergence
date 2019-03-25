@@ -3,6 +3,15 @@ from numpy import pi
 import finite_difference
 import finite_volumes
 
+def beauty_graph():
+    import matplotlib.pyplot as plt
+    x = np.linspace(-100, 800, 1000)
+    plt.semilogy(x, [rate_finite_differences(i) for i in x])
+    plt.xlabel("$\\Lambda^1$")
+    plt.ylabel("$\\rho$")
+    plt.title("Différences finies\n $D^1 = 2.2, D^2 = 2.2, a=1.3, c=0.3$, \n $h=0.01, \\Omega = [-1,1], dt=0.01$, u lineaire")
+    plt.show()
+
 """
     Tests the function "integrate_one_step" of finite_volumes.
     h and D are constant, a and c are != 0.
@@ -41,6 +50,12 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0):
 
     u_n = np.zeros_like(f)
 
+    u0 = np.zeros_like(u_theoric)
+    u_n_real, u_interface_real, phi_interface_real = finite_volumes.integrate_one_step_star(M1=M1, \
+            M2=M2, h1=h1, h2=h2, D1=D1,
+            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+
     u1_n = np.flipud(u_n[:M1])
     u2_n = u_n[M1:]
 
@@ -50,7 +65,7 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0):
 
     ecart = []
 
-    for i in range(4):
+    for i in range(11):
         km1_interface = u_interface
         phikm1_interface = phi_interface
         u2_ret, u_interface, phi_interface = finite_volumes.integrate_one_step(M=M2,
@@ -66,9 +81,9 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0):
                 u_interface=u_interface, phi_interface=phi_interface,
                 upper_domain=False)
 
-        ecart += [abs(u_interface)] # on considère la solution=0?
+        ecart += [abs(u_interface - u_interface_real)]
 
-    return ecart[1] / ecart[0]
+    return (ecart[6] / ecart[2])**.25
 
 
 """
@@ -78,7 +93,7 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0):
     If this test pass, then the module should be correct,
     except for the variability of D and h.
 """
-def rate_finite_differences(Lambda_2, Lambda_1=1.0):
+def rate_finite_differences(Lambda_1, Lambda_2=0.0):
     # Our domain is [0,1]
     # first function : 
     # u = -pi(1 - D2/D1) + pi*x         if x>0
@@ -124,7 +139,7 @@ def rate_finite_differences(Lambda_2, Lambda_1=1.0):
     # de convergence O:)
     ecart = []
 
-    for i in range(4):
+    for i in range(7):
         km1_interface = u_interface
         phikm1_interface = phi_interface
         u2_ret, u_interface, phi_interface = finite_difference.integrate_one_step(M=M2,
@@ -140,7 +155,7 @@ def rate_finite_differences(Lambda_2, Lambda_1=1.0):
                 upper_domain=False)
         ecart += [abs(u_interface)]
 
-    return ecart[1] / ecart[0]
+    return (ecart[6] / ecart[2]) **.25
 
 
 
@@ -244,9 +259,7 @@ if __name__ == "__main__":
             tests.test_schwarz.launch_all_tests()
             tests.test_finite_volumes.launch_all_tests()
         elif sys.argv[1] == "graph":
-            print("This wasn't implemented yet.")
-            print("finite differences:", rate_finite_differences(-842., 1.))
-            print("finite volumes:", rate_finite_volumes(3.0, 0.3))
+            beauty_graph()
         elif sys.argv[1] == "optimize":
             from scipy.optimize import minimize_scalar
             print("rate finite volumes:", minimize_scalar(rate_finite_volumes))
