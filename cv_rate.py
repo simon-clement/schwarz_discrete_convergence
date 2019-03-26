@@ -22,6 +22,8 @@ def main():
             from scipy.optimize import minimize_scalar
             print("rate finite volumes:", minimize_scalar(rate_finite_volumes))
             print("rate finite differences:", minimize_scalar(rate_finite_differences))
+        elif  sys.argv[1] == "debug":
+            rate_finite_volumes(15.)
 
 def beauty_graph():
     import matplotlib.pyplot as plt
@@ -43,17 +45,18 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0.0):
 
     a = 1.2
     c = 0.3
+    time_window_len = 100
 
     T = 5.
     d = 8.
     t = 3.
     dt = 0.05
-    M1, M2 = 100, 100
+    M1, M2 = 1000, 1000
     h1, h2 = 1/M1, 1/M2
     h1 = 1/M1 + np.zeros(M1)
     h2 = 1/M2 + np.zeros(M2)
     h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**2)
-    h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**3)
+    h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**2)
     h = np.concatenate((h1[::-1], h2))
 
     # Center of the volumes are x, sizes are h
@@ -98,15 +101,25 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0.0):
     u0 = np.concatenate((np.diff(-cos(-d*x1_1_2[::-1])/d - T*t_n*x1_1_2[::-1]),
         np.diff(-ratio_D*cos(d*x2_1_2)/d + T*t_n*x2_1_2))) / h
 
-    u1 = np.concatenate((np.diff(-cos(-d*x1_1_2[::-1])/d - T*t*x1_1_2[::-1]),
-        np.diff(-ratio_D*cos(d*x2_1_2)/d + T*t*x2_1_2))) / h
+    all_ui = [u0]
+    all_ui_interface = [u0[M1]]
 
-    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+    for i in range(time_window_len):
+        ui = np.concatenate((np.diff(-cos(-d*x1_1_2[::-1])/d - T*t*x1_1_2[::-1]),
+            np.diff(-ratio_D*cos(d*x2_1_2)/d + T*t*x2_1_2))) / h
+        t += dt
 
-    assert np.linalg.norm(u1-u_np1) < 9*1e-3
+        u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
+                M2=M2, h1=h1, h2=h2, D1=D1,
+                D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                neumann=neumann, dirichlet=dirichlet, u_nm1=all_ui[-1])
+
+        all_ui += [u_np1]
+        all_ui_interface += [real_u_interface]
+
+        print(i, np.linalg.norm(ui-u_np1) )
+        assert np.linalg.norm(ui-u_np1) < 9*1e-3
+    #TODO
 
     # random fixed false initialization:
     u_interface=0.0
@@ -117,21 +130,30 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0.0):
 
     ecart = []
     # Beginning of iterations:
-    for i in range(2):
-        u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
-                h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
-                bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_0,
-                u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=True)
+    for _ in range(2):
+
+        all_u1 = [u1_0]
+        all_u2 = [u2_0]
+        all_u_interface = [u_interface]
+        for i in range(time_window_len):
+
+            u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
+                    h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
+                    bd_cond=neumann, Lambda=Lambda_2, u_nm1=all_u2[-1],
+                    u_interface=u_interface, phi_interface=phi_interface,
+                    upper_domain=True)
 
 
-        u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
-                h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
-                bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=u1_0,
-                u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=False)
+            u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
+                    h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
+                    bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=all_u1[-1],
+                    u_interface=u_interface, phi_interface=phi_interface,
+                    upper_domain=False)
+            all_u2 += [u2_ret]
+            all_u1 += [u1_ret]
+            all_u_interface += [u_interface]
 
-        ecart += [abs(u_interface - real_u_interface)]
+        ecart += [max([u - real for u, real in zip(all_u_interface, all_ui_interface)])]
 
     return ecart[1] / ecart[0]
 
