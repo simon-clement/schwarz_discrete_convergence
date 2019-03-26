@@ -1,251 +1,9 @@
 import numpy as np
-from numpy import pi
+from numpy import pi, cos, sin
 import finite_difference
 import finite_volumes
 
-def beauty_graph():
-    import matplotlib.pyplot as plt
-    x = np.linspace(-100, 800, 1000)
-    plt.semilogy(x, [rate_finite_differences(i) for i in x])
-    plt.xlabel("$\\Lambda^1$")
-    plt.ylabel("$\\rho$")
-    plt.title("Différences finies\n $D^1 = 2.2, D^2 = 2.2, a=1.3, c=0.3$, \n $h=0.01, \\Omega = [-1,1], dt=0.01$, u lineaire")
-    plt.show()
-
-"""
-    Tests the function "integrate_one_step" of finite_volumes.
-    h and D are constant, a and c are != 0.
-    Schwarz algorithm is used to converge to the exact solution.
-    If this test pass, then the module should be correct,
-    except for the variability of D and h.
-"""
-def rate_finite_volumes(Lambda_1, Lambda_2=0):
-    # Our domain is [0,1]
-    # first function : 
-    # u = -pi(1 - D2/D1) + pi*x         if x>0
-    # u = -pi(1 - D2/D1) + pi*x*D2/D1   if x<0
-
-    M1, M2 = 100, 100
-    h1, h2 = 1/M1, 1/M2
-    dt = 0.01
-    # Center of the volumes are x, sizes are h
-    x1 = np.linspace(-1 + h1/2, -h1 / 2, M1)
-    x2 = np.linspace(h2/2, 1 - h2 / 2, M2)
-    x = np.concatenate((x1, x2))
-
-    D1 = 2.2
-    D2 = 1.2
-    a = 1.3
-    c = 0.3
-
-    u_theoric = -pi*(1-D2/D1) + np.concatenate((pi*x1*D2/D1, pi*x2))
-    partial_xu = pi * np.concatenate((np.ones_like(x1) * D2/D1,
-        np.ones_like(x2)))
-    neumann = pi
-    dirichlet = -pi
-    # Note: f should be an average and not a local approximation
-    f = c * u_theoric + a*partial_xu
-    f1 = np.flipud(f[:M1])
-    f2 = f[M1:]
-
-    u_n = np.zeros_like(f)
-
-    u0 = np.zeros_like(u_theoric)
-    u_n_real, u_interface_real, phi_interface_real = finite_volumes.integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
-
-    u1_n = np.flipud(u_n[:M1])
-    u2_n = u_n[M1:]
-
-    # random fixed false initialization:
-    u_interface=3.0
-    phi_interface=16.0
-
-    ecart = []
-
-    for i in range(11):
-        km1_interface = u_interface
-        phikm1_interface = phi_interface
-        u2_ret, u_interface, phi_interface = finite_volumes.integrate_one_step(M=M2,
-                h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
-                bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_n,
-                u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=True)
-
-
-        u1_ret, u_interface, phi_interface = finite_volumes.integrate_one_step(M=M1,
-                h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
-                bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=u1_n,
-                u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=False)
-
-        ecart += [abs(u_interface - u_interface_real)]
-
-    return (ecart[6] / ecart[2])**.25
-
-
-"""
-    Tests the function "integrate_one_step" of finite_difference.
-    h and D are constant and equal on domains, a and c are != 0.
-    Schwarz algorithm is used to converge to the exact solution.
-    If this test pass, then the module should be correct,
-    except for the variability of D and h.
-"""
-def rate_finite_differences(Lambda_1, Lambda_2=0.0):
-    # Our domain is [0,1]
-    # first function : 
-    # u = -pi(1 - D2/D1) + pi*x         if x>0
-    # u = -pi(1 - D2/D1) + pi*x*D2/D1   if x<0
-
-    M1, M2 = 100, 100
-    dt = 0.01
-    # Center of the volumes are x, sizes are h
-    x1 = np.linspace(-1 , 0, M1)
-    x2 = np.linspace(0, 1, M2)
-    h1 = np.diff(x1)
-    h2 = np.diff(x2)
-    x = np.concatenate((x1, x2))
-
-    D1 = 2.2
-    D2 = 2.2
-    a = 1.3
-    c = 0.3
-
-    u_theoric = -pi*(1-D2/D1) + np.concatenate((pi*x1*D2/D1, pi*x2))
-    partial_xu = pi * np.concatenate((np.ones_like(x1) * D2/D1,
-        np.ones_like(x2)))
-    neumann = pi
-    dirichlet = -pi
-    # Note: f should be an average and not a local approximation
-    f = c * u_theoric + a*partial_xu
-    f1 = np.flipud(f[:M1])
-    f2 = f[M1:]
-
-    u_n = np.zeros_like(f)
-
-    u1_n = np.flipud(u_n[:M1])
-    u2_n = u_n[M1:]
-
-    # random fixed false initialization:
-    u_interface=-3.0
-    phi_interface=16.0
-
-    u_inter1 = u_interface
-    phi_inter1 = phi_interface
-    # Beginning of iterations:
-    # TODO faire converger l'algo xD à la fin, trouver le taux
-    # de convergence O:)
-    ecart = []
-
-    for i in range(7):
-        km1_interface = u_interface
-        phikm1_interface = phi_interface
-        u2_ret, u_interface, phi_interface = finite_difference.integrate_one_step(M=M2,
-                h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
-                bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_n,
-                u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=True)
-
-        u1_ret, u_interface, phi_interface = finite_difference.integrate_one_step(M=M1,
-                h=-h1, D=D1, a=a, c=c, dt=dt, f=f1,
-                bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=u1_n,
-                u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=False)
-        ecart += [abs(u_interface)]
-
-    return (ecart[6] / ecart[2]) **.25
-
-
-
-
-"""
-    Tests the function "integrate_one_step" of finite_difference.
-    h and D are constant and equal on domains, a and c are != 0.
-    Schwarz algorithm is used to converge to the exact solution.
-    If this test pass, then the module should be correct,
-    except for the variability of D and h.
-    TODO : make it work
-"""
-def test_convergence_to_star():
-    # Our domain is [0,1]
-    # first function : 
-    # u = -pi(1 - D2/D1) + pi*x         if x>0
-    # u = -pi(1 - D2/D1) + pi*x*D2/D1   if x<0
-
-    M1, M2 = 101, 101
-    dt = 0.01
-    # Center of the volumes are x, sizes are h
-    x1 = np.linspace(-1 , 0, M1)
-    x2 = np.linspace(0, 1, M2)
-    h1 = np.diff(x1)
-    h2 = np.diff(x2)
-    x = np.concatenate((x1, x2))
-
-    D1 = 0.2
-    D2 = 1.1
-    a = 1.0
-    c = 0.3
-
-    u_theoric = -pi*(1-D2/D1) + np.concatenate((pi*x1*D2/D1, pi*x2))
-    partial_xu = pi * np.concatenate((np.ones_like(x1) * D2/D1,
-        np.ones_like(x2)))
-    neumann = pi
-    dirichlet = -pi
-    # Note: f should be an average and not a local approximation
-    f = c * u_theoric + a*partial_xu
-    f1 = np.flipud(f[:M1])
-    f2 = f[M1:]
-
-    u_n = np.zeros_like(u_theoric)
-
-    u1_n = np.flipud(u_n[:M1])
-    u2_n = u_n[M1:]
-
-    u_n_star = np.concatenate((np.flipud(u1_n[1:]), u2_n))
-    u_star, u_real_interface, phi_real_interface = finite_difference.integrate_one_step_star(M1=M1,
-                                                                                                           M2=M2, h1=-h1, h2=h2,
-                                     D1=D1, D2=D2, a=a, c=c, dt=dt,
-                                     f1=f1, f2=f2,
-                                     neumann=neumann, dirichlet=dirichlet,
-                                     u_nm1=u_n_star)
-    # Schwarz:
-    Lambda_1 = 1.0
-    Lambda_2 = 2.1071897
-
-    # random fixed false initialization:
-    u_interface=-3.0
-    phi_interface=16.0
-
-    u_inter1 = u_interface
-    phi_inter1 = phi_interface
-    # Beginning of iterations:
-    # TODO faire converger l'algo xD à la fin, trouver le taux
-    # de convergence O:)
-    ecart = []
-
-    for i in range(40):
-        km1_interface = u_interface
-        phikm1_interface = phi_interface
-        u2_ret, u_interface, phi_interface = finite_difference.integrate_one_step(M=M2,
-                h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
-                bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_n,
-                u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=True)
-
-        u1_ret, u_interface, phi_interface = finite_difference.integrate_one_step(M=M1,
-                h=-h1, D=D1, a=a, c=c, dt=dt, f=f1,
-                bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=u1_n,
-                u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=False)
-        ecart += [abs(u_interface - u_real_interface)]
-
-    print(ecart)
-    return ecart[1] / ecart[0]
-
-
-if __name__ == "__main__":
+def main():
     import sys
     if len(sys.argv) == 1:
         print("to launch tests, use \"python3 cv_rate.py test\"")
@@ -265,5 +23,209 @@ if __name__ == "__main__":
             print("rate finite volumes:", minimize_scalar(rate_finite_volumes))
             print("rate finite differences:", minimize_scalar(rate_finite_differences))
 
-        elif sys.argv[1] == "debug":
-            test_convergence_to_star()
+def beauty_graph():
+    import matplotlib.pyplot as plt
+    x = np.linspace(-20, 20, 10000)
+    plt.semilogy(x, [rate_finite_volumes(i) for i in x], "r")
+    plt.semilogy(x, [rate_finite_differences(i) for i in x], "g")
+    plt.xlabel("$\\Lambda^1$")
+    plt.ylabel("$\\rho$")
+    plt.title("Différences finies\n $D^1 = 2.2, D^2 = 2.2, a=1.3, c=0.3$, \n $h=0.01, \\Omega = [-1,1], dt=0.01$, u lineaire")
+    plt.show()
+
+
+def rate_finite_volumes(Lambda_1, Lambda_2=0.0):
+    # Our domain is [-1,1]
+    # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
+    # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
+    integrate_one_step_star = finite_volumes.integrate_one_step_star
+    integrate_one_step = finite_volumes.integrate_one_step
+
+    a = 1.2
+    c = 0.3
+
+    T = 5.
+    d = 8.
+    t = 3.
+    dt = 0.05
+    M1, M2 = 100, 100
+    h1, h2 = 1/M1, 1/M2
+    h1 = 1/M1 + np.zeros(M1)
+    h2 = 1/M2 + np.zeros(M2)
+    h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**2)
+    h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**3)
+    h = np.concatenate((h1[::-1], h2))
+
+    # Center of the volumes are x, sizes are h
+    x1 = np.cumsum(np.concatenate(([h1[0]/2],(h1[1:] + h1[:-1])/2)))
+    x2 = np.cumsum(np.concatenate(([h2[0]/2],(h2[1:] + h2[:-1])/2)))
+    x1 = np.flipud(x1)
+
+    # coordinates at half-points:
+    x1_1_2 = np.cumsum(np.concatenate(([0],h1)))
+    x2_1_2 = np.cumsum(np.concatenate(([0],h2)))
+    x_1_2 = np.concatenate((np.flipud(x1_1_2[:-1]), x2_1_2))
+
+    x = np.concatenate((-x1, x2))
+
+    D1 = 1.2 + x1_1_2 **2
+    D2 = 2.2 + x2_1_2 **2
+
+    ratio_D = D1[0] / D2[0]
+
+    t_n, t = t, t + dt
+    neumann = ratio_D * d*cos(d*1)
+    dirichlet = sin(-d) + T*t
+
+    # Note: f is an average and not a local approximation !
+    f2 = T * (x2_1_2[1:] - x2_1_2[:-1]) \
+            + ratio_D*a*(sin(d*x2_1_2[1:]) - sin(d*x2_1_2[:-1])) \
+            + c*(-ratio_D/d*(cos(d*x2_1_2[1:]) - cos(d*x2_1_2[:-1])) \
+                            + T*t*(x2_1_2[1:] - x2_1_2[:-1])) \
+            - d*ratio_D*(D2[1:]*cos(d*x2_1_2[1:]) - D2[:-1]*cos(d*x2_1_2[:-1]))
+    f2 /= h2
+
+    # {inf, sup} bounds of the interval ([x-h/2, x+h/2]):
+    x1_sup = -x1_1_2[:-1]
+    x1_inf = -x1_1_2[1:]
+
+    f1 = T * (x1_sup - x1_inf) + a*(sin(d*x1_sup) - sin(d*x1_inf)) \
+            + c*(-cos(d*x1_sup)/d + cos(d*x1_inf)/d + T*t*(x1_sup - x1_inf)) \
+            - d*(D1[:-1]*cos(d*x1_sup) - D1[1:]*cos(d*x1_inf))
+
+    f1 /= h1
+
+    u0 = np.concatenate((np.diff(-cos(-d*x1_1_2[::-1])/d - T*t_n*x1_1_2[::-1]),
+        np.diff(-ratio_D*cos(d*x2_1_2)/d + T*t_n*x2_1_2))) / h
+
+    u1 = np.concatenate((np.diff(-cos(-d*x1_1_2[::-1])/d - T*t*x1_1_2[::-1]),
+        np.diff(-ratio_D*cos(d*x2_1_2)/d + T*t*x2_1_2))) / h
+
+    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
+            M2=M2, h1=h1, h2=h2, D1=D1,
+            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+
+    assert np.linalg.norm(u1-u_np1) < 9*1e-3
+
+    # random fixed false initialization:
+    u_interface=0.0
+    phi_interface= d * D2[0]
+
+    u1_0 = np.flipud(u0[:M1])
+    u2_0 = u0[M1:]
+
+    ecart = []
+    # Beginning of iterations:
+    for i in range(2):
+        u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
+                h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
+                bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_0,
+                u_interface=u_interface, phi_interface=phi_interface,
+                upper_domain=True)
+
+
+        u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
+                h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
+                bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=u1_0,
+                u_interface=u_interface, phi_interface=phi_interface,
+                upper_domain=False)
+
+        ecart += [abs(u_interface - real_u_interface)]
+
+    return ecart[1] / ecart[0]
+
+
+def rate_finite_differences(Lambda_1, Lambda_2=0.0):
+    # Our domain is [-1,1]
+    # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
+    # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
+    integrate_one_step_star = finite_difference.integrate_one_step_star
+    integrate_one_step = finite_difference.integrate_one_step
+    a = 1.
+    c = 0.3
+
+    T = 5.
+    d = 8.
+    t = 3.
+    dt = 0.05
+    M1, M2 = 10, 10
+
+    x1 = -np.linspace(0,1,M1)**3
+    x2 = np.linspace(0,1,M2)**4
+
+    h1 = np.diff(x1)
+    h2 = np.diff(x2)
+
+    h = np.concatenate((-h1[::-1], h2))
+
+    # coordinates at half-points:
+    x1_1_2 = x1[:-1] + h1 / 2
+    x2_1_2 = x2[:-1] + h2 / 2
+    x_1_2 = np.concatenate((np.flipud(x1_1_2), x2_1_2))
+
+    x = np.concatenate((np.flipud(x1[:-1]), x2))
+
+    D1 = 1.2 + x1_1_2 **2
+    D2 = 2.2 + x2_1_2 **2
+
+    D1_x = 1.2 + x1**2
+    D2_x = 2.2 + x2**2
+    D1_prime = 2*x1
+    D2_prime = 2*x2
+
+    ratio_D = D1_x[0] / D2_x[0]
+
+    t_n, t = t, t + dt
+    neumann = ratio_D * d*cos(d*x2_1_2[-1])
+    dirichlet = sin(d*x1[-1]) + T*t
+
+    # Note: f is a local approximation !
+    f2 = T*(1+c*t) + ratio_D * (d*a*cos(d*x2) + c*sin(d*x2) \
+            + D2_x * d*d *sin(d*x2) - D2_prime * d * cos(d*x2))
+
+    f1 = T*(1+c*t) + d*a*cos(d*x1) + c*sin(d*x1) \
+            + D1_x * d*d *sin(d*x1) - D1_prime * d * cos(d*x1)
+
+    u0 = np.concatenate((sin(d*x1[-1:0:-1]) + T*t_n, ratio_D * sin(d*x2) + T*t_n))
+    u1 = np.concatenate((sin(d*x1[-1:0:-1]) + T*t, ratio_D * sin(d*x2) + T*t))
+
+    D1 = np.concatenate(([D1_x[0]], D1[:-1]))
+    D2 = np.concatenate(([D2_x[0]], D2[:-1]))
+
+    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
+            M2=M2, h1=h1, h2=h2, D1=D1,
+            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+
+    u1_0 = np.flipud(u0[:M1])
+    u2_0 = u0[M1-1:]
+    u1_1 = np.flipud(u_np1[:M1])
+    u2_1 = u_np1[M1-1:]
+
+
+    # random fixed false initialization:
+    u_interface=real_u_interface
+    phi_interface= real_phi_interface
+
+    ecart = []
+    # Beginning of iterations:
+    for i in range(6):
+        u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
+                h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
+                bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_0,
+                u_interface=u_interface, phi_interface=phi_interface,
+                upper_domain=True, i=i)
+
+        u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
+                h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
+                bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=u1_0,
+                u_interface=u_interface, phi_interface=phi_interface,
+                upper_domain=False)
+        ecart += [abs(u_interface - real_u_interface)]
+
+    return (ecart[1] / ecart[0])
+
+
+if __name__ == "__main__":
+    main()

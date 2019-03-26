@@ -42,7 +42,7 @@ C_DEFAULT = 0.0
 
 """
 def integrate_one_step(M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
-        u_interface, phi_interface, upper_domain=True):
+        u_interface, phi_interface, upper_domain=True, i=0):
     a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
             float(u_interface), float(phi_interface)
@@ -59,30 +59,30 @@ def integrate_one_step(M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
     # it can be uniformized with finite_volumes.get_Y ?
     Y = get_Y(M=M, h=h, D=D, a=a, c=c, dt=dt,
             Lambda=Lambda, upper_domain=upper_domain)
-    Y[1][1:-1] += np.ones(M-2) / dt
+    Y[1][1:-1] += (np.ones(M-2) / dt) * (h[1:] + h[:-1]) 
 
     #TODO right hand side of the right shape
-    rhs = f[1:-1] * (h[1:] + h[:-1]) + u_nm1[1:-1] / dt
+    rhs = (f[1:-1] + u_nm1[1:-1] / dt) * (h[1:] + h[:-1]) 
 
     cond_robin = Lambda * u_interface + phi_interface \
-            - h[0] / 2 * ((f[0] + f[1]) / 2 + \
-                          (u_nm1[0] + u_nm1[1]) / (2*dt))
+            - h[0] / 2 * (u_nm1[0] / dt + f[0])
 
     rhs = np.concatenate(([cond_robin], rhs, [bd_cond]))
 
     u_n = solve_linear(Y, rhs)
-    u_s = u_n[1] + u_n[0]
-    u_sm1 = u_nm1[1] + u_nm1[0]
-    old_robin_cond = Lambda * u_interface + phi_interface
 
-    u_interface = u_n[0]
+    new_u_interface = u_n[0]
     # Finite difference approx with the corrective term:
-    phi_interface = D[0]/h[0] * (u_n[1] - u_n[0]) \
-        - h[0] / 2 * (.5*(u_s-u_sm1)/dt + a*(u_n[1] - u_n[0])/h[0] \
-                      + c * u_s/2 -(f[1] + f[0])/2)
+    new_phi_interface = D[0]/h[0] * (u_n[1] - u_n[0]) \
+        - h[0] / 2 * ((u_n[0]-u_nm1[0])/dt + a*(u_n[1])/h[0] \
+                      + c * u_n[0] - f[0])
+    if i >= 40: # DEBUG TODO REMOVE i PARAMETER
+        pass
+        #print("error u_interface:", u_interface - new_u_interface)
+        #print("error phi_interface:", phi_interface - new_phi_interface)
 
     assert u_n.shape[0] == M
-    return u_n, u_interface, phi_interface
+    return u_n, new_u_interface, new_phi_interface
 
 """
     See integrate_one_step. This function integrates in time
@@ -129,16 +129,19 @@ def integrate_one_step_star(M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
 
     D = np.concatenate((D1f, D2))
     h = np.concatenate((h1f, h2))
-    f = np.concatenate((f1f[:-1], f2))
+    f = np.concatenate((f1f[:-1],
+        [f1f[-1]*h1f[-1]/(h1f[-1]+h2[0]) + f2[0]*h2[0]/(h1f[-1]+h2[0])],
+        f2[1:]))
     M = M1 + M2 - 1
-    f[1:-1] *= h[1:] + h[:-1]
 
     Y = get_Y_star(M_star=M, h_star=h, D_star=D, a=a, c=c)
 
 
-    rhs = np.concatenate(([dirichlet], f[1:-1] + u_nm1[1:-1] / dt, [neumann]))
+    rhs = np.concatenate(([dirichlet],
+        (h[1:] + h[:-1]) * (f[1:-1] + u_nm1[1:-1] / dt),
+        [neumann]))
 
-    Y[1][1:-1] += np.ones(M-2) / dt
+    Y[1][1:-1] += (h[1:] + h[:-1]) * np.ones(M-2) / dt
 
     u_n = solve_linear(Y, rhs)
 
@@ -222,7 +225,8 @@ def get_Y(M, Lambda, h=H_DEFAULT, D=D_DEFAULT, a=A_DEFAULT,
 
     Y_1[1:M-1] = c*sum_both_h + 2*(h_mm1*D_mp1_2 + h_m* D_mm1_2) / \
             (h_m*h_mm1)
-    corrective_term = h[0] / 2 * (.5 / dt - a / h[0] + c / 2)
+
+    corrective_term = h[0] / 2 * (1 / dt + c)
     Y_1[0] = Lambda - D[0] / h[0] - corrective_term # Robin bd conditions at interface
     Y_1[M-1] = 1 # Neumann bd conditions for \Omega_2, Dirichlet for \Omega_1
     if upper_domain:
@@ -231,8 +235,8 @@ def get_Y(M, Lambda, h=H_DEFAULT, D=D_DEFAULT, a=A_DEFAULT,
     ######## RIGHT DIAGONAL
     Y_2 = np.empty(M-1)
     Y_2[1:] = -2 * D_mp1_2 / h_m
-    corrective_term = h[0] / 2 * (.5 / dt + a / h[0] + c / 2)
-    Y_2[0] = D[0] / h[0] - corrective_term
+
+    Y_2[0] = D[0] / h[0] - a / 2
     Y_2[1:] += a
 
     ######## LEFT DIAGONAL
@@ -336,4 +340,7 @@ def get_Y_star(M_star, h_star=H_DEFAULT, D_star=D_DEFAULT,
 
     return (Y_0, Y_1, Y_2)
 
+if __name__ == "__main__":
+    from tests import test_finite_differences
+    test_finite_differences.launch_all_tests()
 
