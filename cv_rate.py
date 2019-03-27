@@ -3,6 +3,21 @@ from numpy import pi, cos, sin
 import finite_difference
 import finite_volumes
 
+LAMBDA_1_DEFAULT=0.0
+LAMBDA_2_DEFAULT=0.0
+
+A_DEFAULT=0.0
+C_DEFAULT=0.0
+D1_DEFAULT=1.2
+D2_DEFAULT=2.2
+
+
+TIME_WINDOW_LEN_DEFAULT=1000
+DT_DEFAULT=0.0001
+
+M1_DEFAULT= 200
+M2_DEFAULT= 200
+
 def main():
     import sys
     if len(sys.argv) == 1:
@@ -22,41 +37,74 @@ def main():
             from scipy.optimize import minimize_scalar
             print("rate finite volumes:", minimize_scalar(rate_finite_volumes))
             print("rate finite differences:", minimize_scalar(rate_finite_differences))
+
+            D1 = D1_DEFAULT
+            D2 = D2_DEFAULT
+            def theory_star(wmin, wmax):
+                a = (np.sqrt(D1) - np.sqrt(D2)) * (np.sqrt(wmin)+np.sqrt(wmax))
+                return 1/(2*np.sqrt(2))*(a + np.sqrt(a*a + 8*np.sqrt(D1*D2)*np.sqrt(wmin*wmax)))
+            print("theory:", theory_star(pi/DT_DEFAULT, pi/(DT_DEFAULT*TIME_WINDOW_LEN_DEFAULT)))
         elif  sys.argv[1] == "debug":
             rate_finite_differences(15.)
+        elif sys.argv[1] == "analytic":
+            import matplotlib.pyplot as plt
+            #lambda_2 = np.linspace(-20, 20, 10000)
+            #plt.plot(lambda_2, 
+            #       [analytic_dirichlet_robin(w=pi/0.05,Lambda_2=i) for i in lambda_2], "g")
+            #beauty_graph()
+
 
 def beauty_graph():
     import matplotlib.pyplot as plt
-    x = np.linspace(-20, 20, 10000)
-    plt.semilogy(x, [rate_finite_volumes(i) for i in x], "r")
-    plt.semilogy(x, [rate_finite_differences(i) for i in x], "g")
+    x = np.linspace(-20, 20, 100)
+    import concurrent.futures
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        rate_fvolumes = executor.map(rate_finite_volumes, x)
+        rate_fdifferences = executor.map(rate_finite_differences, x)
+
+    plt.semilogy(x, list(rate_fvolumes), "r")
+    plt.semilogy(x, list(rate_fdifferences), "g")
     plt.xlabel("$\\Lambda^1$")
     plt.ylabel("$\\rho$")
     plt.title("Différences finies\n $D^1 = 2.2, D^2 = 2.2, a=1.3, c=0.3$, \n $h=0.01, \\Omega = [-1,1], dt=0.01$, u lineaire")
     plt.show()
 
 
-def rate_finite_volumes(Lambda_1, Lambda_2=0.0):
+def analytic_dirichlet_robin(w=None, Lambda_2=LAMBDA_2_DEFAULT, a=A_DEFAULT, 
+        c=C_DEFAULT, dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT,
+        D1=D1_DEFAULT, D2=D2_DEFAULT):
+    if w is None:
+        w = pi/dt
+    h1 = 1/(M1-1)
+    h2 = 1/(M2-1)
+    bar_h1 = D1 / h1
+    bar_h2 = D2 / h2
+    eta1 = 2*bar_h1 + w*1j
+    eta2 = 2*bar_h2 + w*1j
+    lambda_1p = (eta1 + np.sqrt(eta1*eta1 - 4*bar_h1 * bar_h1)) / (2*bar_h1)
+    lambda_2p = (eta2 + np.sqrt(eta2*eta2 - 4*bar_h2 * bar_h2)) / (2*bar_h2)
+
+    rho_numerator = D1 / h1 + h1 / 2 * (c + w * 1j) - lambda_1p * D1 / h1
+    rho_denominator=D2 / h2 + h2 / 2 * (c + w * 1j) + lambda_2p * D2 / h2
+    return np.abs((rho_numerator+Lambda_2) / (rho_denominator+Lambda_2))
+
+def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
+        a=A_DEFAULT, c=C_DEFAULT, time_window_len=TIME_WINDOW_LEN_DEFAULT,
+                        dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT):
     # Our domain is [-1,1]
     # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
     # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
     integrate_one_step_star = finite_volumes.integrate_one_step_star
     integrate_one_step = finite_volumes.integrate_one_step
 
-    a = 1.2
-    c = 0.3
-    time_window_len = 150
-
     T = 5.
     d = 8.
     t0 = 3.
-    dt = 0.05
-    M1, M2 = 50, 50
     h1, h2 = 1/M1, 1/M2
     h1 = 1/M1 + np.zeros(M1)
     h2 = 1/M2 + np.zeros(M2)
-    h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**2)
-    h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**2)
+    h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**1)
+    h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**1)
     h = np.concatenate((h1[::-1], h2))
 
     # Center of the volumes are x, sizes are h
@@ -71,8 +119,8 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0.0):
 
     x = np.concatenate((-x1, x2))
 
-    D1 = 1.2 + x1_1_2 **2
-    D2 = 2.2 + x2_1_2 **2
+    D1 = D1_DEFAULT + x1_1_2 **0
+    D2 = D2_DEFAULT + x2_1_2 **0
 
     ratio_D = D1[0] / D2[0]
 
@@ -182,24 +230,21 @@ def rate_finite_volumes(Lambda_1, Lambda_2=0.0):
     return ecart[2] / ecart[1]
 
 
-def rate_finite_differences(Lambda_1, Lambda_2=0.0):
+def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
+        a=A_DEFAULT, c=C_DEFAULT, time_window_len=TIME_WINDOW_LEN_DEFAULT,
+        dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT):
     # Our domain is [-1,1]
     # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
     # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
     integrate_one_step_star = finite_difference.integrate_one_step_star
     integrate_one_step = finite_difference.integrate_one_step
-    a = 1.
-    c = 0.3
-    time_window_len = 150
 
     T = 5.
     d = 8.
     t0 = 3.
-    dt = 0.05
-    M1, M2 = 10, 10
 
-    x1 = -np.linspace(0,1,M1)**3
-    x2 = np.linspace(0,1,M2)**4
+    x1 = -np.linspace(0,1,M1)**1
+    x2 = np.linspace(0,1,M2)**1
 
     h1 = np.diff(x1)
     h2 = np.diff(x2)
@@ -212,14 +257,15 @@ def rate_finite_differences(Lambda_1, Lambda_2=0.0):
     x_1_2 = np.concatenate((np.flipud(x1_1_2), x2_1_2))
 
     x = np.concatenate((np.flipud(x1[:-1]), x2))
+    two_if_not_constant = 0.
 
-    D1 = 1.2 + x1_1_2 **2
-    D2 = 2.2 + x2_1_2 **2
+    D1 = D1_DEFAULT + x1_1_2 ** two_if_not_constant
+    D2 = D2_DEFAULT + x2_1_2 ** two_if_not_constant
 
-    D1_x = 1.2 + x1**2
-    D2_x = 2.2 + x2**2
-    D1_prime = 2*x1
-    D2_prime = 2*x2
+    D1_x = D1_DEFAULT + x1** two_if_not_constant
+    D2_x = D2_DEFAULT + x2** two_if_not_constant
+    D1_prime = two_if_not_constant*x1
+    D2_prime = two_if_not_constant*x2
 
     #TODO see if it is important to keep this ugly first term
     D1 = np.concatenate(([D1_x[0]], D1[:-1]))
@@ -267,7 +313,7 @@ def rate_finite_differences(Lambda_1, Lambda_2=0.0):
     all_u1_interface = [u_interface for _ in range(time_window_len)]
     all_phi1_interface = [phi_interface for _ in range(time_window_len)]
     # Beginning of schwarz iterations:
-    for i in range(100):
+    for i in range(3):
         all_u2_interface = []
         all_phi2_interface = []
         all_u2 =  [u2_0]
@@ -305,10 +351,8 @@ def rate_finite_differences(Lambda_1, Lambda_2=0.0):
             all_u1_interface += [u_interface]
             all_phi1_interface += [phi_interface]
         ecart += [max([abs(u - real) for u, real in zip(all_u1_interface, all_ui_interface)])]
-        print(ecart[-1])
-        input()
 
-    return (ecart[1] / ecart[0])
+    return (ecart[2] / ecart[1])
 
 
 if __name__ == "__main__":
