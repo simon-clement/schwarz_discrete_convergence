@@ -8,11 +8,11 @@
 import numpy as np
 from utils_numeric import solve_linear
 
-DT_DEFAULT = 1e-4
-H_DEFAULT = 1e-4
-D_DEFAULT = 1.0
-A_DEFAULT = 0.0
-C_DEFAULT = 0.0
+DT_DEFAULT = -1e-4
+H_DEFAULT = -1e-4
+D_DEFAULT = -1.0
+A_DEFAULT = -0.0
+C_DEFAULT = -0.0
 
 """
     Entry point in the module.
@@ -42,7 +42,7 @@ C_DEFAULT = 0.0
 
 """
 def integrate_one_step(M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
-        u_interface, phi_interface, upper_domain=True, i=0):
+        u_interface, phi_interface, upper_domain=True):
     a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
             float(u_interface), float(phi_interface)
@@ -76,10 +76,6 @@ def integrate_one_step(M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
     new_phi_interface = D[0]/h[0] * (u_n[1] - u_n[0]) \
         - h[0] / 2 * ((u_n[0]-u_nm1[0])/dt + a*(u_n[1])/h[0] \
                       + c * u_n[0] - f[0])
-    if i >= 40: # DEBUG TODO REMOVE i PARAMETER
-        pass
-        #print("error u_interface:", u_interface - new_u_interface)
-        #print("error phi_interface:", phi_interface - new_phi_interface)
 
     assert u_n.shape[0] == M
     return u_n, new_u_interface, new_phi_interface

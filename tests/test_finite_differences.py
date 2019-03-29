@@ -62,6 +62,7 @@ def complete_test_schwarz():
     u0 = np.concatenate((sin(d*x1[-1:0:-1]) + T*t_n, ratio_D * sin(d*x2) + T*t_n))
     u1 = np.concatenate((sin(d*x1[-1:0:-1]) + T*t, ratio_D * sin(d*x2) + T*t))
 
+    # TODO study the impact of theses lines to remove them
     D1 = np.concatenate(([D1_x[0]], D1[:-1]))
     D2 = np.concatenate(([D2_x[0]], D2[:-1]))
 

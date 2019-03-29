@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import numpy as np
 from numpy import pi, cos, sin
 import finite_difference
@@ -6,14 +8,14 @@ import finite_volumes
 LAMBDA_1_DEFAULT=0.0
 LAMBDA_2_DEFAULT=0.0
 
-A_DEFAULT=0.0
-C_DEFAULT=0.0
-D1_DEFAULT=1.2
-D2_DEFAULT=2.2
+A_DEFAULT=1.0
+C_DEFAULT=0.3
+D1_DEFAULT=1.12
+D2_DEFAULT=2.22 #TODO was 2.2
 
 
-TIME_WINDOW_LEN_DEFAULT=1000
-DT_DEFAULT=0.0001
+TIME_WINDOW_LEN_DEFAULT=1
+DT_DEFAULT=0.05
 
 M1_DEFAULT= 200
 M2_DEFAULT= 200
@@ -48,45 +50,78 @@ def main():
             rate_finite_differences(15.)
         elif sys.argv[1] == "analytic":
             import matplotlib.pyplot as plt
-            #lambda_2 = np.linspace(-20, 20, 10000)
-            #plt.plot(lambda_2, 
-            #       [analytic_dirichlet_robin(w=pi/0.05,Lambda_2=i) for i in lambda_2], "g")
-            #beauty_graph()
+            analytic_robin_robin_finite_differences(Lambda_1=0., verbose=True)
+            lambda_1 = np.linspace(-10, 10, 10000)
+            plt.plot(lambda_1, 
+                   [analytic_robin_robin_finite_differences(Lambda_1=i) \
+                           for i in lambda_1], "g")
+            beauty_graph()
 
+
+def rate_finite_volumes2(l): 
+    return rate_finite_volumes(Lambda_1=l)
+def rate_finite_differences2(l):
+    return rate_finite_differences(Lambda_1=l)
 
 def beauty_graph():
     import matplotlib.pyplot as plt
-    x = np.linspace(-20, 20, 100)
+    x = np.linspace(-10, 10, 1000)
     import concurrent.futures
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        rate_fvolumes = executor.map(rate_finite_volumes, x)
-        rate_fdifferences = executor.map(rate_finite_differences, x)
+        rate_fvolumes = executor.map(rate_finite_volumes2, x)
+        rate_fdifferences = executor.map(rate_finite_differences2, x)
 
     plt.semilogy(x, list(rate_fvolumes), "r")
-    plt.semilogy(x, list(rate_fdifferences), "g")
+    plt.semilogy(x, list(rate_fdifferences), "b")
     plt.xlabel("$\\Lambda^1$")
     plt.ylabel("$\\rho$")
-    plt.title("Différences finies\n $D^1 = 2.2, D^2 = 2.2, a=1.3, c=0.3$, \n $h=0.01, \\Omega = [-1,1], dt=0.01$, u lineaire")
+    plt.title("")
     plt.show()
 
 
-def analytic_dirichlet_robin(w=None, Lambda_2=LAMBDA_2_DEFAULT, a=A_DEFAULT, 
+def analytic_robin_robin_finite_differences(w=None, Lambda_1=LAMBDA_1_DEFAULT,
+        Lambda_2=LAMBDA_2_DEFAULT, a=A_DEFAULT, 
         c=C_DEFAULT, dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT,
-        D1=D1_DEFAULT, D2=D2_DEFAULT):
-    if w is None:
-        w = pi/dt
-    h1 = 1/(M1-1)
-    h2 = 1/(M2-1)
-    bar_h1 = D1 / h1
-    bar_h2 = D2 / h2
-    eta1 = 2*bar_h1 + w*1j
-    eta2 = 2*bar_h2 + w*1j
-    lambda_1p = (eta1 + np.sqrt(eta1*eta1 - 4*bar_h1 * bar_h1)) / (2*bar_h1)
-    lambda_2p = (eta2 + np.sqrt(eta2*eta2 - 4*bar_h2 * bar_h2)) / (2*bar_h2)
+        D1=D1_DEFAULT, D2=D2_DEFAULT, verbose=False):
 
-    rho_numerator = D1 / h1 + h1 / 2 * (c + w * 1j) - lambda_1p * D1 / h1
-    rho_denominator=D2 / h2 + h2 / 2 * (c + w * 1j) + lambda_2p * D2 / h2
-    return np.abs((rho_numerator+Lambda_2) / (rho_denominator+Lambda_2))
+    h1 = -1/(M1-1)
+    h2 = 1/(M2-1)
+
+    if w is None:
+        s = 1./dt
+    else:
+        s = w*1j
+    eta1_0 = D1/h1 + h1 / 2 * (s + c) - a/2
+    eta2_0 = D2/h2 + h2 / 2 * (s + c) - a/2
+    y2_0 = D2/h2 - a/2
+    y1_0 = D1/h1 - a/2
+
+    Y1_0 = - D1 / (h1*h1) - .5 * a / h1
+    Y1_1 = 2*D1 / (h1*h1) + c
+    Y1_2 = - D1 / (h1*h1) + .5 * a / h1
+
+    Y2_0 = - D2 / (h2*h2) - .5 * a / h2
+    Y2_1 = 2*D2 / (h2*h2) + c
+    Y2_2 = - D2 / (h2*h2) + .5 * a / h2
+    lambda2_plus = (- Y2_1 - s + np.sqrt((Y2_1+s)**2 - 4*Y2_0*Y2_2))/(2*Y2_2)
+    lambda2_moins = (- Y2_1 - s - np.sqrt((Y2_1+s)**2 - 4*Y2_0*Y2_2))/(2*Y2_2)
+    lambda1_plus = (- Y1_1 - s + np.sqrt((Y1_1+s)**2 - 4*Y1_0*Y1_2))/(2*Y1_2)
+    lambda1_moins = (- Y1_1 - s - np.sqrt((Y1_1+s)**2 - 4*Y1_0*Y1_2))/(2*Y1_2)
+    # Properties of lambda:
+    assert abs(lambda1_moins*lambda1_plus - Y1_0/Y1_2) < 1e-12
+    assert abs(lambda2_moins*lambda2_plus - Y2_0/Y2_2) < 1e-12
+    #D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
+    #D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) < 1e-12
+
+    teta1_0 = eta1_0 - y1_0 * lambda1_plus # warning : it is lambda_+ in the document
+    teta2_0 = eta2_0 - y2_0 * lambda2_plus
+    if verbose:
+        print("eta^1_0:", teta1_0)
+        print("eta^2_0:", teta2_0)
+    rho_numerator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
+    rho_denominator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
+
+    return np.abs(rho_denominator / rho_numerator)
 
 def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
         a=A_DEFAULT, c=C_DEFAULT, time_window_len=TIME_WINDOW_LEN_DEFAULT,
@@ -118,9 +153,10 @@ def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
     x_1_2 = np.concatenate((np.flipud(x1_1_2[:-1]), x2_1_2))
 
     x = np.concatenate((-x1, x2))
+    two_if_not_constant = 0.
 
-    D1 = D1_DEFAULT + x1_1_2 **0
-    D2 = D2_DEFAULT + x2_1_2 **0
+    D1 = D1_DEFAULT + x1_1_2 **two_if_not_constant
+    D2 = D2_DEFAULT + x2_1_2 **two_if_not_constant
 
     ratio_D = D1[0] / D2[0]
 
@@ -232,7 +268,7 @@ def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
 
 def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
         a=A_DEFAULT, c=C_DEFAULT, time_window_len=TIME_WINDOW_LEN_DEFAULT,
-        dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT):
+                        dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT):
     # Our domain is [-1,1]
     # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
     # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
