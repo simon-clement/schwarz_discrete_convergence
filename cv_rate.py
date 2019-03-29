@@ -63,16 +63,21 @@ def rate_finite_volumes2(l):
 def rate_finite_differences2(l):
     return rate_finite_differences(Lambda_1=l)
 
+PARALLEL = True
 def beauty_graph():
     import matplotlib.pyplot as plt
     x = np.linspace(-10, 10, 1000)
-    import concurrent.futures
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        rate_fvolumes = executor.map(rate_finite_volumes2, x)
-        rate_fdifferences = executor.map(rate_finite_differences2, x)
+    if PARALLEL:
+        import concurrent.futures
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            rate_fdifferences = executor.map(rate_finite_differences2, x)
+            rate_fvolumes = executor.map(rate_finite_volumes2, x)
+    else:
+        rate_fdifferences = map(rate_finite_differences2, x)
+        rate_fvolumes = map(rate_finite_volumes2, x)
 
-    plt.semilogy(x, list(rate_fvolumes), "r")
-    plt.semilogy(x, list(rate_fdifferences), "b")
+    plt.semilogy(x, list(rate_fdifferences), "r")
+    plt.semilogy(x, list(rate_fvolumes), "k--")
     plt.xlabel("$\\Lambda^1$")
     plt.ylabel("$\\rho$")
     plt.title("")
@@ -124,6 +129,177 @@ def analytic_robin_robin_finite_differences(w=None, Lambda_1=LAMBDA_1_DEFAULT,
     return np.abs(rho_denominator / rho_numerator)
 
 def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
+        a=A_DEFAULT, c=C_DEFAULT, time_window_len=TIME_WINDOW_LEN_DEFAULT,
+                        dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT):
+
+    # Our domain is [-1,1]
+    # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
+    # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
+    integrate_one_step = finite_volumes.integrate_one_step
+
+    h1 = 1/M1 + np.zeros(M1)
+    h2 = 1/M2 + np.zeros(M2)
+    h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**1)
+    h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**1)
+
+    # coordinates at half-points:
+    x1_1_2 = np.cumsum(np.concatenate(([0],h1)))
+    x2_1_2 = np.cumsum(np.concatenate(([0],h2)))
+
+    two_if_not_constant = 0.
+
+    D1 = D1_DEFAULT + x1_1_2 **two_if_not_constant
+    D2 = D2_DEFAULT + x2_1_2 **two_if_not_constant
+
+    ratio_D = D1[0] / D2[0]
+
+    all_ui_interface = []
+
+    f1 = np.zeros_like(h1)
+    f2 = np.zeros_like(h2)
+    neumann = 0
+    dirichlet = 0
+
+    # random false initialization:
+    u1_0 = np.zeros(M1)
+    u2_0 = np.zeros(M2)
+    error = []
+    np.random.seed(9380)
+    all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    # Beginning of schwarz iterations:
+    for _ in range(3):
+        all_u2_interface = []
+        all_phi2_interface = []
+        all_u2 =  [u2_0]
+        # Time iteration:
+        for i in range(time_window_len):
+            u_interface = all_u1_interface[i]
+            phi_interface = all_phi1_interface[i]
+
+            u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
+                    h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
+                    bd_cond=neumann, Lambda=Lambda_2, u_nm1=all_u2[-1],
+                    u_interface=u_interface, phi_interface=phi_interface,
+                    upper_domain=True)
+            all_u2 += [u2_ret]
+            all_u2_interface += [u_interface]
+            all_phi2_interface += [phi_interface]
+
+        all_u1_interface = []
+        all_phi1_interface = []
+        all_u1 = [u1_0]
+
+        for i in range(time_window_len):
+
+            u_interface = all_u2_interface[i]
+            phi_interface = all_phi2_interface[i]
+
+            u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
+                    h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
+                    bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=all_u1[-1],
+                    u_interface=u_interface, phi_interface=phi_interface,
+                    upper_domain=False)
+            all_u1 += [u1_ret]
+            all_u1_interface += [u_interface]
+            all_phi1_interface += [phi_interface]
+
+        error += [max([abs(e) for e in all_u1_interface])]
+
+    return error[2] / error[1]
+
+def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
+        a=A_DEFAULT, c=C_DEFAULT, time_window_len=TIME_WINDOW_LEN_DEFAULT,
+                        dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT):
+    # Our domain is [-1,1]
+    # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
+    # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
+    integrate_one_step = finite_difference.integrate_one_step
+
+    x1 = -np.linspace(0,1,M1)**1
+    x2 = np.linspace(0,1,M2)**1
+
+    h1 = np.diff(x1)
+    h2 = np.diff(x2)
+
+    # coordinates at half-points:
+    x1_1_2 = x1[:-1] + h1 / 2
+    x2_1_2 = x2[:-1] + h2 / 2
+
+    two_if_not_constant = 0.
+
+    D1 = D1_DEFAULT + x1_1_2 ** two_if_not_constant
+    D2 = D2_DEFAULT + x2_1_2 ** two_if_not_constant
+
+    D1_x = D1_DEFAULT + x1** two_if_not_constant
+    D2_x = D2_DEFAULT + x2** two_if_not_constant
+
+    #TODO see if it is important to keep this ugly first term
+    D1 = np.concatenate(([D1_x[0]], D1[:-1]))
+    D2 = np.concatenate(([D2_x[0]], D2[:-1]))
+
+    neumann = 0
+    dirichlet = 0
+    f1 = np.zeros(M1)
+    f2 = np.zeros(M2)
+
+    u1_0 = np.zeros(M1)
+    u2_0 = np.zeros(M2)
+
+
+    error = []
+    # random fixed initialization:
+    np.random.seed(9380)
+    all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    # Beginning of schwarz iterations:
+    for i in range(3):
+        all_u2_interface = []
+        all_phi2_interface = []
+        all_u2 =  [u2_0]
+        # Time iteration:
+        for i in range(time_window_len):
+
+            u_interface = all_u1_interface[i]
+            phi_interface = all_phi1_interface[i]
+
+            u2_ret, u_interface, phi_interface = integrate_one_step(M=M2,
+                    h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
+                    bd_cond=neumann, Lambda=Lambda_2, u_nm1=all_u2[-1],
+                    u_interface=u_interface, phi_interface=phi_interface,
+                    upper_domain=True)
+            all_u2 += [u2_ret]
+            all_u2_interface += [u_interface]
+            all_phi2_interface += [phi_interface]
+
+        all_u1_interface = []
+        all_phi1_interface = []
+        all_u1 =  [u1_0]
+        # Time iteration:
+        for i in range(time_window_len):
+
+            u_interface = all_u2_interface[i]
+            phi_interface = all_phi2_interface[i]
+            u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
+                    h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
+                    bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=all_u1[-1],
+                    u_interface=u_interface, phi_interface=phi_interface,
+                    upper_domain=False)
+            all_u1 += [u1_ret]
+            all_u1_interface += [u_interface]
+            all_phi1_interface += [phi_interface]
+        error += [max([abs(e) for e in all_u1_interface])]
+
+    return (error[2] / error[1])
+
+
+""" 
+    for legacy: the functions rate_finite_*_by_solution are left here.
+    They are slower because they need to compute full domain solution,
+    and the result is the same.
+"""
+def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1_DEFAULT,
+        Lambda_2=LAMBDA_2_DEFAULT,
         a=A_DEFAULT, c=C_DEFAULT, time_window_len=TIME_WINDOW_LEN_DEFAULT,
                         dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT):
     # Our domain is [-1,1]
@@ -219,8 +395,10 @@ def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
     u1_0 = np.flipud(u0[:M1])
     u2_0 = u0[M1:]
     ecart = []
-    all_u1_interface = [u_interface for _ in range(time_window_len)]
-    all_phi1_interface = [phi_interface for _ in range(time_window_len)]
+
+    np.random.seed(9380)
+    all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     # Beginning of schwarz iterations:
     for _ in range(3):
         all_u2_interface = []
@@ -266,7 +444,7 @@ def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
     return ecart[2] / ecart[1]
 
 
-def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
+def rate_finite_differences_by_solution(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
         a=A_DEFAULT, c=C_DEFAULT, time_window_len=TIME_WINDOW_LEN_DEFAULT,
                         dt=DT_DEFAULT, M1=M1_DEFAULT, M2=M2_DEFAULT):
     # Our domain is [-1,1]
@@ -346,8 +524,9 @@ def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT
     phi_interface= real_phi_interface
 
     ecart = []
-    all_u1_interface = [u_interface for _ in range(time_window_len)]
-    all_phi1_interface = [phi_interface for _ in range(time_window_len)]
+    np.random.seed(9380)
+    all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     # Beginning of schwarz iterations:
     for i in range(3):
         all_u2_interface = []
@@ -389,7 +568,6 @@ def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT
         ecart += [max([abs(u - real) for u, real in zip(all_u1_interface, all_ui_interface)])]
 
     return (ecart[2] / ecart[1])
-
 
 if __name__ == "__main__":
     main()
