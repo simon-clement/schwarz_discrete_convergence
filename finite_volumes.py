@@ -75,11 +75,11 @@ def integrate_one_step(M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
 
     d_kp1 = d[1:]
     d_km1 = d[:-1]
-    D_kp1_2 = D[1:]
-    D_km1_2 = D[:-1]
+    D_mp1_2 = D[1:]
+    D_mm1_2 = D[:-1]
 
     u_n = dt / (1+dt*c) * ( f + u_nm1 / dt \
-            + (D_kp1_2*d_kp1 - D_km1_2*d_km1)/h \
+            + (D_mp1_2*d_kp1 - D_mm1_2*d_km1)/h \
             - a * (d_kp1 + d_km1) / 2 )
 
     assert u_n.shape[0] == M
