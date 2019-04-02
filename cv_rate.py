@@ -8,11 +8,10 @@ import finite_volumes
 LAMBDA_1_DEFAULT=0.0
 LAMBDA_2_DEFAULT=0.0
 
-A_DEFAULT=0.0
-C_DEFAULT=0.0
+A_DEFAULT=1.2
+C_DEFAULT=0.3
 D1_DEFAULT=1.12
 D2_DEFAULT=2.12
-
 
 TIME_WINDOW_LEN_DEFAULT=1
 DT_DEFAULT=0.1
@@ -50,8 +49,8 @@ def main():
                 return 1/(2*np.sqrt(2))*(a + np.sqrt(a*a + 8*np.sqrt(D1*D2)*np.sqrt(wmin*wmax)))
             print("theory:", theory_star(pi/DT_DEFAULT, pi/(DT_DEFAULT*TIME_WINDOW_LEN_DEFAULT)))
         elif  sys.argv[1] == "debug":
-            print(analytic_robin_robin_finite_volumes(Lambda_1=1., verbose=True))
-            rate_finite_differences2(1.)
+            print(analytic_robin_robin_finite_volumes(Lambda_1=-3.65, verbose=True))
+            rate_finite_volumes2(-3.65)
         elif sys.argv[1] == "analytic":
             import matplotlib.pyplot as plt
             lambda_min = -30
@@ -64,8 +63,9 @@ def main():
                            for i in lambda_1], "k--")
             plt.plot(lambda_1, 
                    [analytic_robin_robin_finite_volumes(Lambda_1=i) \
-                           for i in lambda_1], "k--")
+                           for i in lambda_1], "k--", label="Theorical rate")
 
+            plt.legend()
             plt.show()
 
 
@@ -87,11 +87,11 @@ def beauty_graph(lambda_min, lambda_max, steps=100):
         rate_fdifferences = map(rate_finite_differences2, x)
         rate_fvolumes = map(rate_finite_volumes2, x)
 
-    plt.semilogy(x, list(rate_fvolumes), "y")
-    plt.semilogy(x, list(rate_fdifferences), "r")
+    plt.semilogy(x, list(rate_fvolumes), "y", label="finite volumes")
+    plt.semilogy(x, list(rate_fdifferences), "r", label="finite differences")
     plt.xlabel("$\\Lambda^1$")
     plt.ylabel("$\\rho$")
-    plt.title("")
+    plt.title("Local in time")
 
 def analytic_robin_robin_finite_differences(w=None, Lambda_1=LAMBDA_1_DEFAULT,
         Lambda_2=LAMBDA_2_DEFAULT, a=A_DEFAULT, 
@@ -126,11 +126,17 @@ def analytic_robin_robin_finite_differences(w=None, Lambda_1=LAMBDA_1_DEFAULT,
     #assert abs(lambda2_moins*lambda2_plus - Y2_0/Y2_2) < 1e-12
     #D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
     #D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) < 1e-12
+    if verbose:
+        print("lambda1_plus:", lambda1_plus)
+        print("lambda2_plus:", lambda2_plus)
 
     teta1_0 = eta1_0 - y1_0 * lambda1_plus # warning : it is lambda_+ in the document
     teta2_0 = eta2_0 - y2_0 * lambda2_plus
-    rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
     rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
+    rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
+    if verbose:
+        print("only with Lambda2:", (Lambda_2-teta1_0)/(Lambda_2-teta2_0))
+        print("only with Lambda1:", (Lambda_1-teta2_0)/(Lambda_1-teta1_0))
 
     return np.abs(rho_numerator / rho_denominator)
 
@@ -148,9 +154,9 @@ def analytic_robin_robin_finite_volumes(w=None, Lambda_1=LAMBDA_1_DEFAULT,
     else:
         s = w*1j
     #TODO maybe we should exchange Y1_0 with Y1_2
-    Y1_0 = -1 / (s+c) * (1/h1 + a/(2*D1)) + h1 / (6*D1)
+    Y1_0 = -1 / (s+c) * (1/h1 - a/(2*D1)) + h1 / (6*D1)
     Y1_1 = 1 / (s+c) * 2/h1 + 2*h1/(3*D1)
-    Y1_2 = -1 / (s+c) * (1/h1 - a/(2*D1)) + h1 / (6*D1)
+    Y1_2 = -1 / (s+c) * (1/h1 + a/(2*D1)) + h1 / (6*D1)
 
     Y2_0 = -1 / (s+c) * (1/h2 + a/(2*D2)) + h2 / (6*D2)
     Y2_1 = 1 / (s+c) * 2/h2 + 2*h2/(3*D2)
@@ -164,15 +170,14 @@ def analytic_robin_robin_finite_volumes(w=None, Lambda_1=LAMBDA_1_DEFAULT,
     assert abs(lambda2_moins*lambda2_plus - Y2_0/Y2_2) < 1e-12
     #D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
     #D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) < 1e-12
-    # TODO Dans le papier c'est lambda_+ mais sans justifications... 
-    # ptet qu'en fait c'est \lambda_-
+    if verbose:
+        print("lambda1_plus:", lambda1_plus)
+        print("lambda2_plus:", lambda2_plus)
+
     eta2_0 = ((lambda2_plus-1)/h2 - a*(lambda2_plus+1)/(2*D2)) / (s+c) \
             - h2 * (lambda2_plus + 2) / (6*D2)
     eta1_0 = ((1-lambda1_plus)/h1 - a*(lambda1_plus+1)/(2*D1)) / (s+c) \
             + h1 * (lambda1_plus + 2) / (6*D1)
-    #TODO ecrire le cas D1=D2 pour avoir au moins ça de bon...
-    if verbose:
-        print(lambda1_plus, lambda2_plus)
 
     rho_numerator = (Lambda_2*eta1_0 + 1) * (Lambda_1*eta2_0 + 1)
     rho_denominator = (Lambda_2*eta2_0 + 1) * (Lambda_1*eta1_0 + 1)
@@ -219,7 +224,7 @@ def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
     all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     # Beginning of schwarz iterations:
-    for _ in range(3):
+    for k in range(3):
         all_u2_interface = []
         all_phi2_interface = []
         all_u2 =  [u2_0]
@@ -255,7 +260,7 @@ def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
             all_u1_interface += [u_interface]
             all_phi1_interface += [phi_interface]
 
-        error += [max([abs(e) for e in all_u2_interface])]
+        error += [max([abs(e) for e in all_phi1_interface])]
 
     return error[1] / error[0]
 
@@ -302,7 +307,7 @@ def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT
     all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     # Beginning of schwarz iterations:
-    for i in range(3):
+    for k in range(3):
         all_u2_interface = []
         all_phi2_interface = []
         all_u2 =  [u2_0]
@@ -339,7 +344,8 @@ def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT
             all_phi1_interface += [phi_interface]
         error += [max([abs(e) for e in all_u1_interface])]
 
-    return (error[2] / error[1])
+    return (error[1] / error[0])
+    return np.abs((Lambda_1 + teta2_0) * (Lambda_2 + teta1_0) / ((Lambda_1 + teta1_0) * (Lambda_2 + teta2_0)))
 
 
 """ 

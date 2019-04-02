@@ -74,8 +74,9 @@ def integrate_one_step(M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
     new_u_interface = u_n[0]
     # Finite difference approx with the corrective term:
     new_phi_interface = D[0]/h[0] * (u_n[1] - u_n[0]) \
-        - h[0] / 2 * ((u_n[0]-u_nm1[0])/dt + a*(u_n[1])/h[0] \
+        - h[0] / 2 * ((u_n[0]-u_nm1[0])/dt + a*(u_n[1]-u_n[0])/h[0] \
                       + c * u_n[0] - f[0])
+
 
     assert u_n.shape[0] == M
     return u_n, new_u_interface, new_phi_interface
@@ -222,7 +223,7 @@ def get_Y(M, Lambda, h=H_DEFAULT, D=D_DEFAULT, a=A_DEFAULT,
     Y_1[1:M-1] = c*sum_both_h + 2*(h_mm1*D_mp1_2 + h_m* D_mm1_2) / \
             (h_m*h_mm1)
 
-    corrective_term = h[0] / 2 * (1 / dt + c)
+    corrective_term = h[0] / 2 * (1 / dt + c) - a / 2
     Y_1[0] = Lambda - D[0] / h[0] - corrective_term # Robin bd conditions at interface
     Y_1[M-1] = 1 # Neumann bd conditions for \Omega_2, Dirichlet for \Omega_1
     if upper_domain:
