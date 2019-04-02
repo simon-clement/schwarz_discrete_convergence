@@ -17,8 +17,8 @@ D2_DEFAULT=2.12
 TIME_WINDOW_LEN_DEFAULT=1
 DT_DEFAULT=0.1
 
-M1_DEFAULT= 10000
-M2_DEFAULT= 10000
+M1_DEFAULT= 1000
+M2_DEFAULT= 1000
 
 SIZE_DOMAIN = 500
 
@@ -51,12 +51,12 @@ def main():
             print("theory:", theory_star(pi/DT_DEFAULT, pi/(DT_DEFAULT*TIME_WINDOW_LEN_DEFAULT)))
         elif  sys.argv[1] == "debug":
             print(analytic_robin_robin_finite_volumes(Lambda_1=1., verbose=True))
-            rate_finite_volumes2(1.)
+            rate_finite_differences2(1.)
         elif sys.argv[1] == "analytic":
             import matplotlib.pyplot as plt
-            lambda_min = -3000
-            lambda_max = 3000
-            steps = 10
+            lambda_min = -30
+            lambda_max = 30
+            steps = 800
             lambda_1 = np.linspace(lambda_min, lambda_max, steps)
             beauty_graph(lambda_min, lambda_max, steps)
             plt.plot(lambda_1, 
@@ -64,7 +64,7 @@ def main():
                            for i in lambda_1], "k--")
             plt.plot(lambda_1, 
                    [analytic_robin_robin_finite_volumes(Lambda_1=i) \
-                           for i in lambda_1], "g--")
+                           for i in lambda_1], "k--")
 
             plt.show()
 
@@ -87,7 +87,7 @@ def beauty_graph(lambda_min, lambda_max, steps=100):
         rate_fdifferences = map(rate_finite_differences2, x)
         rate_fvolumes = map(rate_finite_volumes2, x)
 
-    plt.semilogy(x, list(rate_fvolumes), "b")
+    plt.semilogy(x, list(rate_fvolumes), "y")
     plt.semilogy(x, list(rate_fdifferences), "r")
     plt.xlabel("$\\Lambda^1$")
     plt.ylabel("$\\rho$")
@@ -199,8 +199,8 @@ def rate_finite_volumes(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT,
 
     two_if_not_constant = 0.
 
-    D1 = D1_DEFAULT + x1_1_2 **two_if_not_constant
-    D2 = D2_DEFAULT + x2_1_2 **two_if_not_constant
+    D1 = D1_DEFAULT + np.zeros_like(x1_1_2 **2)
+    D2 = D2_DEFAULT + np.zeros_like(x2_1_2 **2)
 
     ratio_D = D1[0] / D2[0]
 
@@ -277,13 +277,11 @@ def rate_finite_differences(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMBDA_2_DEFAULT
     x1_1_2 = x1[:-1] + h1 / 2
     x2_1_2 = x2[:-1] + h2 / 2
 
-    two_if_not_constant = 0.
+    D1 = D1_DEFAULT + np.zeros_like(x1_1_2 ** 2)
+    D2 = D2_DEFAULT + np.zeros_like(x2_1_2 ** 2)
 
-    D1 = D1_DEFAULT + x1_1_2 ** two_if_not_constant
-    D2 = D2_DEFAULT + x2_1_2 ** two_if_not_constant
-
-    D1_x = D1_DEFAULT + x1** two_if_not_constant
-    D2_x = D2_DEFAULT + x2** two_if_not_constant
+    D1_x = D1_DEFAULT + np.zeros_like(x1** 2)
+    D2_x = D2_DEFAULT + np.zeros_like(x2** 2)
 
     #TODO see if it is important to keep this ugly first term
     D1 = np.concatenate(([D1_x[0]], D1[:-1]))
@@ -362,9 +360,9 @@ def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1_DEFAULT,
     T = 5.
     d = 8.
     t0 = 3.
-    h1, h2 = 1/M1, 1/M2
-    h1 = 1/M1 + np.zeros(M1)
-    h2 = 1/M2 + np.zeros(M2)
+    h1, h2 = SIZE_DOMAIN/M1, SIZE_DOMAIN/M2
+    h1 = SIZE_DOMAIN/M1 + np.zeros(M1)
+    h2 = SIZE_DOMAIN/M2 + np.zeros(M2)
     h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**1)
     h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**1)
     h = np.concatenate((h1[::-1], h2))
@@ -508,8 +506,8 @@ def rate_finite_differences_by_solution(Lambda_1=LAMBDA_1_DEFAULT, Lambda_2=LAMB
     d = 8.
     t0 = 3.
 
-    x1 = -np.linspace(0,1,M1)**1
-    x2 = np.linspace(0,1,M2)**1
+    x1 = -np.linspace(0,SIZE_DOMAIN,M1)**1
+    x2 = np.linspace(0,SIZE_DOMAIN,M2)**1
 
     h1 = np.diff(x1)
     h2 = np.diff(x2)
