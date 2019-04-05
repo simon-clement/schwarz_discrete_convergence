@@ -1,7 +1,10 @@
 import numpy as np
 from numpy import cos, sin
 from numpy.random import random
-from finite_difference import integrate_one_step_star, integrate_one_step
+from discretizations.finite_difference import FiniteDifferences
+fdifference = FiniteDifferences()
+integrate_one_step = fdifference.integrate_one_step
+integrate_one_step_star= fdifference.integrate_one_step_star
 
 def launch_all_tests():
     print("Test integration finite differences:", time_test_star())
@@ -92,7 +95,7 @@ def complete_test_schwarz():
                 h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
                 bd_cond=neumann, Lambda=Lambda_2, u_nm1=u2_0,
                 u_interface=u_interface, phi_interface=phi_interface,
-                upper_domain=True, i=i)
+                upper_domain=True)
 
         u1_ret, u_interface, phi_interface = integrate_one_step(M=M1,
                 h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
@@ -102,8 +105,7 @@ def complete_test_schwarz():
         u_np1_schwarz = np.concatenate((u1_ret[-1:0:-1], u2_ret))
         ecart += [np.linalg.norm(u_np1- u_np1_schwarz)]
 
-    print(ecart[-1])
-    assert ecart[-1] < 3*1e-12
+    assert ecart[-1] < 1*1e-10
 
     return "ok"
 

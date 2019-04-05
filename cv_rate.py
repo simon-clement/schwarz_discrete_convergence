@@ -17,11 +17,11 @@ D2_DEFAULT=.54
 TIME_WINDOW_LEN_DEFAULT=128
 DT_DEFAULT=0.1
 
-M1_DEFAULT= 8000
-M2_DEFAULT= 800
+M1_DEFAULT= 400
+M2_DEFAULT= 40
 
 SIZE_DOMAIN_1 = 200
-SIZE_DOMAIN_2 = 20
+SIZE_DOMAIN_2 = 200
 
 
 def main():
@@ -47,15 +47,22 @@ def main():
             import tests.test_linear_sys
             import tests.test_schwarz
             import tests.test_finite_volumes
-            tests.test_linear_sys.launch_all_tests()
-            tests.test_schwarz.launch_all_tests()
-            tests.test_finite_volumes.launch_all_tests()
+            import tests.test_finite_differences
+            import tests.test_optimal_neumann_robin
+            test_dict = { 'linear_sys' : tests.test_linear_sys.launch_all_tests,
+                    'schwarz' : tests.test_schwarz.launch_all_tests,
+                    'fvolumes': tests.test_finite_volumes.launch_all_tests,
+                    'rate' : tests.test_optimal_neumann_robin.launch_all_tests,
+                    'fdifferences': tests.test_finite_differences.launch_all_tests
+                    }
+            if len(sys.argv) > 2:
+                test_dict[sys.argv[2]]()
+            else:
+                for test_func in test_dict.values():
+                    test_func()
+
         elif sys.argv[1] == "graph":
-            import matplotlib.pyplot as plt
-            lambda_min = 1e-9
-            lambda_max = 10
-            steps = 30
-            beauty_graph_finite(finite_difference, lambda_min, lambda_max, steps)
+            error_by_taking_continuous_rate(finite_difference, 10)
         elif sys.argv[1] == "optimize":
             from scipy.optimize import minimize_scalar
             print("rate finite volumes:", minimize_scalar(functools.partial(rate,
@@ -99,20 +106,96 @@ def main():
             lambda_min = 1e-9
             lambda_max = 10
             steps = 100
-            beauty_graph_finite(finite_difference, lambda_min, lambda_max, True, steps)
+            beauty_graph_finite(finite_difference, lambda_min, lambda_max, steps)
+        elif sys.argv[1] == "optimal":
+            optimal_function_of_h(finite_difference, 10)
 
-def analytic_bounds(analytic_func, Lambda_1, wmax):
+def error_by_taking_continuous_rate(discretization, N):
     from scipy.optimize import minimize_scalar
-    cost_function_min = lambda t:analytic_func(w=t, Lambda_1=Lambda_1)
-    cost_function_max = lambda t:-analytic_func(w=t, Lambda_1=Lambda_1)
-    ret_min = minimize_scalar(method='bounded', fun=cost_function_min, bounds=(-wmax, wmax)).fun
-    ret_max = -minimize_scalar(method='bounded', fun=cost_function_max, bounds=(-wmax, wmax)).fun
-    assert ret_max >= -cost_function_max(0.) 
-    return ret_min, ret_max
+    dt = discretization.DT_DEFAULT
+    T = dt*N
 
+    def to_minimize_continuous(l):
+        cont = functools.partial(continuous_analytic_rate,discretization, l)
+        return np.max([cont(pi/t) for t in np.linspace(dt, T, N)])
+    ret_cont = minimize_scalar(fun=to_minimize_continuous)
+    optimal_continuous = minimize_scalar(fun=to_minimize_continuous).x
+    theoric_cont_rate = minimize_scalar(fun=to_minimize_continuous).fun
+
+    def to_minimize_discrete(l, h):
+        M1 = int(discretization.SIZE_DOMAIN_1 / h)
+        M2 = int(discretization.SIZE_DOMAIN_2 / h)
+        f = functools.partial(discretization.analytic_robin_robin,
+                Lambda_1=l, M1=M1, M2=M2)
+        return max([f(pi/t*1j) for t in np.linspace(dt, T, N)])
+        #return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
+
+    all_h = np.linspace(5e-2, 50, 60)
+
+    ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
+            for h in all_h]
+    optimal_discrete = [ret.x for ret in ret_discrete]
+    theorical_rate_discrete = [ret.fun for ret in ret_discrete]
+
+    rate_with_continuous_lambda = []
+    rate_with_discrete_lambda = []
+    for i in range(all_h.shape[0]):
+        print(i)
+        M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
+        M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
+        rate_with_continuous_lambda += [rate(discretization, M1=M1, M2=M2, Lambda_1=optimal_continuous)]
+        rate_with_discrete_lambda += [rate(discretization, M1=M1, M2=M2, Lambda_1=optimal_discrete[i])]
+    import matplotlib.pyplot as plt
+    plt.semilogx(all_h, rate_with_discrete_lambda, "g", label="Observed rate with discrete optimal $\\Lambda$")
+    plt.semilogx(all_h, theorical_rate_discrete, "g--", label="Theorical rate with discrete optimal $\\Lambda$")
+    plt.semilogx(all_h, rate_with_continuous_lambda, "r", label="Observed rate with continuous optimal $\\Lambda$")
+    plt.hlines(theoric_cont_rate, all_h[0], all_h[-1], "r", 'dashed', label="Theorical rate with continuous optimal $\\Lambda$")
+    plt.xlabel("h")
+    plt.ylabel("$\\rho$")
+    plt.legend()
+    plt.title('Error when using continuous Lambda with '+discretization.name()) 
+    plt.show()
+
+
+
+def continuous_analytic_rate(discretization, Lambda_1, w):
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    # sig1 is \sigma^1_{+}
+    sig1 = np.sqrt(np.abs(w)/(2*D1)) * (1 + np.abs(w)/w * 1j)
+    # sig2 is \sigma^2_{-}
+    sig2 = -np.sqrt(np.abs(w)/(2*D2)) * (1 + np.abs(w)/w * 1j)
+    return np.abs(D1*sig1*(D2*sig2+Lambda_1) / (D2*sig2*(D1*sig1+Lambda_1)))
+
+def optimal_function_of_h(discretization, N):
+    from scipy.optimize import minimize_scalar
+    dt = discretization.DT_DEFAULT
+    T = dt*N
+
+    def to_minimize_continuous(l):
+        cont = functools.partial(continuous_analytic_rate,discretization, l)
+        return np.max([cont(pi/t) for t in np.linspace(dt, T, TIME_WINDOW_LEN_DEFAULT)])
+    optimal_continuous = minimize_scalar(fun=to_minimize_continuous).x
+
+    def to_minimize_discrete(l, h):
+        M1 = discretization.SIZE_DOMAIN_1 / h
+        M2 = discretization.SIZE_DOMAIN_2 / h
+        f = functools.partial(discretization.analytic_robin_robin,
+                Lambda_1=l, M1=M1, M2=M2)
+        return max([f(pi/t*1j) for t in np.linspace(dt, T, TIME_WINDOW_LEN_DEFAULT)])
+
+    all_h = np.exp(-np.linspace(-1, 15, 30))
+    all_h = np.linspace(0.01, 1, 30)
+    ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)).x \
+            for h in all_h]
+    import matplotlib.pyplot as plt
+    plt.hlines(optimal_continuous, all_h[0],all_h[-1], "k", 'dashed', label='best $\\Lambda$ in continuous')
+    plt.plot(all_h, ret_discrete, label='discrete best $\\Lambda$')
+    plt.legend()
+    plt.show()
 
 PARALLEL = True
-def beauty_graph_finite(discretization, lambda_min, lambda_max, is_differences, steps=100):
+def beauty_graph_finite(discretization, lambda_min, lambda_max, steps=100):
     rate_func = functools.partial(rate, discretization)
     rate_func_normL2 = functools.partial(rate, discretization,
             function_to_use=np.linalg.norm)
@@ -120,30 +203,22 @@ def beauty_graph_finite(discretization, lambda_min, lambda_max, is_differences, 
     import matplotlib.pyplot as plt
     from scipy.optimize import minimize_scalar, minimize
 
-    lambda_1 = np.linspace(lambda_min, np.sqrt(lambda_max), steps)**2
+    lambda_1 = np.linspace(lambda_min, lambda_max, steps)
     dt = DT_DEFAULT
     T = dt*TIME_WINDOW_LEN_DEFAULT
     print("> Starting frequency analysis.")
     rho = []
-    for t in np.arange( dt, T, dt/20):
+    for t in np.linspace( dt, T, TIME_WINDOW_LEN_DEFAULT):
         rho += [[analytic_robin_robin(discretization, w=pi/t,Lambda_1=i) \
                for i in lambda_1]]
         rho += [[analytic_robin_robin(discretization, w=-pi/t,Lambda_1=i) \
                for i in lambda_1]]
-
-    def analytic_rate_to_minimize(lam):
-        # let's maximize over the frequency:
-        to_minimize = lambda t:-analytic_robin_robin(discretization, w=t, Lambda_1=lam)
-        ret_ = minimize_scalar(method="bounded", bounds=(pi/T, pi/dt), fun=to_minimize)
-        ret2_ = minimize_scalar(method="bounded", bounds=(-pi/dt, pi/T), fun=to_minimize)
-        return max(-ret_.fun, -ret2_.fun)
 
     sqD1 = np.sqrt(D1_DEFAULT)
     sqD2 = np.sqrt(D2_DEFAULT)
     sqw1 = np.sqrt(pi/T)
     sqw2 = np.sqrt(pi/dt)
     continuous_best_lam = 1/(2*np.sqrt(2)) * ((sqD2-sqD1)*(sqw1+sqw2) + np.sqrt((sqD2-sqD1)**2 * (sqw1 + sqw2)**2 + 8*sqD1*sqD2*sqw1*sqw2))
-    print("In continuous framework: best $\\Lambda$ is", continuous_best_lam)
 
     min_rho, max_rho = np.min(np.array(rho), axis=0), np.max(np.array(rho),axis=0)
     best_analytic = lambda_1[np.argmin(max_rho)]
@@ -153,8 +228,8 @@ def beauty_graph_finite(discretization, lambda_min, lambda_max, is_differences, 
     plt.plot(lambda_1, [analytic_robin_robin(discretization, w=0,Lambda_1=i) \
                        for i in lambda_1], "y")
     plt.vlines(continuous_best_lam, 0,1, "k", 'dashed', label='best $\\Lambda$ in continuous case' )
-    plt.plot(lambda_1, [rate_by_z_transform(discretization, i) for i in lambda_1], "m")
-    plt.plot(lambda_1, [rate_by_z_transform(discretization, i) for i in lambda_1], "m", label="Z TRANSFORMED ANALYTIC RATE")
+    #plt.plot(lambda_1, [rate_by_z_transform(discretization, i) for i in lambda_1], "m")
+    #plt.plot(lambda_1, [rate_by_z_transform(discretization, i) for i in lambda_1], "m", label="Z TRANSFORMED ANALYTIC RATE")
     rho = []
     for logt in np.arange(0 , 25):
         t = dt * 2.**logt
@@ -178,9 +253,9 @@ def beauty_graph_finite(discretization, lambda_min, lambda_max, is_differences, 
 
     print("> Starting minimization in infinite norm.")
 
-    best_linf_norm = minimize_scalar(method="bounded", bounds=(lambda_min, lambda_max), fun=rate_func).x
+    best_linf_norm = minimize_scalar(fun=rate_func).x
     print("> Starting minimization in L2 norm.")
-    best_L2_norm = minimize_scalar(method="bounded", bounds=(lambda_min, lambda_max), fun=rate_func_normL2).x
+    best_L2_norm = minimize_scalar(fun=rate_func_normL2).x
     plt.plot(x, list(rate_f_L2), "b", label=discretization.name() + ", $L^2$ norm")
     plt.vlines(best_L2_norm, 0, 1, "b", 'dashed', label='best $\\Lambda$ for $L^2$' )
     plt.plot(x, list(rate_f), "r", label=discretization.name() + ", $L^\\infty$ norm")
