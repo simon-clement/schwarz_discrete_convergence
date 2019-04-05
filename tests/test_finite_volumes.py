@@ -4,8 +4,12 @@
 import numpy as np
 from numpy import cos, sin, pi
 from numpy.random import random
-from utils_numeric import solve_linear
-from finite_volumes import get_Y_star, integrate_one_step_star, integrate_one_step
+from tests.utils_numeric import solve_linear
+from discretizations.finite_volumes import FiniteVolumes
+finite_volumes = FiniteVolumes()
+get_Y_star = finite_volumes.get_Y_star
+integrate_one_step = finite_volumes.integrate_one_step
+integrate_one_step_star = finite_volumes.integrate_one_step_star
 
 """
     Test function of the module.

@@ -1,6 +1,9 @@
 import numpy as np
-from finite_difference import get_Y, get_Y_star
-from utils_numeric import integration
+from discretizations.finite_difference import FiniteDifferences
+fdifference = FiniteDifferences()
+get_Y = fdifference.get_Y
+get_Y_star = fdifference.get_Y_star
+from tests.utils_numeric import integration
 
 """
     Solve the equation with full system:

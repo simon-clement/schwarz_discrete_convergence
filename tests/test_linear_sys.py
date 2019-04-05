@@ -1,8 +1,11 @@
 import numpy as np
 from numpy import cos, sin
 from numpy.random import random
-from utils_numeric import solve_linear
-from finite_difference import get_Y, get_Y_star
+from tests.utils_numeric import solve_linear
+from discretizations.finite_difference import FiniteDifferences
+fdifference = FiniteDifferences()
+get_Y = fdifference.get_Y
+get_Y_star = fdifference.get_Y_star
 
 """
     Test of the solver in with D!= 0, a != 0 and c!=0.

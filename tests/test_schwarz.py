@@ -1,10 +1,13 @@
 import numpy as np
 from numpy import cos, sin
 from numpy.random import random
-from solve_full_domain import solve_u_time_domain
-from utils_numeric import integration
+from tests.solve_full_domain import solve_u_time_domain
+from tests.utils_numeric import integration
 from utils_linalg import solve_linear
-from finite_difference import get_Y, get_Y_star
+from discretizations.finite_difference import FiniteDifferences
+fdifference = FiniteDifferences()
+get_Y = fdifference.get_Y
+get_Y_star = fdifference.get_Y_star
 
 def test_integration():
 
