@@ -14,6 +14,29 @@ def continuous_analytic_rate_robin_neumann(discretization, Lambda_1, w):
     sig2 = -np.sqrt(np.abs(w)/(2*D2)) * (1 + np.abs(w)/w * 1j)
     return np.abs(D1*sig1*(D2*sig2+Lambda_1) / (D2*sig2*(D1*sig1+Lambda_1)))
 
+def continuous_analytic_rate_robin_robin(discretization, Lambda_1, Lambda_2, w):
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    # sig1 is \sigma^1_{+}
+    sig1 = np.sqrt(np.abs(w)/(2*D1)) * (1 + np.abs(w)/w * 1j)
+    # sig2 is \sigma^2_{-}
+    sig2 = -np.sqrt(np.abs(w)/(2*D2)) * (1 + np.abs(w)/w * 1j)
+    first_term = np.abs((D2*sig2+Lambda_1) / (D1*sig1+Lambda_1))
+    #TODO why is there here a "+" whereas in the paper it's 'D2*sig2-Lambda_2'
+    second = np.abs((D1*sig1-Lambda_2) / (D2*sig2-Lambda_2))
+    # TODO put back a "+" ?
+    return first_term*second
+
+def continuous_best_lam_robin_neumann(discretization, N):
+    sqD1 = np.sqrt(discretization.D1_DEFAULT)
+    sqD2 = np.sqrt(discretization.D2_DEFAULT)
+    dt = discretization.DT_DEFAULT
+    T = dt*N
+    sqw1 = np.sqrt(pi/T)
+    sqw2 = np.sqrt(pi/dt)
+    return 1/(2*np.sqrt(2)) * ((sqD2-sqD1)*(sqw1+sqw2) + np.sqrt((sqD2-sqD1)**2 * (sqw1 + sqw2)**2 + 8*sqD1*sqD2*sqw1*sqw2))
+
+
 def rate_by_z_transform(discretization, Lambda_1, NUMBER_SAMPLES):
     all_points = np.linspace(0, 2*pi, NUMBER_SAMPLES, endpoint=False)
     dt=DT_DEFAULT

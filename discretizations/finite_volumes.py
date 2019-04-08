@@ -24,6 +24,18 @@ class FiniteVolumes(Discretization):
                 LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT, DT_DEFAULT
 
     """
+        Returns default values of a, c, dt or parameters if given.
+    """
+    def get_a_c_dt(self, a=None, c=None, dt=None):
+        if a is None:
+            a = self.A_DEFAULT
+        if c is None:
+            c = self.C_DEFAULT
+        if dt is None:
+            dt = self.DT_DEFAULT
+        return a, c, dt
+
+    """
         Entry point in the module.
         Provided equation parameters M, h, D, a, c, dt, f;
         Provided boundary condition bd_cond, phi_interface, u_interface, Lambda;
@@ -52,6 +64,7 @@ class FiniteVolumes(Discretization):
     """
     def integrate_one_step(self, M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
             u_interface, phi_interface, upper_domain=True, Y=None):
+        a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
                 float(c), float(dt), float(bd_cond), float(Lambda), \
                 float(u_interface), float(phi_interface)
@@ -140,6 +153,7 @@ class FiniteVolumes(Discretization):
     """
     def integrate_one_step_star(self, M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
             neumann, dirichlet, u_nm1):
+        a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
                 float(neumann), float(dirichlet)
         # Theses assertions cannot be used because of the unit tests:
@@ -246,6 +260,7 @@ class FiniteVolumes(Discretization):
     """
 
     def get_Y(self, M, h, D, a, c, dt, Lambda, upper_domain=True):
+        a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, Lambda = float(a), float(c), float(dt), float(Lambda)
         D = np.zeros(M+1) + D
         h = np.zeros(M) + h
@@ -320,6 +335,7 @@ class FiniteVolumes(Discretization):
 
     """
     def get_Y_star(self, M1, M2, h1, h2, D1, D2, a, c, dt):
+        a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt = float(a), float(c), float(dt)
         if a < 0:
             print("Warning : a should probably not be negative")
@@ -396,6 +412,7 @@ class FiniteVolumes(Discretization):
     """
     def precompute_Y(self, M, h, D, a, c, dt, f, bd_cond, Lambda,
             upper_domain=True):
+        a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, = float(a), \
                 float(c), float(dt), float(bd_cond), float(Lambda)
 
@@ -422,17 +439,12 @@ class FiniteVolumes(Discretization):
     def analytic_robin_robin(self, s=None, Lambda_1=None,
             Lambda_2=None, a=None, c=None, dt=None, M1=None, M2=None,
             D1=None, D2=None, verbose=False):
+        a, c, dt = self.get_a_c_dt(a, c, dt)
 
         if Lambda_1 is None:
             Lambda_1 = self.LAMBDA_1_DEFAULT
         if Lambda_2 is None:
             Lambda_2 = self.LAMBDA_2_DEFAULT
-        if a is None:
-            a = self.A_DEFAULT
-        if c is None:
-            c = self.C_DEFAULT
-        if dt is None:
-            dt = self.DT_DEFAULT
         if M1 is None:
             M1 = self.M1_DEFAULT
         if M2 is None:
