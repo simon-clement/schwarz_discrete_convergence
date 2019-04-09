@@ -156,6 +156,9 @@ def main():
         elif sys.argv[1] == "frequency":
             pass #TODO
 
+
+#def analysis_frequency_error(
+
 def plot_3D_profile(dis, N):
     rate_fdiff = functools.partial(rate,dis, N)
     dt = dis.DT_DEFAULT
@@ -288,7 +291,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(discretization, T,
         return max([f(pi/t*1j) for t in np.linspace(dt, T, N)])
         #return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
 
-    all_h = np.linspace(-3, 1, steps)
+    all_h = np.linspace(-2.7, 2, steps)
     all_h = np.exp(all_h)/2.1
 
     import concurrent.futures

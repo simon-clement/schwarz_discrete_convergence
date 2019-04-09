@@ -138,6 +138,105 @@ def rate(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
 
     return error[1] / error[0]
 
+
+def frequency_simulation(discretization, N, **kwargs):
+    ret = None
+    for seed in range(100, 103):
+        errors = np.array(interface_errors(discretization, N, seed=seed, **kwargs))
+        freq_err = np.fft.fft(errors, axis=-1)
+        if ret is None:
+            ret = freq_err
+        else:
+            ret += freq_err
+    return ret
+
+
+"""
+    returns errors at interface from beginning (first guess) until the end.
+    to get rate, just use the following code:
+    def rate(*args, function_to_use=max):
+        errors = interface_errors(*args)
+        errors = [function_to_use([abs(e) for e in err]) for err in errors]
+        return errors[2]/errors[1]
+"""
+def interface_errors(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
+        a=None, c=None, dt=None, M1=None, M2=None, seed=9380):
+
+    if M1 is None:
+        M1 = discretization.M1_DEFAULT
+    if M2 is None:
+        M2 = discretization.M2_DEFAULT
+    if Lambda_1 is None:
+        Lambda_1 = discretization.LAMBDA_1_DEFAULT
+    if Lambda_2 is None:
+        Lambda_2 = discretization.LAMBDA_2_DEFAULT
+    h1, h2 = discretization.get_h(discretization.SIZE_DOMAIN_1,
+            discretization.SIZE_DOMAIN_2, M1, M2)
+    D1, D2 = discretization.get_D(h1, h2)
+
+    f1 = np.zeros(M1)
+    f2 = np.zeros(M2)
+    neumann = 0
+    dirichlet = 0
+
+    precomputed_Y1 = discretization.precompute_Y(M=M1,
+                    h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
+                    bd_cond=dirichlet, Lambda=Lambda_1, upper_domain=False)
+
+    precomputed_Y2 = discretization.precompute_Y(M=M2,
+                    h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
+                    bd_cond=neumann, Lambda=Lambda_2, upper_domain=True)
+
+    # random false initialization:
+    u1_0 = np.zeros(M1)
+    u2_0 = np.zeros(M2)
+    error = []
+    np.random.seed(seed)
+    all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    ret = [all_u1_interface]
+    # Beginning of schwarz iterations:
+    for k in range(2):
+        all_u2_interface = []
+        all_phi2_interface = []
+        all_u2 =  [u2_0]
+        # Time iteration:
+        for i in range(time_window_len):
+            u_interface = all_u1_interface[i]
+            phi_interface = all_phi1_interface[i]
+
+            u2_ret, u_interface, phi_interface = discretization.integrate_one_step(M=M2,
+                    h=h2, D=D2, a=a, c=c, dt=dt, f=f2,
+                    bd_cond=neumann, Lambda=Lambda_2, u_nm1=all_u2[-1],
+                    u_interface=u_interface, phi_interface=phi_interface,
+                    upper_domain=True, Y=precomputed_Y2)
+            all_u2 += [u2_ret]
+            all_u2_interface += [u_interface]
+            all_phi2_interface += [phi_interface]
+
+        all_u1_interface = []
+        all_phi1_interface = []
+        all_u1 = [u1_0]
+
+        for i in range(time_window_len):
+
+            u_interface = all_u2_interface[i]
+            phi_interface = all_phi2_interface[i]
+
+            u1_ret, u_interface, phi_interface = discretization.integrate_one_step(M=M1,
+                    h=h1, D=D1, a=a, c=c, dt=dt, f=f1,
+                    bd_cond=dirichlet, Lambda=Lambda_1, u_nm1=all_u1[-1],
+                    u_interface=u_interface, phi_interface=phi_interface,
+                    upper_domain=False, Y=precomputed_Y1)
+            all_u1 += [u1_ret]
+            all_u1_interface += [u_interface]
+            all_phi1_interface += [phi_interface]
+
+        ret += [all_u1_interface]
+
+    return ret
+
+
 if __name__ == "__main__":
     import main
     main.main()
