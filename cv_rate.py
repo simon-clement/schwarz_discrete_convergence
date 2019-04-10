@@ -61,8 +61,32 @@ def analytic_robin_robin(discretization, w=None, Lambda_1=None,
             Lambda_2=Lambda_2, a=a, c=c, dt=dt, M1=M1, M2=M2,
             D1=D1, D2=D2, verbose=verbose)
 
+"""
+    Makes a simulation and gives the convergence rate.
+    For details of args and kwargs, see @interface_errors
+    function_to_use can be max for L^\infty or np.linalg.norm for L^2
+    This particular function use a lot of different simulations with random
+    first guess to get a good convergence rate.
+"""
+PARALLEL = False
+def rate(discretization, N, Lambda_1=None, Lambda_2=None,
+        a=None, c=None, dt=None, M1=None, M2=None, function_to_use=max, seeds=range(10)):
+    errors = None
+    import concurrent.futures
+    to_map = functools.partial(rate_one_seed, discretization, N, function_to_use=function_to_use,
+            Lambda_1=Lambda_1, Lambda_2=Lambda_2, a=a, c=c, dt=dt, M1=M1, M2=M2) 
+    if PARALLEL:
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            errors = np.sum(np.array(list(executor.map(to_map, seeds))), axis=0)
+    else:
+        errors = np.sum(np.array(list(map(to_map, seeds))), axis=0)
+    return errors[2]/errors[1]
 
-def rate(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
+def rate_one_seed(discretization, N, seed, function_to_use=max, **kwargs):
+    errors = interface_errors(discretization, N, seed=seed, **kwargs)
+    return np.array([function_to_use([abs(e) for e in err]) for err in errors])
+
+def rate_old(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
         a=None, c=None, dt=None, M1=None, M2=None, function_to_use=max):
 
     if M1 is None:
@@ -139,16 +163,13 @@ def rate(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
     return error[1] / error[0]
 
 
-def frequency_simulation(discretization, N, **kwargs):
-    ret = None
-    for seed in range(100, 103):
-        errors = np.array(interface_errors(discretization, N, seed=seed, **kwargs))
+def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
+    import concurrent.futures
+    to_map = functools.partial(interface_errors, discretization, N, **kwargs)
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        errors = np.array(list(executor.map(to_map, range(number_samples))))
         freq_err = np.fft.fft(errors, axis=-1)
-        if ret is None:
-            ret = freq_err
-        else:
-            ret += freq_err
-    return ret
+    return np.mean(np.abs(freq_err), axis=0)
 
 
 """
@@ -159,8 +180,8 @@ def frequency_simulation(discretization, N, **kwargs):
         errors = [function_to_use([abs(e) for e in err]) for err in errors]
         return errors[2]/errors[1]
 """
-def interface_errors(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
-        a=None, c=None, dt=None, M1=None, M2=None, seed=9380):
+def interface_errors(discretization, time_window_len, seed=9380, Lambda_1=None, Lambda_2=None,
+        a=None, c=None, dt=None, M1=None, M2=None):
 
     if M1 is None:
         M1 = discretization.M1_DEFAULT

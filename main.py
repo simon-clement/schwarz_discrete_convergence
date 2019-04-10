@@ -14,11 +14,11 @@ C_DEFAULT=1e-10
 D1_DEFAULT=.6
 D2_DEFAULT=.54
 
-TIME_WINDOW_LEN_DEFAULT=3
+TIME_WINDOW_LEN_DEFAULT=100
 DT_DEFAULT=0.1
 
 M1_DEFAULT= 400
-M2_DEFAULT= 40
+M2_DEFAULT= 400
 
 SIZE_DOMAIN_1 = 200
 SIZE_DOMAIN_2 = 200
@@ -114,8 +114,6 @@ def main():
                 a = (np.sqrt(D1) - np.sqrt(D2)) * (np.sqrt(wmin)+np.sqrt(wmax))
                 return 1/(2*np.sqrt(2))*(a + np.sqrt(a*a + 8*np.sqrt(D1*D2)*np.sqrt(wmin*wmax)))
             print("theory:", theory_star(pi/DT_DEFAULT, pi/(DT_DEFAULT*TIME_WINDOW_LEN_DEFAULT)))
-        elif  sys.argv[1] == "debug":
-            pass
         elif  sys.argv[1] == "ztransform":
             #print(analytic_robin_robin_finite_differences(w=None, Lambda_1=-5, verbose=True))
             #rate_finite_differences2(-5)
@@ -154,10 +152,29 @@ def main():
             print(minimize(fun=to_minimize_all, x0=np.array((1., 0.))))
             """
         elif sys.argv[1] == "frequency":
-            pass #TODO
+            analysis_frequency_error((finite_difference, finite_volumes), 1000)
+        elif  sys.argv[1] == "debug":
+            print("finite differences:", rate(finite_difference, 1, Lambda_1=3., Lambda_2=0., a=0, c=1e-10,
+                dt=0.1, M1=400, M2=400, function_to_use=np.linalg.norm, seeds=range(1)))
 
 
-#def analysis_frequency_error(
+def analysis_frequency_error(discretization, N):
+    import matplotlib.pyplot as plt
+    colors = ['r', 'g', 'b', 'y', 'm']
+    for dis, col in zip(discretization, colors):
+        # first: find a correct lambda : we take the optimal yielded by continuous analysis
+        lambda_1 = continuous_best_lam_robin_neumann(dis, N)
+        print("rate", dis.name(), ":", rate(dis, N, Lambda_1=lambda_1))
+
+        dt = dis.DT_DEFAULT
+        axis_freq = np.linspace(-pi/dt, pi/dt, N)
+        frequencies = frequency_simulation(dis, N, Lambda_1=lambda_1, number_samples=1000)
+        plt.semilogy(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
+        plt.semilogy(axis_freq, frequencies[2], col, linestyle="dashed", label=dis.name()+ " after 2 iterations")
+    plt.xlabel("$\\omega$")
+    plt.ylabel("Error $\\hat{e}_0$")
+    plt.legend()
+    plt.show()
 
 def plot_3D_profile(dis, N):
     rate_fdiff = functools.partial(rate,dis, N)
@@ -443,10 +460,10 @@ def optimal_function_of_h(discretization, N):
     plt.show()
 
 PARALLEL = True
-def beauty_graph_finite(discretization, lambda_min, lambda_max, steps=100):
-    rate_func = functools.partial(rate, discretization, TIME_WINDOW_LEN_DEFAULT)
+def beauty_graph_finite(discretization, lambda_min, lambda_max, steps=100, **kwargs):
+    rate_func = functools.partial(rate, discretization, TIME_WINDOW_LEN_DEFAULT, **kwargs)
     rate_func_normL2 = functools.partial(rate, discretization, TIME_WINDOW_LEN_DEFAULT,
-            function_to_use=np.linalg.norm)
+            function_to_use=np.linalg.norm, **kwargs)
 
     import matplotlib.pyplot as plt
     from scipy.optimize import minimize_scalar, minimize
@@ -457,23 +474,19 @@ def beauty_graph_finite(discretization, lambda_min, lambda_max, steps=100):
     print("> Starting frequency analysis.")
     rho = []
     for t in np.linspace( dt, T, TIME_WINDOW_LEN_DEFAULT):
-        rho += [[analytic_robin_robin(discretization, w=pi/t,Lambda_1=i) \
+        rho += [[analytic_robin_robin(discretization, w=pi/t,Lambda_1=i, **kwargs) \
                for i in lambda_1]]
-        rho += [[analytic_robin_robin(discretization, w=-pi/t,Lambda_1=i) \
+        rho += [[analytic_robin_robin(discretization, w=-pi/t,Lambda_1=i, **kwargs) \
                for i in lambda_1]]
 
-    sqD1 = np.sqrt(D1_DEFAULT)
-    sqD2 = np.sqrt(D2_DEFAULT)
-    sqw1 = np.sqrt(pi/T)
-    sqw2 = np.sqrt(pi/dt)
-    continuous_best_lam = 1/(2*np.sqrt(2)) * ((sqD2-sqD1)*(sqw1+sqw2) + np.sqrt((sqD2-sqD1)**2 * (sqw1 + sqw2)**2 + 8*sqD1*sqD2*sqw1*sqw2))
+    continuous_best_lam = continuous_best_lam_robin_neumann(discretization, TIME_WINDOW_LEN_DEFAULT)
 
     min_rho, max_rho = np.min(np.array(rho), axis=0), np.max(np.array(rho),axis=0)
     best_analytic = lambda_1[np.argmin(max_rho)]
 
     plt.fill_between(lambda_1, min_rho, max_rho, facecolor="green", label="pi/T < |w| < pi/dt")
     plt.vlines(best_analytic, 0,1, "g", 'dashed', label='best $\\Lambda$ with frequency analysis' )
-    plt.plot(lambda_1, [analytic_robin_robin(discretization, w=0,Lambda_1=i) \
+    plt.plot(lambda_1, [analytic_robin_robin(discretization, w=0,Lambda_1=i, **kwargs) \
                        for i in lambda_1], "y")
     plt.vlines(continuous_best_lam, 0,1, "k", 'dashed', label='best $\\Lambda$ in continuous case' )
     #plt.plot(lambda_1, [rate_by_z_transform(discretization, i, TIME_WINDOW_LEN_DEFAULT) for i in lambda_1], "m")
@@ -481,13 +494,13 @@ def beauty_graph_finite(discretization, lambda_min, lambda_max, steps=100):
     rho = []
     for logt in np.arange(0 , 25):
         t = dt * 2.**logt
-        rho += [[analytic_robin_robin(discretization, w=pi/t,Lambda_1=i) \
+        rho += [[analytic_robin_robin(discretization, w=pi/t,Lambda_1=i, **kwargs) \
                for i in lambda_1]]
-        rho += [[analytic_robin_robin(discretization, w=-pi/t,Lambda_1=i) \
+        rho += [[analytic_robin_robin(discretization, w=-pi/t,Lambda_1=i, **kwargs) \
                for i in lambda_1]]
     plt.fill_between(lambda_1, np.min(np.array(rho), axis=0), np.max(np.array(rho), axis=0), facecolor="grey", label="|w| < pi/dt", alpha=0.4)
 
-    print("> Starting simulations")
+    print("> Starting simulations (this might take a while)")
 
     x = np.linspace(lambda_min, lambda_max, steps)
     if PARALLEL:

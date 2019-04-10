@@ -4,6 +4,7 @@
     Theses function make a single step in time. It is not efficient
     (need to compute the matrix each time) but it is simple.
 """
+
 import numpy as np
 from utils_linalg import solve_linear
 from discretizations.discretization import Discretization 
