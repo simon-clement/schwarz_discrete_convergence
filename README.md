@@ -10,6 +10,12 @@ and where the completion can be used for the argument.
 
 To make a figure that is inside the pdf, just use the argument figure:
 example:
-    ./cv_rate figure 2.3
+    ./cv_rate.py figure 2.3
 will reproduce the figure 2.3.
+
+To install the repository:
+    git clone --recursive https://github.com/nuftau/rust_tbc_parab_schwarz
+You can check your install is correct:
+    ./cv_rate.py test
+
 
