@@ -106,10 +106,6 @@ def rate(discretization, N, Lambda_1=None, Lambda_2=None,
         a=None, c=None, dt=None, M1=None, M2=None,
         function_to_use=lambda x:max(np.abs(x)),
         seeds=range(10)):
-    import rust_mod
-    errors_rust = rust_mod.errors(discretization, N, Lambda_1, Lambda_2,
-            a, c, dt, M1, M2,
-            number_seeds=len(list(seeds)))
     errors = None
     to_map = functools.partial(rate_one_seed, discretization, N, function_to_use=function_to_use,
             Lambda_1=Lambda_1, Lambda_2=Lambda_2, a=a, c=c, dt=dt, M1=M1, M2=M2) 
@@ -213,13 +209,23 @@ def rate_old(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
 
 
 def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
-    import concurrent.futures
-    from numpy.fft import fft, fftshift
-    to_map = functools.partial(interface_errors, discretization, N, **kwargs)
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        errors = np.array(list(executor.map(to_map, range(number_samples))))
+    try:
+        import rust_mod
+        errors = rust_mod.errors_raw(discretization, N, 
+                number_seeds=number_samples, **kwargs)
         freq_err = np.fft.fftshift(np.fft.fft(errors, axis=-1), axes=(-1,))
-    return np.mean(np.abs(freq_err), axis=0)
+        return np.mean(np.abs(freq_err), axis=0)
+    except:
+        raise
+        print("cannot make a fast frequency simulation... Going to pure python " + \
+                "(but it will take some time)")
+        import concurrent.futures
+        from numpy.fft import fft, fftshift
+        to_map = functools.partial(interface_errors, discretization, N, **kwargs)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            errors = np.array(list(executor.map(to_map, range(number_samples))))
+        freq_err = np.fft.fftshift(np.fft.fft(errors, axis=-1), axes=(-1,))
+        return np.mean(np.abs(freq_err), axis=0)
 
 
 """
