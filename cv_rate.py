@@ -61,6 +61,40 @@ def analytic_robin_robin(discretization, w=None, Lambda_1=None,
             Lambda_2=Lambda_2, a=a, c=c, dt=dt, M1=M1, M2=M2,
             D1=D1, D2=D2, verbose=verbose)
 
+
+"""
+    Makes a simulation and gives the convergence rate.
+    uses the rust module to be faster than python
+    For details of args and kwargs, see @interface_errors
+    function_to_use can be max for L^\infty or np.linalg.norm for L^2
+    This particular function use a lot of different simulations with random
+    first guess to get a good convergence rate.
+"""
+PARALLEL = True
+def rate_fast(discretization, N, Lambda_1=None, Lambda_2=None,
+        a=None, c=None, dt=None, M1=None, M2=None,
+        function_to_use=lambda x:max(np.abs(x)),
+        seeds=range(10)):
+    try:
+        import rust_mod
+        errors = rust_mod.errors(discretization, N, Lambda_1, Lambda_2,
+                a, c, dt, M1, M2,
+                number_seeds=len(list(seeds)),
+                function_D1=None, function_D2=None)
+    except:
+        print("Cannot use rate_fast. Did you compile rust module ? Using pure python...")
+        errors = None
+        to_map = functools.partial(rate_one_seed, discretization, N, function_to_use=function_to_use,
+                Lambda_1=Lambda_1, Lambda_2=Lambda_2, a=a, c=c, dt=dt, M1=M1, M2=M2) 
+        if PARALLEL:
+            import concurrent.futures
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                errors = np.mean(np.array(list(executor.map(to_map, seeds))), axis=0)
+        else:
+            errors = np.mean(np.abs(np.array(list(map(to_map, seeds)))), axis=0)
+
+    return function_to_use(errors[2])/function_to_use(errors[1])
+
 """
     Makes a simulation and gives the convergence rate.
     For details of args and kwargs, see @interface_errors
@@ -68,22 +102,37 @@ def analytic_robin_robin(discretization, w=None, Lambda_1=None,
     This particular function use a lot of different simulations with random
     first guess to get a good convergence rate.
 """
-PARALLEL = False
 def rate(discretization, N, Lambda_1=None, Lambda_2=None,
-        a=None, c=None, dt=None, M1=None, M2=None, function_to_use=max, seeds=range(10)):
+        a=None, c=None, dt=None, M1=None, M2=None,
+        function_to_use=lambda x:max(np.abs(x)),
+        seeds=range(10)):
+    import rust_mod
+    errors_rust = rust_mod.errors(discretization, N, Lambda_1, Lambda_2,
+            a, c, dt, M1, M2,
+            number_seeds=len(list(seeds)))
     errors = None
-    import concurrent.futures
     to_map = functools.partial(rate_one_seed, discretization, N, function_to_use=function_to_use,
             Lambda_1=Lambda_1, Lambda_2=Lambda_2, a=a, c=c, dt=dt, M1=M1, M2=M2) 
     if PARALLEL:
+        import concurrent.futures
         with concurrent.futures.ProcessPoolExecutor() as executor:
-            errors = np.sum(np.array(list(executor.map(to_map, seeds))), axis=0)
+            errors = np.mean(np.array(list(executor.map(to_map, seeds))), axis=0)
     else:
-        errors = np.sum(np.array(list(map(to_map, seeds))), axis=0)
-    return errors[2]/errors[1]
+        errors = np.mean(np.abs(np.array(list(map(to_map, seeds)))), axis=0)
+
+    import matplotlib.pyplot as plt
+    plt.plot(errors[0], label="py")
+    plt.plot(errors_rust[0], label="rust")
+    plt.plot(errors[1], "--", label="py")
+    plt.plot(errors_rust[1], "--", label="rust")
+    plt.legend()
+    plt.show()
+
+    return function_to_use(errors[2])/function_to_use(errors[1])
 
 def rate_one_seed(discretization, N, seed, function_to_use=max, **kwargs):
     errors = interface_errors(discretization, N, seed=seed, **kwargs)
+    return errors
     return np.array([function_to_use([abs(e) for e in err]) for err in errors])
 
 def rate_old(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
@@ -168,8 +217,8 @@ def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
     to_map = functools.partial(interface_errors, discretization, N, **kwargs)
     with concurrent.futures.ProcessPoolExecutor() as executor:
         errors = np.array(list(executor.map(to_map, range(number_samples))))
-        freq_err = np.fft.fft(errors, axis=-1)
-    return np.mean(np.abs(freq_err), axis=0)
+        freq_err = np.fft.fftshift(np.fft.fft(errors, axis=-1), axes=(-1,))
+    return np.mean(freq_err, axis=0)
 
 
 """

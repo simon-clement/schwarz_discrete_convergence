@@ -461,9 +461,9 @@ class FiniteDifferences(Discretization):
         if size_domain_2 is None:
             size_domain_2 = self.SIZE_DOMAIN_2
         if M1 is None:
-            M1 = M1
+            M1 = self.M1_DEFAULT
         if M2 is None:
-            M2 = M2
+            M2 = self.M2_DEFAULT
         x1 = -np.linspace(0,size_domain_1,M1)**1
         x2 = np.linspace(0,size_domain_2,M2)**1
         return np.diff(x1), np.diff(x2)
@@ -477,9 +477,9 @@ class FiniteDifferences(Discretization):
     """
     def get_D(self, h1, h2, function_D1=None, function_D2=None):
         if function_D1 is None:
-            function_D1 = lambda x:self.D1_DEFAULT
+            function_D1 = lambda x:self.D1_DEFAULT + np.zeros_like(x)
         if function_D2 is None:
-            function_D2 = lambda x:self.D2_DEFAULT
+            function_D2 = lambda x:self.D2_DEFAULT + np.zeros_like(x)
         x1 = np.cumsum(np.concatenate(([0], h1)))
         x2 = np.cumsum(np.concatenate(([0], h2)))
         # coordinates at half-points:
