@@ -165,12 +165,11 @@ def rate_old(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
 
 def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
     import concurrent.futures
+    from numpy.fft import fft, fftshift
     to_map = functools.partial(interface_errors, discretization, N, **kwargs)
     with concurrent.futures.ProcessPoolExecutor() as executor:
         errors = np.array(list(executor.map(to_map, range(number_samples))))
-        freq_err = np.fft.fft(errors, axis=-1)
-    return np.mean(np.abs(freq_err), axis=0)
-
+    return np.abs(fftshift(fft(errors, axis=-1, norm="ortho"), axes=(-1,)))
 
 """
     returns errors at interface from beginning (first guess) until the end.
@@ -217,7 +216,7 @@ def interface_errors(discretization, time_window_len, seed=9380, Lambda_1=None, 
     all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     ret = [all_u1_interface]
     # Beginning of schwarz iterations:
-    for k in range(2):
+    for k in range(3):
         all_u2_interface = []
         all_phi2_interface = []
         all_u2 =  [u2_0]
@@ -235,6 +234,7 @@ def interface_errors(discretization, time_window_len, seed=9380, Lambda_1=None, 
             all_u2_interface += [u_interface]
             all_phi2_interface += [phi_interface]
 
+        ret += [all_u2_interface]
         all_u1_interface = []
         all_phi1_interface = []
         all_u1 = [u1_0]
