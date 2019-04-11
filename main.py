@@ -17,8 +17,8 @@ D2_DEFAULT=.54
 TIME_WINDOW_LEN_DEFAULT=100
 DT_DEFAULT=.001
 
-M1_DEFAULT= 4000
-M2_DEFAULT= 4000
+M1_DEFAULT= 40
+M2_DEFAULT= 40
 
 SIZE_DOMAIN_1 = 2000
 SIZE_DOMAIN_2 = 2000
@@ -152,10 +152,10 @@ def main():
             print(minimize(fun=to_minimize_all, x0=np.array((1., 0.))))
             """
         elif sys.argv[1] == "frequency":
-            analysis_frequency_error((finite_difference,), 50000)
+            analysis_frequency_error((finite_difference,), 100)
         elif  sys.argv[1] == "debug":
-            print("finite volumes:", rate(finite_volumes, 1, Lambda_1=3., Lambda_2=0., a=0, c=1e-10,
-                dt=0.1, M1=400, M2=400, function_to_use=np.linalg.norm, seeds=range(1)))
+            print("finite differences:", rate_fast(finite_difference, 60, Lambda_1=3., Lambda_2=0., a=0., c=1e-10,
+                dt=0.1, M1=40, M2=40, function_to_use=np.linalg.norm, seeds=range(2000)))
 
 
 def analysis_frequency_error(discretization, N):
@@ -178,12 +178,27 @@ def analysis_frequency_error(discretization, N):
 
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi/dt, pi/dt, N)
+        """
+<<<<<<< HEAD
         frequencies = frequency_simulation(dis, N, Lambda_2=lambda_1, number_samples=600)
         plt.plot(axis_freq, -1/continuous_analytic_error_neumann(dis, axis_freq) , 'b', label="theorical neumann-dirichlet rate")
         plt.plot(axis_freq, np.mean(frequencies[:,3], axis=0), col, label=dis.name()+" after 1.5 iteration")
         plt.plot(axis_freq, np.mean(frequencies[:,4], axis=0), col2, label=dis.name()+" after 2 iteration")
         plt.plot(axis_freq, np.mean(frequencies[:,4], axis=0)/np.mean(frequencies[:,3], axis=0), col+"--", label=dis.name()+" convergence rate (Neumann-dirichlet)")
         #plt.semilogy(axis_freq, frequencies[2], col, linestyle="dashed", label=dis.name()+ " after 2 iterations")
+=======
+        """
+        frequencies = frequency_simulation(dis, N, Lambda_1=lambda_1, number_samples=100)
+        plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
+        plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
+        plt.plot(axis_freq, frequencies[2]/frequencies[1], col+"--", label=dis.name()+" frequential convergence rate")
+        #real_freq = [analytic_robin_robin(dis, w=w, Lambda_1=lambda_1) for w in axis_freq]
+        real_freq = [continuous_analytic_rate_robin_neumann(dis, w=w, Lambda_1=lambda_1) for w in axis_freq]
+        plt.plot(axis_freq, real_freq, col2, label=dis.name()+" theoric")
+        #plt.semilogy(axis_freq, frequencies[0], col+"--", label=dis.name()+" theoric")
+
+
+        #plt.plot(axis_freq, frequencies[2], col, linestyle="dashed", label=dis.name()+ " after 2 iterations")
     plt.xlabel("$\\omega$")
     plt.ylabel("Error $\\hat{e}_0$")
     plt.legend()
