@@ -82,3 +82,14 @@ class Discretization:
     def name(self):
         return "unknown discretization"
 
+    """
+        __eq__ and __hash__ are implemented, so that a discretization
+        can be stored as key in a dict
+        (it is useful for memoisation)
+    """
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__ and self.name() == other.name()
+
+    def __hash__(self):
+        return hash(repr(sorted(self.__dict__.items())) + self.name())
+

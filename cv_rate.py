@@ -54,9 +54,12 @@ def analytic_robin_robin(discretization, w=None, Lambda_1=None,
         Lambda_2=None, a=None, 
         c=None, dt=None, M1=None, M2=None,
         D1=None, D2=None, verbose=False):
+    dt = discretization.DT_DEFAULT
     if w is None:
         s = 1./dt
     else:
+        z = 1*np.exp(w*1j)
+        s = 1./dt * (z-1) / z
         s = w*1j
     return discretization.analytic_robin_robin(s=s, Lambda_1=Lambda_1,
             Lambda_2=Lambda_2, a=a, c=c, dt=dt, M1=M1, M2=M2,
@@ -209,6 +212,24 @@ def rate_old(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
         error += [function_to_use([abs(e) for e in all_phi1_interface])]
 
     return error[1] / error[0]
+
+def raw_simulation(discretization, N, number_samples=1000, **kwargs):
+    try:
+        import rust_mod
+        time_start = time.time()
+        errors = rust_mod.errors_raw(discretization, N, 
+                number_seeds=number_samples, **kwargs)
+        print("took", time.time() - time_start, "seconds")
+        return np.mean(np.abs(errors), axis=0)
+    except:
+        print("cannot make a fast raw simulation... Going to pure python " + \
+                "(but it will take some time)")
+        import concurrent.futures
+        from numpy.fft import fft, fftshift
+        to_map = functools.partial(interface_errors, discretization, N, **kwargs)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            errors = np.array(list(executor.map(to_map, range(number_samples))))
+        return np.mean(np.abs(errors), axis=0)
 
 
 def frequency_simulation(discretization, N, number_samples=1000, **kwargs):

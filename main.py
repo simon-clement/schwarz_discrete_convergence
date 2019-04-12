@@ -17,8 +17,8 @@ D2_DEFAULT=.54
 TIME_WINDOW_LEN_DEFAULT=100
 DT_DEFAULT=.1
 
-M1_DEFAULT= 5000
-M2_DEFAULT= 5000
+M1_DEFAULT= 200
+M2_DEFAULT= 200
 
 SIZE_DOMAIN_1 = 2000
 SIZE_DOMAIN_2 = 2000
@@ -152,11 +152,81 @@ def main():
             print(minimize(fun=to_minimize_all, x0=np.array((1., 0.))))
             """
         elif sys.argv[1] == "frequency":
-            analysis_frequency_error((finite_difference,), 150)
+            analysis_frequency_error((finite_difference,finite_volumes), 100)
+        elif sys.argv[1] == "raw_simu":
+            raw_plot((finite_difference,), 100)
         elif  sys.argv[1] == "debug":
             print("finite differences:", rate_fast(finite_difference, 60, Lambda_1=3., Lambda_2=0., a=0., c=1e-10,
                 dt=0.1, M1=40, M2=40, function_to_use=np.linalg.norm, seeds=range(150)))
+        elif sys.argv[1] == "clean_memoised":
+            import os
+            import glob
+            for filename in glob.iglob(memoisation_folder_name + "/*", recursive=True):
+                print(filename)
+                os.remove(filename)
 
+def mon_max(*args, **kwargs):
+    return max(list(args))
+
+
+memoisation_folder_name = "cache_npy"
+def memoised(fun, *args, **kwargs):
+    import os
+    os.makedirs(memoisation_folder_name, exist_ok=True)
+    filename = memoisation_folder_name + "/memoised_" + fun.__name__+".npy"
+    key_dic = (*args, tuple((key, val) for key, val in kwargs.items()))
+    def execute_and_memoise(dic):
+        ret = fun(*args, **kwargs)
+        dic[key_dic] = ret
+        print("saving result to", filename)
+        np.save(filename, dic)
+        return ret
+    try:
+        dic = np.load(filename)[()]
+        if key_dic in dic:
+            print("Found memoised value")
+            return dic[key_dic]
+        else:
+            return execute_and_memoise(dic)
+    except: #no file
+        return execute_and_memoise({})
+
+
+def raw_plot(discretization, N, number_samples=1000):
+    import matplotlib.pyplot as plt
+    colors = ['r', 'g','b', 'y', 'm']
+    for dis, col, col2 in zip(discretization, colors, colors[::-1]):
+        # first: find a correct lambda : we take the optimal yielded by continuous analysis
+
+        lambda_1 = 0.6139250052109033#continuous_best_lam_robin_neumann(dis, N)
+        #print("rate", dis.name(), ":", rate(dis, N, Lambda_1=lambda_1))
+        dt = dis.DT_DEFAULT
+        axis_freq = np.linspace(-pi/dt, pi/dt, N)
+
+        times = memoised(raw_simulation, dis, N, Lambda_1=lambda_1, number_samples=number_samples)
+        plt.plot(times[0], col, label=dis.name()+"first iteration")
+        plt.plot(times[1], col2, label=dis.name()+"second")
+        plt.plot(times[2], 'b', label=dis.name()+"third")
+        #plt.plot(np.fft.fftshift(np.fft.fft(times[1])), col2, label=dis.name()+"second")
+        #plt.plot(np.fft.fftshift(np.fft.fft(times[2])), 'b', label=dis.name()+"third")
+        # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
+        # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
+        # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
+        #plt.plot(axis_freq, frequencies[2]/frequencies[1], col+"--", label=dis.name()+" frequential convergence rate")
+        """
+        real_freq_discrete = [analytic_robin_robin(dis, w=w,
+            Lambda_1=lambda_1) for w in axis_freq]
+        real_freq_continuous = [continuous_analytic_rate_robin_neumann(dis,
+            w=w, Lambda_1=lambda_1) for w in axis_freq]
+        """
+        #plt.plot(axis_freq, real_freq_continuous, col2, label="theoric rate (continuous)")
+        #plt.plot(axis_freq, real_freq_discrete, col, label="theoric rate (discrete)")
+
+
+    plt.xlabel("$\\omega$")
+    plt.ylabel("Error $\\hat{e}_0$")
+    plt.legend()
+    plt.show()
 
 def analysis_frequency_error(discretization, N):
     def continuous_analytic_error_neumann(discretization, w):
@@ -178,7 +248,7 @@ def analysis_frequency_error(discretization, N):
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi/dt, pi/dt, N)
 
-        frequencies = frequency_simulation(dis, N, Lambda_1=lambda_1, number_samples=5000)
+        frequencies = frequency_simulation(dis, N, Lambda_1=lambda_1, number_samples=350)
         # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
         # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
         plt.plot(axis_freq, frequencies[2]/frequencies[1], col+"--", label=dis.name()+" frequential convergence rate")
