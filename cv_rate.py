@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import time
 import numpy as np
 from numpy import pi, cos, sin
 from discretizations.finite_difference import FiniteDifferences
@@ -166,6 +167,8 @@ def rate_old(discretization, time_window_len, Lambda_1=None, Lambda_2=None,
     np.random.seed(9380)
     all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    all_u1_interface[-1] /= 1000.
+    all_phi1_interface[-1] /= 1000.
     # Beginning of schwarz iterations:
     for k in range(2):
         all_u2_interface = []
@@ -271,6 +274,8 @@ def interface_errors(discretization, time_window_len, seed=9380, Lambda_1=None, 
     np.random.seed(seed)
     all_u1_interface = 2*(np.random.rand(time_window_len) - 0.5)
     all_phi1_interface = 2*(np.random.rand(time_window_len) - 0.5)
+    all_u1_interface[-1] /= 1000;
+    all_phi1_interface[-1] /= 1000;
     ret = [all_u1_interface]
     # Beginning of schwarz iterations:
     for k in range(3):
