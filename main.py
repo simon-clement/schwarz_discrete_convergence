@@ -15,7 +15,7 @@ D1_DEFAULT=2.6
 D2_DEFAULT=.54
 
 TIME_WINDOW_LEN_DEFAULT=100
-DT_DEFAULT=.1
+DT_DEFAULT=.01
 
 M1_DEFAULT= 200
 M2_DEFAULT= 200
@@ -251,17 +251,18 @@ def analysis_frequency_error(discretization, N):
         frequencies = frequency_simulation(dis, N, Lambda_1=lambda_1, number_samples=350)
         # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
         # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
-        plt.plot(axis_freq, frequencies[2]/frequencies[1], col+"--", label=dis.name()+" frequential convergence rate")
+        #plt.plot(axis_freq, frequencies[1], col+"--", label=dis.name()+" frequential error after the first iteration")
+        plt.plot(axis_freq, frequencies[2]/frequencies[1], col+"--", label=dis.name()+" frequential error after second iteration")
         real_freq_discrete = [analytic_robin_robin(dis, w=w,
             Lambda_1=lambda_1) for w in axis_freq]
         real_freq_continuous = [continuous_analytic_rate_robin_neumann(dis,
             w=w, Lambda_1=lambda_1) for w in axis_freq]
-        plt.plot(axis_freq, real_freq_continuous, col2, label="theoric rate (continuous)")
-        plt.plot(axis_freq, real_freq_discrete, col, label="theoric rate (discrete)")
+        plt.plot(axis_freq, real_freq_continuous, 'b', label="theoric rate (continuous)")
+        plt.plot(axis_freq, real_freq_discrete, col, label=dis.name()+"theoric rate (discrete)")
 
 
     plt.xlabel("$\\omega$")
-    plt.ylabel("Error $\\hat{e}_0$")
+    plt.ylabel("convergence rate $\\rho$")
     plt.legend()
     plt.show()
 

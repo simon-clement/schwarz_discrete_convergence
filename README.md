@@ -19,3 +19,7 @@ You can check your install is correct:
     ./cv_rate.py test
 
 
+dependencies for the fast versions:
+    rust installed
+    libopenblas-base installed
+    cffi installed
