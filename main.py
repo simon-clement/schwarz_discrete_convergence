@@ -15,10 +15,10 @@ D1_DEFAULT=2.6
 D2_DEFAULT=.54
 
 TIME_WINDOW_LEN_DEFAULT=100
-DT_DEFAULT=.01
+DT_DEFAULT=.1
 
-M1_DEFAULT= 200
-M2_DEFAULT= 200
+M1_DEFAULT= 2000
+M2_DEFAULT= 2000
 
 SIZE_DOMAIN_1 = 2000
 SIZE_DOMAIN_2 = 2000
@@ -152,7 +152,7 @@ def main():
             print(minimize(fun=to_minimize_all, x0=np.array((1., 0.))))
             """
         elif sys.argv[1] == "frequency":
-            analysis_frequency_error((finite_difference,finite_volumes), 100)
+            analysis_frequency_error((finite_difference,finite_volumes), 1000)
         elif sys.argv[1] == "raw_simu":
             raw_plot((finite_difference,), 100)
         elif  sys.argv[1] == "debug":
@@ -177,6 +177,8 @@ def memoised(fun, *args, **kwargs):
     key_dic = (*args, tuple((key, val) for key, val in kwargs.items()))
     def execute_and_memoise(dic):
         ret = fun(*args, **kwargs)
+        if len(dic) > 2: # resetting dic if it was too large : avoid too slow saving
+            dic = {}
         dic[key_dic] = ret
         print("saving result to", filename)
         np.save(filename, dic)
@@ -248,18 +250,23 @@ def analysis_frequency_error(discretization, N):
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi/dt, pi/dt, N)
 
-        frequencies = frequency_simulation(dis, N, Lambda_1=lambda_1, number_samples=350)
+        frequencies = memoised(frequency_simulation,dis, N, Lambda_1=lambda_1, number_samples=350)
         # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
         # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
         #plt.plot(axis_freq, frequencies[1], col+"--", label=dis.name()+" frequential error after the first iteration")
-        plt.plot(axis_freq, frequencies[2]/frequencies[1], col+"--", label=dis.name()+" frequential error after second iteration")
-        real_freq_discrete = [analytic_robin_robin(dis, w=w,
-            Lambda_1=lambda_1) for w in axis_freq]
+        plt.plot(axis_freq, frequencies[2]/frequencies[1], col, label=dis.name()+" frequential error after second iteration")
+        real_freq_discrete = np.array([analytic_robin_robin(dis, w=w,
+            Lambda_1=lambda_1, semi_discrete=False, N=N) for w in axis_freq])
+
+        real_freq_semidiscrete = [analytic_robin_robin(dis, w=w,
+            Lambda_1=lambda_1, semi_discrete=True, N=N) for w in axis_freq]
+
         real_freq_continuous = [continuous_analytic_rate_robin_neumann(dis,
             w=w, Lambda_1=lambda_1) for w in axis_freq]
-        plt.plot(axis_freq, real_freq_continuous, 'b', label="theoric rate (continuous)")
-        plt.plot(axis_freq, real_freq_discrete, col, label=dis.name()+"theoric rate (discrete)")
 
+        plt.plot(axis_freq, real_freq_continuous, 'b', label="theoric rate (continuous)")
+        plt.plot(axis_freq, real_freq_semidiscrete, col, linestyle='dotted', label=dis.name()+"theoric rate (semi-discrete)")
+        plt.plot(axis_freq, real_freq_discrete, col, linestyle='dashed', label=dis.name()+"theoric rate (discrete)")
 
     plt.xlabel("$\\omega$")
     plt.ylabel("convergence rate $\\rho$")
