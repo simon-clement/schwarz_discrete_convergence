@@ -1,11 +1,11 @@
 # Schwarz TBC finder
 
-This repository the main code of my MCS thesis, where the aim is to analyze transparent boundary conditions
-(TBC) of a coupled system formed by 1D diffusions equations.
-The diffusions equations may have a variable coefficient (in space) and non-uniform discretization.
-There is an accelerated version written in Rust in a submodule. It should only work on unix system, due to the use of openBLAS (and probably MacOS but it wasn't tested).
+This repository is the main code of my MCS thesis, where the aim is to analyze transparent boundary conditions
+(TBC) of a coupled system formed by 1D diffusion equations.
+The diffusion equations may have variable coefficients (in space) and non-uniform discretization.
+There is an accelerated version written in Rust in a submodule. The accelerated part should only work on unix systems and has additional dependencies: everything works without it, but the pure Python version is ~10 times slower.
 
-### To install the repository:
+### Install the repository:
 ```
     git clone --recursive https://github.com/nuftau/schwarz_tbc_finder
 ```
@@ -28,10 +28,10 @@ Or
     ./main.py [ARG]
 ```
 
-where ARG is one of the arguments {test, graph, optimize, debug, analytic, figure}
+where ARG is one of the arguments {test, graph, optimize, debug, analytic, figure, frequency, raw_simu}
 and where the completion can be used for the argument.
 
-### use the repository (not yet implemented)
+### Use the repository (not yet implemented)
 To make a figure that is inside the pdf, just use the argument figure:
 example:
 ```
@@ -40,7 +40,7 @@ example:
 will reproduce the figure 2.3.
 
 
-### dependencies for the fast versions
+### Dependencies for the fast versions
 
 Rust language must be installed: 
     https://www.rust-lang.org/tools/install
