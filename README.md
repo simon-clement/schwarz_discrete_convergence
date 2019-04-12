@@ -50,7 +50,7 @@ libopenblas-base must also be installed:
     apt install libopenblas-base
 ```
 
-    cffi installed:
+The python package cffi must be available:
 ```
     pip3 install cffi
 ```
