@@ -11,17 +11,22 @@ LAMBDA_2_DEFAULT=0.0
 
 A_DEFAULT=0.0
 C_DEFAULT=1e-10
-D1_DEFAULT=2.6
+D1_DEFAULT=.6
 D2_DEFAULT=.54
-
-TIME_WINDOW_LEN_DEFAULT=100
-DT_DEFAULT=.01
 
 M1_DEFAULT= 200
 M2_DEFAULT= 200
 
-SIZE_DOMAIN_1 = 2000
-SIZE_DOMAIN_2 = 2000
+SIZE_DOMAIN_1 = 200
+SIZE_DOMAIN_2 = 200
+
+NUMBER_DDT_H2 = .1
+T = 10.
+
+
+DT_DEFAULT=NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+# should not be too different from the value with M2, Size_domain2, and D2
+TIME_WINDOW_LEN_DEFAULT=int(T/DT_DEFAULT)
 
 
 def main():
@@ -92,7 +97,6 @@ def main():
                 #TODO enter all figures inside the dictionary
 
         elif sys.argv[1] == "graph":
-            T = 10
             if len(sys.argv) == 2:
                 pass
             elif sys.argv[2] == "volumes":
@@ -103,9 +107,9 @@ def main():
             error_2D_by_taking_continuous_rate(finite_difference, 50)
         elif sys.argv[1] == "optimize":
             from scipy.optimize import minimize_scalar
-            print("rate finite volumes:", minimize_scalar(functools.partial(rate,
+            print("rate finite volumes:", minimize_scalar(functools.partial(rate_fast,
                                                                 finite_volumes, TIME_WINDOW_LEN_DEFAULT)))
-            print("rate finite differences:", minimize_scalar(functools.partial(rate,
+            print("rate finite differences:", minimize_scalar(functools.partial(rate_fast,
                                                                 finite_difference, TIME_WINDOW_LEN_DEFAULT)))
 
             D1 = D1_DEFAULT
@@ -267,7 +271,7 @@ def analysis_frequency_error(discretization, N):
     plt.show()
 
 def plot_3D_profile(dis, N):
-    rate_fdiff = functools.partial(rate,dis, N)
+    rate_fdiff = functools.partial(rate_fast,dis, N)
     dt = dis.DT_DEFAULT
     assert continuous_analytic_rate_robin_neumann(dis, 2.3, pi/dt) - continuous_analytic_rate_robin_robin(dis, 2.3, 0., pi/dt) < 1e-13
     cont = functools.partial(continuous_analytic_rate_robin_robin,
@@ -312,7 +316,7 @@ def error_2D_by_taking_continuous_rate(discretization, N):
     dt = discretization.DT_DEFAULT
     T = dt*N
 
-    rate_eff = functools.partial(rate,discretization, N)
+    rate_eff = functools.partial(rate_fast,discretization, N)
     to_minimize_all = lambda x:rate_fdiff(Lambda_1=x[0], Lambda_2=x[1])
     to_minimize_rob_neu = lambda x:rate_fdiff(Lambda_1=x, Lambda_2=0.)
     to_minimize_one_sided = lambda x:rate_fdiff(Lambda_1=x, Lambda_2=-x)
@@ -398,15 +402,13 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(discretization, T,
         return max([f(pi/t*1j) for t in np.linspace(dt, T, N)])
         #return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
 
-    all_h = np.linspace(-2.7, 2, steps)
+    all_h = np.linspace(0, 2, steps)
     all_h = np.exp(all_h)/2.1
 
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        func_to_map = lambda x:minimize_scalar(fun=to_minimize_discrete, args=(x))
-        ret_discrete = list(executor.map(func_to_map, all_h))
-        #ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
-        #    for h in all_h]
+    func_to_map = lambda x:minimize_scalar(fun=to_minimize_discrete, args=(x))
+    ret_discrete = list(map(func_to_map, all_h))
+    #ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
+    #    for h in all_h]
     optimal_discrete = [ret.x for ret in ret_discrete]
     theorical_rate_discrete = [ret.fun for ret in ret_discrete]
 
@@ -431,8 +433,8 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(discretization, T,
         print(i)
         M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
         M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
-        rate_with_continuous_lambda += [rate(discretization, N, M1=M1, M2=M2, Lambda_1=optimal_continuous, dt=dt)]
-        rate_with_discrete_lambda += [rate(discretization, N, M1=M1, M2=M2, Lambda_1=optimal_discrete[i], dt=dt)]
+        rate_with_continuous_lambda += [rate_fast(discretization, N, M1=M1, M2=M2, Lambda_1=optimal_continuous, dt=dt)]
+        rate_with_discrete_lambda += [rate_fast(discretization, N, M1=M1, M2=M2, Lambda_1=optimal_discrete[i], dt=dt)]
 
     import matplotlib.pyplot as plt
     plt.semilogx(all_h, rate_with_discrete_lambda, "g", label="Observed rate with discrete optimal $\\Lambda$")
@@ -503,8 +505,8 @@ def error_by_taking_continuous_rate(discretization, N, steps=50):
         print(i)
         M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
         M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
-        rate_with_continuous_lambda += [rate(discretization, N, M1=M1, M2=M2, Lambda_1=optimal_continuous)]
-        rate_with_discrete_lambda += [rate(discretization, N, M1=M1, M2=M2, Lambda_1=optimal_discrete[i])]
+        rate_with_continuous_lambda += [rate_fast(discretization, N, M1=M1, M2=M2, Lambda_1=optimal_continuous)]
+        rate_with_discrete_lambda += [rate_fast(discretization, N, M1=M1, M2=M2, Lambda_1=optimal_discrete[i])]
 
     import matplotlib.pyplot as plt
     plt.semilogx(all_h, rate_with_discrete_lambda, "g", label="Observed rate with discrete optimal $\\Lambda$")
@@ -551,8 +553,8 @@ def optimal_function_of_h(discretization, N):
 
 PARALLEL = True
 def beauty_graph_finite(discretization, lambda_min, lambda_max, steps=100, **kwargs):
-    rate_func = functools.partial(rate, discretization, TIME_WINDOW_LEN_DEFAULT, **kwargs)
-    rate_func_normL2 = functools.partial(rate, discretization, TIME_WINDOW_LEN_DEFAULT,
+    rate_func = functools.partial(rate_fast, discretization, TIME_WINDOW_LEN_DEFAULT, **kwargs)
+    rate_func_normL2 = functools.partial(rate_fast, discretization, TIME_WINDOW_LEN_DEFAULT,
             function_to_use=np.linalg.norm, **kwargs)
 
     import matplotlib.pyplot as plt
