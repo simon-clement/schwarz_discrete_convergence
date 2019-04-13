@@ -4,6 +4,9 @@ import discretizations.finite_difference as finite_diff
 import os
 os.system('cd rust_tbc_parab_schwarz;cargo build --release; cd ..;')
 
+def clean():
+    os.system('cd rust_tbc_parab_schwarz;cargo clean; cd ..')
+
 ffi = FFI()
 # TODO remove or adapt
 ffi.cdef("""

@@ -632,8 +632,6 @@ class FiniteVolumes(Discretization):
         # coordinates at half-points:
         x1_1_2 = np.cumsum(np.concatenate(([0], h1)))
         x2_1_2 = np.cumsum(np.concatenate(([0], h2)))
-        two_if_not_constant = 0.
-
         D1 = function_D1(x1_1_2)
         D2 = function_D2(x2_1_2)
         return D1, D2

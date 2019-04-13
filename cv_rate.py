@@ -1,9 +1,7 @@
 #!/usr/bin/python3
 import time
 import numpy as np
-from numpy import pi, cos, sin
-from discretizations.finite_difference import FiniteDifferences
-from discretizations.finite_volumes import FiniteVolumes
+from numpy import pi
 import functools
 
 
@@ -77,10 +75,8 @@ def analytic_robin_robin(discretization,
         if semi_discrete:
             s = w * 1j
         else:
+            # Note : in full discrete case, a fftshift is needed
             z = 1.0 * np.exp(-w * 1j * dt * N)
-            # if we put *2 inside the exp,
-            # we get a better behavious on low frequencies...
-            # but it makes no sense xD
             s = 1. / dt * (z - 1) / z
 
     return discretization.analytic_robin_robin(s=s,

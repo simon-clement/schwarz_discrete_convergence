@@ -102,3 +102,6 @@ class Discretization:
 
     def __hash__(self):
         return hash(repr(sorted(self.__dict__.items())) + self.name())
+
+    def __repr__(self):
+        return repr(sorted(self.__dict__.items())) + self.name()

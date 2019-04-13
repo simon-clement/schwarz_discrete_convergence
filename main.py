@@ -1,10 +1,18 @@
 #!/usr/bin/python3
 import numpy as np
-from numpy import pi, cos, sin
+from numpy import pi
 from discretizations.finite_difference import FiniteDifferences
 from discretizations.finite_volumes import FiniteVolumes
 import functools
-from cv_rate import *
+from cv_rate import continuous_analytic_rate_robin_neumann
+from cv_rate import continuous_analytic_rate_robin_robin
+from cv_rate import continuous_best_lam_robin_neumann
+from cv_rate import rate_by_z_transform
+from cv_rate import analytic_robin_robin
+from cv_rate import rate_fast
+from cv_rate import raw_simulation
+from cv_rate import frequency_simulation
+from memoisation import memoised
 
 LAMBDA_1_DEFAULT = 0.0
 LAMBDA_2_DEFAULT = 0.0
@@ -205,48 +213,10 @@ def main():
                           M2=40,
                           function_to_use=np.linalg.norm,
                           seeds=range(150)))
-        elif sys.argv[1] == "clean_memoised":
-            import os
-            import glob
-            for filename in glob.iglob(memoisation_folder_name + "/*",
-                                       recursive=True):
-                print(filename)
-                os.remove(filename)
-
-
-def mon_max(*args, **kwargs):
-    return max(list(args))
-
-
-memoisation_folder_name = "cache_npy"
-
-
-def memoised(fun, *args, **kwargs):
-    import os
-    os.makedirs(memoisation_folder_name, exist_ok=True)
-    filename = memoisation_folder_name + "/memoised_" + fun.__name__ + ".npy"
-    key_dic = (*args, tuple((key, val) for key, val in kwargs.items()))
-
-    def execute_and_memoise(dic):
-        ret = fun(*args, **kwargs)
-        if len(
-                dic
-        ) > 2:  # resetting dic if it was too large : avoid too slow saving
-            dic = {}
-        dic[key_dic] = ret
-        print("saving result to", filename)
-        np.save(filename, dic)
-        return ret
-
-    try:
-        dic = np.load(filename)[()]
-        if key_dic in dic:
-            print("Found memoised value")
-            return dic[key_dic]
-        else:
-            return execute_and_memoise(dic)
-    except BaseException:  # no file
-        return execute_and_memoise({})
+        elif sys.argv[1] == "clean":
+            import memoisation
+            memoisation.clean()
+            print("Memoisation folder cleaned.")
 
 
 def raw_plot(discretization, N, number_samples=1000):
@@ -326,13 +296,13 @@ def analysis_frequency_error(discretization, N):
                  col,
                  label=dis.name() +
                  " frequential error after second iteration")
-        real_freq_discrete = np.array([
+        real_freq_discrete = np.fft.fftshift(np.array([
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
                                  semi_discrete=False,
                                  N=N) for w in axis_freq
-        ])
+        ]))
 
         real_freq_semidiscrete = [
             analytic_robin_robin(dis,
@@ -358,7 +328,7 @@ def analysis_frequency_error(discretization, N):
                  label=dis.name() + "theoric rate (semi-discrete)")
         plt.plot(axis_freq,
                  real_freq_discrete,
-                 col,
+                 'k',
                  linestyle='dashed',
                  label=dis.name() + "theoric rate (discrete)")
 
@@ -553,7 +523,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
         return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
         # return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
 
-    all_h = np.linspace(0, 2, steps)
+    all_h = np.linspace(-2, 2, steps)
     all_h = np.exp(all_h) / 2.1
 
     def func_to_map(x): return minimize_scalar(
@@ -586,19 +556,19 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
         M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
         rate_with_continuous_lambda += [
             rate_fast(discretization,
-                      N,
-                      M1=M1,
-                      M2=M2,
-                      Lambda_1=optimal_continuous,
-                      dt=dt)
+                     N,
+                     M1=M1,
+                     M2=M2,
+                     Lambda_1=optimal_continuous,
+                     dt=dt)
         ]
         rate_with_discrete_lambda += [
             rate_fast(discretization,
-                      N,
-                      M1=M1,
-                      M2=M2,
-                      Lambda_1=optimal_discrete[i],
-                      dt=dt)
+                     N,
+                     M1=M1,
+                     M2=M2,
+                     Lambda_1=optimal_discrete[i],
+                     dt=dt)
         ]
 
     import matplotlib.pyplot as plt
