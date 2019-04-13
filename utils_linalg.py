@@ -1,11 +1,12 @@
 import numpy as np
-
 """
     Returns "Y * u"
     equivalent code :
     return (np.diag(Y[1])+np.diag(Y[0], k=-1) + np.diag(Y[2], k=1)) @ u
     Y is a tridiagonal matrix returned by get_Y or get_Y_star
 """
+
+
 def multiply(Y, u):
     assert len(Y) == 3
     assert u.ndim == Y[0].ndim == Y[1].ndim == Y[2].ndim == 1
@@ -29,6 +30,8 @@ def multiply(Y, u):
 
     Y is returned by the functions get_Y and get_Y_star
 """
+
+
 def solve_linear(Y, f):
     # We note Y_1 the main diagonal, Y_2 the right diag, Y_0 the left diag
     Y_0, Y_1, Y_2 = Y

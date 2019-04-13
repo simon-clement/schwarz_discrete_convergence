@@ -3,6 +3,8 @@
     discretization, one should inherit from this class.
     Provides prototypes and verification of arguments.
 """
+
+
 class Discretization:
     """
         When D and h are constant, it is possible to find the convergence
@@ -12,8 +14,9 @@ class Discretization:
         In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
         for implicit euler discretisation.
     """
-    def analytic_robin_robin(self, s, Lambda_1, Lambda_2, a, 
-        c, dt, M1, M2, D1, D2, verbose):
+
+    def analytic_robin_robin(self, s, Lambda_1, Lambda_2, a, c, dt, M1, M2, D1,
+                             D2, verbose):
         raise NotImplementedError
 
     """
@@ -42,8 +45,9 @@ class Discretization:
         if D is a ndarray: its size must be M+1
         u_nm1 must be a np.ndarray of dimension 1 and size M
     """
+
     def integrate_one_step(self, M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
-            u_interface, phi_interface, upper_domain, Y):
+                           u_interface, phi_interface, upper_domain, Y):
         raise NotImplementedError
 
     """
@@ -54,6 +58,7 @@ class Discretization:
         or add optional arguments x1, x2 to allow
         the user to use non-uniform discretization
     """
+
     def get_h(self, size_domain_1, size_domain_2, M1, M2):
         raise NotImplementedError
 
@@ -63,6 +68,7 @@ class Discretization:
         provide continuous functions accepting ndarray
         for D1 and D2, and returns the right coefficients.
     """
+
     def get_D(self, h1, h2, function_D1, function_D2):
         raise NotImplementedError
 
@@ -73,12 +79,15 @@ class Discretization:
         f is kept as an argument but should not be used.
         It is not mandatory to implement this method.
     """
-    def precompute_Y(self, M, h, D, a, c, dt, f, bd_cond, Lambda, upper_domain):
+
+    def precompute_Y(self, M, h, D, a, c, dt, f, bd_cond, Lambda,
+                     upper_domain):
         return None
 
     """
         Returns the name of the discretization, no caps.
     """
+
     def name(self):
         return "unknown discretization"
 
@@ -87,9 +96,9 @@ class Discretization:
         can be stored as key in a dict
         (it is useful for memoisation)
     """
+
     def __eq__(self, other):
         return self.__dict__ == other.__dict__ and self.name() == other.name()
 
     def __hash__(self):
         return hash(repr(sorted(self.__dict__.items())) + self.name())
-

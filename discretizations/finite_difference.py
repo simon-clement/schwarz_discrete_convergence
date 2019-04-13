@@ -9,13 +9,24 @@ import numpy as np
 from discretizations.discretization import Discretization
 from utils_linalg import solve_linear
 
+
 class FiniteDifferences(Discretization):
     """
         give default values of all variables.
     """
-    def __init__(self, A_DEFAULT=None, C_DEFAULT=None, D1_DEFAULT=None, D2_DEFAULT=None,
-        M1_DEFAULT=None, M2_DEFAULT=None, SIZE_DOMAIN_1=None, SIZE_DOMAIN_2=None,
-        LAMBDA_1_DEFAULT=None, LAMBDA_2_DEFAULT=None, DT_DEFAULT=None):
+
+    def __init__(self,
+                 A_DEFAULT=None,
+                 C_DEFAULT=None,
+                 D1_DEFAULT=None,
+                 D2_DEFAULT=None,
+                 M1_DEFAULT=None,
+                 M2_DEFAULT=None,
+                 SIZE_DOMAIN_1=None,
+                 SIZE_DOMAIN_2=None,
+                 LAMBDA_1_DEFAULT=None,
+                 LAMBDA_2_DEFAULT=None,
+                 DT_DEFAULT=None):
         self.A_DEFAULT, self.C_DEFAULT, self.D1_DEFAULT, self.D2_DEFAULT, \
             self.M1_DEFAULT, self.M2_DEFAULT, self.SIZE_DOMAIN_1, \
             self.SIZE_DOMAIN_2, self.LAMBDA_1_DEFAULT, \
@@ -27,6 +38,7 @@ class FiniteDifferences(Discretization):
     """
         Returns default values of a, c, dt or parameters if given.
     """
+
     def get_a_c_dt(self, a=None, c=None, dt=None):
         if a is None:
             a = self.A_DEFAULT
@@ -63,27 +75,48 @@ class FiniteDifferences(Discretization):
         u_nm1 must be a np.ndarray of dimension 1 and size M
 
     """
-    def integrate_one_step(self, M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
-            u_interface, phi_interface, upper_domain=True, Y=None):
+
+    def integrate_one_step(self,
+                           M,
+                           h,
+                           D,
+                           a,
+                           c,
+                           dt,
+                           f,
+                           bd_cond,
+                           Lambda,
+                           u_nm1,
+                           u_interface,
+                           phi_interface,
+                           upper_domain=True,
+                           Y=None):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
                 float(c), float(dt), float(bd_cond), float(Lambda), \
                 float(u_interface), float(phi_interface)
 
         # Broadcasting / verification of type:
-        D = np.zeros(M-1) + D
-        h = np.zeros(M-1) + h
+        D = np.zeros(M - 1) + D
+        h = np.zeros(M - 1) + h
         f = np.zeros(M) + f
 
-        assert type(u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M
+        assert type(
+            u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M
         assert upper_domain is True or upper_domain is False
 
         if Y is None:
-            Y = self.get_Y(M=M, h=h, D=D, a=a, c=c, dt=dt,
-                    Lambda=Lambda, upper_domain=upper_domain)
-            Y[1][1:-1] += (np.ones(M-2) / dt) * (h[1:] + h[:-1]) 
+            Y = self.get_Y(M=M,
+                           h=h,
+                           D=D,
+                           a=a,
+                           c=c,
+                           dt=dt,
+                           Lambda=Lambda,
+                           upper_domain=upper_domain)
+            Y[1][1:-1] += (np.ones(M - 2) / dt) * (h[1:] + h[:-1])
 
-        rhs = (f[1:-1] + u_nm1[1:-1] / dt) * (h[1:] + h[:-1]) 
+        rhs = (f[1:-1] + u_nm1[1:-1] / dt) * (h[1:] + h[:-1])
 
         cond_robin = Lambda * u_interface + phi_interface \
                 - h[0] / 2 * (u_nm1[0] / dt + f[0])
@@ -98,7 +131,6 @@ class FiniteDifferences(Discretization):
             - h[0] / 2 * ((u_n[0]-u_nm1[0])/dt + a*(u_n[1]-u_n[0])/h[0] \
                           + c * u_n[0] - f[0])
 
-
         assert u_n.shape[0] == M
         return u_n, new_u_interface, new_phi_interface
 
@@ -107,13 +139,14 @@ class FiniteDifferences(Discretization):
         the full system: should work better if D1[0] == D2[0].
         h1 should be negative, and h1[0] is the interface.
     """
+
     def integrate_one_step_star(self, M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
-            neumann, dirichlet, u_nm1):
+                                neumann, dirichlet, u_nm1):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
                 float(neumann), float(dirichlet)
         # Theses assertions cannot be used because of the unit tests:
-        # for arg, name in zip((a, c, neumann, dirichlet), 
+        # for arg, name in zip((a, c, neumann, dirichlet),
         #         ("a", "c", "neumann", "dirichlet")):
         #     assert arg >= 0, name + " should be positive !"
         a, c, dt = self.get_a_c_dt(a, c, dt)
@@ -137,40 +170,40 @@ class FiniteDifferences(Discretization):
         assert (np.array(h1) < 0).all(), "h1 is positive or 0 ! should be <0."
 
         #Broadcasting / verification of types:
-        D1 = np.zeros(M1-1) + D1
-        D2 = np.zeros(M2-1) + D2
-        h1 = np.zeros(M1-1) + h1
-        h2 = np.zeros(M2-1) + h2
+        D1 = np.zeros(M1 - 1) + D1
+        D2 = np.zeros(M2 - 1) + D2
+        h1 = np.zeros(M1 - 1) + h1
+        h2 = np.zeros(M2 - 1) + h2
         f1 = np.zeros(M1) + f1
         f2 = np.zeros(M2) + f2
         # Flipping arrays to have [0] at low altitudes rather than interface
         h1f, f1f, D1f = np.flipud(h1), np.flipud(f1), np.flipud(D1)
-        h1f = -h1f # return to positive h1
+        h1f = -h1f  # return to positive h1
 
         D = np.concatenate((D1f, D2))
         h = np.concatenate((h1f, h2))
-        f = np.concatenate((f1f[:-1],
-            [f1f[-1]*h1f[-1]/(h1f[-1]+h2[0]) + f2[0]*h2[0]/(h1f[-1]+h2[0])],
-            f2[1:]))
+        f = np.concatenate((f1f[:-1], [
+            f1f[-1] * h1f[-1] / (h1f[-1] + h2[0]) + f2[0] * h2[0] /
+            (h1f[-1] + h2[0])
+        ], f2[1:]))
         M = M1 + M2 - 1
 
         Y = self.get_Y_star(M_star=M, h_star=h, D_star=D, a=a, c=c)
 
+        rhs = np.concatenate(
+            ([dirichlet], (h[1:] + h[:-1]) * (f[1:-1] + u_nm1[1:-1] / dt),
+             [neumann]))
 
-        rhs = np.concatenate(([dirichlet],
-            (h[1:] + h[:-1]) * (f[1:-1] + u_nm1[1:-1] / dt),
-            [neumann]))
-
-        Y[1][1:-1] += (h[1:] + h[:-1]) * np.ones(M-2) / dt
+        Y[1][1:-1] += (h[1:] + h[:-1]) * np.ones(M - 2) / dt
 
         u_n = solve_linear(Y, rhs)
 
         u1_n = np.flipud(u_n[:M1])
-        u2_n = u_n[M1-1:]
+        u2_n = u_n[M1 - 1:]
 
         assert u2_n.shape[0] == M2
 
-        phi_interface = (D1[0] + D2[0]) * (u2_n[1] - u1_n[1]) / (h2[0]-h1[0])
+        phi_interface = (D1[0] + D2[0]) * (u2_n[1] - u1_n[1]) / (h2[0] - h1[0])
 
         return u_n, u1_n[0], phi_interface
 
@@ -201,8 +234,16 @@ class FiniteDifferences(Discretization):
         /!\ WARNING : DUPLICATE CODE between get_Y_star and get_Y (for lisibility)
 
     """
-    def get_Y(self, M, Lambda, h, D, a=None,
-                            c=None, dt=None, upper_domain=True):
+
+    def get_Y(self,
+              M,
+              Lambda,
+              h,
+              D,
+              a=None,
+              c=None,
+              dt=None,
+              upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         assert type(a) is float or type(a) is int
         assert type(c) is float or type(c) is int
@@ -222,8 +263,8 @@ class FiniteDifferences(Discretization):
         assert type(upper_domain) is bool
 
         # Broadcast or verification of size:
-        D = np.zeros(M-1) + D
-        h = np.zeros(M-1) + h
+        D = np.zeros(M - 1) + D
+        h = np.zeros(M - 1) + h
 
         if (np.array(h) <= 0).any() and upper_domain:
             print("Warning : h should not be negative in Omega_2")
@@ -236,11 +277,11 @@ class FiniteDifferences(Discretization):
         if c < 0:
             print("Warning : c should probably not be negative")
 
-        h_m = h[1:] # h_{m}
-        h_mm1 = h[:-1] # h_{m-1}
-        sum_both_h = h_m + h_mm1 # (h_{m-1} + h_{m})
-        D_mp1_2 = D[1:] # D_{m+1/2}
-        D_mm1_2 = D[:-1] # D_{m-1/2}
+        h_m = h[1:]  # h_{m}
+        h_mm1 = h[:-1]  # h_{m-1}
+        sum_both_h = h_m + h_mm1  # (h_{m-1} + h_{m})
+        D_mp1_2 = D[1:]  # D_{m+1/2}
+        D_mm1_2 = D[:-1]  # D_{m-1/2}
         ######## MAIN DIAGONAL
         Y_1 = np.empty(M)
 
@@ -248,29 +289,30 @@ class FiniteDifferences(Discretization):
                 (h_m*h_mm1)
 
         corrective_term = h[0] / 2 * (1 / dt + c) - a / 2
-        Y_1[0] = Lambda - D[0] / h[0] - corrective_term # Robin bd conditions at interface
-        Y_1[M-1] = 1 # Neumann bd conditions for \Omega_2, Dirichlet for \Omega_1
+        Y_1[0] = Lambda - D[0] / h[
+            0] - corrective_term  # Robin bd conditions at interface
+        Y_1[M -
+            1] = 1  # Neumann bd conditions for \Omega_2, Dirichlet for \Omega_1
         if upper_domain:
-            Y_1[M-1] /= h[-1]
+            Y_1[M - 1] /= h[-1]
 
         ######## RIGHT DIAGONAL
-        Y_2 = np.empty(M-1)
+        Y_2 = np.empty(M - 1)
         Y_2[1:] = -2 * D_mp1_2 / h_m
 
         Y_2[0] = D[0] / h[0] - a / 2
         Y_2[1:] += a
 
         ######## LEFT DIAGONAL
-        Y_0 = np.empty(M-1)
+        Y_0 = np.empty(M - 1)
         Y_0[:-1] = -2 * D_mm1_2 / h_mm1
         Y_0[:-1] -= a
         if not upper_domain:
-            Y_0[-1] = 0 # In \Omega_1 we have Dirichlet bd conditions
+            Y_0[-1] = 0  # In \Omega_1 we have Dirichlet bd conditions
         else:
-            Y_0[-1] = -1/h[-1] # In \Omega_2 we have Neumann bd conditions
+            Y_0[-1] = -1 / h[-1]  # In \Omega_2 we have Neumann bd conditions
 
         return (Y_0, Y_1, Y_2)
-
 
     """
         Returns the tridiagonal matrix Y* in the shape asked by solve_linear.
@@ -303,6 +345,7 @@ class FiniteDifferences(Discretization):
         /!\ WARNING : DUPLICATE CODE between get_Y_star and get_Y (for lisibility)
 
     """
+
     def get_Y_star(self, M_star, h_star, D_star, a=None, c=None):
         a, c, _ = self.get_a_c_dt(a, c)
         M = M_star
@@ -332,32 +375,32 @@ class FiniteDifferences(Discretization):
             print("Warning : c should probably not be negative")
 
         # Broadcast or verification of size:
-        D = np.zeros(M-1) + D
-        h = np.zeros(M-1) + h
+        D = np.zeros(M - 1) + D
+        h = np.zeros(M - 1) + h
         # In the notations h is negative when considering \omega_1:
 
-        h_m = h[1:] # h_{m}
-        h_mm1 = h[:-1] # h_{m-1}
-        sum_both_h = h_m + h_mm1 # (h_{m-1} + h_{m})
-        D_mp1_2 = D[1:] # D_{m+1/2}
-        D_mm1_2 = D[:-1] # D_{m-1/2}
+        h_m = h[1:]  # h_{m}
+        h_mm1 = h[:-1]  # h_{m-1}
+        sum_both_h = h_m + h_mm1  # (h_{m-1} + h_{m})
+        D_mp1_2 = D[1:]  # D_{m+1/2}
+        D_mm1_2 = D[:-1]  # D_{m-1/2}
         ######## MAIN DIAGONAL
         Y_1 = np.empty(M)
 
         Y_1[1:M-1] = c*sum_both_h + 2*(h_mm1*D_mp1_2 + h_m* D_mm1_2) / \
                 (h_m*h_mm1)
-        Y_1[0] = 1 # Dirichlet
-        Y_1[M-1] = 1/h[-1] # Neumann
+        Y_1[0] = 1  # Dirichlet
+        Y_1[M - 1] = 1 / h[-1]  # Neumann
 
         ######## RIGHT DIAGONAL
-        Y_2 = np.empty(M-1)
+        Y_2 = np.empty(M - 1)
         Y_2[1:] = -2 * D_mp1_2 / h_m + a
         Y_2[0] = 0
 
         ######## LEFT DIAGONAL
-        Y_0 = np.empty(M-1)
+        Y_0 = np.empty(M - 1)
         Y_0[:-1] = -2 * D_mm1_2 / h_mm1 - a
-        Y_0[-1] = -1/h[-1] # Neumann bd conditions on top
+        Y_0[-1] = -1 / h[-1]  # Neumann bd conditions on top
 
         return (Y_0, Y_1, Y_2)
 
@@ -367,20 +410,37 @@ class FiniteDifferences(Discretization):
         except for u_nm1, and interface conditions.
         f is kept as an argument but is not used.
     """
-    def precompute_Y(self, M, h, D, a, c, dt, f, bd_cond, Lambda, upper_domain=True):
+
+    def precompute_Y(self,
+                     M,
+                     h,
+                     D,
+                     a,
+                     c,
+                     dt,
+                     f,
+                     bd_cond,
+                     Lambda,
+                     upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda = float(a), \
                 float(c), float(dt), float(bd_cond), float(Lambda)
 
         # Broadcasting / verification of type:
-        D = np.zeros(M-1) + D
-        h = np.zeros(M-1) + h
+        D = np.zeros(M - 1) + D
+        h = np.zeros(M - 1) + h
 
         assert upper_domain is True or upper_domain is False
 
-        Y = self.get_Y(M=M, h=h, D=D, a=a, c=c, dt=dt,
-                Lambda=Lambda, upper_domain=upper_domain)
-        Y[1][1:-1] += (np.ones(M-2) / dt) * (h[1:] + h[:-1]) 
+        Y = self.get_Y(M=M,
+                       h=h,
+                       D=D,
+                       a=a,
+                       c=c,
+                       dt=dt,
+                       Lambda=Lambda,
+                       upper_domain=upper_domain)
+        Y[1][1:-1] += (np.ones(M - 2) / dt) * (h[1:] + h[:-1])
         return Y
 
     """
@@ -391,9 +451,19 @@ class FiniteDifferences(Discretization):
         In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
         for implicit euler discretisation.
     """
-    def analytic_robin_robin(self, s=None, Lambda_1=None,
-            Lambda_2=None, a=None, c=None, dt=None, M1=None, M2=None,
-            D1=None, D2=None, verbose=False):
+
+    def analytic_robin_robin(self,
+                             s=None,
+                             Lambda_1=None,
+                             Lambda_2=None,
+                             a=None,
+                             c=None,
+                             dt=None,
+                             M1=None,
+                             M2=None,
+                             D1=None,
+                             D2=None,
+                             verbose=False):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         if Lambda_1 is None:
             Lambda_1 = self.LAMBDA_1_DEFAULT
@@ -408,27 +478,31 @@ class FiniteDifferences(Discretization):
         if D2 is None:
             D2 = self.D2_DEFAULT
         if s is None:
-            s = 1/dt
+            s = 1 / dt
 
-        h1 = -self.SIZE_DOMAIN_1/(M1-1)
-        h2 = self.SIZE_DOMAIN_2/(M2-1)
+        h1 = -self.SIZE_DOMAIN_1 / (M1 - 1)
+        h2 = self.SIZE_DOMAIN_2 / (M2 - 1)
 
-        eta1_0 = D1/h1 + h1 / 2 * (s + c) - a/2
-        eta2_0 = D2/h2 + h2 / 2 * (s + c) - a/2
-        y2_0 = D2/h2 - a/2
-        y1_0 = D1/h1 - a/2
+        eta1_0 = D1 / h1 + h1 / 2 * (s + c) - a / 2
+        eta2_0 = D2 / h2 + h2 / 2 * (s + c) - a / 2
+        y2_0 = D2 / h2 - a / 2
+        y1_0 = D1 / h1 - a / 2
 
-        Y1_0 = - D1 / (h1*h1) - .5 * a / h1
-        Y1_1 = 2*D1 / (h1*h1) + c
-        Y1_2 = - D1 / (h1*h1) + .5 * a / h1
+        Y1_0 = -D1 / (h1 * h1) - .5 * a / h1
+        Y1_1 = 2 * D1 / (h1 * h1) + c
+        Y1_2 = -D1 / (h1 * h1) + .5 * a / h1
 
-        Y2_0 = - D2 / (h2*h2) - .5 * a / h2
-        Y2_1 = 2*D2 / (h2*h2) + c
-        Y2_2 = - D2 / (h2*h2) + .5 * a / h2
-        lambda2_plus = (- Y2_1 - s + np.sqrt((Y2_1+s)**2 - 4*Y2_0*Y2_2))/(2*Y2_2)
-        lambda2_moins = (- Y2_1 - s - np.sqrt((Y2_1+s)**2 - 4*Y2_0*Y2_2))/(2*Y2_2)
-        lambda1_plus = (- Y1_1 - s + np.sqrt((Y1_1+s)**2 - 4*Y1_0*Y1_2))/(2*Y1_2)
-        lambda1_moins = (- Y1_1 - s - np.sqrt((Y1_1+s)**2 - 4*Y1_0*Y1_2))/(2*Y1_2)
+        Y2_0 = -D2 / (h2 * h2) - .5 * a / h2
+        Y2_1 = 2 * D2 / (h2 * h2) + c
+        Y2_2 = -D2 / (h2 * h2) + .5 * a / h2
+        lambda2_plus = (-Y2_1 - s +
+                        np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) / (2 * Y2_2)
+        lambda2_moins = (-Y2_1 - s -
+                         np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) / (2 * Y2_2)
+        lambda1_plus = (-Y1_1 - s +
+                        np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) / (2 * Y1_2)
+        lambda1_moins = (-Y1_1 - s -
+                         np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) / (2 * Y1_2)
         # Properties of lambda:
         #assert abs(lambda1_moins*lambda1_plus - Y1_0/Y1_2) < 1e-12
         #assert abs(lambda2_moins*lambda2_plus - Y2_0/Y2_2) < 1e-12
@@ -438,13 +512,15 @@ class FiniteDifferences(Discretization):
             print("lambda1_plus:", lambda1_plus)
             print("lambda2_plus:", lambda2_plus)
 
-        teta1_0 = eta1_0 - y1_0 * lambda1_plus # warning : it is lambda_+ in the document
+        teta1_0 = eta1_0 - y1_0 * lambda1_plus  # warning : it is lambda_+ in the document
         teta2_0 = eta2_0 - y2_0 * lambda2_plus
         rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
         rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
         if verbose:
-            print("only with Lambda2:", (Lambda_2-teta1_0)/(Lambda_2-teta2_0))
-            print("only with Lambda1:", (Lambda_1-teta2_0)/(Lambda_1-teta1_0))
+            print("only with Lambda2:",
+                  (Lambda_2 - teta1_0) / (Lambda_2 - teta2_0))
+            print("only with Lambda1:",
+                  (Lambda_1 - teta2_0) / (Lambda_1 - teta1_0))
 
         return np.abs(rho_numerator / rho_denominator)
 
@@ -455,6 +531,7 @@ class FiniteDifferences(Discretization):
         To recover xi, use:
         xi = np.cumsum(np.concatenate(([0], hi)))
     """
+
     def get_h(self, size_domain_1=None, size_domain_2=None, M1=None, M2=None):
         if size_domain_1 is None:
             size_domain_1 = self.SIZE_DOMAIN_1
@@ -464,8 +541,8 @@ class FiniteDifferences(Discretization):
             M1 = self.M1_DEFAULT
         if M2 is None:
             M2 = self.M2_DEFAULT
-        x1 = -np.linspace(0,size_domain_1,M1)**1
-        x2 = np.linspace(0,size_domain_2,M2)**1
+        x1 = -np.linspace(0, size_domain_1, M1)**1
+        x2 = np.linspace(0, size_domain_2, M2)**1
         return np.diff(x1), np.diff(x2)
 
     """
@@ -475,11 +552,12 @@ class FiniteDifferences(Discretization):
         for D1 and D2, and returns the right coefficients.
         By default, D1 and D2 are constant.
     """
+
     def get_D(self, h1, h2, function_D1=None, function_D2=None):
         if function_D1 is None:
-            function_D1 = lambda x:self.D1_DEFAULT + np.zeros_like(x)
+            function_D1 = lambda x: self.D1_DEFAULT + np.zeros_like(x)
         if function_D2 is None:
-            function_D2 = lambda x:self.D2_DEFAULT + np.zeros_like(x)
+            function_D2 = lambda x: self.D2_DEFAULT + np.zeros_like(x)
         x1 = np.cumsum(np.concatenate(([0], h1)))
         x2 = np.cumsum(np.concatenate(([0], h2)))
         # coordinates at half-points:
@@ -496,4 +574,3 @@ class FiniteDifferences(Discretization):
 if __name__ == "__main__":
     from tests import test_finite_differences
     test_finite_differences.launch_all_tests()
-

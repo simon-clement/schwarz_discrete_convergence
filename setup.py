@@ -11,9 +11,7 @@ try:
     os.system('pip3 install cffi')
     os.system("echo \'# added by setup script of schwarz_tbc_finder\'" +
               ">> ~/.bashrc")
-    os.system("echo \'export PATH=~/.cargo/bin:$PATH\'" +
-              ">> ~/.bashrc")
+    os.system("echo \'export PATH=~/.cargo/bin:$PATH\'" + ">> ~/.bashrc")
 except:
     print("Cannot install fast version.")
     print("The code will be able to run but slowly.")
-

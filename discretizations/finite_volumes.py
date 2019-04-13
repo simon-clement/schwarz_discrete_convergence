@@ -7,15 +7,26 @@
 
 import numpy as np
 from utils_linalg import solve_linear
-from discretizations.discretization import Discretization 
+from discretizations.discretization import Discretization
+
 
 class FiniteVolumes(Discretization):
     """
         give default values of all variables.
     """
-    def __init__(self, A_DEFAULT=None, C_DEFAULT=None, D1_DEFAULT=None, D2_DEFAULT=None,
-        M1_DEFAULT=None, M2_DEFAULT=None, SIZE_DOMAIN_1=None, SIZE_DOMAIN_2=None,
-        LAMBDA_1_DEFAULT=None, LAMBDA_2_DEFAULT=None, DT_DEFAULT=None):
+
+    def __init__(self,
+                 A_DEFAULT=None,
+                 C_DEFAULT=None,
+                 D1_DEFAULT=None,
+                 D2_DEFAULT=None,
+                 M1_DEFAULT=None,
+                 M2_DEFAULT=None,
+                 SIZE_DOMAIN_1=None,
+                 SIZE_DOMAIN_2=None,
+                 LAMBDA_1_DEFAULT=None,
+                 LAMBDA_2_DEFAULT=None,
+                 DT_DEFAULT=None):
         self.A_DEFAULT, self.C_DEFAULT, self.D1_DEFAULT, self.D2_DEFAULT, \
             self.M1_DEFAULT, self.M2_DEFAULT, self.SIZE_DOMAIN_1, \
             self.SIZE_DOMAIN_2, self.LAMBDA_1_DEFAULT, \
@@ -27,6 +38,7 @@ class FiniteVolumes(Discretization):
     """
         Returns default values of a, c, dt or parameters if given.
     """
+
     def get_a_c_dt(self, a=None, c=None, dt=None):
         if a is None:
             a = self.A_DEFAULT
@@ -63,45 +75,67 @@ class FiniteVolumes(Discretization):
         u_nm1 must be a np.ndarray of dimension 1 and size M
 
     """
-    def integrate_one_step(self, M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
-            u_interface, phi_interface, upper_domain=True, Y=None):
+
+    def integrate_one_step(self,
+                           M,
+                           h,
+                           D,
+                           a,
+                           c,
+                           dt,
+                           f,
+                           bd_cond,
+                           Lambda,
+                           u_nm1,
+                           u_interface,
+                           phi_interface,
+                           upper_domain=True,
+                           Y=None):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
                 float(c), float(dt), float(bd_cond), float(Lambda), \
                 float(u_interface), float(phi_interface)
 
         # Broadcasting / verification of type:
-        D = np.zeros(M+1) + D
+        D = np.zeros(M + 1) + D
         h = np.zeros(M) + h
         f = np.zeros(M) + f
 
-        assert type(u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M
+        assert type(
+            u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M
         assert upper_domain is True or upper_domain is False
 
-        if not upper_domain: # from now h, D, f, u_nm1 are 0 at bottom of the ocean.
+        if not upper_domain:  # from now h, D, f, u_nm1 are 0 at bottom of the ocean.
             h, D, f, u_nm1 = np.flipud(h), np.flipud(D), np.flipud(f), \
                     np.flipud(u_nm1)
 
         if Y is None:
-            Y = self.get_Y(M=M, h=h, D=D, a=a, c=c, dt=dt,
-                    Lambda=Lambda, upper_domain=upper_domain)
+            Y = self.get_Y(M=M,
+                           h=h,
+                           D=D,
+                           a=a,
+                           c=c,
+                           dt=dt,
+                           Lambda=Lambda,
+                           upper_domain=upper_domain)
 
-        rhs = dt / (1+dt*c) * (f[1:] - f[:-1] + (u_nm1[1:] - u_nm1[:-1]) /dt)
-        if upper_domain: # Neumann condition: user give derivative but I need flux
+        rhs = dt / (1 + dt * c) * (f[1:] - f[:-1] +
+                                   (u_nm1[1:] - u_nm1[:-1]) / dt)
+        if upper_domain:  # Neumann condition: user give derivative but I need flux
             cond_robin = Lambda * u_interface + phi_interface \
                     - Lambda * dt /(1+dt*c) * (f[0] + u_nm1[0]/dt)
 
             cond_M = bd_cond * D[-1]
             rhs = np.concatenate(([cond_robin], rhs, [cond_M]))
-        else: # Dirichlet condition: user gives value, rhs is more complicated
+        else:  # Dirichlet condition: user gives value, rhs is more complicated
             cond_robin = Lambda * u_interface + phi_interface \
                     - Lambda * dt /(1+dt*c) * (f[-1] + u_nm1[-1]/dt)
 
-            cond_M = bd_cond - dt / (1+dt*c) * (f[0] + u_nm1[0]/dt)
+            cond_M = bd_cond - dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
             rhs = np.concatenate(([cond_M], rhs, [cond_robin]))
 
         phi_ret = solve_linear(Y, rhs)
-        d = phi_ret / D # We take the derivative of u
+        d = phi_ret / D  # We take the derivative of u
 
         d_kp1 = d[1:]
         d_km1 = d[:-1]
@@ -114,10 +148,10 @@ class FiniteVolumes(Discretization):
 
         assert u_n.shape[0] == M
         if upper_domain:
-            u_interface = u_n[0] - h[0]*d[1]/6 - h[0]*d[0]/3
+            u_interface = u_n[0] - h[0] * d[1] / 6 - h[0] * d[0] / 3
             phi_interface = phi_ret[0]
         else:
-            u_interface = u_n[-1] + h[-1]*d[-2]/6 + h[-1]*d[-1]/3
+            u_interface = u_n[-1] + h[-1] * d[-2] / 6 + h[-1] * d[-1] / 3
             phi_interface = phi_ret[-1]
             u_n = np.flipud(u_n)
 
@@ -152,17 +186,19 @@ class FiniteVolumes(Discretization):
         u_nm1 must be a np.ndarray of dimension 1 and size M
 
     """
+
     def integrate_one_step_star(self, M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
-            neumann, dirichlet, u_nm1):
+                                neumann, dirichlet, u_nm1):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
                 float(neumann), float(dirichlet)
         # Theses assertions cannot be used because of the unit tests:
-        # for arg, name in zip((a, c, neumann, dirichlet), 
+        # for arg, name in zip((a, c, neumann, dirichlet),
         #         ("a", "c", "neumann", "dirichlet")):
         #     assert arg >= 0, name + " should be positive !"
         assert dt > 0, "dt should be strictly positive"
-        assert type(u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M1+M2
+        assert type(u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[
+            0] == M1 + M2
 
         assert type(M2) is int and type(M1) is int
         assert M2 > 0 and M1 > 0
@@ -180,8 +216,8 @@ class FiniteVolumes(Discretization):
             assert (np.array(arg) > 0).all(), name + " is negative or 0 !"
 
         #Broadcasting / verification of types:
-        D1 = np.zeros(M1+1) + D1
-        D2 = np.zeros(M2+1) + D2
+        D1 = np.zeros(M1 + 1) + D1
+        D2 = np.zeros(M2 + 1) + D2
         h1 = np.zeros(M1) + h1
         h2 = np.zeros(M2) + h2
         f1 = np.zeros(M1) + f1
@@ -191,19 +227,28 @@ class FiniteVolumes(Discretization):
         D1 = np.flipud(D1)
         h1 = np.flipud(h1)
         f1 = np.flipud(f1)
-        Y = self.get_Y_star(M1=M1, M2=M2, h1=h1, h2=h2, D1=D1, D2=D2, a=a, c=c, dt=dt)
+        Y = self.get_Y_star(M1=M1,
+                            M2=M2,
+                            h1=h1,
+                            h2=h2,
+                            D1=D1,
+                            D2=D2,
+                            a=a,
+                            c=c,
+                            dt=dt)
 
         f = np.concatenate((f1, f2))
 
-        rhs = dt / (1+dt*c) * (f[1:] - f[:-1] + (u_nm1[1:] - u_nm1[:-1]) /dt)
-        dirichlet = dirichlet - dt / (1+dt*c) * (f[0] + u_nm1[0]/dt)
+        rhs = dt / (1 + dt * c) * (f[1:] - f[:-1] +
+                                   (u_nm1[1:] - u_nm1[:-1]) / dt)
+        dirichlet = dirichlet - dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
         neumann = neumann * D2[-1]
         rhs = np.concatenate(([dirichlet], rhs, [neumann]))
 
         phi_ret = solve_linear(Y, rhs)
 
-        d1 = phi_ret[:M1+1] / D1 # we go until interface
-        d2 = phi_ret[M1:] / D2 # we start from interface
+        d1 = phi_ret[:M1 + 1] / D1  # we go until interface
+        d2 = phi_ret[M1:] / D2  # we start from interface
 
         d1_kp1 = d1[1:]
         d2_kp1 = d2[1:]
@@ -225,9 +270,9 @@ class FiniteVolumes(Discretization):
         assert u1_n.shape[0] == M1
         assert u2_n.shape[0] == M2
 
-        u2_interface = u2_n[0] - h2[0]*d2[1]/6 - h2[0]*d2[0]/3
-        u1_interface = u1_n[-1] + h1[-1]*d1[-2]/6 + h1[-1]*d1[-1]/3
-        u1_bottom = u1_n[0] - h1[0]*d1[1]/6 - h1[0]*d1[0]/3
+        u2_interface = u2_n[0] - h2[0] * d2[1] / 6 - h2[0] * d2[0] / 3
+        u1_interface = u1_n[-1] + h1[-1] * d1[-2] / 6 + h1[-1] * d1[-1] / 3
+        u1_bottom = u1_n[0] - h1[0] * d1[1] / 6 - h1[0] * d1[0] / 3
         assert abs(u1_interface - u2_interface) < 1e-5
         phi_interface = phi_ret[M1]
 
@@ -263,22 +308,31 @@ class FiniteVolumes(Discretization):
     def get_Y(self, M, h, D, a, c, dt, Lambda, upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, Lambda = float(a), float(c), float(dt), float(Lambda)
-        D = np.zeros(M+1) + D
+        D = np.zeros(M + 1) + D
         h = np.zeros(M) + h
         assert type(M) is int
         assert upper_domain is True or upper_domain is False
 
         # We first use our great function get_Y_star:
         if upper_domain:
-            Y_0, Y_1, Y_2 = self.get_Y_star(M1=1, M2=M,
-                    h1=1.0, h2=h, D1=D[0], D2=D, a=a, c=c, dt=dt)
+            Y_0, Y_1, Y_2 = self.get_Y_star(M1=1,
+                                            M2=M,
+                                            h1=1.0,
+                                            h2=h,
+                                            D1=D[0],
+                                            D2=D,
+                                            a=a,
+                                            c=c,
+                                            dt=dt)
             Y_0 = Y_0[1:]
             Y_1 = Y_1[1:]
             Y_2 = Y_2[1:]
 
             # Now we have the tridiagonal matrices, except for the Robin bd condition
-            dirichlet_cond_extreme_point = -dt/(1+dt*c) * (1/h[0] +a/(2*D[0])) - h[0]/(3*D[0])
-            dirichlet_cond_interior_point = dt/(1+dt*c) * (1/h[0] -a/(2*D[1])) - h[0]/(6*D[1])
+            dirichlet_cond_extreme_point = -dt / (1 + dt * c) * (
+                1 / h[0] + a / (2 * D[0])) - h[0] / (3 * D[0])
+            dirichlet_cond_interior_point = dt / (1 + dt * c) * (
+                1 / h[0] - a / (2 * D[1])) - h[0] / (6 * D[1])
             # Robin bd condition are Lambda * Dirichlet + Neumann:
             # Except we work with fluxes:
             # Neumann condition is actually a Dirichlet bd condition
@@ -286,15 +340,24 @@ class FiniteVolumes(Discretization):
             Y_1[0] = Lambda * dirichlet_cond_extreme_point + 1
             Y_2[0] = Lambda * dirichlet_cond_interior_point
         else:
-            Y_0, Y_1, Y_2 = self.get_Y_star(M1=M, M2=1,
-                    h1=h, h2=1.0, D1=D, D2=D[0], a=a, c=c, dt=dt)
+            Y_0, Y_1, Y_2 = self.get_Y_star(M1=M,
+                                            M2=1,
+                                            h1=h,
+                                            h2=1.0,
+                                            D1=D,
+                                            D2=D[0],
+                                            a=a,
+                                            c=c,
+                                            dt=dt)
             # Here Y_0 and Y_2 are inverted because we need to take the symmetric
             Y_0 = Y_0[:-1]
             Y_1 = Y_1[:-1]
             Y_2 = Y_2[:-1]
             # Now we have the tridiagonal matrices, except for the Robin bd condition
-            dirichlet_cond_extreme_point = dt/(1+dt*c) * (1/h[-1] -a/(2*D[-1])) + h[-1]/(3*D[-1])
-            dirichlet_cond_interior_point = dt/(1+dt*c) * (-1/h[-1] -a/(2*D[-2])) + h[-1]/(6*D[-2])
+            dirichlet_cond_extreme_point = dt / (1 + dt * c) * (
+                1 / h[-1] - a / (2 * D[-1])) + h[-1] / (3 * D[-1])
+            dirichlet_cond_interior_point = dt / (1 + dt * c) * (
+                -1 / h[-1] - a / (2 * D[-2])) + h[-1] / (6 * D[-2])
             # Robin bd condition are Lambda * Dirichlet + Neumann:
             # Except we work with fluxes:
             # Neumann condition is actually a Dirichlet bd condition
@@ -335,6 +398,7 @@ class FiniteVolumes(Discretization):
         c{1,2}: reaction coefficient (should be positive) (float)
 
     """
+
     def get_Y_star(self, M1, M2, h1, h2, D1, D2, a, c, dt):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt = float(a), float(c), float(dt)
@@ -359,9 +423,9 @@ class FiniteVolumes(Discretization):
             assert (np.array(arg) > 0).all(), name + " is negative or 0 !"
 
         # Broadcast or verification of size:
-        D1 = np.zeros(M1+1) + D1
+        D1 = np.zeros(M1 + 1) + D1
         h1 = np.zeros(M1) + h1
-        D2 = np.zeros(M2+1) + D2
+        D2 = np.zeros(M2 + 1) + D2
         h2 = np.zeros(M2) + h2
         # In the notations h is negative when considering \omega_1:
 
@@ -384,20 +448,24 @@ class FiniteVolumes(Discretization):
         h_mp1 = h[1:]
 
         ######## LEFT DIAGONAL: phi_{1/2} -> phi_{M+1/2}
-        Y_0 = -dt/(1+dt*c) * (1/h_m + a/(2*D_mm1_2)) + h_m/(6*D_mm1_2)
+        Y_0 = -dt / (1 + dt * c) * (1 / h_m + a /
+                                    (2 * D_mm1_2)) + h_m / (6 * D_mm1_2)
         # Now we can put Neumann bd condition:
-        Y_0 = np.concatenate((Y_0, [0])) # Neumann bd condition 
+        Y_0 = np.concatenate((Y_0, [0]))  # Neumann bd condition
         # (actually Dirichlet bd because we work on the fluxes...)
 
         ######## RIGHT DIAGONAL:
-        Y_2 = -dt/(1+dt*c) * (1/h_mp1 - a/(2*D_mp3_2)) + h_mp1/(6*D_mp3_2)
-        Y_2_bd = dt/(1+dt*c) * (1/h[0] - a/(2*D1[1])) - h[0]/(6*D1[1])
+        Y_2 = -dt / (1 + dt * c) * (1 / h_mp1 - a /
+                                    (2 * D_mp3_2)) + h_mp1 / (6 * D_mp3_2)
+        Y_2_bd = dt / (1 + dt * c) * (1 / h[0] - a /
+                                      (2 * D1[1])) - h[0] / (6 * D1[1])
         Y_2 = np.concatenate(([Y_2_bd], Y_2))
 
         ######## MAIN DIAGONAL:
         Y_1 = dt/(1+dt*c) * (1 / h_m + 1/h_mp1 + a/2 * (1/D_plus - 1/D_minus)) \
                 + (h_m/D_minus + h_mp1/D_plus)/3
-        Y_1_bd = -dt/(1+dt*c) * (1/h[0] + a/(2*D1[0])) - h[0]/(3*D1[0])
+        Y_1_bd = -dt / (1 + dt * c) * (1 / h[0] + a /
+                                       (2 * D1[0])) - h[0] / (3 * D1[0])
         Y_1 = np.concatenate(([Y_1_bd], Y_1, [1]))
 
         assert Y_1.shape[0] == M1 + M2 + 1
@@ -411,23 +479,39 @@ class FiniteVolumes(Discretization):
         except for u_nm1, and interface conditions.
         f is kept as an argument but is not used.
     """
-    def precompute_Y(self, M, h, D, a, c, dt, f, bd_cond, Lambda,
-            upper_domain=True):
+
+    def precompute_Y(self,
+                     M,
+                     h,
+                     D,
+                     a,
+                     c,
+                     dt,
+                     f,
+                     bd_cond,
+                     Lambda,
+                     upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, = float(a), \
                 float(c), float(dt), float(bd_cond), float(Lambda)
 
         # Broadcasting / verification of type:
-        D = np.zeros(M+1) + D
+        D = np.zeros(M + 1) + D
         h = np.zeros(M) + h
 
         assert upper_domain is True or upper_domain is False
 
-        if not upper_domain: # from now h, D, are 0 at bottom of the ocean.
+        if not upper_domain:  # from now h, D, are 0 at bottom of the ocean.
             h, D = np.flipud(h), np.flipud(D)
 
-        return self.get_Y(M=M, h=h, D=D, a=a, c=c, dt=dt,
-                Lambda=Lambda, upper_domain=upper_domain)
+        return self.get_Y(M=M,
+                          h=h,
+                          D=D,
+                          a=a,
+                          c=c,
+                          dt=dt,
+                          Lambda=Lambda,
+                          upper_domain=upper_domain)
 
     """
         When D and h are constant, it is possible to find the convergence
@@ -437,9 +521,19 @@ class FiniteVolumes(Discretization):
         In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
         for implicit euler discretisation.
     """
-    def analytic_robin_robin(self, s=None, Lambda_1=None,
-            Lambda_2=None, a=None, c=None, dt=None, M1=None, M2=None,
-            D1=None, D2=None, verbose=False):
+
+    def analytic_robin_robin(self,
+                             s=None,
+                             Lambda_1=None,
+                             Lambda_2=None,
+                             a=None,
+                             c=None,
+                             dt=None,
+                             M1=None,
+                             M2=None,
+                             D1=None,
+                             D2=None,
+                             verbose=False):
         a, c, dt = self.get_a_c_dt(a, c, dt)
 
         if Lambda_1 is None:
@@ -455,26 +549,30 @@ class FiniteVolumes(Discretization):
         if D2 is None:
             D2 = self.D2_DEFAULT
         if s is None:
-            s = 1/dt
+            s = 1 / dt
 
-        h1 = self.SIZE_DOMAIN_1/M1
-        h2 = self.SIZE_DOMAIN_2/M2
+        h1 = self.SIZE_DOMAIN_1 / M1
+        h2 = self.SIZE_DOMAIN_2 / M2
 
         #TODO maybe we should exchange Y1_0 with Y1_2
-        Y1_0 = -1 / (s+c) * (1/h1 - a/(2*D1)) + h1 / (6*D1)
-        Y1_1 = 1 / (s+c) * 2/h1 + 2*h1/(3*D1)
-        Y1_2 = -1 / (s+c) * (1/h1 + a/(2*D1)) + h1 / (6*D1)
+        Y1_0 = -1 / (s + c) * (1 / h1 - a / (2 * D1)) + h1 / (6 * D1)
+        Y1_1 = 1 / (s + c) * 2 / h1 + 2 * h1 / (3 * D1)
+        Y1_2 = -1 / (s + c) * (1 / h1 + a / (2 * D1)) + h1 / (6 * D1)
 
-        Y2_0 = -1 / (s+c) * (1/h2 + a/(2*D2)) + h2 / (6*D2)
-        Y2_1 = 1 / (s+c) * 2/h2 + 2*h2/(3*D2)
-        Y2_2 = -1 / (s+c) * (1/h2 - a/(2*D2)) + h2 / (6*D2)
-        lambda2_plus = (- Y2_1 + np.sqrt(Y2_1**2 - 4*Y2_0*Y2_2))/(2*Y2_2)
-        lambda2_moins = (- Y2_1 - np.sqrt(Y2_1**2 - 4*Y2_0*Y2_2))/(2*Y2_2)
-        lambda1_plus = (- Y1_1 + np.sqrt(Y1_1**2 - 4*Y1_0*Y1_2))/(2*Y1_2)
-        lambda1_moins = (- Y1_1 - np.sqrt(Y1_1**2 - 4*Y1_0*Y1_2))/(2*Y1_2)
+        Y2_0 = -1 / (s + c) * (1 / h2 + a / (2 * D2)) + h2 / (6 * D2)
+        Y2_1 = 1 / (s + c) * 2 / h2 + 2 * h2 / (3 * D2)
+        Y2_2 = -1 / (s + c) * (1 / h2 - a / (2 * D2)) + h2 / (6 * D2)
+        lambda2_plus = (-Y2_1 + np.sqrt(Y2_1**2 - 4 * Y2_0 * Y2_2)) / (2 *
+                                                                       Y2_2)
+        lambda2_moins = (-Y2_1 - np.sqrt(Y2_1**2 - 4 * Y2_0 * Y2_2)) / (2 *
+                                                                        Y2_2)
+        lambda1_plus = (-Y1_1 + np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) / (2 *
+                                                                       Y1_2)
+        lambda1_moins = (-Y1_1 - np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) / (2 *
+                                                                        Y1_2)
         # Properties of lambda:
-        assert abs(lambda1_moins*lambda1_plus - Y1_0/Y1_2) < 1e-12
-        assert abs(lambda2_moins*lambda2_plus - Y2_0/Y2_2) < 1e-12
+        assert abs(lambda1_moins * lambda1_plus - Y1_0 / Y1_2) < 1e-12
+        assert abs(lambda2_moins * lambda2_plus - Y2_0 / Y2_2) < 1e-12
         #D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
         #D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) < 1e-12
         if verbose:
@@ -486,8 +584,8 @@ class FiniteVolumes(Discretization):
         eta1_0 = ((1-lambda1_plus)/h1 - a*(lambda1_plus+1)/(2*D1)) / (s+c) \
                 + h1 * (lambda1_plus + 2) / (6*D1)
 
-        rho_numerator = (Lambda_2*eta1_0 + 1) * (Lambda_1*eta2_0 + 1)
-        rho_denominator = (Lambda_2*eta2_0 + 1) * (Lambda_1*eta1_0 + 1)
+        rho_numerator = (Lambda_2 * eta1_0 + 1) * (Lambda_1 * eta2_0 + 1)
+        rho_denominator = (Lambda_2 * eta2_0 + 1) * (Lambda_1 * eta1_0 + 1)
 
         return np.abs(rho_numerator / rho_denominator)
 
@@ -498,6 +596,7 @@ class FiniteVolumes(Discretization):
         To recover xi, use:
         xi_1_2 = np.cumsum(np.concatenate(([0], hi)))
     """
+
     def get_h(self, size_domain_1=None, size_domain_2=None, M1=None, M2=None):
         if size_domain_1 is None:
             size_domain_1 = self.SIZE_DOMAIN_1
@@ -507,8 +606,8 @@ class FiniteVolumes(Discretization):
             M1 = M1
         if M2 is None:
             M2 = M2
-        h1 = size_domain_1/M1 + np.zeros(M1)
-        h2 = size_domain_2/M2 + np.zeros(M2)
+        h1 = size_domain_1 / M1 + np.zeros(M1)
+        h2 = size_domain_2 / M2 + np.zeros(M2)
         # use the following line to use a functional:
         #h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**1)
         #h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**1)
@@ -520,14 +619,15 @@ class FiniteVolumes(Discretization):
         provide continuous functions accepting ndarray
         for D1 and D2, and returns the right coefficients.
     """
+
     def get_D(self, h1, h2, function_D1=None, function_D2=None):
         if function_D1 is None:
-            function_D1 = lambda x:self.D1_DEFAULT+np.zeros_like(x)
+            function_D1 = lambda x: self.D1_DEFAULT + np.zeros_like(x)
         if function_D2 is None:
-            function_D2 = lambda x:self.D2_DEFAULT+np.zeros_like(x)
+            function_D2 = lambda x: self.D2_DEFAULT + np.zeros_like(x)
         # coordinates at half-points:
-        x1_1_2 = np.cumsum(np.concatenate(([0],h1)))
-        x2_1_2 = np.cumsum(np.concatenate(([0],h2)))
+        x1_1_2 = np.cumsum(np.concatenate(([0], h1)))
+        x2_1_2 = np.cumsum(np.concatenate(([0], h2)))
         two_if_not_constant = 0.
 
         D1 = function_D1(x1_1_2)
@@ -541,4 +641,3 @@ class FiniteVolumes(Discretization):
 if __name__ == "__main__":
     from tests import test_finite_volumes
     test_finite_volumes.launch_all_tests()
-
