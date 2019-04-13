@@ -53,14 +53,19 @@ def rate_by_z_transform(discretization, Lambda_1, NUMBER_SAMPLES):
 def analytic_robin_robin(discretization, w=None, Lambda_1=None,
         Lambda_2=None, a=None, 
         c=None, dt=None, M1=None, M2=None,
-        D1=None, D2=None, verbose=False):
+        D1=None, D2=None, verbose=False, semi_discrete=False, N=None):
     dt = discretization.DT_DEFAULT
     if w is None:
         s = 1./dt
     else:
-        z = 1*np.exp(w*1j)
-        s = 1./dt * (z-1) / z
-        s = w*1j
+        if semi_discrete:
+            s = w*1j
+        else:
+            z = 1.0*np.exp(-w*1j*dt*N) 
+            # if we put *2 inside the exp, we get a better behavious on low frequencies...
+            # but it makes no sense xD
+            s = 1./dt * (z-1) / z
+
     return discretization.analytic_robin_robin(s=s, Lambda_1=Lambda_1,
             Lambda_2=Lambda_2, a=a, c=c, dt=dt, M1=M1, M2=M2,
             D1=D1, D2=D2, verbose=verbose)
