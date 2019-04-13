@@ -18,6 +18,11 @@ You may need to install scipy to make it work:
 ```
     pip3 install scipy
 ```
+Or simply (Ubuntu systems):
+```
+    ./setup.py
+```
+You may be asked for sudo password because of the multiples installations.
 
 You can add this line to your "~/.bashrc":
 ```
@@ -46,8 +51,8 @@ will reproduce the figure 2.3.
 
 
 ### Dependencies for the fast versions
-All dependencies can be satisfied with the setup script:
+All dependencies can be satisfied with the setup script (Ubuntu systems):
 ```
     ./setup.py
 ```
-You may be asked for sudo password because of the installation of openBLAS shared library.
+You may be asked for sudo password because of the multiples installation
