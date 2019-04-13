@@ -31,9 +31,9 @@ class FiniteDifferences(Discretization):
             self.M1_DEFAULT, self.M2_DEFAULT, self.SIZE_DOMAIN_1, \
             self.SIZE_DOMAIN_2, self.LAMBDA_1_DEFAULT, \
             self.LAMBDA_2_DEFAULT, self.DT_DEFAULT = A_DEFAULT, \
-                C_DEFAULT, D1_DEFAULT, D2_DEFAULT, \
-                M1_DEFAULT, M2_DEFAULT, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-                LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT, DT_DEFAULT
+            C_DEFAULT, D1_DEFAULT, D2_DEFAULT, \
+            M1_DEFAULT, M2_DEFAULT, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
+            LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT, DT_DEFAULT
 
     """
         Returns default values of a, c, dt or parameters if given.
@@ -93,16 +93,16 @@ class FiniteDifferences(Discretization):
                            Y=None):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
-                float(c), float(dt), float(bd_cond), float(Lambda), \
-                float(u_interface), float(phi_interface)
+            float(c), float(dt), float(bd_cond), float(Lambda), \
+            float(u_interface), float(phi_interface)
 
         # Broadcasting / verification of type:
         D = np.zeros(M - 1) + D
         h = np.zeros(M - 1) + h
         f = np.zeros(M) + f
 
-        assert type(
-            u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M
+        assert isinstance(
+            u_nm1, np.ndarray) and u_nm1.ndim == 1 and u_nm1.shape[0] == M
         assert upper_domain is True or upper_domain is False
 
         if Y is None:
@@ -119,7 +119,7 @@ class FiniteDifferences(Discretization):
         rhs = (f[1:-1] + u_nm1[1:-1] / dt) * (h[1:] + h[:-1])
 
         cond_robin = Lambda * u_interface + phi_interface \
-                - h[0] / 2 * (u_nm1[0] / dt + f[0])
+            - h[0] / 2 * (u_nm1[0] / dt + f[0])
 
         rhs = np.concatenate(([cond_robin], rhs, [bd_cond]))
 
@@ -127,8 +127,8 @@ class FiniteDifferences(Discretization):
 
         new_u_interface = u_n[0]
         # Finite difference approx with the corrective term:
-        new_phi_interface = D[0]/h[0] * (u_n[1] - u_n[0]) \
-            - h[0] / 2 * ((u_n[0]-u_nm1[0])/dt + a*(u_n[1]-u_n[0])/h[0] \
+        new_phi_interface = D[0] / h[0] * (u_n[1] - u_n[0]) \
+            - h[0] / 2 * ((u_n[0] - u_nm1[0]) / dt + a * (u_n[1] - u_n[0]) / h[0]
                           + c * u_n[0] - f[0])
 
         assert u_n.shape[0] == M
@@ -144,7 +144,7 @@ class FiniteDifferences(Discretization):
                                 neumann, dirichlet, u_nm1):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
-                float(neumann), float(dirichlet)
+            float(neumann), float(dirichlet)
         # Theses assertions cannot be used because of the unit tests:
         # for arg, name in zip((a, c, neumann, dirichlet),
         #         ("a", "c", "neumann", "dirichlet")):
@@ -152,24 +152,24 @@ class FiniteDifferences(Discretization):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         assert dt > 0, "dt should be strictly positive"
 
-        assert type(M2) is int and type(M1) is int
+        assert isinstance(M2, int) and isinstance(M1, int)
         assert M2 > 0 and M1 > 0
-        if type(D1) is int:
+        if isinstance(D1, int):
             print("Warning: type of diffusivity is int. casting to float...")
             D1 = float(D1)
-        if type(D2) is int:
+        if isinstance(D2, int):
             print("Warning: type of diffusivity is int. casting to float...")
             D2 = float(D2)
         for arg, name in zip((h2, D1, D2), ("h1", "h2", "D1", "D2")):
-            assert type(arg) is float or \
-                    type(arg) is np.float64 or \
-                    type(arg) is np.ndarray and \
-                    arg.ndim == 1, name
+            assert isinstance(arg, float) or \
+                isinstance(arg, np.float64) or \
+                isinstance(arg, np.ndarray) and \
+                arg.ndim == 1, name
             assert (np.array(arg) > 0).all(), name + " is negative or 0 !"
 
         assert (np.array(h1) < 0).all(), "h1 is positive or 0 ! should be <0."
 
-        #Broadcasting / verification of types:
+        # Broadcasting / verification of types:
         D1 = np.zeros(M1 - 1) + D1
         D2 = np.zeros(M2 - 1) + D2
         h1 = np.zeros(M1 - 1) + h1
@@ -245,22 +245,22 @@ class FiniteDifferences(Discretization):
               dt=None,
               upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
-        assert type(a) is float or type(a) is int
-        assert type(c) is float or type(c) is int
-        if type(h) is int:
+        assert isinstance(a, float) or isinstance(a, int)
+        assert isinstance(c, float) or isinstance(c, int)
+        if isinstance(h, int):
             print("Warning: type of step size is int. casting to float...")
             h = float(h)
-        if type(D) is int:
+        if isinstance(D, int):
             print("Warning: type of diffusivity is int. casting to float...")
             D = float(D)
-        assert type(M) is int
+        assert isinstance(M, int)
         assert M > 0
-        assert type(Lambda) is float
+        assert isinstance(Lambda, float)
         for arg in (h, D):
-            assert type(arg) is float or \
-                    type(arg) is np.ndarray and \
-                    arg.ndim == 1 and arg.shape[0] == M-1
-        assert type(upper_domain) is bool
+            assert isinstance(arg, float) or \
+                isinstance(arg, np.ndarray) and \
+                arg.ndim == 1 and arg.shape[0] == M - 1
+        assert isinstance(upper_domain, bool)
 
         # Broadcast or verification of size:
         D = np.zeros(M - 1) + D
@@ -282,11 +282,11 @@ class FiniteDifferences(Discretization):
         sum_both_h = h_m + h_mm1  # (h_{m-1} + h_{m})
         D_mp1_2 = D[1:]  # D_{m+1/2}
         D_mm1_2 = D[:-1]  # D_{m-1/2}
-        ######## MAIN DIAGONAL
+        # MAIN DIAGONAL
         Y_1 = np.empty(M)
 
-        Y_1[1:M-1] = c*sum_both_h + 2*(h_mm1*D_mp1_2 + h_m* D_mm1_2) / \
-                (h_m*h_mm1)
+        Y_1[1:M - 1] = c * sum_both_h + 2 * \
+            (h_mm1 * D_mp1_2 + h_m * D_mm1_2) / (h_m * h_mm1)
 
         corrective_term = h[0] / 2 * (1 / dt + c) - a / 2
         Y_1[0] = Lambda - D[0] / h[
@@ -296,14 +296,14 @@ class FiniteDifferences(Discretization):
         if upper_domain:
             Y_1[M - 1] /= h[-1]
 
-        ######## RIGHT DIAGONAL
+        # RIGHT DIAGONAL
         Y_2 = np.empty(M - 1)
         Y_2[1:] = -2 * D_mp1_2 / h_m
 
         Y_2[0] = D[0] / h[0] - a / 2
         Y_2[1:] += a
 
-        ######## LEFT DIAGONAL
+        # LEFT DIAGONAL
         Y_0 = np.empty(M - 1)
         Y_0[:-1] = -2 * D_mm1_2 / h_mm1
         Y_0[:-1] -= a
@@ -351,20 +351,20 @@ class FiniteDifferences(Discretization):
         M = M_star
         h = h_star
         D = D_star
-        assert type(a) is float or type(a) is int
-        assert type(c) is float or type(c) is int
-        if type(h) is int:
+        assert isinstance(a, float) or isinstance(a, int)
+        assert isinstance(c, float) or isinstance(c, int)
+        if isinstance(h, int):
             print("Warning: type of step size is int. casting to float...")
             h = float(h)
-        if type(D) is int:
+        if isinstance(D, int):
             print("Warning: type of diffusivity is int. casting to float...")
             D = float(D)
-        assert type(M) is int
+        assert isinstance(M, int)
         assert M > 0
         for arg in (h, D):
-            assert type(arg) is float or \
-                    type(arg) is np.ndarray and \
-                    arg.ndim == 1
+            assert isinstance(arg, float) or \
+                isinstance(arg, np.ndarray) and \
+                arg.ndim == 1
         if (np.array(h) < 0).any():
             print("Warning : h should never be negative")
         if (np.array(D) < 0).any():
@@ -384,20 +384,20 @@ class FiniteDifferences(Discretization):
         sum_both_h = h_m + h_mm1  # (h_{m-1} + h_{m})
         D_mp1_2 = D[1:]  # D_{m+1/2}
         D_mm1_2 = D[:-1]  # D_{m-1/2}
-        ######## MAIN DIAGONAL
+        # MAIN DIAGONAL
         Y_1 = np.empty(M)
 
-        Y_1[1:M-1] = c*sum_both_h + 2*(h_mm1*D_mp1_2 + h_m* D_mm1_2) / \
-                (h_m*h_mm1)
+        Y_1[1:M - 1] = c * sum_both_h + 2 * \
+            (h_mm1 * D_mp1_2 + h_m * D_mm1_2) / (h_m * h_mm1)
         Y_1[0] = 1  # Dirichlet
         Y_1[M - 1] = 1 / h[-1]  # Neumann
 
-        ######## RIGHT DIAGONAL
+        # RIGHT DIAGONAL
         Y_2 = np.empty(M - 1)
         Y_2[1:] = -2 * D_mp1_2 / h_m + a
         Y_2[0] = 0
 
-        ######## LEFT DIAGONAL
+        # LEFT DIAGONAL
         Y_0 = np.empty(M - 1)
         Y_0[:-1] = -2 * D_mm1_2 / h_mm1 - a
         Y_0[-1] = -1 / h[-1]  # Neumann bd conditions on top
@@ -424,7 +424,7 @@ class FiniteDifferences(Discretization):
                      upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda = float(a), \
-                float(c), float(dt), float(bd_cond), float(Lambda)
+            float(c), float(dt), float(bd_cond), float(Lambda)
 
         # Broadcasting / verification of type:
         D = np.zeros(M - 1) + D
@@ -446,7 +446,7 @@ class FiniteDifferences(Discretization):
     """
         When D and h are constant, it is possible to find the convergence
         rate in frequency domain. analytic_robin_robin computes this convergence rate.
-        s is 1/dt when considering the local-in-time case, otherwise it 
+        s is 1/dt when considering the local-in-time case, otherwise it
         should be iw (with w the desired frequency)
         In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
         for implicit euler discretisation.
@@ -506,13 +506,15 @@ class FiniteDifferences(Discretization):
         # Properties of lambda:
         #assert abs(lambda1_moins*lambda1_plus - Y1_0/Y1_2) < 1e-12
         #assert abs(lambda2_moins*lambda2_plus - Y2_0/Y2_2) < 1e-12
-        #D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
-        #D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) < 1e-12
+        # D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
+        # D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) <
+        # 1e-12
         if verbose:
             print("lambda1_plus:", lambda1_plus)
             print("lambda2_plus:", lambda2_plus)
 
-        teta1_0 = eta1_0 - y1_0 * lambda1_plus  # warning : it is lambda_+ in the document
+        # warning : it is lambda_+ in the document
+        teta1_0 = eta1_0 - y1_0 * lambda1_plus
         teta2_0 = eta2_0 - y2_0 * lambda2_plus
         rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
         rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
@@ -555,9 +557,9 @@ class FiniteDifferences(Discretization):
 
     def get_D(self, h1, h2, function_D1=None, function_D2=None):
         if function_D1 is None:
-            function_D1 = lambda x: self.D1_DEFAULT + np.zeros_like(x)
+            def function_D1(x): return self.D1_DEFAULT + np.zeros_like(x)
         if function_D2 is None:
-            function_D2 = lambda x: self.D2_DEFAULT + np.zeros_like(x)
+            def function_D2(x): return self.D2_DEFAULT + np.zeros_like(x)
         x1 = np.cumsum(np.concatenate(([0], h1)))
         x2 = np.cumsum(np.concatenate(([0], h2)))
         # coordinates at half-points:

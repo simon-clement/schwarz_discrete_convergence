@@ -57,11 +57,11 @@ def complete_test_schwarz():
     dirichlet = sin(d * x1[-1]) + T * t
 
     # Note: f is a local approximation !
-    f2 = T*(1+c*t) + ratio_D * (d*a*cos(d*x2) + c*sin(d*x2) \
-            + D2_x * d*d *sin(d*x2) - D2_prime * d * cos(d*x2))
+    f2 = T * (1 + c * t) + ratio_D * (d * a * cos(d * x2) + c *
+                                      sin(d * x2) + D2_x * d * d * sin(d * x2) - D2_prime * d * cos(d * x2))
 
-    f1 = T*(1+c*t) + d*a*cos(d*x1) + c*sin(d*x1) \
-            + D1_x * d*d *sin(d*x1) - D1_prime * d * cos(d*x1)
+    f1 = T * (1 + c * t) + d * a * cos(d * x1) + c * sin(d * x1) \
+        + D1_x * d * d * sin(d * x1) - D1_prime * d * cos(d * x1)
 
     u0 = np.concatenate(
         (sin(d * x1[-1:0:-1]) + T * t_n, ratio_D * sin(d * x2) + T * t_n))
@@ -72,10 +72,10 @@ def complete_test_schwarz():
     D1 = np.concatenate(([D1_x[0]], D1[:-1]))
     D2 = np.concatenate(([D2_x[0]], D2[:-1]))
 
-    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1,
+                                                                          M2=M2, h1=h1, h2=h2, D1=D1,
+                                                                          D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                                                                          neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
 
     # Schwarz parameters:
     Lambda_1 = 15.
@@ -174,11 +174,11 @@ def time_test_star():
     dirichlet = sin(d * x1[-1]) + T * t
 
     # Note: f is a local approximation !
-    f2 = T*(1+c*t) + ratio_D * (d*a*cos(d*x2) + c*sin(d*x2) \
-            + D2_x * d*d *sin(d*x2) - D2_prime * d * cos(d*x2))
+    f2 = T * (1 + c * t) + ratio_D * (d * a * cos(d * x2) + c *
+                                      sin(d * x2) + D2_x * d * d * sin(d * x2) - D2_prime * d * cos(d * x2))
 
-    f1 = T*(1+c*t) + d*a*cos(d*x1) + c*sin(d*x1) \
-            + D1_x * d*d *sin(d*x1) - D1_prime * d * cos(d*x1)
+    f1 = T * (1 + c * t) + d * a * cos(d * x1) + c * sin(d * x1) \
+        + D1_x * d * d * sin(d * x1) - D1_prime * d * cos(d * x1)
 
     u0 = np.concatenate(
         (sin(d * x1[-1:0:-1]) + T * t_n, ratio_D * sin(d * x2) + T * t_n))
@@ -188,10 +188,10 @@ def time_test_star():
     D1 = np.concatenate(([D1_x[0]], D1[:-1]))
     D2 = np.concatenate(([D2_x[0]], D2[:-1]))
 
-    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1,
+                                                                          M2=M2, h1=h1, h2=h2, D1=D1,
+                                                                          D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                                                                          neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
     """
     import matplotlib.pyplot as plt
     plt.plot(x, u0, "b")

@@ -88,19 +88,20 @@ def complete_test_schwarz():
 
     # Note: f is an average and not a local approximation !
     f2 = T * (x2_1_2[1:] - x2_1_2[:-1]) \
-            + ratio_D*a*(sin(d*x2_1_2[1:]) - sin(d*x2_1_2[:-1])) \
-            + c*(-ratio_D/d*(cos(d*x2_1_2[1:]) - cos(d*x2_1_2[:-1])) \
-                            + T*t*(x2_1_2[1:] - x2_1_2[:-1])) \
-            - d*ratio_D*(D2[1:]*cos(d*x2_1_2[1:]) - D2[:-1]*cos(d*x2_1_2[:-1]))
+        + ratio_D * a * (sin(d * x2_1_2[1:]) - sin(d * x2_1_2[:-1])) \
+        + c * (-ratio_D / d * (cos(d * x2_1_2[1:]) - cos(d * x2_1_2[:-1]))
+               + T * t * (x2_1_2[1:] - x2_1_2[:-1])) \
+        - d * ratio_D * (D2[1:] * cos(d * x2_1_2[1:]) -
+                         D2[:-1] * cos(d * x2_1_2[:-1]))
     f2 /= h2
 
     # {inf, sup} bounds of the interval ([x-h/2, x+h/2]):
     x1_sup = -x1_1_2[:-1]
     x1_inf = -x1_1_2[1:]
 
-    f1 = T * (x1_sup - x1_inf) + a*(sin(d*x1_sup) - sin(d*x1_inf)) \
-            + c*(-cos(d*x1_sup)/d + cos(d*x1_inf)/d + T*t*(x1_sup - x1_inf)) \
-            - d*(D1[:-1]*cos(d*x1_sup) - D1[1:]*cos(d*x1_inf))
+    f1 = T * (x1_sup - x1_inf) + a * (sin(d * x1_sup) - sin(d * x1_inf)) \
+        + c * (-cos(d * x1_sup) / d + cos(d * x1_inf) / d + T * t * (x1_sup - x1_inf)) \
+        - d * (D1[:-1] * cos(d * x1_sup) - D1[1:] * cos(d * x1_inf))
 
     f1 /= h1
 
@@ -112,10 +113,10 @@ def complete_test_schwarz():
         (np.diff(-cos(-d * x1_1_2[::-1]) / d - T * t * x1_1_2[::-1]),
          np.diff(-ratio_D * cos(d * x2_1_2) / d + T * t * x2_1_2))) / h
 
-    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1,
+                                                                          M2=M2, h1=h1, h2=h2, D1=D1,
+                                                                          D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                                                                          neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
 
     assert np.linalg.norm(u1 - u_np1) < 9 * 1e-3
 
@@ -232,15 +233,15 @@ def not_constant_test_schwarz():
     f2 = f[M1:]
 
     u0 = np.zeros_like(u_theoric)
-    u_n, u_interface, phi_interface = integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+    u_n, u_interface, phi_interface = integrate_one_step_star(M1=M1,
+                                                              M2=M2, h1=h1, h2=h2, D1=D1,
+                                                              D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                                                              neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
 
-    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u_n)
+    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1,
+                                                                          M2=M2, h1=h1, h2=h2, D1=D1,
+                                                                          D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                                                                          neumann=neumann, dirichlet=dirichlet, u_nm1=u_n)
 
     u1_n = np.flipud(u_n[:M1])
     u2_n = u_n[M1:]
@@ -292,9 +293,10 @@ def not_constant_test_schwarz():
         u_inter1, phi_inter1 = old_interface
         #print("error:", (u_interface - real_u_interface))
         #print("convergence_rate:", (u_interface - real_u_interface) / (old_u_interface - real_u_interface))
-        #input()
+        # input()
 
-    assert Lambda_2 * u_inter1 + phi_inter1 - Lambda_2 * u_interface - phi_interface < 1e-15
+    assert Lambda_2 * u_inter1 + phi_inter1 - \
+        Lambda_2 * u_interface - phi_interface < 1e-15
     assert abs(u_inter1 - real_u_interface) + abs(phi_inter1 -
                                                   real_phi_interface) < 1e-13
     return "ok"
@@ -340,15 +342,15 @@ def test_integrate_half_domain():
     f2 = f[M1:]
 
     u0 = np.zeros_like(u_theoric)
-    u_n, u_interface, phi_interface = integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
+    u_n, u_interface, phi_interface = integrate_one_step_star(M1=M1,
+                                                              M2=M2, h1=h1, h2=h2, D1=D1,
+                                                              D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                                                              neumann=neumann, dirichlet=dirichlet, u_nm1=u0)
 
-    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
-            M2=M2, h1=h1, h2=h2, D1=D1,
-            D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-            neumann=neumann, dirichlet=dirichlet, u_nm1=u_n)
+    u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1,
+                                                                          M2=M2, h1=h1, h2=h2, D1=D1,
+                                                                          D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                                                                          neumann=neumann, dirichlet=dirichlet, u_nm1=u_n)
 
     u1_n = np.flipud(u_n[:M1])
     u2_n = u_n[M1:]
@@ -398,7 +400,8 @@ def test_integrate_half_domain():
             upper_domain=False)
         u_inter1, phi_inter1 = old_interface
 
-    assert Lambda_2 * u_inter1 + phi_inter1 - Lambda_2 * u_interface - phi_interface < 1e-15
+    assert Lambda_2 * u_inter1 + phi_inter1 - \
+        Lambda_2 * u_interface - phi_interface < 1e-15
     assert abs(u_inter1 - real_u_interface) + abs(phi_inter1 -
                                                   real_phi_interface) < 1e-15
     return "ok"

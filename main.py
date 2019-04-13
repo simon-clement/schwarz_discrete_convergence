@@ -69,7 +69,7 @@ def main():
                     test_func()
 
         elif sys.argv[1] == "figure":
-            #TODO rather than that, use labels of the latex code,
+            # TODO rather than that, use labels of the latex code,
             # and then just write (almost automatically)
             # labels corresponding to numbers (showlabels can be used)
             all_figures = {}
@@ -104,7 +104,7 @@ def main():
                     print("id does not exist. Please use one of:")
                     print(list(all_figures.keys()))
 
-                #TODO enter all figures inside the dictionary
+                # TODO enter all figures inside the dictionary
 
         elif sys.argv[1] == "graph":
             if len(sys.argv) == 2:
@@ -144,16 +144,18 @@ def main():
                 theory_star(pi / DT_DEFAULT,
                             pi / (DT_DEFAULT * TIME_WINDOW_LEN_DEFAULT)))
         elif sys.argv[1] == "ztransform":
-            #print(analytic_robin_robin_finite_differences(w=None, Lambda_1=-5, verbose=True))
-            #rate_finite_differences2(-5)
+            # print(analytic_robin_robin_finite_differences(w=None, Lambda_1=-5, verbose=True))
+            # rate_finite_differences2(-5)
 
             lambda_min = 1e-9
             lambda_max = 10
             steps = 40
             lambda_1 = np.linspace(lambda_min, lambda_max, steps)
             import matplotlib.pyplot as plt
-            plt.plot(lambda_1, [analytic_robin_robin(finite_difference, w=pi/DT_DEFAULT ,Lambda_1=i) \
-                               for i in lambda_1], "y")
+            plt.plot(
+                lambda_1, [
+                    analytic_robin_robin(
+                        finite_difference, w=pi / DT_DEFAULT, Lambda_1=i) for i in lambda_1], "y")
             plt.plot(lambda_1, [
                 rate_by_z_transform(finite_difference, i,
                                     TIME_WINDOW_LEN_DEFAULT) for i in lambda_1
@@ -189,6 +191,7 @@ def main():
         elif sys.argv[1] == "raw_simu":
             raw_plot((finite_difference, ), 100)
         elif sys.argv[1] == "debug":
+            import rust_mod
             print(
                 "finite differences:",
                 rate_fast(finite_difference,
@@ -242,7 +245,7 @@ def memoised(fun, *args, **kwargs):
             return dic[key_dic]
         else:
             return execute_and_memoise(dic)
-    except:  #no file
+    except BaseException:  # no file
         return execute_and_memoise({})
 
 
@@ -250,9 +253,11 @@ def raw_plot(discretization, N, number_samples=1000):
     import matplotlib.pyplot as plt
     colors = ['r', 'g', 'b', 'y', 'm']
     for dis, col, col2 in zip(discretization, colors, colors[::-1]):
-        # first: find a correct lambda : we take the optimal yielded by continuous analysis
+        # first: find a correct lambda : we take the optimal yielded by
+        # continuous analysis
 
-        lambda_1 = 0.6139250052109033  #continuous_best_lam_robin_neumann(dis, N)
+        # continuous_best_lam_robin_neumann(dis, N)
+        lambda_1 = 0.6139250052109033
         #print("rate", dis.name(), ":", rate(dis, N, Lambda_1=lambda_1))
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi / dt, pi / dt, N)
@@ -299,9 +304,11 @@ def analysis_frequency_error(discretization, N):
     import matplotlib.pyplot as plt
     colors = ['r', 'g', 'y', 'm']
     for dis, col, col2 in zip(discretization, colors, colors[::-1]):
-        # first: find a correct lambda : we take the optimal yielded by continuous analysis
+        # first: find a correct lambda : we take the optimal yielded by
+        # continuous analysis
 
-        lambda_1 = 0.6139250052109033  #continuous_best_lam_robin_neumann(dis, N)
+        # continuous_best_lam_robin_neumann(dis, N)
+        lambda_1 = 0.6139250052109033
         #print("rate", dis.name(), ":", rate(dis, N, Lambda_1=lambda_1))
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi / dt, pi / dt, N)
@@ -370,13 +377,13 @@ def plot_3D_profile(dis, N):
     cont = functools.partial(continuous_analytic_rate_robin_robin, dis)
 
     def fun(x):
-        return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi/(n*dt)) \
-                for n in (1, N)])
+        return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
+                    for n in (1, N)])
 
     def fun_me(x):
         return max([analytic_robin_robin(dis,
-                Lambda_1=x[0], Lambda_2=x[1], w=pi/(n*dt)) \
-                for n in (1, N)])
+                                         Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
+                    for n in (1, N)])
 
     fig, ax = plot_3D_square(fun, -40., 40., 1.5, subplot_param=211)
     ax.set_title("Continuous case: convergence rate ")
@@ -405,8 +412,8 @@ def plot_3D_square(fun, bmin, bmax, step, fig=None, subplot_param=111):
     N = int(abs(bmin - bmax) / step)
     X = np.ones((N, 1)) @ np.reshape(np.linspace(bmin, bmax, N), (1, N))
     Y = np.copy(X.T)
-    Z = np.array([[fun((x,y)) for x, y in zip(linex, liney)] \
-            for linex, liney in zip(X, Y)])
+    Z = np.array([[fun((x, y)) for x, y in zip(linex, liney)]
+                  for linex, liney in zip(X, Y)])
     ax.plot_surface(X, Y, Z)
     return fig, ax
 
@@ -417,9 +424,9 @@ def error_2D_by_taking_continuous_rate(discretization, N):
     T = dt * N
 
     rate_eff = functools.partial(rate_fast, discretization, N)
-    to_minimize_all = lambda x: rate_fdiff(Lambda_1=x[0], Lambda_2=x[1])
-    to_minimize_rob_neu = lambda x: rate_fdiff(Lambda_1=x, Lambda_2=0.)
-    to_minimize_one_sided = lambda x: rate_fdiff(Lambda_1=x, Lambda_2=-x)
+    def to_minimize_all(x): return rate_fdiff(Lambda_1=x[0], Lambda_2=x[1])
+    def to_minimize_rob_neu(x): return rate_fdiff(Lambda_1=x, Lambda_2=0.)
+    def to_minimize_one_sided(x): return rate_fdiff(Lambda_1=x, Lambda_2=-x)
 
     def to_minimize_continuous(l):
         cont = functools.partial(continuous_analytic_rate_robin_robin,
@@ -444,11 +451,14 @@ def error_2D_by_taking_continuous_rate(discretization, N):
                               M1=M1,
                               M2=M2)
         return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
-        #return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
+        # return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
 
     all_h = np.linspace(.05, 10, 50)
-    ret_discrete = [minimize(fun=to_minimize_discrete, x0=optimal_continuous, args=(h)) \
-            for h in all_h]
+    ret_discrete = [
+        minimize(
+            fun=to_minimize_discrete,
+            x0=optimal_continuous,
+            args=(h)) for h in all_h]
     optimal_discrete = [ret.x for ret in ret_discrete]
     theorical_rate_discrete = [ret.fun for ret in ret_discrete]
 
@@ -528,8 +538,8 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
         return np.max([cont(pi / t) for t in np.linspace(dt, T, N)])
 
     ret_cont = minimize_scalar(fun=to_minimize_continuous)
-    optimal_continuous = minimize_scalar(fun=to_minimize_continuous).x
-    theoric_cont_rate = minimize_scalar(fun=to_minimize_continuous).fun
+    optimal_continuous = ret_cont.x
+    theoric_cont_rate = ret_cont.fun
 
     def to_minimize_discrete(l, h):
         dt, N = get_dt_N(h)
@@ -541,14 +551,15 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
                               M2=M2,
                               dt=dt)
         return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
-        #return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
+        # return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
 
     all_h = np.linspace(0, 2, steps)
     all_h = np.exp(all_h) / 2.1
 
-    func_to_map = lambda x: minimize_scalar(fun=to_minimize_discrete, args=(x))
+    def func_to_map(x): return minimize_scalar(
+        fun=to_minimize_discrete, args=(x))
     ret_discrete = list(map(func_to_map, all_h))
-    #ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
+    # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
     #    for h in all_h]
     optimal_discrete = [ret.x for ret in ret_discrete]
     theorical_rate_discrete = [ret.fun for ret in ret_discrete]
@@ -612,12 +623,20 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
     plt.xlabel("h")
     plt.ylabel("$\\rho$")
     plt.legend()
-    plt.title('Error when using continuous Lambda with '+discretization.name() + \
-            ' (Robin-Neumann)' + \
-            '\n$H_1$='+str(discretization.SIZE_DOMAIN_1) + \
-            ', $H_2$='+str(discretization.SIZE_DOMAIN_2) + \
-            ', T = '+str(N)+'dt, $D_1$='+str(discretization.D1_DEFAULT) + \
-            ', $D_2$='+str(discretization.D2_DEFAULT) + ', a=c=0')
+    plt.title('Error when using continuous Lambda with ' +
+              discretization.name() +
+              ' (Robin-Neumann)' +
+              '\n$H_1$=' +
+              str(discretization.SIZE_DOMAIN_1) +
+              ', $H_2$=' +
+              str(discretization.SIZE_DOMAIN_2) +
+              ', T = ' +
+              str(N) +
+              'dt, $D_1$=' +
+              str(discretization.D1_DEFAULT) +
+              ', $D_2$=' +
+              str(discretization.D2_DEFAULT) +
+              ', a=c=0')
     plt.show()
 
 
@@ -635,8 +654,7 @@ def error_by_taking_continuous_rate(discretization, N, steps=50):
         return np.max([cont(pi / t) for t in np.linspace(dt, T, N)])
 
     ret_cont = minimize_scalar(fun=to_minimize_continuous)
-    optimal_continuous = minimize_scalar(fun=to_minimize_continuous).x
-    theoric_cont_rate = minimize_scalar(fun=to_minimize_continuous).fun
+    optimal_continuous, theoric_cont_rate = ret_cont.x, ret_cont.fun
 
     def to_minimize_discrete(l, h):
         M1 = int(discretization.SIZE_DOMAIN_1 / h)
@@ -646,17 +664,17 @@ def error_by_taking_continuous_rate(discretization, N, steps=50):
                               M1=M1,
                               M2=M2)
         return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
-        #return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
+        # return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
 
     all_h = np.linspace(-4, 3, steps)
     all_h = np.exp(all_h) / 2.1
 
     import concurrent.futures
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        func_to_map = lambda x: minimize_scalar(fun=to_minimize_discrete,
-                                                args=(x))
+        def func_to_map(x): return minimize_scalar(fun=to_minimize_discrete,
+                                                   args=(x))
         ret_discrete = list(executor.map(func_to_map, all_h))
-        #ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
+        # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
         #    for h in all_h]
     optimal_discrete = [ret.x for ret in ret_discrete]
     theorical_rate_discrete = [ret.fun for ret in ret_discrete]
@@ -717,12 +735,20 @@ def error_by_taking_continuous_rate(discretization, N, steps=50):
     plt.xlabel("h")
     plt.ylabel("$\\rho$")
     plt.legend()
-    plt.title('Error when using continuous Lambda with '+discretization.name() + \
-            ' (Robin-Neumann)' + \
-            '\n$H_1$='+str(discretization.SIZE_DOMAIN_1) + \
-            ', $H_2$='+str(discretization.SIZE_DOMAIN_2) + \
-            ', T = '+str(N)+'dt, $D_1$='+str(discretization.D1_DEFAULT) + \
-            ', $D_2$='+str(discretization.D2_DEFAULT) + ', a=c=0')
+    plt.title('Error when using continuous Lambda with ' +
+              discretization.name() +
+              ' (Robin-Neumann)' +
+              '\n$H_1$=' +
+              str(discretization.SIZE_DOMAIN_1) +
+              ', $H_2$=' +
+              str(discretization.SIZE_DOMAIN_2) +
+              ', T = ' +
+              str(N) +
+              'dt, $D_1$=' +
+              str(discretization.D1_DEFAULT) +
+              ', $D_2$=' +
+              str(discretization.D2_DEFAULT) +
+              ', a=c=0')
     plt.show()
 
 
@@ -753,8 +779,8 @@ def optimal_function_of_h(discretization, N):
 
     all_h = np.exp(-np.linspace(-1, 15, 30))
     all_h = np.linspace(0.01, 1, 30)
-    ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)).x \
-            for h in all_h]
+    ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)).x
+                    for h in all_h]
     import matplotlib.pyplot as plt
     plt.hlines(optimal_continuous,
                all_h[0],
@@ -792,10 +818,14 @@ def beauty_graph_finite(discretization,
     print("> Starting frequency analysis.")
     rho = []
     for t in np.linspace(dt, T, TIME_WINDOW_LEN_DEFAULT):
-        rho += [[analytic_robin_robin(discretization, w=pi/t,Lambda_1=i, **kwargs) \
-               for i in lambda_1]]
-        rho += [[analytic_robin_robin(discretization, w=-pi/t,Lambda_1=i, **kwargs) \
-               for i in lambda_1]]
+        rho += [[analytic_robin_robin(discretization,
+                                      w=pi / t,
+                                      Lambda_1=i,
+                                      **kwargs) for i in lambda_1]]
+        rho += [[analytic_robin_robin(discretization,
+                                      w=-pi / t,
+                                      Lambda_1=i,
+                                      **kwargs) for i in lambda_1]]
 
     continuous_best_lam = continuous_best_lam_robin_neumann(
         discretization, TIME_WINDOW_LEN_DEFAULT)
@@ -815,8 +845,10 @@ def beauty_graph_finite(discretization,
                "g",
                'dashed',
                label='best $\\Lambda$ with frequency analysis')
-    plt.plot(lambda_1, [analytic_robin_robin(discretization, w=0,Lambda_1=i, **kwargs) \
-                       for i in lambda_1], "y")
+    plt.plot(
+        lambda_1, [
+            analytic_robin_robin(
+                discretization, w=0, Lambda_1=i, **kwargs) for i in lambda_1], "y")
     plt.vlines(continuous_best_lam,
                0,
                1,
@@ -828,10 +860,14 @@ def beauty_graph_finite(discretization,
     rho = []
     for logt in np.arange(0, 25):
         t = dt * 2.**logt
-        rho += [[analytic_robin_robin(discretization, w=pi/t,Lambda_1=i, **kwargs) \
-               for i in lambda_1]]
-        rho += [[analytic_robin_robin(discretization, w=-pi/t,Lambda_1=i, **kwargs) \
-               for i in lambda_1]]
+        rho += [[analytic_robin_robin(discretization,
+                                      w=pi / t,
+                                      Lambda_1=i,
+                                      **kwargs) for i in lambda_1]]
+        rho += [[analytic_robin_robin(discretization,
+                                      w=-pi / t,
+                                      Lambda_1=i,
+                                      **kwargs) for i in lambda_1]]
     plt.fill_between(lambda_1,
                      np.min(np.array(rho), axis=0),
                      np.max(np.array(rho), axis=0),
@@ -881,13 +917,27 @@ def beauty_graph_finite(discretization,
     plt.ylabel("$\\rho$")
 
     #plt.plot(lambda_1, [rate_finite_differences_by_z_transform(i) for i in lambda_1], "r--")
-    #plt.plot(lambda_1,
+    # plt.plot(lambda_1,
     #       [analytic_robin_robin_finite_volumes(Lambda_1=i) \
     #               for i in lambda_1], "k--", label="Theorical rate")
-    plt.title("Global in time: T="+str(TIME_WINDOW_LEN_DEFAULT)+ \
-            "dt\n $D_1$="+str(D1_DEFAULT)+", $D_2$="+str(D2_DEFAULT)+", " + \
-            "$0=a\\approx c$, $H_1$=-"+str(SIZE_DOMAIN_1)+", $H_2$="+str(SIZE_DOMAIN_2)+"\n" + \
-            "$\\Lambda^2$="+str(LAMBDA_2_DEFAULT)+",  dt="+str(DT_DEFAULT)+", h=0.5")
+    plt.title(
+        "Global in time: T=" +
+        str(TIME_WINDOW_LEN_DEFAULT) +
+        "dt\n $D_1$=" +
+        str(D1_DEFAULT) +
+        ", $D_2$=" +
+        str(D2_DEFAULT) +
+        ", " +
+        "$0=a\\approx c$, $H_1$=-" +
+        str(SIZE_DOMAIN_1) +
+        ", $H_2$=" +
+        str(SIZE_DOMAIN_2) +
+        "\n" +
+        "$\\Lambda^2$=" +
+        str(LAMBDA_2_DEFAULT) +
+        ",  dt=" +
+        str(DT_DEFAULT) +
+        ", h=0.5")
 
     plt.legend()
     plt.show()

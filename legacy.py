@@ -1,9 +1,9 @@
 from cv_rate import *
-""" 
+"""
     for legacy: the functions rate_finite_*_by_solution are left here.
     They are slower because they need to compute full domain solution,
     and the result is the same.
-    It can still be useful, for instance if we want to use our framework 
+    It can still be useful, for instance if we want to use our framework
     with a right hand side...
 """
 
@@ -60,10 +60,11 @@ def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1_DEFAULT,
     def get_f2(t):
         # Note: f is an average and not a local approximation !
         f2 = T * (x2_1_2[1:] - x2_1_2[:-1]) \
-                + ratio_D*a*(sin(d*x2_1_2[1:]) - sin(d*x2_1_2[:-1])) \
-                + c*(-ratio_D/d*(cos(d*x2_1_2[1:]) - cos(d*x2_1_2[:-1])) \
-                                + T*t*(x2_1_2[1:] - x2_1_2[:-1])) \
-                - d*ratio_D*(D2[1:]*cos(d*x2_1_2[1:]) - D2[:-1]*cos(d*x2_1_2[:-1]))
+            + ratio_D * a * (sin(d * x2_1_2[1:]) - sin(d * x2_1_2[:-1])) \
+            + c * (-ratio_D / d * (cos(d * x2_1_2[1:]) - cos(d * x2_1_2[:-1]))
+                   + T * t * (x2_1_2[1:] - x2_1_2[:-1])) \
+            - d * ratio_D * (D2[1:] * cos(d * x2_1_2[1:]) -
+                             D2[:-1] * cos(d * x2_1_2[:-1]))
         f2 /= h2
         return f2
 
@@ -78,9 +79,9 @@ def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1_DEFAULT,
         x1_sup = -x1_1_2[:-1]
         x1_inf = -x1_1_2[1:]
 
-        f1 = T * (x1_sup - x1_inf) + a*(sin(d*x1_sup) - sin(d*x1_inf)) \
-                + c*(-cos(d*x1_sup)/d + cos(d*x1_inf)/d + T*t*(x1_sup - x1_inf)) \
-                - d*(D1[:-1]*cos(d*x1_sup) - D1[1:]*cos(d*x1_inf))
+        f1 = T * (x1_sup - x1_inf) + a * (sin(d * x1_sup) - sin(d * x1_inf)) \
+            + c * (-cos(d * x1_sup) / d + cos(d * x1_inf) / d + T * t * (x1_sup - x1_inf)) \
+            - d * (D1[:-1] * cos(d * x1_sup) - D1[1:] * cos(d * x1_inf))
 
         f1 /= h1
         return f1
@@ -95,10 +96,10 @@ def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1_DEFAULT,
             (np.diff(-cos(-d * x1_1_2[::-1]) / d - T * t * x1_1_2[::-1]),
              np.diff(-ratio_D * cos(d * x2_1_2) / d + T * t * x2_1_2))) / h
 
-        u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
-                M2=M2, h1=h1, h2=h2, D1=D1,
-                D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
-                neumann=neumann(t), dirichlet=dirichlet(t), u_nm1=all_ui[-1])
+        u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1,
+                                                                              M2=M2, h1=h1, h2=h2, D1=D1,
+                                                                              D2=D2, a=a, c=c, dt=dt, f1=f1, f2=f2,
+                                                                              neumann=neumann(t), dirichlet=dirichlet(t), u_nm1=all_ui[-1])
 
         all_ui += [u_np1]
         all_ui_interface += [real_u_interface]
@@ -225,7 +226,7 @@ def rate_finite_differences_by_solution(
     D1_prime = two_if_not_constant * x1
     D2_prime = two_if_not_constant * x2
 
-    #TODO see if it is important to keep this ugly first term
+    # TODO see if it is important to keep this ugly first term
     D1 = np.concatenate(([D1_x[0]], D1[:-1]))
     D2 = np.concatenate(([D2_x[0]], D2[:-1]))
 
@@ -239,12 +240,12 @@ def rate_finite_differences_by_solution(
 
     def f2(t):
         # Note: f is a local approximation !
-        return T*(1+c*t) + ratio_D * (d*a*cos(d*x2) + c*sin(d*x2) \
-                + D2_x * d*d *sin(d*x2) - D2_prime * d * cos(d*x2))
+        return T * (1 + c * t) + ratio_D * (d * a * cos(d * x2) + c *
+                                            sin(d * x2) + D2_x * d * d * sin(d * x2) - D2_prime * d * cos(d * x2))
 
     def f1(t):
-        return T*(1+c*t) + d*a*cos(d*x1) + c*sin(d*x1) \
-            + D1_x * d*d *sin(d*x1) - D1_prime * d * cos(d*x1)
+        return T * (1 + c * t) + d * a * cos(d * x1) + c * sin(d * x1) \
+            + D1_x * d * d * sin(d * x1) - D1_prime * d * cos(d * x1)
 
     u0 = np.concatenate(
         (sin(d * x1[-1:0:-1]) + T * t0, ratio_D * sin(d * x2) + T * t0))
@@ -252,10 +253,10 @@ def rate_finite_differences_by_solution(
     all_ui_interface = []
     for i in range(time_window_len):
         t = t0 + (i + 1) * dt
-        u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1, \
-                M2=M2, h1=h1, h2=h2, D1=D1,
-                D2=D2, a=a, c=c, dt=dt, f1=f1(t), f2=f2(t),
-                neumann=neumann(t), dirichlet=dirichlet(t), u_nm1=all_ui[-1])
+        u_np1, real_u_interface, real_phi_interface = integrate_one_step_star(M1=M1,
+                                                                              M2=M2, h1=h1, h2=h2, D1=D1,
+                                                                              D2=D2, a=a, c=c, dt=dt, f1=f1(t), f2=f2(t),
+                                                                              neumann=neumann(t), dirichlet=dirichlet(t), u_nm1=all_ui[-1])
 
         all_ui += [u_np1]
         all_ui_interface += [real_u_interface]

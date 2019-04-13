@@ -31,9 +31,9 @@ class FiniteVolumes(Discretization):
             self.M1_DEFAULT, self.M2_DEFAULT, self.SIZE_DOMAIN_1, \
             self.SIZE_DOMAIN_2, self.LAMBDA_1_DEFAULT, \
             self.LAMBDA_2_DEFAULT, self.DT_DEFAULT = A_DEFAULT, \
-                C_DEFAULT, D1_DEFAULT, D2_DEFAULT, \
-                M1_DEFAULT, M2_DEFAULT, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-                LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT, DT_DEFAULT
+            C_DEFAULT, D1_DEFAULT, D2_DEFAULT, \
+            M1_DEFAULT, M2_DEFAULT, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
+            LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT, DT_DEFAULT
 
     """
         Returns default values of a, c, dt or parameters if given.
@@ -93,21 +93,21 @@ class FiniteVolumes(Discretization):
                            Y=None):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
-                float(c), float(dt), float(bd_cond), float(Lambda), \
-                float(u_interface), float(phi_interface)
+            float(c), float(dt), float(bd_cond), float(Lambda), \
+            float(u_interface), float(phi_interface)
 
         # Broadcasting / verification of type:
         D = np.zeros(M + 1) + D
         h = np.zeros(M) + h
         f = np.zeros(M) + f
 
-        assert type(
-            u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[0] == M
+        assert isinstance(
+            u_nm1, np.ndarray) and u_nm1.ndim == 1 and u_nm1.shape[0] == M
         assert upper_domain is True or upper_domain is False
 
         if not upper_domain:  # from now h, D, f, u_nm1 are 0 at bottom of the ocean.
             h, D, f, u_nm1 = np.flipud(h), np.flipud(D), np.flipud(f), \
-                    np.flipud(u_nm1)
+                np.flipud(u_nm1)
 
         if Y is None:
             Y = self.get_Y(M=M,
@@ -123,13 +123,13 @@ class FiniteVolumes(Discretization):
                                    (u_nm1[1:] - u_nm1[:-1]) / dt)
         if upper_domain:  # Neumann condition: user give derivative but I need flux
             cond_robin = Lambda * u_interface + phi_interface \
-                    - Lambda * dt /(1+dt*c) * (f[0] + u_nm1[0]/dt)
+                - Lambda * dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
 
             cond_M = bd_cond * D[-1]
             rhs = np.concatenate(([cond_robin], rhs, [cond_M]))
         else:  # Dirichlet condition: user gives value, rhs is more complicated
             cond_robin = Lambda * u_interface + phi_interface \
-                    - Lambda * dt /(1+dt*c) * (f[-1] + u_nm1[-1]/dt)
+                - Lambda * dt / (1 + dt * c) * (f[-1] + u_nm1[-1] / dt)
 
             cond_M = bd_cond - dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
             rhs = np.concatenate(([cond_M], rhs, [cond_robin]))
@@ -142,9 +142,9 @@ class FiniteVolumes(Discretization):
         D_mp1_2 = D[1:]
         D_mm1_2 = D[:-1]
 
-        u_n = dt / (1+dt*c) * ( f + u_nm1 / dt \
-                + (D_mp1_2*d_kp1 - D_mm1_2*d_km1)/h \
-                - a * (d_kp1 + d_km1) / 2 )
+        u_n = dt / (1 + dt * c) * (f + u_nm1 / dt
+                                   + (D_mp1_2 * d_kp1 - D_mm1_2 * d_km1) / h
+                                   - a * (d_kp1 + d_km1) / 2)
 
         assert u_n.shape[0] == M
         if upper_domain:
@@ -172,9 +172,9 @@ class FiniteVolumes(Discretization):
         neumann is the Neumann condition of the top of the atmosphere.
         dirichlet is the Dirichlet condition of the bottom of the ocean.
         h{1,2}, D{1,2}, f{1,2} have their first values ([0,1,..]) at the interface
-        and their last values ([..,M-2, M-1]) at 
+        and their last values ([..,M-2, M-1]) at
         the top of the atmosphere (h2, D2, f2) or bottom of the ocean (f1, D1, f1)
-        u_nm1[0] is the bottom of the ocean 
+        u_nm1[0] is the bottom of the ocean
         and u_nm1[M1 + M2 - 1] is the top of the atmosphere
 
         M{1, 2} is int
@@ -191,31 +191,31 @@ class FiniteVolumes(Discretization):
                                 neumann, dirichlet, u_nm1):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
-                float(neumann), float(dirichlet)
+            float(neumann), float(dirichlet)
         # Theses assertions cannot be used because of the unit tests:
         # for arg, name in zip((a, c, neumann, dirichlet),
         #         ("a", "c", "neumann", "dirichlet")):
         #     assert arg >= 0, name + " should be positive !"
         assert dt > 0, "dt should be strictly positive"
-        assert type(u_nm1) == np.ndarray and u_nm1.ndim == 1 and u_nm1.shape[
-            0] == M1 + M2
+        assert isinstance(
+            u_nm1, np.ndarray) and u_nm1.ndim == 1 and u_nm1.shape[0] == M1 + M2
 
-        assert type(M2) is int and type(M1) is int
+        assert isinstance(M2, int) and isinstance(M1, int)
         assert M2 > 0 and M1 > 0
-        if type(D1) is int:
+        if isinstance(D1, int):
             print("Warning: type of diffusivity is int. casting to float...")
             D1 = float(D1)
-        if type(D2) is int:
+        if isinstance(D2, int):
             print("Warning: type of diffusivity is int. casting to float...")
             D2 = float(D2)
         for arg, name in zip((h1, h2, D1, D2), ("h1", "h2", "D1", "D2")):
-            assert type(arg) is float or \
-                    type(arg) is np.float64 or \
-                    type(arg) is np.ndarray and \
-                    arg.ndim == 1, name
+            assert isinstance(arg, float) or \
+                isinstance(arg, np.float64) or \
+                isinstance(arg, np.ndarray) and \
+                arg.ndim == 1, name
             assert (np.array(arg) > 0).all(), name + " is negative or 0 !"
 
-        #Broadcasting / verification of types:
+        # Broadcasting / verification of types:
         D1 = np.zeros(M1 + 1) + D1
         D2 = np.zeros(M2 + 1) + D2
         h1 = np.zeros(M1) + h1
@@ -259,13 +259,13 @@ class FiniteVolumes(Discretization):
         D2_kp1_2 = D2[1:]
         D2_km1_2 = D2[:-1]
 
-        u1_n = dt / (1+dt*c) * ( f[:M1] + u_nm1[:M1] / dt \
-                + (D1_kp1_2*d1_kp1 - D1_km1_2*d1_km1)/ h1 \
-                - a * (d1_kp1 + d1_km1) / 2 )
+        u1_n = dt / (1 + dt * c) * (f[:M1] + u_nm1[:M1] / dt
+                                    + (D1_kp1_2 * d1_kp1 - D1_km1_2 * d1_km1) / h1
+                                    - a * (d1_kp1 + d1_km1) / 2)
 
-        u2_n = dt / (1+dt*c) * ( f[M1:] + u_nm1[M1:] / dt \
-                + (D2_kp1_2*d2_kp1 - D2_km1_2*d2_km1)/h2 \
-                - a * (d2_kp1 + d2_km1) / 2 )
+        u2_n = dt / (1 + dt * c) * (f[M1:] + u_nm1[M1:] / dt
+                                    + (D2_kp1_2 * d2_kp1 - D2_km1_2 * d2_km1) / h2
+                                    - a * (d2_kp1 + d2_km1) / 2)
 
         assert u1_n.shape[0] == M1
         assert u2_n.shape[0] == M2
@@ -310,7 +310,7 @@ class FiniteVolumes(Discretization):
         a, c, dt, Lambda = float(a), float(c), float(dt), float(Lambda)
         D = np.zeros(M + 1) + D
         h = np.zeros(M) + h
-        assert type(M) is int
+        assert isinstance(M, int)
         assert upper_domain is True or upper_domain is False
 
         # We first use our great function get_Y_star:
@@ -328,7 +328,8 @@ class FiniteVolumes(Discretization):
             Y_1 = Y_1[1:]
             Y_2 = Y_2[1:]
 
-            # Now we have the tridiagonal matrices, except for the Robin bd condition
+            # Now we have the tridiagonal matrices, except for the Robin bd
+            # condition
             dirichlet_cond_extreme_point = -dt / (1 + dt * c) * (
                 1 / h[0] + a / (2 * D[0])) - h[0] / (3 * D[0])
             dirichlet_cond_interior_point = dt / (1 + dt * c) * (
@@ -349,11 +350,13 @@ class FiniteVolumes(Discretization):
                                             a=a,
                                             c=c,
                                             dt=dt)
-            # Here Y_0 and Y_2 are inverted because we need to take the symmetric
+            # Here Y_0 and Y_2 are inverted because we need to take the
+            # symmetric
             Y_0 = Y_0[:-1]
             Y_1 = Y_1[:-1]
             Y_2 = Y_2[:-1]
-            # Now we have the tridiagonal matrices, except for the Robin bd condition
+            # Now we have the tridiagonal matrices, except for the Robin bd
+            # condition
             dirichlet_cond_extreme_point = dt / (1 + dt * c) * (
                 1 / h[-1] - a / (2 * D[-1])) + h[-1] / (3 * D[-1])
             dirichlet_cond_interior_point = dt / (1 + dt * c) * (
@@ -407,19 +410,19 @@ class FiniteVolumes(Discretization):
         if c < 0:
             print("Warning : c should probably not be negative")
 
-        assert type(M2) is int and type(M1) is int
+        assert isinstance(M2, int) and isinstance(M1, int)
         assert M2 > 0 and M1 > 0
-        if type(D1) is int:
+        if isinstance(D1, int):
             print("Warning: type of diffusivity is int. casting to float...")
             D1 = float(D1)
-        if type(D2) is int:
+        if isinstance(D2, int):
             print("Warning: type of diffusivity is int. casting to float...")
             D2 = float(D2)
         for arg, name in zip((h1, h2, D1, D2), ("h1", "h2", "D1", "D2")):
-            assert type(arg) is float or \
-                    type(arg) is np.float64 or \
-                    type(arg) is np.ndarray and \
-                    arg.ndim == 1, name
+            assert isinstance(arg, float) or \
+                isinstance(arg, np.float64) or \
+                isinstance(arg, np.ndarray) and \
+                arg.ndim == 1, name
             assert (np.array(arg) > 0).all(), name + " is negative or 0 !"
 
         # Broadcast or verification of size:
@@ -429,7 +432,7 @@ class FiniteVolumes(Discretization):
         h2 = np.zeros(M2) + h2
         # In the notations h is negative when considering \omega_1:
 
-        #assert (h1 == h1[::-1]).all() # Warning with this,
+        # assert (h1 == h1[::-1]).all() # Warning with this,
         # it means they are constant... The code is not purely consistant
         # with itself though, so for now let's keep theses assertions
         #assert (D1 == D1[::-1]).all()
@@ -447,23 +450,23 @@ class FiniteVolumes(Discretization):
         h_m = h[:-1]
         h_mp1 = h[1:]
 
-        ######## LEFT DIAGONAL: phi_{1/2} -> phi_{M+1/2}
+        # LEFT DIAGONAL: phi_{1/2} -> phi_{M+1/2}
         Y_0 = -dt / (1 + dt * c) * (1 / h_m + a /
                                     (2 * D_mm1_2)) + h_m / (6 * D_mm1_2)
         # Now we can put Neumann bd condition:
         Y_0 = np.concatenate((Y_0, [0]))  # Neumann bd condition
         # (actually Dirichlet bd because we work on the fluxes...)
 
-        ######## RIGHT DIAGONAL:
+        # RIGHT DIAGONAL:
         Y_2 = -dt / (1 + dt * c) * (1 / h_mp1 - a /
                                     (2 * D_mp3_2)) + h_mp1 / (6 * D_mp3_2)
         Y_2_bd = dt / (1 + dt * c) * (1 / h[0] - a /
                                       (2 * D1[1])) - h[0] / (6 * D1[1])
         Y_2 = np.concatenate(([Y_2_bd], Y_2))
 
-        ######## MAIN DIAGONAL:
-        Y_1 = dt/(1+dt*c) * (1 / h_m + 1/h_mp1 + a/2 * (1/D_plus - 1/D_minus)) \
-                + (h_m/D_minus + h_mp1/D_plus)/3
+        # MAIN DIAGONAL:
+        Y_1 = dt / (1 + dt * c) * (1 / h_m + 1 / h_mp1 + a / 2 * (1 /
+                                                                  D_plus - 1 / D_minus)) + (h_m / D_minus + h_mp1 / D_plus) / 3
         Y_1_bd = -dt / (1 + dt * c) * (1 / h[0] + a /
                                        (2 * D1[0])) - h[0] / (3 * D1[0])
         Y_1 = np.concatenate(([Y_1_bd], Y_1, [1]))
@@ -493,7 +496,7 @@ class FiniteVolumes(Discretization):
                      upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, = float(a), \
-                float(c), float(dt), float(bd_cond), float(Lambda)
+            float(c), float(dt), float(bd_cond), float(Lambda)
 
         # Broadcasting / verification of type:
         D = np.zeros(M + 1) + D
@@ -516,7 +519,7 @@ class FiniteVolumes(Discretization):
     """
         When D and h are constant, it is possible to find the convergence
         rate in frequency domain. analytic_robin_robin computes this convergence rate.
-        s is 1/dt when considering the local-in-time case, otherwise it 
+        s is 1/dt when considering the local-in-time case, otherwise it
         should be iw (with w the desired frequency)
         In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
         for implicit euler discretisation.
@@ -554,7 +557,7 @@ class FiniteVolumes(Discretization):
         h1 = self.SIZE_DOMAIN_1 / M1
         h2 = self.SIZE_DOMAIN_2 / M2
 
-        #TODO maybe we should exchange Y1_0 with Y1_2
+        # TODO maybe we should exchange Y1_0 with Y1_2
         Y1_0 = -1 / (s + c) * (1 / h1 - a / (2 * D1)) + h1 / (6 * D1)
         Y1_1 = 1 / (s + c) * 2 / h1 + 2 * h1 / (3 * D1)
         Y1_2 = -1 / (s + c) * (1 / h1 + a / (2 * D1)) + h1 / (6 * D1)
@@ -573,16 +576,17 @@ class FiniteVolumes(Discretization):
         # Properties of lambda:
         assert abs(lambda1_moins * lambda1_plus - Y1_0 / Y1_2) < 1e-12
         assert abs(lambda2_moins * lambda2_plus - Y2_0 / Y2_2) < 1e-12
-        #D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
-        #D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) < 1e-12
+        # D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
+        # D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) <
+        # 1e-12
         if verbose:
             print("lambda1_plus:", lambda1_plus)
             print("lambda2_plus:", lambda2_plus)
 
-        eta2_0 = ((lambda2_plus-1)/h2 - a*(lambda2_plus+1)/(2*D2)) / (s+c) \
-                - h2 * (lambda2_plus + 2) / (6*D2)
-        eta1_0 = ((1-lambda1_plus)/h1 - a*(lambda1_plus+1)/(2*D1)) / (s+c) \
-                + h1 * (lambda1_plus + 2) / (6*D1)
+        eta2_0 = ((lambda2_plus - 1) / h2 - a * (lambda2_plus + 1) /
+                  (2 * D2)) / (s + c) - h2 * (lambda2_plus + 2) / (6 * D2)
+        eta1_0 = ((1 - lambda1_plus) / h1 - a * (lambda1_plus + 1) /
+                  (2 * D1)) / (s + c) + h1 * (lambda1_plus + 2) / (6 * D1)
 
         rho_numerator = (Lambda_2 * eta1_0 + 1) * (Lambda_1 * eta2_0 + 1)
         rho_denominator = (Lambda_2 * eta2_0 + 1) * (Lambda_1 * eta1_0 + 1)
@@ -622,9 +626,9 @@ class FiniteVolumes(Discretization):
 
     def get_D(self, h1, h2, function_D1=None, function_D2=None):
         if function_D1 is None:
-            function_D1 = lambda x: self.D1_DEFAULT + np.zeros_like(x)
+            def function_D1(x): return self.D1_DEFAULT + np.zeros_like(x)
         if function_D2 is None:
-            function_D2 = lambda x: self.D2_DEFAULT + np.zeros_like(x)
+            def function_D2(x): return self.D2_DEFAULT + np.zeros_like(x)
         # coordinates at half-points:
         x1_1_2 = np.cumsum(np.concatenate(([0], h1)))
         x2_1_2 = np.cumsum(np.concatenate(([0], h2)))

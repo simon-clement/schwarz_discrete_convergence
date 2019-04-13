@@ -9,7 +9,7 @@ class Discretization:
     """
         When D and h are constant, it is possible to find the convergence
         rate in frequency domain. analytic_robin_robin computes this convergence rate.
-        s is 1/dt when considering the local-in-time case, otherwise it 
+        s is 1/dt when considering the local-in-time case, otherwise it
         should be iw (with w the desired frequency)
         In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
         for implicit euler discretisation.

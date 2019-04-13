@@ -30,13 +30,12 @@ def test_full_eq():
     hm = h[1:]
     middle_grid_last = (x[-1] + x[-2]) / 2
 
-    D = lambda x: x
-    D_prime = lambda x: 1
+    def D(x): return x
+    def D_prime(x): return 1
     D_star = D((x[1:] + x[:-1]) / 2)
 
-
-    function_f = lambda x : d*d*D(x)*sin(d*x) - d*D_prime(x)*cos(d*x) \
-        + d*a*cos(d*x) + c*sin(d*x)
+    def function_f(x): return d * d * D(x) * sin(d * x) - d * \
+        D_prime(x) * cos(d * x) + d * a * cos(d * x) + c * sin(d * x)
     f = np.zeros(M)
     f[1:M - 1] = function_f(x[1:M - 1]) * (hm1 + hm)
     f[-1] = d * cos(d * middle_grid_last)
@@ -65,11 +64,11 @@ def test_full_eq():
     hm1 = h[:-1]
     hm = h[1:]
 
-    D = lambda x: -x
-    D_prime = lambda x: -1
+    def D(x): return -x
+    def D_prime(x): return -1
     D_star = D((x[1:] + x[:-1]) / 2)
-    function_f = lambda x : d*d*D(x)*sin(d*x) - d*D_prime(x)*cos(d*x) \
-        + d*a*cos(d*x) + c*sin(d*x)
+    def function_f(x): return d * d * D(x) * sin(d * x) - d * \
+        D_prime(x) * cos(d * x) + d * a * cos(d * x) + c * sin(d * x)
 
     Y = get_Y(M=M,
               Lambda=1.0,

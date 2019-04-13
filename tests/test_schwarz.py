@@ -34,7 +34,7 @@ def test_integration():
     number_time_steps = 5000
     f_x0 = np.zeros(number_time_steps + 1)
     u0 = np.zeros_like(f)
-    u = integration(u0, Y, f, f_x0, dt=dt, theta=1)  #implicit scheme
+    u = integration(u0, Y, f, f_x0, dt=dt, theta=1)  # implicit scheme
     assert (np.linalg.norm(np.pi * x - u[-1])) < 1e-9
 
     M = 10001
@@ -48,13 +48,12 @@ def test_integration():
     hm = h[1:]
     middle_grid_last = (x[-1] + x[-2]) / 2
 
-    D = lambda x: x
-    D_prime = lambda x: 1
+    def D(x): return x
+    def D_prime(x): return 1
     D_star = D((x[1:] + x[:-1]) / 2)
 
-
-    function_f = lambda x : d*d*D(x)*sin(d*x) - d*D_prime(x)*cos(d*x) \
-        + d*a*cos(d*x) + c*sin(d*x)
+    def function_f(x): return d * d * D(x) * sin(d * x) - d * \
+        D_prime(x) * cos(d * x) + d * a * cos(d * x) + c * sin(d * x)
     f = np.zeros(M)
     f[1:M - 1] = function_f(x[1:M - 1]) * (hm1 + hm)
     f[-1] = d * cos(d * middle_grid_last)
@@ -96,22 +95,22 @@ def test_time_domain():
     h2m1 = h2[:-1]
     h2m = h2[1:]
     middle_grid_last2 = (x2[-1] + x2[-2]) / 2
-    D2 = lambda x: 1.1 - x * x
-    D2_prime = lambda x: -2 * x
+    def D2(x): return 1.1 - x * x
+    def D2_prime(x): return -2 * x
     D2_send = D2((x2[1:] + x2[:-1]) / 2)
-    function_f2 = lambda x : d*d*D2(x)*sin(d*x) - d*D2_prime(x)*cos(d*x) \
-        + d*a*cos(d*x) + c*sin(d*x)
+    def function_f2(x): return d * d * D2(x) * sin(d * x) - d * \
+        D2_prime(x) * cos(d * x) + d * a * cos(d * x) + c * sin(d * x)
 
     # Omega_1 values:
     x1 = np.linspace(0, -1, M)**3
     h1 = np.diff(x1)
     h1m1 = h1[:-1]
     h1m = h1[1:]
-    D1 = lambda x: 1.1 - x * x
-    D1_prime = lambda x: -2 * x
+    def D1(x): return 1.1 - x * x
+    def D1_prime(x): return -2 * x
     D1_send = D1((x1[1:] + x1[:-1]) / 2)
-    function_f1 = lambda x : d*d*D1(x)*sin(d*x) - d*D1_prime(x)*cos(d*x) \
-        + d*a*cos(d*x) + c*sin(d*x)
+    def function_f1(x): return d * d * D1(x) * sin(d * x) - d * \
+        D1_prime(x) * cos(d * x) + d * a * cos(d * x) + c * sin(d * x)
 
     f1 = np.zeros(M)
     f1[1:M - 1] = function_f1(x1[1:M - 1]) * (h1m1 + h1m)
@@ -151,13 +150,12 @@ def test_time_domain():
     hm = h[1:]
     middle_grid_last = (x[-1] + x[-2]) / 2
 
-    D = lambda x: 1.1 - x * x
-    D_prime = lambda x: -2 * x
+    def D(x): return 1.1 - x * x
+    def D_prime(x): return -2 * x
     D_star = D((x[1:] + x[:-1]) / 2)
 
-
-    function_f = lambda x : d*d*D(x)*sin(d*x) - d*D_prime(x)*cos(d*x) \
-        + d*a*cos(d*x) + c*sin(d*x)
+    def function_f(x): return d * d * D(x) * sin(d * x) - d * \
+        D_prime(x) * cos(d * x) + d * a * cos(d * x) + c * sin(d * x)
     f = np.zeros(M)
     f[1:M - 1] = function_f(x[1:M - 1]) * (hm1 + hm)
     f[-1] = d * cos(d * middle_grid_last)
@@ -184,7 +182,7 @@ def test_schwarz():
     c = 0.3
     d = 1.2
     dt = 1000.0
-    #TODO ajouter terme correctif
+    # TODO ajouter terme correctif
 
     Lambda1 = 1.0
     Lambda2 = 2.0
@@ -194,11 +192,11 @@ def test_schwarz():
     h2m1 = h2[:-1]
     h2m = h2[1:]
     middle_grid_last2 = (x2[-1] + x2[-2]) / 2
-    D2 = lambda x: x
-    D2_prime = lambda x: 1
+    def D2(x): return x
+    def D2_prime(x): return 1
     D2_send = D2((x2[1:] + x2[:-1]) / 2)
-    function_f2 = lambda x : d*d*D2(x)*sin(d*x) - d*D2_prime(x)*cos(d*x) \
-        + d*a*cos(d*x) + c*sin(d*x)
+    def function_f2(x): return d * d * D2(x) * sin(d * x) - d * \
+        D2_prime(x) * cos(d * x) + d * a * cos(d * x) + c * sin(d * x)
     Y2 = get_Y(M=M,
                Lambda=Lambda2,
                h=h2,
@@ -213,11 +211,11 @@ def test_schwarz():
     h1 = np.diff(x1)
     h1m1 = h1[:-1]
     h1m = h1[1:]
-    D1 = lambda x: -x
-    D1_prime = lambda x: -1
+    def D1(x): return -x
+    def D1_prime(x): return -1
     D1_send = D1((x1[1:] + x1[:-1]) / 2)
-    function_f1 = lambda x : d*d*D1(x)*sin(d*x) - d*D1_prime(x)*cos(d*x) \
-        + d*a*cos(d*x) + c*sin(d*x)
+    def function_f1(x): return d * d * D1(x) * sin(d * x) - d * \
+        D1_prime(x) * cos(d * x) + d * a * cos(d * x) + c * sin(d * x)
 
     Y1 = get_Y(M=M,
                Lambda=Lambda1,
@@ -246,7 +244,7 @@ def test_schwarz():
     initial_error2 = np.linalg.norm(sin(d * x2) - solve_linear(Y2, f2))
 
     f1[0] = f2[0] = -3
-    #TODO ajuster terme correctif
+    # TODO ajuster terme correctif
     ur2 = sin(d * x2)  # ureal 2
     ur1 = sin(d * x1)  # ureal 1
     """
@@ -264,15 +262,15 @@ def test_schwarz():
         u1 = solve_linear(Y1, f1)
 
         f2[0] = D1_send[0] * (u1[1] - u1[0]) / h1[0] + Lambda2 * u1[0] \
-            - h1[0] / 2 * ((u1[0] + u1[1])/(2*dt) + a*(u1[1] - u1[0]) / h1[0] \
-                           + c * (u1[0] + u1[1])/2 - function_f1(x1[1]/2)) \
-            - h2[0] / 2 * function_f2(x2[1]/2)
+            - h1[0] / 2 * ((u1[0] + u1[1]) / (2 * dt) + a * (u1[1] - u1[0]) / h1[0]
+                           + c * (u1[0] + u1[1]) / 2 - function_f1(x1[1] / 2)) \
+            - h2[0] / 2 * function_f2(x2[1] / 2)
         u2 = solve_linear(Y2, f2)
 
         f1[0] = D2_send[0] * (u2[1] - u2[0]) / h2[0] + Lambda1 * u2[0] \
-            - h2[0] / 2 * ((u2[0] + u2[1])/(2*dt) + a*(u2[1] - u2[0]) / h2[0] \
-                           + c * (u2[0] + u2[1])/2 - function_f2(x2[1]/2)) \
-            - h1[0] / 2 * function_f1(x1[1]/2)
+            - h2[0] / 2 * ((u2[0] + u2[1]) / (2 * dt) + a * (u2[1] - u2[0]) / h2[0]
+                           + c * (u2[0] + u2[1]) / 2 - function_f2(x2[1] / 2)) \
+            - h1[0] / 2 * function_f1(x1[1] / 2)
 
     # we tolerate 1% additional error (before it was 5%)
     tol_err = 1.01 * max(initial_error1, initial_error2)

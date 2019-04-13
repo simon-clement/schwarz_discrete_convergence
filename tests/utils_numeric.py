@@ -31,7 +31,7 @@ def integration(u0, Y, f_const, f_x0, dt, theta):
             Yu = multiply(Y, u[step])
             u[step + 1] = solve_linear(Y_implicit,
                                        f + u[step] / dt - (1 - theta) * Yu)
-    else:  #explicit case:
+    else:  # explicit case:
         for step in range(f_x0.shape[0] - 1):
             f[0] = f_x0[step]
             Yu = multiply(Y, u[step])

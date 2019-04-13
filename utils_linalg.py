@@ -12,8 +12,8 @@ def multiply(Y, u):
     assert u.ndim == Y[0].ndim == Y[1].ndim == Y[2].ndim == 1
     assert Y[1].shape[0] == Y[0].shape[0] + 1 == u.shape[0]
     assert Y[0].shape[0] == Y[2].shape[0]
-    return np.concatenate(([0], Y[0]*u[:-1])) + Y[1] * u + \
-            np.concatenate((Y[2]*u[1:], [0]))
+    return np.concatenate(([0], Y[0] * u[:-1])) + Y[1] * u + \
+        np.concatenate((Y[2] * u[1:], [0]))
 
 
 """
@@ -38,7 +38,8 @@ def solve_linear(Y, f):
     assert Y_0.ndim == Y_1.ndim == Y_2.ndim == f.ndim == 1
     assert Y_1.shape[0] - 1 == Y_2.shape[0] == Y_0.shape[0] == f.shape[0] - 1
 
-    # solve_banded function requires to put the diagonals in the following form:
+    # solve_banded function requires to put the diagonals in the following
+    # form:
     Y_2 = np.concatenate(([0], Y_2))
     Y_0 = np.concatenate((Y_0, [0]))
     Y = np.vstack((Y_2, Y_1, Y_0))

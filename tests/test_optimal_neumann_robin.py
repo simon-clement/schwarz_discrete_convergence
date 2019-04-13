@@ -83,8 +83,8 @@ def numerical_optimization(discretization, lambda_min, lambda_max):
     T = dt * TIME_WINDOW_LEN_DEFAULT
     rho = []
     for t in np.linspace(dt, T, TIME_WINDOW_LEN_DEFAULT):
-        rho += [[discretization.analytic_robin_robin(s=pi/t*1j, Lambda_1=i) \
-                                                for i in lambda_1]]
+        rho += [[discretization.analytic_robin_robin(s=pi / t * 1j, Lambda_1=i)
+                 for i in lambda_1]]
     max_rho = np.max(np.array(rho), axis=0)
 
     # for each lambda we need to maximize in frequency

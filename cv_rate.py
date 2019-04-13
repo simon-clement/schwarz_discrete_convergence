@@ -27,7 +27,7 @@ def continuous_analytic_rate_robin_robin(discretization, Lambda_1, Lambda_2,
     # sig2 is \sigma^2_{-}
     sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
     first_term = np.abs((D2 * sig2 + Lambda_1) / (D1 * sig1 + Lambda_1))
-    #TODO why is there here a "+" whereas in the paper it's 'D2*sig2-Lambda_2'
+    # TODO why is there here a "+" whereas in the paper it's 'D2*sig2-Lambda_2'
     second = np.abs((D1 * sig1 - Lambda_2) / (D2 * sig2 - Lambda_2))
     # TODO put back a "+" ?
     return first_term * second
@@ -47,7 +47,7 @@ def continuous_best_lam_robin_neumann(discretization, N):
 def rate_by_z_transform(discretization, Lambda_1, NUMBER_SAMPLES):
     all_points = np.linspace(0, 2 * pi, NUMBER_SAMPLES, endpoint=False)
     dt = discretization.DT_DEFAULT
-    z_transformed = lambda z: discretization.analytic_robin_robin(
+    def z_transformed(z): return discretization.analytic_robin_robin(
         s=1. / dt * (z - 1) / z, Lambda_1=Lambda_1)
     r = 1.001
     samples = [z_transformed(r * np.exp(p * 1j)) for p in all_points]
@@ -78,7 +78,8 @@ def analytic_robin_robin(discretization,
             s = w * 1j
         else:
             z = 1.0 * np.exp(-w * 1j * dt * N)
-            # if we put *2 inside the exp, we get a better behavious on low frequencies...
+            # if we put *2 inside the exp,
+            # we get a better behavious on low frequencies...
             # but it makes no sense xD
             s = 1. / dt * (z - 1) / z
 
@@ -99,7 +100,7 @@ def analytic_robin_robin(discretization,
     Makes a simulation and gives the convergence rate.
     uses the rust module to be faster than python
     For details of args and kwargs, see @interface_errors
-    function_to_use can be max for L^\infty or np.linalg.norm for L^2
+    function_to_use can be max for L^\\infty or np.linalg.norm for L^2
     This particular function use a lot of different simulations with random
     first guess to get a good convergence rate.
 """
@@ -131,10 +132,9 @@ def rate_fast(discretization,
                                  number_seeds=len(list(seeds)),
                                  function_D1=None,
                                  function_D2=None)
-    except:
-        print(
-            "Cannot use rate_fast. Did you compile rust module ? Using pure python..."
-        )
+    except BaseException:
+        print("Cannot use rate_fast. Did you compile rust module ?" +
+              "Using pure python...")
         errors = None
         to_map = functools.partial(rate_one_seed,
                                    discretization,
@@ -277,21 +277,22 @@ def rate_old(discretization,
             u_interface = all_u1_interface[i]
             phi_interface = all_phi1_interface[i]
 
-            u2_ret, u_interface, phi_interface = discretization.integrate_one_step(
-                M=M2,
-                h=h2,
-                D=D2,
-                a=a,
-                c=c,
-                dt=dt,
-                f=f2,
-                bd_cond=neumann,
-                Lambda=Lambda_2,
-                u_nm1=all_u2[-1],
-                u_interface=u_interface,
-                phi_interface=phi_interface,
-                upper_domain=True,
-                Y=precomputed_Y2)
+            u2_ret, u_interface, phi_interface = \
+                discretization.integrate_one_step(
+                    M=M2,
+                    h=h2,
+                    D=D2,
+                    a=a,
+                    c=c,
+                    dt=dt,
+                    f=f2,
+                    bd_cond=neumann,
+                    Lambda=Lambda_2,
+                    u_nm1=all_u2[-1],
+                    u_interface=u_interface,
+                    phi_interface=phi_interface,
+                    upper_domain=True,
+                    Y=precomputed_Y2)
             all_u2 += [u2_ret]
             all_u2_interface += [u_interface]
             all_phi2_interface += [phi_interface]
@@ -305,21 +306,22 @@ def rate_old(discretization,
             u_interface = all_u2_interface[i]
             phi_interface = all_phi2_interface[i]
 
-            u1_ret, u_interface, phi_interface = discretization.integrate_one_step(
-                M=M1,
-                h=h1,
-                D=D1,
-                a=a,
-                c=c,
-                dt=dt,
-                f=f1,
-                bd_cond=dirichlet,
-                Lambda=Lambda_1,
-                u_nm1=all_u1[-1],
-                u_interface=u_interface,
-                phi_interface=phi_interface,
-                upper_domain=False,
-                Y=precomputed_Y1)
+            u1_ret, u_interface, phi_interface = \
+                discretization.integrate_one_step(
+                    M=M1,
+                    h=h1,
+                    D=D1,
+                    a=a,
+                    c=c,
+                    dt=dt,
+                    f=f1,
+                    bd_cond=dirichlet,
+                    Lambda=Lambda_1,
+                    u_nm1=all_u1[-1],
+                    u_interface=u_interface,
+                    phi_interface=phi_interface,
+                    upper_domain=False,
+                    Y=precomputed_Y1)
             all_u1 += [u1_ret]
             all_u1_interface += [u_interface]
             all_phi1_interface += [phi_interface]
@@ -339,11 +341,10 @@ def raw_simulation(discretization, N, number_samples=1000, **kwargs):
                                      **kwargs)
         print("took", time.time() - time_start, "seconds")
         return np.mean(np.abs(errors), axis=0)
-    except:
-        print("cannot make a fast raw simulation... Going to pure python " + \
-                "(but it will take some time)")
+    except BaseException:
+        print("cannot make a fast raw simulation... Going to pure python " +
+              "(but it will take some time)")
         import concurrent.futures
-        from numpy.fft import fft, fftshift
         to_map = functools.partial(interface_errors, discretization, N,
                                    **kwargs)
         with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -361,10 +362,10 @@ def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
                                      **kwargs)
         freq_err = np.fft.fftshift(np.fft.fft(errors, axis=-1), axes=(-1, ))
         return np.mean(np.abs(freq_err), axis=0)
-    except:
+    except BaseException:
         raise
-        print("cannot make a fast frequency simulation... Going to pure python " + \
-                "(but it will take some time)")
+        print( "Cannot make a fast frequency simulation..." +
+               "Going to pure python (but it will take some time)")
         import concurrent.futures
         from numpy.fft import fft, fftshift
         to_map = functools.partial(interface_errors, discretization, N,
@@ -372,7 +373,7 @@ def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
         with concurrent.futures.ProcessPoolExecutor() as executor:
             errors = np.array(list(executor.map(to_map,
                                                 range(number_samples))))
-        freq_err = np.fft.fftshift(np.fft.fft(errors, axis=-1), axes=(-1, ))
+        freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))
         return np.mean(np.abs(freq_err), axis=0)
 
 
@@ -439,7 +440,6 @@ def interface_errors(discretization,
     # random false initialization:
     u1_0 = np.zeros(M1)
     u2_0 = np.zeros(M2)
-    error = []
     np.random.seed(seed)
     all_u1_interface = 2 * (np.random.rand(time_window_len) - 0.5)
     all_phi1_interface = 2 * (np.random.rand(time_window_len) - 0.5)
@@ -456,7 +456,8 @@ def interface_errors(discretization,
             u_interface = all_u1_interface[i]
             phi_interface = all_phi1_interface[i]
 
-            u2_ret, u_interface, phi_interface = discretization.integrate_one_step(
+            u2_ret, u_interface, phi_interface = \
+                    discretization.integrate_one_step(
                 M=M2,
                 h=h2,
                 D=D2,
@@ -485,7 +486,8 @@ def interface_errors(discretization,
             u_interface = all_u2_interface[i]
             phi_interface = all_phi2_interface[i]
 
-            u1_ret, u_interface, phi_interface = discretization.integrate_one_step(
+            u1_ret, u_interface, phi_interface = \
+                    discretization.integrate_one_step(
                 M=M1,
                 h=h1,
                 D=D1,
