@@ -14,6 +14,11 @@ You can check your install is correct:
     ./cv_rate.py test
 ```
 
+You may need to install scipy to make it work:
+```
+    pip3 install scipy
+```
+
 You can add this line to your "~/.bashrc":
 ```
     complete -W "test graph optimize debug analytic figure frequency raw_simu" ./cv_rate.py
@@ -41,16 +46,8 @@ will reproduce the figure 2.3.
 
 
 ### Dependencies for the fast versions
-
-Rust language must be installed: 
-    https://www.rust-lang.org/tools/install
-
-libopenblas-base must also be installed:
+All dependencies can be satisfied with the setup script:
 ```
-    apt install libopenblas-base
+    ./setup.py
 ```
-
-The python package cffi must be available:
-```
-    pip3 install cffi
-```
+You may be asked for sudo password because of the installation of openBLAS shared library.
