@@ -12,7 +12,7 @@ from cv_rate import analytic_robin_robin
 from cv_rate import rate_fast
 from cv_rate import raw_simulation
 from cv_rate import frequency_simulation
-from memoisation import memoised
+from memoisation import memoised, FunMem
 
 LAMBDA_1_DEFAULT = 0.0
 LAMBDA_2_DEFAULT = 0.0
@@ -477,57 +477,66 @@ def error_2D_by_taking_continuous_rate(discretization, N):
     plt.show()
 
 
-"""
-    We keep the ratio D*dt/(h^2) constant and we watch the
-    convergence rate as h decreases.
-"""
+def get_dt_N(h, number_dt_h2, T, D1):
+    dt = number_dt_h2 * h * h / D1
+    N = int(T / dt)
+    if N <= 1:
+        print("ERROR: N is too small (<2): h=", h)
+    return dt, N
+
+
+def to_minimize_continuous_analytic_rate_robin_neumann(l,
+        discretization, dt, T):
+    N = int(T/dt)
+    cont = functools.partial(
+        continuous_analytic_rate_robin_neumann,
+        discretization, l)
+    return np.max([cont(pi / t) for t in np.linspace(dt, T, N)])
+
+
+def to_minimize_analytic_robin_robin(l, h, discretization, number_dt_h2, T):
+    dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
+    M1 = int(discretization.SIZE_DOMAIN_1 / h)
+    M2 = int(discretization.SIZE_DOMAIN_2 / h)
+    f = functools.partial(discretization.analytic_robin_robin,
+                          Lambda_1=l,
+                          M1=M1,
+                          M2=M2,
+                          dt=dt)
+    return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
+
+
+# The function can be passed in parameters of memoised:
+to_minimize_analytic_robin_robin2 = FunMem(to_minimize_analytic_robin_robin)
+to_minimize_continuous_analytic_rate_robin_neumann2 = \
+        FunMem(to_minimize_continuous_analytic_rate_robin_neumann)
 
 
 def error_by_taking_continuous_rate_constant_number_dt_h2(
         discretization, T, number_dt_h2, steps=50):
+    """
+        We keep the ratio D*dt/(h^2) constant and we watch the
+        convergence rate as h decreases.
+    """
     from scipy.optimize import minimize_scalar
-
-    def get_dt_N(h):
-        dt = number_dt_h2 * h * h / discretization.D1_DEFAULT
-        N = int(T / dt)
-        if N <= 1:
-            print("ERROR: N is too small (<2): h=", h)
-        return dt, N
 
     dt = discretization.DT_DEFAULT
     N = int(T / dt)
     if N <= 1:
         print("ERROR BEGINNING: N is too small (<2)")
 
-    def to_minimize_continuous(l):
-        cont = functools.partial(
-            continuous_analytic_rate_robin_neumann,
-            discretization,
-            l,
-        )
-        return np.max([cont(pi / t) for t in np.linspace(dt, T, N)])
-
-    ret_cont = minimize_scalar(fun=to_minimize_continuous)
+    ret_cont = memoised(func_to_memoise=minimize_scalar,
+            fun=to_minimize_continuous_analytic_rate_robin_neumann2,
+            args=(discretization, dt, T))
     optimal_continuous = ret_cont.x
     theoric_cont_rate = ret_cont.fun
 
-    def to_minimize_discrete(l, h):
-        dt, N = get_dt_N(h)
-        M1 = int(discretization.SIZE_DOMAIN_1 / h)
-        M2 = int(discretization.SIZE_DOMAIN_2 / h)
-        f = functools.partial(discretization.analytic_robin_robin,
-                              Lambda_1=l,
-                              M1=M1,
-                              M2=M2,
-                              dt=dt)
-        return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
-        # return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
-
-    all_h = np.linspace(-2, 2, steps)
+    all_h = np.linspace(0, 2, steps)
     all_h = np.exp(all_h) / 2.1
 
-    def func_to_map(x): return minimize_scalar(
-        fun=to_minimize_discrete, args=(x))
+    def func_to_map(x): return memoised(minimize_scalar,
+        fun=to_minimize_analytic_robin_robin2,
+        args=(x, discretization, number_dt_h2, T))
     ret_discrete = list(map(func_to_map, all_h))
     # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
     #    for h in all_h]
@@ -550,12 +559,12 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
     rate_with_discrete_lambda = []
 
     for i in range(all_h.shape[0]):
-        dt, N = get_dt_N(all_h[i])
+        dt, N = get_dt_N(all_h[i], number_dt_h2, T, discretization.D1_DEFAULT)
         print(i)
         M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
         M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
         rate_with_continuous_lambda += [
-            rate_fast(discretization,
+            memoised(rate_fast,discretization,
                      N,
                      M1=M1,
                      M2=M2,
@@ -563,7 +572,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
                      dt=dt)
         ]
         rate_with_discrete_lambda += [
-            rate_fast(discretization,
+            memoised(rate_fast,discretization,
                      N,
                      M1=M1,
                      M2=M2,

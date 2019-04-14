@@ -42,23 +42,25 @@ def clean():
                       MEMOISATION_FOLDER_NAME)
 
 
-def memoised(fun, *args, **kwargs):
+def memoised(func_to_memoise, *args_mem, **kwargs_mem):
     """
         memoise function "fun" with arguments given.
         just replace your call:
         fun(my_arg1, my_arg2, my_kwarg1=my_val1)
         by: memoised(fun, my_arg1, my_arg2, my_kwarg1=my_val1)
     """
+    fun = func_to_memoise
     import os
     filename_dict = INDEX_NAME + "_" + fun.__name__ + ".npy"
     try:
         dic = np.load(filename_dict)[()]
-    except IOError: # there is no index yet !
+    except IOError:  # there is no index yet !
         dic = {}
 
     directory = MEMOISATION_FOLDER_NAME + "/" + fun.__name__
     os.makedirs(directory, exist_ok=True)
-    key_dic = (*args, tuple((key, val) for key, val in sorted(kwargs.items())))
+    key_dic = (*args_mem, tuple((key, val)
+                                for key, val in sorted(kwargs_mem.items())))
 
     if key_dic in dic:
         # dic[key_dic] is the name of the file we're interested in.
@@ -84,8 +86,37 @@ def memoised(fun, *args, **kwargs):
     dic[key_dic] = filename_res
     np.save(filename_dict, dic)
     # Finally, we can compute and store our result.
-    res = fun(*args, **kwargs)
+    res = fun(*args_mem, **kwargs_mem)
     # We use a dictionnary to store because we don't know type(res)
     to_store = {KEY_FOR_UNIQUE_ITEM: res}
     np.save(filename_res, to_store)
     return res
+
+
+class FunMem():
+    """
+        Memoisable function.
+        after the declaration of your function foo, use:
+        foo = FunMem(foo)
+        the function can then be passed as a parameter in
+        memoised: for example,
+        memoised(minimize_scalar, foo)
+
+        Have a unsafe __repr__, which is the
+        name of the function.
+    """
+
+    def __init__(self, fun):
+        self.fun = fun
+
+    def __call__(self, *args, **kwargs):
+        return self.fun(*args, **kwargs)
+
+    def __repr__(self):
+        return self.fun.__name__
+
+    def __eq__(self, other):
+        return self.fun.__name__ == self.fun.__name__
+
+    def __hash__(self):
+        return hash(self.fun.__name__)
