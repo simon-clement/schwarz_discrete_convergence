@@ -113,7 +113,7 @@ def rate_fast(discretization,
               M1=None,
               M2=None,
               function_to_use=lambda x: max(np.abs(x)),
-              seeds=range(10)):
+              seeds=range(100)):
     try:
         import rust_mod
         errors = rust_mod.errors(discretization,

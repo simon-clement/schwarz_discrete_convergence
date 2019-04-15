@@ -119,10 +119,10 @@ def main():
                 pass
             elif sys.argv[2] == "volumes":
                 error_by_taking_continuous_rate_constant_number_dt_h2(
-                    finite_volumes, T=T, number_dt_h2=.1, steps=100)
+                    finite_volumes, T=T, number_dt_h2=.1, steps=200)
             elif sys.argv[2] == "differences":
                 error_by_taking_continuous_rate_constant_number_dt_h2(
-                    finite_difference, T=T, number_dt_h2=.1, steps=100)
+                    finite_difference, T=T, number_dt_h2=.1, steps=200)
         elif sys.argv[1] == "2D_graph":
             error_2D_by_taking_continuous_rate(finite_difference, 50)
         elif sys.argv[1] == "optimize":
@@ -525,18 +525,20 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
     if N <= 1:
         print("ERROR BEGINNING: N is too small (<2)")
 
+    print("Computing lambdas in continuous framework.")
     ret_cont = memoised(func_to_memoise=minimize_scalar,
             fun=to_minimize_continuous_analytic_rate_robin_neumann2,
             args=(discretization, dt, T))
     optimal_continuous = ret_cont.x
     theoric_cont_rate = ret_cont.fun
 
-    all_h = np.linspace(0, 2, steps)
-    all_h = np.exp(all_h) / 2.1
+    all_h = np.linspace(-3, 2, steps)
+    all_h = np.exp(all_h[::-1]) / 2.1
 
     def func_to_map(x): return memoised(minimize_scalar,
         fun=to_minimize_analytic_robin_robin2,
         args=(x, discretization, number_dt_h2, T))
+    print("Computing lambdas in discrete framework.")
     ret_discrete = list(map(func_to_map, all_h))
     # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
     #    for h in all_h]
@@ -558,30 +560,34 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
     rate_with_continuous_lambda = []
     rate_with_discrete_lambda = []
 
-    for i in range(all_h.shape[0]):
-        dt, N = get_dt_N(all_h[i], number_dt_h2, T, discretization.D1_DEFAULT)
-        print(i)
-        M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
-        M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
-        rate_with_continuous_lambda += [
-            memoised(rate_fast,discretization,
-                     N,
-                     M1=M1,
-                     M2=M2,
-                     Lambda_1=optimal_continuous,
-                     dt=dt)
-        ]
-        rate_with_discrete_lambda += [
-            memoised(rate_fast,discretization,
-                     N,
-                     M1=M1,
-                     M2=M2,
-                     Lambda_1=optimal_discrete[i],
-                     dt=dt)
-        ]
+    try:
+        for i in range(all_h.shape[0]):
+            dt, N = get_dt_N(all_h[i], number_dt_h2, T,
+                             discretization.D1_DEFAULT)
+            print("h number:", i)
+            M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
+            M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
+            rate_with_continuous_lambda += [
+                    memoised(rate_fast, discretization,
+                             N,
+                             M1=M1,
+                             M2=M2,
+                             Lambda_1=optimal_continuous,
+                             dt=dt)
+                ]
+            rate_with_discrete_lambda += [
+                memoised(rate_fast, discretization,
+                         N,
+                         M1=M1,
+                         M2=M2,
+                         Lambda_1=optimal_discrete[i],
+                         dt=dt)
+            ]
+    except:
+        pass
 
     import matplotlib.pyplot as plt
-    plt.semilogx(all_h,
+    plt.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
                  "g",
                  label="Observed rate with discrete optimal $\\Lambda$")
@@ -589,7 +595,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
                  theorical_rate_discrete,
                  "g--",
                  label="Theorical rate with discrete optimal $\\Lambda$")
-    plt.semilogx(all_h,
+    plt.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
                  "r",
                  label="Observed rate with continuous optimal $\\Lambda$")
