@@ -52,7 +52,7 @@ all_figures["7"] = functools.partial(
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
     NUMBER_DDT_H2 = .1
-    T = 10.
+    T = 100.
     M1_DEFAULT = 200
     SIZE_DOMAIN_1 = 200
     D1_DEFAULT = .6
@@ -67,11 +67,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
                                           DT_DEFAULT=DT_DEFAULT)
     error_by_taking_continuous_rate_constant_number_dt_h2(finite_difference,
                                                           T=T, number_dt_h2=.1,
-                                                          steps=50)
+                                                          steps=100,
+                                                          bounds_h=(0,2.5))
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
     NUMBER_DDT_H2 = .1
-    T = 10.
+    T = 100.
     M1_DEFAULT = 200
     SIZE_DOMAIN_1 = 200
     D1_DEFAULT = .6
@@ -86,7 +87,8 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
                                           DT_DEFAULT=DT_DEFAULT)
     error_by_taking_continuous_rate_constant_number_dt_h2(finite_volumes,
                                                           T=T, number_dt_h2=.1,
-                                                          steps=50)
+                                                          steps=100,
+                                                          bounds_h=(0,2.5))
 
 
 def values_str(H1, H2, dt, T, D1, D2, a, c, number_dt_h2):
@@ -585,7 +587,7 @@ to_minimize_continuous_analytic_rate_robin_neumann2 = \
 
 
 def error_by_taking_continuous_rate_constant_number_dt_h2(
-        discretization, T, number_dt_h2, steps=50):
+        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2)):
     """
         We keep the ratio D*dt/(h^2) constant and we watch the
         convergence rate as h decreases.
@@ -597,8 +599,8 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
     if N <= 1:
         print("ERROR BEGINNING: N is too small (<2)")
 
-    all_h = np.linspace(-0, 2, steps)
-    all_h = np.exp(all_h[::-1]) / 2.1
+    all_h = np.linspace(bounds_h[0], bounds_h[1], steps)
+    all_h = np.exp(all_h[::-1])
 
     def func_to_map(x): return memoised(minimize_scalar,
         fun=to_minimize_analytic_robin_robin2,
@@ -619,19 +621,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
     #    for h in all_h]
     optimal_continuous = [ret.x for ret in ret_continuous]
     theorical_cont_rate = [ret.fun for ret in ret_continuous]
-    """
-    fun_to_map = lambda h, l: rate(discretization, N,
-            M1=int(discretization.SIZE_DOMAIN_1/h),
-            M2=int(discretization.SIZE_DOMAIN_2/h),
-            Lambda_1=l)
 
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        rate_with_continuous_lambda = list(executor.map(fun_to_map, all_h,
-                                            np.ones_like(all_h)*optimal_continuous))
-        rate_with_discrete_lambda = list(executor.map(fun_to_map, all_h,
-                                            optimal_discrete))
-    """
     rate_with_continuous_lambda = []
     rate_with_discrete_lambda = []
 
@@ -643,7 +633,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
             M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
             M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
             rate_with_continuous_lambda += [
-                    memoised(rate_fast, discretization,
+                    memoised(frequency_simulation, discretization,
                              N,
                              M1=M1,
                              M2=M2,
@@ -651,13 +641,17 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
                              dt=dt)
                 ]
             rate_with_discrete_lambda += [
-                memoised(rate_fast, discretization,
+                memoised(frequency_simulation, discretization,
                          N,
                          M1=M1,
                          M2=M2,
                          Lambda_1=optimal_discrete[i],
                          dt=dt)
             ]
+        rate_with_continuous_lambda = [max(w[2] / w[1])
+                for w in rate_with_continuous_lambda]
+        rate_with_discrete_lambda = [max(w[2] / w[1])
+                for w in rate_with_discrete_lambda]
     except:
         pass
 

@@ -94,18 +94,6 @@ def analytic_robin_robin(discretization,
                                                D2=D2,
                                                verbose=verbose)
 
-
-"""
-    Makes a simulation and gives the convergence rate.
-    uses the rust module to be faster than python
-    For details of args and kwargs, see @interface_errors
-    function_to_use can be max for L^\\infty or np.linalg.norm for L^2
-    This particular function use a lot of different simulations with random
-    first guess to get a good convergence rate.
-"""
-PARALLEL = True
-
-
 def rate_fast(discretization,
               N,
               Lambda_1=None,
@@ -117,6 +105,14 @@ def rate_fast(discretization,
               M2=None,
               function_to_use=lambda x: max(np.abs(x)),
               seeds=range(100)):
+    """
+        Makes a simulation and gives the convergence rate.
+        uses the rust module to be faster than python
+        For details of args and kwargs, see @interface_errors
+        function_to_use can be max for L^\\infty or np.linalg.norm for L^2
+        This particular function use a lot of different simulations with random
+        first guess to get a good convergence rate.
+    """
     try:
         import rust_mod
         errors = rust_mod.errors(discretization,
@@ -132,6 +128,7 @@ def rate_fast(discretization,
                                  function_D1=None,
                                  function_D2=None)
     except BaseException:
+        PARALLEL = True
         print("Cannot use rate_fast. Did you compile rust module ?" +
               "Using pure python...")
         errors = None
