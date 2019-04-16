@@ -76,6 +76,10 @@ def main():
             else:
                 for test_func in test_dict.values():
                     test_func()
+            import label_to_figure
+            for val in label_to_figure.ALL_LABELS.values():
+                assert val in figures.all_figures
+            print("All labels are reffering to an existing function.")
 
         elif sys.argv[1] == "figure":
             # TODO rather than that, use labels of the latex code,
@@ -96,22 +100,11 @@ def main():
                     print(list(ALL_LABELS.keys()))
 
                 # TODO enter all figures inside the dictionary
+        elif sys.argv[1] == "clean":
+            import memoisation
+            memoisation.clean()
+            print("Memoisation folder cleaned.")
 
-        elif sys.argv[1] == "graph":
-            if len(sys.argv) == 2:
-                pass
-            elif sys.argv[2] == "volumes":
-                figures.error_by_taking_continuous_rate_constant_number_dt_h2(
-                    finite_volumes, T=T, number_dt_h2=.1, steps=200)
-            elif sys.argv[2] == "differences":
-                figures.error_by_taking_continuous_rate_constant_number_dt_h2(
-                    finite_difference, T=T, number_dt_h2=.1, steps=20)
-        elif sys.argv[1] == "optim_by_criblage_plot":
-            figures.optim_by_criblage_plot((finite_difference, finite_volumes),
-                                           T=T/7, number_dt_h2=.1, steps=200)
-
-        elif sys.argv[1] == "2D_graph":
-            error_2D_by_taking_continuous_rate(finite_difference, 50)
         elif sys.argv[1] == "optimize":
             from scipy.optimize import minimize_scalar
             print(
@@ -158,6 +151,8 @@ def main():
                                     TIME_WINDOW_LEN_DEFAULT) for i in lambda_1
             ], "r")
             plt.show()
+
+        # TODO put inside figures (6, 7)
         elif sys.argv[1] == "analytic":
             print(
                 "TODO: lire rapport de Sophie et trouver quels tests faire !")
@@ -167,126 +162,12 @@ def main():
             steps = 10
             beauty_graph_finite(finite_difference, lambda_min, lambda_max,
                                 steps)
-        elif sys.argv[1] == "optimal":
-            optimal_function_of_h(finite_difference, 10)
-        elif sys.argv[1] == "frequency":
-            figures.fig_validation_code_frequency_rate()
-        elif sys.argv[1] == "frequency_dirichlet_neumann":
-            figures.fig_validation_code_frequency_rate_dirichlet_neumann()
-        elif sys.argv[1] == "frequency_err":
-            figures.fig_validation_code_frequency_error()
-        elif sys.argv[1] == "raw_simu":
-            figures.fig_error_interface_time_domain_profiles()
+
         elif sys.argv[1] == "debug":
-            import rust_mod
-            print(
-                "finite differences:",
-                rate_fast(finite_difference,
-                          60,
-                          Lambda_1=3.,
-                          Lambda_2=0.,
-                          a=0.,
-                          c=1e-10,
-                          dt=0.1,
-                          M1=40,
-                          M2=40,
-                          function_to_use=np.linalg.norm,
-                          seeds=range(150)))
-        elif sys.argv[1] == "clean":
-            import memoisation
-            memoisation.clean()
-            print("Memoisation folder cleaned.")
-        elif sys.argv[1] == "global":
-            print(list(figures.all_figures.keys()))
+            pass
 
-def error_2D_by_taking_continuous_rate(discretization, N):
-    from scipy.optimize import minimize_scalar, minimize
-    dt = discretization.DT_DEFAULT
-    T = dt * N
 
-    rate_eff = functools.partial(rate_fast, discretization, N)
-    def to_minimize_all(x): return rate_fdiff(Lambda_1=x[0], Lambda_2=x[1])
-    def to_minimize_rob_neu(x): return rate_fdiff(Lambda_1=x, Lambda_2=0.)
-    def to_minimize_one_sided(x): return rate_fdiff(Lambda_1=x, Lambda_2=-x)
-
-    def to_minimize_continuous(l):
-        cont = functools.partial(continuous_analytic_rate_robin_robin,
-                                 discretization, l[0], l[1])
-        ret = np.max([cont(pi / t) for t in np.linspace(dt, T, N)])
-        return ret
-
-    x0_retcont = np.array(
-        (continuous_best_lam_robin_neumann(discretization, N), 0.))
-    print(to_minimize_continuous(x0_retcont))
-
-    ret_cont = minimize(fun=to_minimize_continuous, x0=np.array((1, -2.)))
-    optimal_continuous = ret_cont.x
-    theoric_cont_rate = ret_cont.fun
-
-    def to_minimize_discrete(l, h):
-        M1 = int(discretization.SIZE_DOMAIN_1 / h)
-        M2 = int(discretization.SIZE_DOMAIN_2 / h)
-        f = functools.partial(discretization.analytic_robin_robin,
-                              Lambda_1=l[0],
-                              Lambda_2=l[1],
-                              M1=M1,
-                              M2=M2)
-        return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
-        # return rate(discretization, M1=M1, M2=M2, Lambda_1=l)
-
-    all_h = np.linspace(.05, 10, 50)
-    ret_discrete = [
-        minimize(
-            fun=to_minimize_discrete,
-            x0=optimal_continuous,
-            args=(h)) for h in all_h]
-    optimal_discrete = [ret.x for ret in ret_discrete]
-    theorical_rate_discrete = [ret.fun for ret in ret_discrete]
-
-    rate_with_continuous_lambda = []
-    rate_with_discrete_lambda = []
-    for i in range(all_h.shape[0]):
-        print(i)
-        M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
-        M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
-        rate_with_continuous_lambda += [
-            rate_eff(M1=M1,
-                     M2=M2,
-                     Lambda_1=optimal_continuous[0],
-                     Lambda_2=optimal_continuous[1])
-        ]
-        rate_with_discrete_lambda += [
-            rate_eff(M1=M1,
-                     M2=M2,
-                     Lambda_1=optimal_discrete[i][0],
-                     Lambda_2=optimal_discrete[i][1])
-        ]
-    import matplotlib.pyplot as plt
-    plt.semilogx(all_h,
-                 rate_with_discrete_lambda,
-                 "g",
-                 label="Observed rate with discrete optimal $\\Lambda$")
-    plt.semilogx(all_h,
-                 theorical_rate_discrete,
-                 "g--",
-                 label="Theorical rate with discrete optimal $\\Lambda$")
-    plt.semilogx(all_h,
-                 rate_with_continuous_lambda,
-                 "r",
-                 label="Observed rate with continuous optimal $\\Lambda$")
-    plt.hlines(theoric_cont_rate,
-               all_h[0],
-               all_h[-1],
-               "r",
-               'dashed',
-               label="Theorical rate with continuous optimal $\\Lambda$")
-    plt.xlabel("h")
-    plt.ylabel("$\\rho$")
-    plt.legend()
-    plt.title('Error when using continuous Lambda with ' +
-              discretization.name())
-    plt.show()
-
+# I keep this function for legacy but it's kinda useless
 def error_by_taking_continuous_rate(discretization, N, steps=50):
     from scipy.optimize import minimize_scalar
     dt = discretization.DT_DEFAULT
@@ -396,47 +277,6 @@ def error_by_taking_continuous_rate(discretization, N, steps=50):
               ', $D_2$=' +
               str(discretization.D2_DEFAULT) +
               ', a=c=0')
-    plt.show()
-
-
-def optimal_function_of_h(discretization, N):
-    from scipy.optimize import minimize_scalar
-    dt = discretization.DT_DEFAULT
-    T = dt * N
-
-    def to_minimize_continuous(l):
-        cont = functools.partial(continuous_analytic_rate_robin_neumann,
-                                 discretization, l)
-        return np.max([
-            cont(pi / t) for t in np.linspace(dt, T, TIME_WINDOW_LEN_DEFAULT)
-        ])
-
-    optimal_continuous = minimize_scalar(fun=to_minimize_continuous).x
-
-    def to_minimize_discrete(l, h):
-        M1 = discretization.SIZE_DOMAIN_1 / h
-        M2 = discretization.SIZE_DOMAIN_2 / h
-        f = functools.partial(discretization.analytic_robin_robin,
-                              Lambda_1=l,
-                              M1=M1,
-                              M2=M2)
-        return max([
-            f(pi / t * 1j) for t in np.linspace(dt, T, TIME_WINDOW_LEN_DEFAULT)
-        ])
-
-    all_h = np.exp(-np.linspace(-1, 15, 30))
-    all_h = np.linspace(0.01, 1, 30)
-    ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)).x
-                    for h in all_h]
-    import matplotlib.pyplot as plt
-    plt.hlines(optimal_continuous,
-               all_h[0],
-               all_h[-1],
-               "k",
-               'dashed',
-               label='best $\\Lambda$ in continuous')
-    plt.plot(all_h, ret_discrete, label='discrete best $\\Lambda$')
-    plt.legend()
     plt.show()
 
 

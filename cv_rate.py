@@ -75,7 +75,10 @@ def analytic_robin_robin(discretization,
         if semi_discrete:
             s = w * 1j
         else:
-            # Note : in full discrete case, a fftshift is needed
+            # Note : in full discrete case, a fftshift MAY BE needed
+            # I don't really know when it's accurate,
+            # it seems that with a small N it is necessary to perform
+            # a fftshift. That's a little bit some dark magic...
             z = 1.0 * np.exp(-w * 1j * dt * N)
             s = 1. / dt * (z - 1) / z
 

@@ -574,8 +574,8 @@ class FiniteVolumes(Discretization):
         lambda1_moins = (-Y1_1 - np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) / (2 *
                                                                         Y1_2)
         # Properties of lambda:
-        assert abs(lambda1_moins * lambda1_plus - Y1_0 / Y1_2) < 1e-12
-        assert abs(lambda2_moins * lambda2_plus - Y2_0 / Y2_2) < 1e-12
+        # assert abs(lambda1_moins * lambda1_plus - Y1_0 / Y1_2) < 1e-12
+        # assert abs(lambda2_moins * lambda2_plus - Y2_0 / Y2_2) < 1e-12
         # D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
         # D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) <
         # 1e-12
