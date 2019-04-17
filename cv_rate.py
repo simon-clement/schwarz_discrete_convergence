@@ -358,8 +358,7 @@ def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
                                      **kwargs)
         freq_err = np.fft.fftshift(np.fft.fft(errors, axis=-1), axes=(-1, ))
         return np.mean(np.abs(freq_err), axis=0)
-    except BaseException:
-        raise
+    except:
         print( "Cannot make a fast frequency simulation..." +
                "Going to pure python (but it will take some time)")
         import concurrent.futures
@@ -443,7 +442,7 @@ def interface_errors(discretization,
     all_phi1_interface[-1] /= 1000
     ret = [all_u1_interface]
     # Beginning of schwarz iterations:
-    for k in range(3):
+    for k in range(2):
         all_u2_interface = []
         all_phi2_interface = []
         all_u2 = [u2_0]
@@ -472,7 +471,6 @@ def interface_errors(discretization,
             all_u2_interface += [u_interface]
             all_phi2_interface += [phi_interface]
 
-        ret += [all_u2_interface]
         all_u1_interface = []
         all_phi1_interface = []
         all_u1 = [u1_0]
