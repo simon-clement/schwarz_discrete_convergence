@@ -1,6 +1,7 @@
 from cffi import FFI
 import numpy as np
 import discretizations.finite_difference as finite_diff
+import discretizations.finite_volumes as finite_vol
 import os
 os.system('cd rust_tbc_parab_schwarz;cargo build --release; cd ..;')
 
@@ -48,6 +49,8 @@ def bool_as_i32(num):
 lib = ffi.dlopen(
     "rust_tbc_parab_schwarz/target/release/librust_rate_constant.so")
 
+allowed_discretizations = [finite_diff.FiniteDifferences().name(),
+                           finite_vol.FiniteVolumes().name()]
 
 def rate(discretization,
          N,
@@ -62,6 +65,7 @@ def rate(discretization,
          number_seeds=10,
          function_D1=None,
          function_D2=None):
+    assert discretization.name() in allowed_discretizations
     if M1 is None:
         M1 = discretization.M1_DEFAULT
     if M2 is None:
@@ -118,6 +122,7 @@ def errors(discretization,
            number_seeds=10,
            function_D1=None,
            function_D2=None):
+    assert discretization.name() in allowed_discretizations
     if M1 is None:
         M1 = discretization.M1_DEFAULT
     if M2 is None:
@@ -167,6 +172,7 @@ def errors_raw(discretization,
                number_seeds=10,
                function_D1=None,
                function_D2=None):
+    assert discretization.name() in allowed_discretizations
     if M1 is None:
         M1 = discretization.M1_DEFAULT
     if M2 is None:
