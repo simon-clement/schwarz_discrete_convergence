@@ -8,6 +8,8 @@ import numpy as np
 from numpy import pi
 from discretizations.finite_difference import FiniteDifferences
 from discretizations.finite_volumes import FiniteVolumes
+from discretizations.finite_difference_no_corrective_term \
+        import FiniteDifferencesNoCorrectiveTerm
 import functools
 from cv_rate import continuous_analytic_rate_robin_neumann
 from cv_rate import continuous_analytic_rate_robin_robin
@@ -218,10 +220,52 @@ def fig_validation_code_frequency_rate_dirichlet_neumann():
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
 
-    analysis_frequency_rate((finite_difference, finite_volumes), 100, lambda_1=-1e13)
+    analysis_frequency_rate((finite_difference, finite_volumes),
+                            100, lambda_1=-1e13)
     plt.title(values_str(200, -200, DT_DEFAULT, 100*DT_DEFAULT,
         D1_DEFAULT, .54, 0, 0, NUMBER_DDT_H2))
     plt.show()
+
+
+def fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term():
+    NUMBER_DDT_H2 = .1
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .54
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=0.,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=0.,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+
+
+    finite_difference_wout_corr = \
+        FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=0.,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    analysis_frequency_rate((finite_difference, finite_volumes, finite_difference_wout_corr),
+                            100, lambda_1=-1e13)
+    plt.title(values_str(200, -200, DT_DEFAULT, 100*DT_DEFAULT,
+        D1_DEFAULT, .54, 0, 0, NUMBER_DDT_H2))
+    plt.show()
+
 
 def fig_validation_code_frequency_rate_robin_neumann():
     NUMBER_DDT_H2 = .1
@@ -442,10 +486,6 @@ def analysis_frequency_rate(discretization, N,
         ]
 
         plt.plot(axis_freq,
-                 real_freq_continuous,
-                 'b',
-                 label="theoric rate (continuous)")
-        plt.plot(axis_freq,
                  real_freq_semidiscrete,
                  col,
                  linestyle='dotted',
@@ -455,6 +495,10 @@ def analysis_frequency_rate(discretization, N,
                  'k',
                  linestyle='dashed',
                  label=dis.name() + " theoric rate (discrete)")
+    plt.plot(axis_freq,
+             real_freq_continuous,
+             'b',
+             label="theoric rate (continuous)")
 
     plt.xlabel("$\\omega$")
     plt.ylabel("convergence rate $\\rho$")

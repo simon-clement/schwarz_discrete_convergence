@@ -21,10 +21,10 @@ ALL_LABELS["11"] = "fig_validation_code_frequency_error"
 ALL_LABELS["12"] = "fig_validation_code_frequency_error"
 ALL_LABELS["13"] = "fig_validation_code_frequency_error"
 ALL_LABELS["14"] = "fig_validation_code_frequency_error"
-ALL_LABELS["15"] = "fig_validation_code_frequency_error"
 
-ALL_LABELS["16"] = "fig_error_interface_time_domain_profiles"
+ALL_LABELS["15"] = "fig_error_interface_time_domain_profiles"
 
-ALL_LABELS["17"] = "fig_what_am_i_optimizing_criblage"
+ALL_LABELS["16"] = "fig_what_am_i_optimizing_criblage"
 
-ALL_LABELS["18"] = "fig_validation_code_frequency_rate_dirichlet_neumann"
+ALL_LABELS["17"] = "fig_validation_code_frequency_rate_dirichlet_neumann"
+ALL_LABELS["18"] = "fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term"

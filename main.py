@@ -2,9 +2,12 @@
 import numpy as np
 from numpy import pi
 from discretizations.finite_difference import FiniteDifferences
+from discretizations.finite_difference_no_corrective_term \
+        import FiniteDifferencesNoCorrectiveTerm
 from discretizations.finite_volumes import FiniteVolumes
 import functools
 import figures
+import cv_rate
 from cv_rate import continuous_analytic_rate_robin_neumann
 from cv_rate import continuous_analytic_rate_robin_robin
 from cv_rate import continuous_best_lam_robin_neumann
@@ -52,6 +55,13 @@ def main():
                                               SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
                                               LAMBDA_2_DEFAULT, DT_DEFAULT)
 
+        finite_difference_wout = \
+                FiniteDifferencesNoCorrectiveTerm(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
+                                                  D2_DEFAULT, M1_DEFAULT,
+                                                  M2_DEFAULT, SIZE_DOMAIN_1,
+                                                  SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
+                                                  LAMBDA_2_DEFAULT, DT_DEFAULT)
+
         finite_volumes = FiniteVolumes(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
                                        D2_DEFAULT, M1_DEFAULT, M2_DEFAULT,
                                        SIZE_DOMAIN_1, SIZE_DOMAIN_2,
@@ -63,13 +73,15 @@ def main():
             import tests.test_schwarz
             import tests.test_finite_volumes
             import tests.test_finite_differences
+            import tests.test_finite_differences_no_corrective_term
             import tests.test_optimal_neumann_robin
             test_dict = {
                 'linear_sys': tests.test_linear_sys.launch_all_tests,
                 'schwarz': tests.test_schwarz.launch_all_tests,
                 'fvolumes': tests.test_finite_volumes.launch_all_tests,
                 'rate': tests.test_optimal_neumann_robin.launch_all_tests,
-                'fdifferences': tests.test_finite_differences.launch_all_tests
+                'fdifferences': tests.test_finite_differences.launch_all_tests,
+                'fdifferences_no_corr': tests.test_finite_differences_no_corrective_term.launch_all_tests
             }
             if len(sys.argv) > 2:
                 test_dict[sys.argv[2]]()
@@ -164,7 +176,12 @@ def main():
                                 steps)
 
         elif sys.argv[1] == "debug":
-            pass
+            import matplotlib.pyplot as plt
+            errors = raw_simulation( finite_difference_wout, 100, Lambda_1=-1e12,
+                               number_samples=100)
+            plt.plot(errors[1], "r")
+            plt.plot(errors[2], "r--")
+            plt.show()
 
 
 # I keep this function for legacy but it's kinda useless
