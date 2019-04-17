@@ -68,7 +68,7 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
     error_by_taking_continuous_rate_constant_number_dt_h2(finite_difference,
                                                           T=T, number_dt_h2=.1,
                                                           steps=100,
-                                                          bounds_h=(0,2.5))
+                                                          bounds_h=(-1,2.5))
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
     NUMBER_DDT_H2 = .1
@@ -88,7 +88,7 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
     error_by_taking_continuous_rate_constant_number_dt_h2(finite_volumes,
                                                           T=T, number_dt_h2=.1,
                                                           steps=100,
-                                                          bounds_h=(0,2.5))
+                                                          bounds_h=(-1,2.5))
 
 
 def values_str(H1, H2, dt, T, D1, D2, a, c, number_dt_h2):
