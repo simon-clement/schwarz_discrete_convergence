@@ -204,7 +204,9 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
 
         assert u2_n.shape[0] == M2
 
-        phi_interface = (D1[0] + D2[0]) * (u2_n[1] - u1_n[1]) / (h2[0] - h1[0])
+        phi1 = D1[0] * (u1_n[1] - u1_n[0]) / h1[0]
+        phi2 = D2[0] * (u2_n[1] - u2_n[0]) / h2[0]
+        phi_interface = (phi2 + phi1) / 2
 
         return u_n, u1_n[0], phi_interface
 
@@ -519,6 +521,8 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
                 lambda1 * 2*D1/h1 - 3*D1/(2*h1)
         teta2_0 = -D2/(2*h2) * lambda2**2 + \
                 lambda2 * 2*D2/h2 - 3*D2/(2*h2)
+        teta1_0 *= -1
+        teta2_0 *= -1
         rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
         rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
         if verbose:

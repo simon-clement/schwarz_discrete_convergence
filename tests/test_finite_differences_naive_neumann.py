@@ -1,22 +1,22 @@
 import numpy as np
 from numpy import cos, sin
 from numpy.random import random
-from discretizations.finite_difference import FiniteDifferences
-fdifference = FiniteDifferences()
+from discretizations.finite_difference_naive_neumann \
+        import FiniteDifferencesNaiveNeumann
+fdifference = FiniteDifferencesNaiveNeumann()
 integrate_one_step = fdifference.integrate_one_step
 integrate_one_step_star = fdifference.integrate_one_step_star
 
 
 def launch_all_tests():
-    print("Test integration finite differences:", time_test_star())
-    print("Test complete finite differences:", complete_test_schwarz())
+    print("Test integration finite differences with naive neumann:", time_test_star())
+    print("Test complete finite differences with naive neumann:",  complete_test_schwarz())
     return "ok"
 
 def complete_test_schwarz():
     from tests.test_schwarz import schwarz_convergence
     ecart = schwarz_convergence()
-    assert ecart[-1] < 1e-10
-
+    assert ecart[-1] < 2e-4
     return "ok"
 
 

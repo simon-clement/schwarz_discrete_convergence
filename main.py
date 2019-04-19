@@ -4,6 +4,8 @@ from numpy import pi
 from discretizations.finite_difference import FiniteDifferences
 from discretizations.finite_difference_no_corrective_term \
         import FiniteDifferencesNoCorrectiveTerm
+from discretizations.finite_difference_naive_neumann \
+        import FiniteDifferencesNaiveNeumann
 from discretizations.finite_volumes import FiniteVolumes
 import functools
 import figures
@@ -62,6 +64,13 @@ def main():
                                                   SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
                                                   LAMBDA_2_DEFAULT, DT_DEFAULT)
 
+        finite_difference_naive = \
+                FiniteDifferencesNoCorrectiveTerm(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
+                                                  D2_DEFAULT, M1_DEFAULT,
+                                                  M2_DEFAULT, SIZE_DOMAIN_1,
+                                                  SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
+                                                  LAMBDA_2_DEFAULT, DT_DEFAULT)
+
         finite_volumes = FiniteVolumes(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
                                        D2_DEFAULT, M1_DEFAULT, M2_DEFAULT,
                                        SIZE_DOMAIN_1, SIZE_DOMAIN_2,
@@ -74,6 +83,7 @@ def main():
             import tests.test_finite_volumes
             import tests.test_finite_differences
             import tests.test_finite_differences_no_corrective_term
+            import tests.test_finite_differences_naive_neumann
             import tests.test_optimal_neumann_robin
             test_dict = {
                 'linear_sys': tests.test_linear_sys.launch_all_tests,
@@ -81,7 +91,8 @@ def main():
                 'fvolumes': tests.test_finite_volumes.launch_all_tests,
                 'rate': tests.test_optimal_neumann_robin.launch_all_tests,
                 'fdifferences': tests.test_finite_differences.launch_all_tests,
-                'fdifferences_no_corr': tests.test_finite_differences_no_corrective_term.launch_all_tests
+                'fdifferences_no_corr': tests.test_finite_differences_no_corrective_term.launch_all_tests,
+                'fdifferences_naive': tests.test_finite_differences_naive_neumann.launch_all_tests
             }
             if len(sys.argv) > 2:
                 test_dict[sys.argv[2]]()
@@ -176,12 +187,7 @@ def main():
                                 steps)
 
         elif sys.argv[1] == "debug":
-            import matplotlib.pyplot as plt
-            errors = raw_simulation( finite_difference_wout, 100, Lambda_1=-1e12,
-                               number_samples=100)
-            plt.plot(errors[1], "r")
-            plt.plot(errors[2], "r--")
-            plt.show()
+            figures.fig_schwarz_method_converging_to_full_domain_solution_global()
 
 
 # I keep this function for legacy but it's kinda useless

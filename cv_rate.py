@@ -6,6 +6,7 @@ import functools
 
 
 def continuous_analytic_rate_robin_neumann(discretization, Lambda_1, w):
+    return continuous_analytic_rate_robin_robin(discretization, Lambda_1, 0., w)
     D1 = discretization.D1_DEFAULT
     D2 = discretization.D2_DEFAULT
     # sig1 is \sigma^1_{+}
@@ -20,15 +21,24 @@ def continuous_analytic_rate_robin_robin(discretization, Lambda_1, Lambda_2,
                                          w):
     D1 = discretization.D1_DEFAULT
     D2 = discretization.D2_DEFAULT
+    H1 = - discretization.SIZE_DOMAIN_1
+    H2 = discretization.SIZE_DOMAIN_2
+    c = discretization.C_DEFAULT
     # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt(np.abs(w) / (2 * D1)) * (1 + np.abs(w) / w * 1j)
+    sig1 = np.sqrt((w*1j + c) / D1)
+    sig2 = np.sqrt((w*1j + c) / D2)
+    # sig1 = np.sqrt(np.abs(w) / (2 * D1)) * (1 + np.abs(w) / w * 1j)
     # sig2 is \sigma^2_{-}
-    sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
-    first_term = np.abs((D2 * sig2 + Lambda_1) / (D1 * sig1 + Lambda_1))
+    # sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
+    #first_term = np.abs((D2 * sig2 + Lambda_1) / (D1 * sig1 + Lambda_1))
     # TODO why is there here a "+" whereas in the paper it's 'D2*sig2-Lambda_2'
-    second = np.abs((D1 * sig1 - Lambda_2) / (D2 * sig2 - Lambda_2))
+    #second = np.abs((D1 * sig1 - Lambda_2) / (D2 * sig2 - Lambda_2))
     # TODO put back a "+" ?
-    return first_term * second
+    first_term = (-D2*sig2+Lambda_1*np.tanh(H2*sig2))/ \
+            (D1*sig1 + Lambda_1*np.tanh(H1*sig1))
+    second = (D1*sig1 + Lambda_2*np.tanh(H2*sig2))/ \
+            (-D2*sig2+Lambda_2*np.tanh(H1*sig1))
+    return np.abs(first_term * second)
 
 
 def continuous_best_lam_robin_neumann(discretization, N):
@@ -391,7 +401,8 @@ def interface_errors(discretization,
                      c=None,
                      dt=None,
                      M1=None,
-                     M2=None):
+                     M2=None,
+                     NUMBER_IT=2):
 
     if M1 is None:
         M1 = discretization.M1_DEFAULT
@@ -442,7 +453,7 @@ def interface_errors(discretization,
     all_phi1_interface[-1] /= 1000
     ret = [all_u1_interface]
     # Beginning of schwarz iterations:
-    for k in range(2):
+    for k in range(NUMBER_IT):
         all_u2_interface = []
         all_phi2_interface = []
         all_u2 = [u2_0]

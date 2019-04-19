@@ -10,7 +10,10 @@ from discretizations.finite_difference import FiniteDifferences
 from discretizations.finite_volumes import FiniteVolumes
 from discretizations.finite_difference_no_corrective_term \
         import FiniteDifferencesNoCorrectiveTerm
+from discretizations.finite_difference_naive_neumann \
+        import FiniteDifferencesNaiveNeumann
 import functools
+import cv_rate
 from cv_rate import continuous_analytic_rate_robin_neumann
 from cv_rate import continuous_analytic_rate_robin_robin
 from cv_rate import analytic_robin_robin
@@ -52,6 +55,37 @@ all_figures["7"] = functools.partial(
     steps=250)
 """
 
+def fig_schwarz_method_converging_to_full_domain_solution_global():
+    discretizations = (FiniteDifferencesNaiveNeumann(),
+                       FiniteDifferencesNoCorrectiveTerm(),
+                       FiniteDifferences())
+    colors = ['k', 'y', 'r']
+    names = ("finite differences with naive interface",
+             "finite differences with extrapolation",
+             "finite differences with corrective term")
+    from tests.test_schwarz import schwarz_convergence_global
+    for dis, col, name in zip(discretizations, colors, names):
+        errors = memoised(schwarz_convergence_global,dis)
+        plt.semilogy(errors, col, label=name)
+    plt.title("Global in time Dirichlet-Neumann convergence of the Schwarz method")
+    plt.xlabel("Schwarz iteration number")
+    plt.ylabel("$\\max_\\omega(\\hat{e})$")
+    plt.legend()
+    plt.show()
+
+def fig_schwarz_method_converging_to_full_domain_solution_local():
+    discretizations = (FiniteDifferences(),
+               FiniteDifferencesNaiveNeumann(),
+               FiniteDifferencesNoCorrectiveTerm())
+    colors = ['r', 'k', 'y']
+    from tests.test_schwarz import schwarz_convergence
+    for dis, col in zip(discretizations, colors):
+        errors = schwarz_convergence(dis)
+        plt.semilogy(errors, col, label=dis.name())
+    plt.legend()
+    plt.title("Local in time Dirichlet-Neumann convergence of the Schwarz method")
+    plt.show()
+
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
     NUMBER_DDT_H2 = .1
     T = 100.
@@ -60,6 +94,26 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
     D1_DEFAULT = .6
     DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
     finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    error_by_taking_continuous_rate_constant_number_dt_h2(finite_difference,
+                                                          T=T, number_dt_h2=.1,
+                                                          steps=100,
+                                                          bounds_h=(-1,2.5))
+
+def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_nocorr():
+    NUMBER_DDT_H2 = .1
+    T = 100.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    finite_difference = FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=1e-10,
                                           D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
                                           M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
                                           SIZE_DOMAIN_1=SIZE_DOMAIN_1,
@@ -123,6 +177,15 @@ def fig_what_am_i_optimizing_criblage():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
+    finite_difference_wout_corr = \
+            FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                              D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                              M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                              SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                              SIZE_DOMAIN_2=200,
+                                              LAMBDA_1_DEFAULT=0.,
+                                              LAMBDA_2_DEFAULT=0.,
+                                              DT_DEFAULT=DT_DEFAULT)
 
     finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
                                           D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
@@ -133,8 +196,9 @@ def fig_what_am_i_optimizing_criblage():
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
 
-    optim_by_criblage_plot((finite_difference, finite_volumes),
-                                   T=T/7, number_dt_h2=.1, steps=200)
+    optim_by_criblage_plot((finite_difference, finite_volumes,
+                            finite_difference_wout_corr),
+                           T=T/7, number_dt_h2=.1, steps=200)
 
 
 def fig_error_interface_time_domain_profiles():
@@ -233,7 +297,9 @@ def fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term():
     SIZE_DOMAIN_1 = 200
     D1_DEFAULT = .54
     DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=0.,
+    a = .01
+    c = 0.4
+    finite_difference = FiniteDifferences(A_DEFAULT=a, C_DEFAULT=c,
                                           D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
                                           M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
                                           SIZE_DOMAIN_1=SIZE_DOMAIN_1,
@@ -241,7 +307,7 @@ def fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=0.,
+    finite_volumes = FiniteVolumes(A_DEFAULT=a, C_DEFAULT=c,
                                           D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
                                           M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
                                           SIZE_DOMAIN_1=SIZE_DOMAIN_1,
@@ -252,7 +318,7 @@ def fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term():
 
 
     finite_difference_wout_corr = \
-        FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=0.,
+        FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=a, C_DEFAULT=c,
                                           D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
                                           M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
                                           SIZE_DOMAIN_1=SIZE_DOMAIN_1,
@@ -261,9 +327,9 @@ def fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term():
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
     analysis_frequency_rate((finite_difference, finite_volumes, finite_difference_wout_corr),
-                            100, lambda_1=-1e13)
-    plt.title(values_str(200, -200, DT_DEFAULT, 100*DT_DEFAULT,
-        D1_DEFAULT, .54, 0, 0, NUMBER_DDT_H2))
+                            1000, lambda_1=-1e13)
+    plt.title(values_str(200, -200, DT_DEFAULT, 1000*DT_DEFAULT,
+        D1_DEFAULT, .54, a, c, NUMBER_DDT_H2))
     plt.show()
 
 
@@ -410,13 +476,13 @@ def optim_by_criblage_plot(discretization, T, number_dt_h2, steps=50):
     all_h = np.exp(all_h[::-1]) / 2.1
 
     h_plot = all_h[0]
-    lambdas = np.linspace(-2, 100, 300)
-    color = ['r', 'g']
+    lambdas = np.linspace(-2, 40, 300)
+    color = ['r', 'g', 'y']
     for dis, col in zip(discretization, color):
-        plt.plot(lambdas, [to_minimize_analytic_robin_robin2(l,
+        plt.plot(lambdas, [to_minimize_analytic_robin_robin(l,
             h_plot, dis, number_dt_h2, T) for l in lambdas], col,
             label=dis.name() + " semi-discrete $\max_\\omega{\\rho}$")
-    plt.plot(lambdas, [to_minimize_continuous_analytic_rate_robin_neumann2(l,
+    plt.plot(lambdas, [to_minimize_continuous_analytic_rate_robin_neumann(l,
         h_plot, discretization[0], number_dt_h2, T) for l in lambdas], 'k',
         label="Continuous $\max_\\omega{\\rho}$")
     plt.xlabel("$\\Lambda$")
@@ -692,12 +758,13 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
                          Lambda_1=optimal_discrete[i],
                          dt=dt)
             ]
-        rate_with_continuous_lambda = [max(w[2] / w[1])
-                for w in rate_with_continuous_lambda]
-        rate_with_discrete_lambda = [max(w[2] / w[1])
-                for w in rate_with_discrete_lambda]
     except:
         pass
+
+    rate_with_continuous_lambda = [max(w[2] / w[1])
+            for w in rate_with_continuous_lambda]
+    rate_with_discrete_lambda = [max(w[2] / w[1])
+            for w in rate_with_discrete_lambda]
 
     import matplotlib.pyplot as plt
     plt.semilogx(all_h[:len(rate_with_discrete_lambda)],

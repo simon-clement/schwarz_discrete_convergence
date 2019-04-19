@@ -10,7 +10,7 @@ from discretizations.discretization import Discretization
 from utils_linalg import solve_linear
 
 
-class FiniteDifferences(Discretization):
+class FiniteDifferencesNaiveNeumann(Discretization):
     """
         give default values of all variables.
     """
@@ -106,30 +106,30 @@ class FiniteDifferences(Discretization):
         assert upper_domain is True or upper_domain is False
 
         if Y is None:
-            Y = self.get_Y(M=M,
-                           h=h,
-                           D=D,
-                           a=a,
-                           c=c,
-                           dt=dt,
-                           Lambda=Lambda,
-                           upper_domain=upper_domain)
-            Y[1][1:-1] += (np.ones(M - 2) / dt) * (h[1:] + h[:-1])
+            Y = self.precompute_Y(M=M,
+                                  h=h,
+                                  D=D,
+                                  a=a,
+                                  c=c,
+                                  dt=dt,
+                                  f=f,
+                                  bd_cond=bd_cond,
+                                  Lambda=Lambda,
+                                  upper_domain=upper_domain)
 
         rhs = (f[1:-1] + u_nm1[1:-1] / dt) * (h[1:] + h[:-1])
 
-        cond_robin = Lambda * u_interface + phi_interface \
-            - h[0] / 2 * (u_nm1[0] / dt + f[0])
+        # extrapolation ? no! it is inside phi_interface
+        cond_robin = Lambda * u_interface + phi_interface
 
         rhs = np.concatenate(([cond_robin], rhs, [bd_cond]))
 
         u_n = solve_linear(Y, rhs)
 
         new_u_interface = u_n[0]
-        # Finite difference approx with the corrective term:
-        new_phi_interface = D[0] / h[0] * (u_n[1] - u_n[0]) \
-            - h[0] / 2 * ((u_n[0] - u_nm1[0]) / dt + a * (u_n[1] - u_n[0]) / h[0]
-                          + c * u_n[0] - f[0])
+        # extrapolation of flux: f(0) ~ f(h/2) - h/2*f'(h)
+        phi_1_2 = D[0] / h[0] * (u_n[1] - u_n[0])
+        new_phi_interface = phi_1_2
 
         assert u_n.shape[0] == M
         return u_n, new_u_interface, new_phi_interface
@@ -290,11 +290,9 @@ class FiniteDifferences(Discretization):
         Y_1[1:M - 1] = c * sum_both_h + 2 * \
             (h_mm1 * D_mp1_2 + h_m * D_mm1_2) / (h_m * h_mm1)
 
-        corrective_term = h[0] / 2 * (1 / dt + c) - a / 2
-        Y_1[0] = Lambda - D[0] / h[
-            0] - corrective_term  # Robin bd conditions at interface
-        Y_1[M -
-            1] = 1  # Neumann bd conditions for \Omega_2, Dirichlet for \Omega_1
+        Y_1[0] = Lambda - D[0] / h[0]
+        # Robin bd conditions at interface
+        Y_1[M - 1] = 1  # Neumann bd conditions for \Omega_2, Dirichlet for \Omega_1
         if upper_domain:
             Y_1[M - 1] /= h[-1]
 
@@ -302,7 +300,7 @@ class FiniteDifferences(Discretization):
         Y_2 = np.empty(M - 1)
         Y_2[1:] = -2 * D_mp1_2 / h_m
 
-        Y_2[0] = D[0] / h[0] - a / 2
+        Y_2[0] = (D[0] / h[0])
         Y_2[1:] += a
 
         # LEFT DIAGONAL
@@ -453,7 +451,6 @@ class FiniteDifferences(Discretization):
         In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
         for implicit euler discretisation.
     """
-
     def analytic_robin_robin(self,
                              s=None,
                              Lambda_1=None,
@@ -485,11 +482,6 @@ class FiniteDifferences(Discretization):
         h1 = -self.SIZE_DOMAIN_1 / (M1 - 1)
         h2 = self.SIZE_DOMAIN_2 / (M2 - 1)
 
-        eta1_0 = D1 / h1 + h1 / 2 * (s + c) - a / 2
-        eta2_0 = D2 / h2 + h2 / 2 * (s + c) - a / 2
-        y2_0 = D2 / h2 - a / 2
-        y1_0 = D1 / h1 - a / 2
-
         Y1_0 = -D1 / (h1 * h1) - .5 * a / h1
         Y1_1 = 2 * D1 / (h1 * h1) + c
         Y1_2 = -D1 / (h1 * h1) + .5 * a / h1
@@ -516,8 +508,14 @@ class FiniteDifferences(Discretization):
             print("lambda1_plus:", lambda1_plus)
             print("lambda2_plus:", lambda2_plus)
 
-        teta1_0 = eta1_0 - y1_0 * lambda1_plus
-        teta2_0 = eta2_0 - y2_0 * lambda2_plus
+        lambda1 = lambda1_plus
+        lambda2 = lambda2_plus
+        teta1_0 = -D1/(2*h1) * lambda1**2 + \
+                lambda1 * 2*D1/h1 - 3*D1/(2*h1)
+        teta2_0 = -D2/(2*h2) * lambda2**2 + \
+                lambda2 * 2*D2/h2 - 3*D2/(2*h2)
+        teta1_0 *= -1
+        teta2_0 *= -1
         rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
         rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
         if verbose:
@@ -572,9 +570,9 @@ class FiniteDifferences(Discretization):
         return D1, D2
 
     def name(self):
-        return "finite differences"
+        return "finite differences, naive interface"
 
 
 if __name__ == "__main__":
-    from tests import test_finite_differences
-    test_finite_differences.launch_all_tests()
+    from tests import test_finite_differences_no_corrective_term
+    test_finite_differences_no_corrective_term.launch_all_tests()
