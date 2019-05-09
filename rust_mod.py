@@ -1,6 +1,7 @@
 from cffi import FFI
 import numpy as np
 import discretizations.finite_difference as finite_diff
+import discretizations.finite_difference_naive_neumann as finite_diff_naive
 import discretizations.finite_volumes as finite_vol
 import os
 os.system('cd rust_tbc_parab_schwarz;cargo build --release; cd ..;')
@@ -9,7 +10,6 @@ def clean():
     os.system('cd rust_tbc_parab_schwarz;cargo clean; cd ..')
 
 ffi = FFI()
-# TODO remove or adapt
 ffi.cdef("""
     double rate(unsigned long time_window_len, double Lambda_1, double Lambda_2, double a, double c, double dt, unsigned long M1, unsigned long M2,
         const double* h1, const double* h2, double* D1, double* D2, int is_finite_differences, unsigned long number_samples);
@@ -35,12 +35,16 @@ def _as_u64(num):
 
 
 def bool_as_i32(num):
-    """ Cast `num` to Rust `usize`."""
+    """ Cast `num` to Rust `i32`."""
     if num:
         x = 1
     else:
         x = 0
     return ffi.cast("int", x)
+
+def int_as_i32(num):
+    """ Cast `num` to Rust `i32`."""
+    return ffi.cast("int", num)
 
 
 # Go get the Rust library.
@@ -49,8 +53,10 @@ def bool_as_i32(num):
 lib = ffi.dlopen(
     "rust_tbc_parab_schwarz/target/release/librust_rate_constant.so")
 
-allowed_discretizations = [finite_diff.FiniteDifferences().name(),
-                           finite_vol.FiniteVolumes().name()]
+allowed_discretizations = [ finite_vol.FiniteVolumes().name(),
+                            finite_diff.FiniteDifferences().name(),
+                            finite_diff_naive.FiniteDifferencesNaiveNeumann().name(),
+                           ]
 
 def rate(discretization,
          N,
@@ -88,8 +94,9 @@ def rate(discretization,
     dtarg = _as_f64(dt)
     M1arg = _as_u64(M1)
     M2arg = _as_u64(M2)
-    is_finite_differences = bool_as_i32(
-        discretization.name() == finite_diff.FiniteDifferences().name())
+    index_dis = int_as_i32(allowed_discretizations.index(discretization.name()))
+    #is_finite_differences = bool_as_i32(
+    #    discretization.name() == finite_diff.FiniteDifferences().name())
     number_samples = _as_u64(number_seeds)
 
     h1arg, h2arg, D1arg, D2arg = _as_f64_array(h1), _as_f64_array(h2), \
@@ -97,7 +104,7 @@ def rate(discretization,
 
     ptr = lib.interface_err(time_window_len, Lambda_1arg, Lambda_2arg, aarg,
                             carg, dtarg, M1arg, M2arg, h1arg, h2arg, D1arg,
-                            D2arg, is_finite_differences, number_samples)
+                            D2arg, index_dis, number_samples)
     buf_ret = np.reshape(
         np.frombuffer(ffi.buffer(ptr, 8 * N * 3), dtype=np.float64), (3, N))
 
@@ -145,8 +152,9 @@ def errors(discretization,
     dtarg = _as_f64(dt)
     M1arg = _as_u64(M1)
     M2arg = _as_u64(M2)
-    is_finite_differences = bool_as_i32(
-        discretization.name() == finite_diff.FiniteDifferences().name())
+    index_dis = int_as_i32(allowed_discretizations.index(discretization.name()))
+    #is_finite_differences = bool_as_i32(
+    #    discretization.name() == finite_diff.FiniteDifferences().name())
     number_samples = _as_u64(number_seeds)
 
     h1arg, h2arg, D1arg, D2arg = _as_f64_array(h1), _as_f64_array(h2), \
@@ -154,7 +162,7 @@ def errors(discretization,
 
     ptr = lib.interface_err(time_window_len, Lambda_1arg, Lambda_2arg, aarg,
                             carg, dtarg, M1arg, M2arg, h1arg, h2arg, D1arg,
-                            D2arg, is_finite_differences, number_samples)
+                            D2arg, index_dis, number_samples)
     buf_ret = np.reshape(
         np.frombuffer(ffi.buffer(ptr, 8 * N * 3), dtype=np.float64), (3, N))
     return buf_ret
@@ -195,8 +203,9 @@ def errors_raw(discretization,
     dtarg = _as_f64(dt)
     M1arg = _as_u64(M1)
     M2arg = _as_u64(M2)
-    is_finite_differences = bool_as_i32(
-        discretization.name() == finite_diff.FiniteDifferences().name())
+    index_dis = int_as_i32(allowed_discretizations.index(discretization.name()))
+    #is_finite_differences = bool_as_i32(
+    #    discretization.name() == finite_diff.FiniteDifferences().name())
     number_samples = _as_u64(number_seeds)
 
     h1arg, h2arg, D1arg, D2arg = _as_f64_array(h1), _as_f64_array(h2), \
@@ -204,7 +213,7 @@ def errors_raw(discretization,
 
     ptr = lib.full_interface_err(time_window_len, Lambda_1arg, Lambda_2arg,
                                  aarg, carg, dtarg, M1arg, M2arg, h1arg, h2arg,
-                                 D1arg, D2arg, is_finite_differences,
+                                 D1arg, D2arg, index_dis,
                                  number_samples)
     buf_ret = np.reshape(
         np.frombuffer(ffi.buffer(ptr, 8 * N * 3 * number_seeds),

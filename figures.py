@@ -19,7 +19,7 @@ from cv_rate import continuous_analytic_rate_robin_robin
 from cv_rate import analytic_robin_robin
 from cv_rate import rate_fast
 from cv_rate import raw_simulation
-from cv_rate import frequency_simulation
+from cv_rate import frequency_simulation, frequency_simulation_slow
 from memoisation import memoised, FunMem
 import matplotlib.pyplot as plt
 
@@ -37,23 +37,145 @@ import matplotlib.pyplot as plt
 all_figures = {}
 
 """
-
-all_figures["4"] = functools.partial(beauty_graph_finite,
-                                     finite_volumes, 1e-9, 10, 100)
-all_figures["5"] = functools.partial(beauty_graph_finite,
-                                     finite_difference, 1e-9, 10,
-                                     100)
-all_figures["6"] = functools.partial(
-    error_by_taking_continuous_rate,
-    finite_difference,
-    100,
-    steps=250)
-all_figures["7"] = functools.partial(
-    error_by_taking_continuous_rate,
-    finite_volumes,
-    100,
-    steps=250)
+DONT DO things like that please:
+    all_figures["5"] = functools.partial(mu_func, 10, 100)
+just declare a figure like that:
+    fig_my_figure = functools.partial(my_func, 10, 100, ...)
 """
+
+def fig_rho_robin_neumann():
+    def f(r, w, Lambdaprime):
+        return np.abs(Lambdaprime*w*1j + 1 - np.sqrt(1+r*w*1j))
+
+    w = np.linspace(-30,30, 1000)
+    r = 0.9
+    all_Lambdaprime = np.linspace(-1.1, 1, 5)
+    for Lambdaprime in all_Lambdaprime:
+        plt.plot(w, f(r,w, Lambdaprime)/f(1,w, Lambdaprime), label="$\\Lambda'="+str(Lambdaprime)+"$", )
+    plt.xlabel("$\\omega$")
+    plt.ylabel("$\\hat{\\rho}$")
+    plt.legend()
+    plt.show()
+
+
+def fig_want_to_show_decreasing(c=0.4):
+    def f(r,w):
+        return 1 + np.sqrt(r*w + 1) - np.sqrt(2*np.sqrt(r*w + 1) + c*(np.sqrt(4*r + c*c) - c)*w+2)
+    def partial(r, w):
+        numerator = r / np.sqrt(r*w + 1) + c*(np.sqrt(4*r+c*c)-c)
+        denominator = 2*np.sqrt(2*np.sqrt(r*w+1) + c*(np.sqrt(4*r+c*c)-c)*w+2)
+        return r / (2*np.sqrt(r*w+1)) - numerator / denominator
+
+    allllll_w = np.linspace(0, 20, 20)
+    r = np.linspace(0,1, 200)
+    for w in allllll_w:
+        plt.semilogy(r, partial(r,w)/f(r,w))
+    plt.xlabel("$\\bar{r}$")
+    plt.ylabel("$\\frac{\\frac{\\partial f}{\\partial \\bar{\\omega}}}{f}$")
+    plt.show()
+
+def fig_want_to_show_decreasing_irregularities(c=0.4):
+    def f(r,w):
+        return 1 + np.sqrt(r*w + 1) - np.sqrt(2*np.sqrt(r*w + 1) + c*(np.sqrt(4*r + c*c) - c)*w+2)
+    def partial(r, w):
+        numerator = r / np.sqrt(r*w + 1) + c*(np.sqrt(4*r+c*c)-c)
+        denominator = 2*np.sqrt(2*np.sqrt(r*w+1) + c*(np.sqrt(4*r+c*c)-c)*w+2)
+        return r / (2*np.sqrt(r*w+1)) - numerator / denominator
+
+    r = np.linspace(0,1, 200)
+    w = 1e-6
+    plt.plot(r, (f(r,w)))
+    #plt.plot(r, np.log(np.abs(partial(r,w))))
+    plt.xlabel("$\\bar{r}$")
+    plt.ylabel("$\\frac{\\frac{\\partial f}{\\partial \\bar{\\omega}}}{f}$")
+    plt.show()
+
+def fig_w5_rob_neumann_volumes():
+    NUMBER_DDT_H2 = .1
+    T = 100.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    import rust_mod
+    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    w5_robin_neumann(finite_volumes)
+
+def fig_w5_rob_neumann_diff_extrapolation():
+    NUMBER_DDT_H2 = .1
+    T = 100.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    import rust_mod
+    finite_difference = FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    w5_robin_neumann(finite_difference)
+
+def fig_w5_rob_neumann_diff_naive():
+    NUMBER_DDT_H2 = .1
+    T = 100.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    import rust_mod
+    finite_difference = FiniteDifferencesNaiveNeumann(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    w5_robin_neumann(finite_difference)
+
+def fig_w5_rob_neumann_diff():
+    NUMBER_DDT_H2 = .1
+    T = 100.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    import rust_mod
+    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    w5_robin_neumann(finite_difference)
+
+
+def w5_robin_neumann(discretization):
+    lambda_min = 1e-9
+    lambda_max = 10
+    steps = 100
+    courant_numbers = [0.1, 1.]
+
+    to_map = functools.partial(beauty_graph_finite, discretization,
+                               lambda_min, lambda_max, steps)
+        
+    import concurrent.futures
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        list(executor.map(to_map, courant_numbers))
+
 
 def fig_schwarz_method_converging_to_full_domain_solution_global():
     discretizations = (FiniteDifferencesNaiveNeumann(),
@@ -106,7 +228,7 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
                                                           steps=100,
                                                           bounds_h=(-1,2.5))
 
-def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_nocorr():
+def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
     NUMBER_DDT_H2 = .1
     T = 100.
     M1_DEFAULT = 200
@@ -146,6 +268,86 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
                                                           steps=100,
                                                           bounds_h=(-1,2.5))
 
+
+def fig_compare_continuous_discrete_rate_robin_robin_vol():
+    NUMBER_DDT_H2 = .1
+    T = 6.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    compare_continuous_discrete_rate_robin_robin(finite_volumes,
+                                                          T=T, number_dt_h2=.1,
+                                                          steps=60,
+                                                          bounds_h=(-2,1))
+
+def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
+    NUMBER_DDT_H2 = .1
+    T = 6.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    finite_diff = FiniteDifferencesNaiveNeumann(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    compare_continuous_discrete_rate_robin_robin(finite_diff,
+                                                          T=T, number_dt_h2=.1,
+                                                          steps=60,
+                                                          bounds_h=(-2,1))
+
+def fig_compare_continuous_discrete_rate_robin_robin_diff_extra():
+    NUMBER_DDT_H2 = .1
+    T = 6.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    finite_diff_extra = FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    compare_continuous_discrete_rate_robin_robin(finite_diff_extra,
+                                                          T=T, number_dt_h2=.1,
+                                                          steps=60,
+                                                          bounds_h=(-2,1))
+
+def fig_compare_continuous_discrete_rate_robin_robin_diff():
+    NUMBER_DDT_H2 = .1
+    T = 6.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    finite_diff = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    compare_continuous_discrete_rate_robin_robin(finite_diff,
+                                                          T=T, number_dt_h2=.1,
+                                                          steps=60,
+                                                          bounds_h=(-2,1))
 
 def values_str(H1, H2, dt, T, D1, D2, a, c, number_dt_h2):
       return '$H_1$=' + \
@@ -232,11 +434,11 @@ def fig_error_interface_time_domain_profiles():
     plt.show()
 
 
-def fig_validation_code_frequency_error():
+def fig_validation_code_frequency_error_diff1(ITERATION=0):
     NUMBER_DDT_H2 = .1
     M1_DEFAULT = 200
     SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
+    D1_DEFAULT = .3
     DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
     finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
                                           D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
@@ -255,11 +457,14 @@ def fig_validation_code_frequency_error():
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
 
-    analysis_frequency_error((finite_volumes, ), 100)
+    analysis_frequency_error((finite_difference, ), 100, iteration=ITERATION, lambda_1=1e13)
     plt.title(values_str(200, -200, DT_DEFAULT, 100*DT_DEFAULT,
         D1_DEFAULT, .54, 0, 0, NUMBER_DDT_H2))
     plt.show()
 
+fig_validation_code_frequency_error_diff2 = \
+        functools.partial(fig_validation_code_frequency_error_diff1,
+                          ITERATION=1)
 
 def fig_validation_code_frequency_rate_dirichlet_neumann():
     NUMBER_DDT_H2 = .1
@@ -291,16 +496,94 @@ def fig_validation_code_frequency_rate_dirichlet_neumann():
     plt.show()
 
 
-def fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term():
-    NUMBER_DDT_H2 = .1
+def verification_analysis_naive_neumann():
+    NUMBER_DDT_H2 = 1.
+    M = 200
+    SIZE_DOMAIN = 200
+    D1 = .54
+    D2 = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M / SIZE_DOMAIN)**2 / D1
+    a = .0
+    c = 0.0
+
+    finite_difference_naive = \
+        FiniteDifferencesNaiveNeumann(A_DEFAULT=a, C_DEFAULT=c,
+                                          D1_DEFAULT=D1, D2_DEFAULT=D2,
+                                          M1_DEFAULT=M, M2_DEFAULT=M,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN,
+                                          SIZE_DOMAIN_2=SIZE_DOMAIN,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+
+    analysis_frequency_rate((finite_difference_naive, ),
+                            100, lambda_1=-1e53)
+
+
+    h = SIZE_DOMAIN/(M-1)
+    all_R1 = []
+    all_R2 = []
+    ret = []
+    derivative = []
+    all_w = np.linspace(-1.5, 1.5, 2000)
+    for w in all_w:
+        s=w*1j
+        Y_0 = -D1/(h*h)
+        Y_1 = 2*D1/(h*h)+c
+        Y_2 = -D1/(h*h)
+        r1 = 4*D1/h / h
+        r2 = 4*D2/h / h
+        lambda_1m1 = (-s+np.sqrt((Y_1+s)**2 - 4*Y_0*Y_2))/(2*Y_2)
+        R1m = np.sqrt((Y_1+s)**2-4*Y_0*Y_2) - w * 1j
+        R1p = np.sqrt((Y_1+s)**2-4*Y_0*Y_2) + w * 1j
+
+        Y_0 = -D2/(h*h)
+        Y_1 = 2*D2/(h*h)+c
+        Y_2 = -D2/(h*h)
+        lambda_2m1 = (-s+np.sqrt((Y_1+s)**2 - 4*Y_0*Y_2))/(2*Y_2)
+        R2m = np.sqrt((Y_1+s)**2-4*Y_0*Y_2) - w * 1j
+        R2p = np.sqrt((Y_1+s)**2-4*Y_0*Y_2) + w * 1j
+
+        S1 = (r1 * 1j - 2*w) / (2*np.sqrt(-w*(w-r1*1j)))
+        S2 = (r2 * 1j - 2*w) / (2*np.sqrt(-w*(w-r2*1j)))
+        R1R2 = np.sqrt(R1m*R1p*R2m*R2p)
+        derivative += [((S1-1j)*R1m
+                - (S2-1j)*R1m*R1p*R2p / (R2m*R2p))/R1R2]
+        derivative_num = (S1-1j)*R1m/np.sqrt(R1m*R1p)
+        derivative_den = (S2-1j)*R2m/np.sqrt(R2m*R2p)
+
+        rho = np.abs(D1/D2 * (lambda_1m1) / (lambda_2m1))
+        rho_num = np.abs(np.sqrt(1 + r1/s) -1)
+        rho_den = np.abs(np.sqrt(1 + r2/s) -1)
+
+        derivative[-1] = derivative_num*rho_den - derivative_den*rho_num
+        derivative[-1] /= rho_den*rho_den
+
+        #all_R1 +=[R1]
+        #all_R2 +=[R2]
+
+        ret += [rho_num/rho_den]
+
+    plt.plot(all_w, ret, "y--")
+    #plt.plot(all_w, all_R1, "y--")
+    #plt.plot(all_w, all_R2, "y", linestyle="dotted")
+    plt.plot(all_w, derivative, "m--")
+    plt.plot(all_w[:-1], np.diff(np.array(ret))/np.diff(all_w), "k")
+    plt.title(values_str(200, -200, DT_DEFAULT, 1000*DT_DEFAULT,
+        D1, .54, a, c, NUMBER_DDT_H2))
+    plt.show()
+
+def fig_frequency_rate_dirichlet_neumann_comparison_c_nonzero():
+    NUMBER_DDT_H2 = 1.
     M1_DEFAULT = 200
     SIZE_DOMAIN_1 = 200
     D1_DEFAULT = .54
+    D2 = .6
     DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    a = .01
+    a = .0
     c = 0.4
     finite_difference = FiniteDifferences(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
                                           M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
                                           SIZE_DOMAIN_1=SIZE_DOMAIN_1,
                                           SIZE_DOMAIN_2=200,
@@ -308,7 +591,7 @@ def fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term():
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
     finite_volumes = FiniteVolumes(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
                                           M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
                                           SIZE_DOMAIN_1=SIZE_DOMAIN_1,
                                           SIZE_DOMAIN_2=200,
@@ -319,14 +602,81 @@ def fig_validation_code_frequency_rate_dirichlet_neumann_no_corrective_term():
 
     finite_difference_wout_corr = \
         FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
                                           M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
                                           SIZE_DOMAIN_1=SIZE_DOMAIN_1,
                                           SIZE_DOMAIN_2=200,
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    analysis_frequency_rate((finite_difference, finite_volumes, finite_difference_wout_corr),
+
+    finite_difference_naive = \
+        FiniteDifferencesNaiveNeumann(A_DEFAULT=a, C_DEFAULT=c,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+
+    analysis_frequency_rate((finite_difference, finite_volumes,
+                             finite_difference_wout_corr, finite_difference_naive),
+                            1000, lambda_1=-1e13)
+    plt.title(values_str(200, -200, DT_DEFAULT, 1000*DT_DEFAULT,
+        D1_DEFAULT, .54, a, c, NUMBER_DDT_H2))
+    plt.show()
+
+
+def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
+    NUMBER_DDT_H2 = 1.
+    M1_DEFAULT = 200
+    SIZE_DOMAIN_1 = 200
+    D1_DEFAULT = .54
+    D2 = .6
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    a = .0
+    c = 0.0
+    finite_difference = FiniteDifferences(A_DEFAULT=a, C_DEFAULT=c,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+    finite_volumes = FiniteVolumes(A_DEFAULT=a, C_DEFAULT=c,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+
+
+    finite_difference_wout_corr = \
+        FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=a, C_DEFAULT=c,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+
+    finite_difference_naive = \
+        FiniteDifferencesNaiveNeumann(A_DEFAULT=a, C_DEFAULT=c,
+                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
+                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
+                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
+                                          SIZE_DOMAIN_2=200,
+                                          LAMBDA_1_DEFAULT=0.,
+                                          LAMBDA_2_DEFAULT=0.,
+                                          DT_DEFAULT=DT_DEFAULT)
+
+    analysis_frequency_rate((finite_difference, finite_volumes,
+                             finite_difference_wout_corr, finite_difference_naive),
                             1000, lambda_1=-1e13)
     plt.title(values_str(200, -200, DT_DEFAULT, 1000*DT_DEFAULT,
         D1_DEFAULT, .54, a, c, NUMBER_DDT_H2))
@@ -364,9 +714,10 @@ def fig_validation_code_frequency_rate_robin_neumann():
         D1_DEFAULT, .54, 0, 0, NUMBER_DDT_H2))
     plt.show()
 
-def fig_figure_2():  # TODO change name
+def fig_plot3D_function_to_minimize():
     #TODO gérer ce problème de "transposition"
-    # (lambda_plus qui est en fait lambda_moins dans cv_rate)
+    # (lambda_2 qui est en fait -lambda_2 dans continuous_analytic_rate_robin_robin)
+    # le problème vient plus probablement de mon analyse ^^' -> meme pas !
 
     NUMBER_DDT_H2 = .1
     M1_DEFAULT = 400
@@ -381,11 +732,11 @@ def fig_figure_2():  # TODO change name
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    TIME_WINDOW_LEN = NUMBER_DDT_H2
+    TIME_WINDOW_LEN = 10
     plot_3D_profile(finite_difference, TIME_WINDOW_LEN)
 
 
-def analysis_frequency_error(discretization, N):
+def analysis_frequency_error(discretization, N, iteration=1, lambda_1=0.6139250052109033):
     def continuous_analytic_error_neumann(discretization, w):
         D1 = discretization.D1_DEFAULT
         D2 = discretization.D2_DEFAULT
@@ -401,7 +752,6 @@ def analysis_frequency_error(discretization, N):
         # continuous analysis
 
         # continuous_best_lam_robin_neumann(dis, N)
-        lambda_1 = 0.6139250052109033
         #print("rate", dis.name(), ":", rate(dis, N, Lambda_1=lambda_1))
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi / dt, pi / dt, N)
@@ -415,15 +765,15 @@ def analysis_frequency_error(discretization, N):
         # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
         #plt.plot(axis_freq, frequencies[1], col+"--", label=dis.name()+" frequential error after the first iteration")
         plt.semilogy(axis_freq,
-                 frequencies[1],
+                 frequencies[iteration],
                  col,
                  label=dis.name() +
-                 " observed error after 1 iteration (with fft on errors)")
+                 " observed error after "+str(iteration)+" iteration (with fft on errors)")
         plt.semilogy(axis_freq,
-                 frequencies[2],
+                 frequencies[iteration+1],
                  col2,
                  label=dis.name() +
-                 " observed error after 2 iteration (with fft on errors)")
+                 " observed error after "+str(iteration+1)+" iteration (with fft on errors)")
 
         real_freq_discrete = np.fft.fftshift(np.array([
             analytic_robin_robin(dis,
@@ -447,19 +797,19 @@ def analysis_frequency_error(discretization, N):
         ])
 
         plt.semilogy(axis_freq,
-                 real_freq_continuous * frequencies[1],
+                 real_freq_continuous * frequencies[iteration],
                  'b',
-                 label="theoric error after 2 iteration(continuous)")
+                 label="theoric error after "+str(iteration+1)+" iteration(continuous)")
         plt.semilogy(axis_freq,
-                 real_freq_semidiscrete * frequencies[1],
+                 real_freq_semidiscrete * frequencies[iteration],
                  col,
                  linestyle='dotted',
-                 label=dis.name() + " theoric error after 2 iteration (semi-discrete)")
+                 label=dis.name() + " theoric error after "+str(iteration+1)+" iteration (semi-discrete)")
         plt.semilogy(axis_freq,
-                 real_freq_discrete * frequencies[1],
+                 real_freq_discrete * frequencies[iteration],
                  'k',
                  linestyle='dashed',
-                 label=dis.name() + " theoric error after 2 iteration(discrete)")
+                 label=dis.name() + " theoric error after "+str(iteration+1)+" iteration(discrete)")
 
     plt.xlabel("$\\omega$")
     plt.ylabel("error $\\hat{e}$")
@@ -479,7 +829,7 @@ def optim_by_criblage_plot(discretization, T, number_dt_h2, steps=50):
     lambdas = np.linspace(-2, 40, 300)
     color = ['r', 'g', 'y']
     for dis, col in zip(discretization, color):
-        plt.plot(lambdas, [to_minimize_analytic_robin_robin(l,
+        plt.plot(lambdas, [to_minimize_analytic_robin_neumann(l,
             h_plot, dis, number_dt_h2, T) for l in lambdas], col,
             label=dis.name() + " semi-discrete $\max_\\omega{\\rho}$")
     plt.plot(lambdas, [to_minimize_continuous_analytic_rate_robin_neumann(l,
@@ -629,15 +979,32 @@ def plot_3D_profile(dis, N):
                                          w=pi / (n * dt), semi_discrete=True)
                     for n in (1, N)])
 
-    fig, ax = plot_3D_square(fun, -40., 40., 1.5, subplot_param=211)
+    """
+    from cv_rate import rate_freq
+
+    def fun_sim(x):
+        return memoised(rate_fast,dis, N, Lambda_1=x[0], Lambda_2=x[1])
+    """
+
+    fig, ax = plot_3D_square(fun, -20., 20., 1.5, subplot_param=311)
     ax.set_title("Continuous case: convergence rate ")
     fig, ax = plot_3D_square(fun_me,
-                             -40.,
-                             40.,
+                             -20.,
+                             20.,
                              1.5,
                              fig=fig,
-                             subplot_param=212)
+                             subplot_param=312)
     ax.set_title(dis.name() + " case: convergence rate")
+
+    '''
+    fig, ax = plot_3D_square(fun_sim,
+                             -20.,
+                             20.,
+                             1.5,
+                             fig=fig,
+                             subplot_param=313)
+    ax.set_title(dis.name() + " case: convergence rate")
+    '''
     fig.show()
     input()
 
@@ -678,7 +1045,7 @@ def to_minimize_continuous_analytic_rate_robin_neumann(l,
     return np.max([cont(pi / t) for t in np.linspace(dt, T, N)])
 
 
-def to_minimize_analytic_robin_robin(l, h, discretization, number_dt_h2, T):
+def to_minimize_analytic_robin_neumann(l, h, discretization, number_dt_h2, T):
     dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
     M1 = int(discretization.SIZE_DOMAIN_1 / h)
     M2 = int(discretization.SIZE_DOMAIN_2 / h)
@@ -689,11 +1056,150 @@ def to_minimize_analytic_robin_robin(l, h, discretization, number_dt_h2, T):
                           dt=dt)
     return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
 
+def to_minimize_continuous_analytic_rate_robin_robin(l,
+        h, discretization, number_dt_h2, T):
+    dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
+    cont = functools.partial(
+        continuous_analytic_rate_robin_robin,
+        discretization, l[0], l[1])
+    return np.max([cont(pi / t) for t in np.linspace(dt, T, N)])
+
+
+def to_minimize_analytic_robin_robin(l, h, discretization, number_dt_h2, T):
+    dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
+    M1 = int(discretization.SIZE_DOMAIN_1 / h)
+    M2 = int(discretization.SIZE_DOMAIN_2 / h)
+    f = functools.partial(discretization.analytic_robin_robin,
+                          Lambda_1=l[0],
+                          Lambda_2=l[1],
+                          M1=M1,
+                          M2=M2,
+                          dt=dt)
+    return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
 
 # The function can be passed in parameters of memoised:
 to_minimize_analytic_robin_robin2 = FunMem(to_minimize_analytic_robin_robin)
+to_minimize_continuous_analytic_rate_robin_robin2 = \
+        FunMem(to_minimize_continuous_analytic_rate_robin_robin)
+
+
+# The function can be passed in parameters of memoised:
+to_minimize_analytic_robin_neumann2 = FunMem(to_minimize_analytic_robin_neumann)
 to_minimize_continuous_analytic_rate_robin_neumann2 = \
         FunMem(to_minimize_continuous_analytic_rate_robin_neumann)
+
+
+def compare_continuous_discrete_rate_robin_robin(
+        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2)):
+    """
+        We keep the ratio D*dt/(h^2) constant and we watch the
+        convergence rate as h decreases.
+    """
+    from scipy.optimize import minimize
+
+    dt = discretization.DT_DEFAULT
+    N = int(T / dt)
+    if N <= 1:
+        print("ERROR BEGINNING: N is too small (<2)")
+
+    all_h = np.linspace(bounds_h[0], bounds_h[1], steps)
+    all_h = np.exp(all_h[::-1])
+
+    def func_to_map(x): return memoised(minimize,
+        fun=to_minimize_analytic_robin_robin2,
+        x0=(0.6, 0.),
+        args=(x, discretization, number_dt_h2, T))
+    print("Computing lambdas in discrete framework.")
+    ret_discrete = list(map(func_to_map, all_h))
+    # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
+    #    for h in all_h]
+    optimal_discrete = [ret.x for ret in ret_discrete]
+    theorical_rate_discrete = [ret.fun for ret in ret_discrete]
+
+    def func_to_map_cont(x): return memoised(minimize,
+        fun=to_minimize_continuous_analytic_rate_robin_robin2,
+        x0=(0.6,0),
+        args=(x, discretization, number_dt_h2, T))
+    print("Computing lambdas in discrete framework.")
+    ret_continuous = list(map(func_to_map_cont, all_h))
+    # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
+    #    for h in all_h]
+    optimal_continuous = [ret.x for ret in ret_continuous]
+    theorical_cont_rate = [ret.fun for ret in ret_continuous]
+
+    rate_with_continuous_lambda = []
+    rate_with_discrete_lambda = []
+    print("optimal-continuous[0]:", optimal_continuous[0])
+    print("optimal-discrete[0]:", optimal_discrete[0])
+
+    try:
+        for i in range(all_h.shape[0]):
+            dt, N = get_dt_N(all_h[i], number_dt_h2, T,
+                             discretization.D1_DEFAULT)
+            print("h number:", i)
+            M1 = int(discretization.SIZE_DOMAIN_1 / all_h[i])
+            M2 = int(discretization.SIZE_DOMAIN_2 / all_h[i])
+            rate_with_continuous_lambda += [
+                    memoised(frequency_simulation, discretization,
+                             N,
+                             M1=M1,
+                             M2=M2,
+                             Lambda_1=optimal_continuous[i][0],
+                             Lambda_2=optimal_continuous[i][1],
+                             dt=dt)
+                ]
+            rate_with_discrete_lambda += [
+                memoised(frequency_simulation, discretization,
+                         N,
+                         M1=M1,
+                         M2=M2,
+                         Lambda_1=optimal_discrete[i][0],
+                         Lambda_2=optimal_discrete[i][1],
+                         dt=dt)
+            ]
+    except:
+        pass
+
+    rate_with_continuous_lambda = [max(w[2] / w[1])
+            for w in rate_with_continuous_lambda]
+    rate_with_discrete_lambda = [max(w[2] / w[1])
+            for w in rate_with_discrete_lambda]
+
+    import matplotlib.pyplot as plt
+    plt.semilogx(all_h[:len(rate_with_discrete_lambda)],
+                 rate_with_discrete_lambda,
+                 "g",
+                 label="Observed rate with discrete optimal $\\Lambda$")
+    plt.semilogx(all_h,
+                 theorical_rate_discrete,
+                 "g--",
+                 label="Theorical rate with discrete optimal $\\Lambda$")
+    plt.semilogx(all_h[:len(rate_with_continuous_lambda)],
+                 rate_with_continuous_lambda,
+                 "r",
+                 label="Observed rate with continuous optimal $\\Lambda$")
+    plt.semilogx(all_h,
+                 theorical_cont_rate,
+                 "r--",
+                 label="Theorical rate with continuous optimal $\\Lambda$")
+    plt.xlabel("h")
+    plt.ylabel("$\\rho$")
+    plt.legend()
+    plt.title('Error when using continuous Lambda with ' +
+              discretization.name() +
+              ' (Robin-Robin)' +
+              '\n$H_1$=' +
+              str(discretization.SIZE_DOMAIN_1) +
+              ', $H_2$=' +
+              str(discretization.SIZE_DOMAIN_2) +
+              ', T = ' +
+              str(N) +
+              'dt, $D_1$=' +
+              str(discretization.D1_DEFAULT) +
+              ', $D_2$=' +
+              str(discretization.D2_DEFAULT) +
+              ', a=c=0')
+    plt.show()
 
 
 def error_by_taking_continuous_rate_constant_number_dt_h2(
@@ -713,7 +1219,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
     all_h = np.exp(all_h[::-1])
 
     def func_to_map(x): return memoised(minimize_scalar,
-        fun=to_minimize_analytic_robin_robin2,
+        fun=to_minimize_analytic_robin_neumann2,
         args=(x, discretization, number_dt_h2, T))
     print("Computing lambdas in discrete framework.")
     ret_discrete = list(map(func_to_map, all_h))
@@ -876,6 +1382,336 @@ def optimal_function_of_h(discretizations, N):
     plt.show()
 
 
+def beauty_graph_finite(discretization,
+                        lambda_min,
+                        lambda_max,
+                        steps,
+                        courant_number,
+                        **kwargs):
+    PARALLEL = True
+    LAMBDA_2_DEFAULT = discretization.LAMBDA_2_DEFAULT
+
+    D1_DEFAULT = discretization.D1_DEFAULT
+    D2_DEFAULT = discretization.D2_DEFAULT
+
+    M1_DEFAULT = discretization.M1_DEFAULT
+    M2_DEFAULT = discretization.M2_DEFAULT
+
+    SIZE_DOMAIN_1 = discretization.SIZE_DOMAIN_1
+    SIZE_DOMAIN_2 = discretization.SIZE_DOMAIN_2
+
+    NUMBER_DDT_H2 = courant_number
+    T = 10.
+
+    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    # should not be too different from the value with M2, Size_domain2, and D2
+    TIME_WINDOW_LEN_DEFAULT = int(T / DT_DEFAULT)
+    rate_func = functools.partial(cv_rate.rate_slow, discretization,
+                                  TIME_WINDOW_LEN_DEFAULT,
+                                  seeds = range(100),
+                                  **kwargs)
+    rate_func_normL2 = functools.partial(cv_rate.rate_slow,
+                                         discretization,
+                                         TIME_WINDOW_LEN_DEFAULT,
+                                         function_to_use=np.linalg.norm,
+                                         seeds = range(100),
+                                         **kwargs)
+
+    import matplotlib.pyplot as plt
+    from scipy.optimize import minimize_scalar, minimize
+
+    lambda_1 = np.linspace(lambda_min, lambda_max, steps)
+    dt = DT_DEFAULT
+    T = dt * TIME_WINDOW_LEN_DEFAULT
+    print("> Starting frequency analysis.")
+    rho = []
+    for t in np.linspace(dt, T, TIME_WINDOW_LEN_DEFAULT):
+        rho += [[analytic_robin_robin(discretization,
+                                      w=pi / t,
+                                      Lambda_1=i, semi_discrete=True,
+                                      **kwargs) for i in lambda_1]]
+        rho += [[analytic_robin_robin(discretization,
+                                      w=-pi / t,
+                                      Lambda_1=i, semi_discrete=True,
+                                      **kwargs) for i in lambda_1]]
+
+    continuous_best_lam = cv_rate.continuous_best_lam_robin_neumann(
+        discretization, TIME_WINDOW_LEN_DEFAULT)
+
+    min_rho, max_rho = np.min(np.array(rho), axis=0), np.max(np.array(rho),
+                                                             axis=0)
+    best_analytic = lambda_1[np.argmin(max_rho)]
+
+    plt.fill_between(lambda_1,
+                     min_rho,
+                     max_rho,
+                     facecolor="green",
+                     label="pi/T < |w| < pi/dt")
+    plt.vlines(best_analytic,
+               0,
+               1,
+               "g",
+               'dashed',
+               label='best $\\Lambda$ with frequency analysis')
+    plt.plot(
+        lambda_1, [
+            analytic_robin_robin(
+                discretization, w=0, Lambda_1=i,
+                semi_discrete=True, **kwargs) for i in lambda_1], "y")
+    plt.vlines(continuous_best_lam,
+               0,
+               1,
+               "k",
+               'dashed',
+               label='best $\\Lambda$ in continuous case')
+    #plt.plot(lambda_1, [rate_by_z_transform(discretization, i, TIME_WINDOW_LEN_DEFAULT) for i in lambda_1], "m")
+    #plt.plot(lambda_1, [rate_by_z_transform(discretization, i, TIME_WINDOW_LEN_DEFAULT) for i in lambda_1], "m", label="Z TRANSFORMED ANALYTIC RATE")
+    rho = []
+    for logt in np.arange(0, 25):
+        t = dt * 2.**logt
+        rho += [[analytic_robin_robin(discretization,
+                                      w=pi / t,
+                                      Lambda_1=i, semi_discrete=True,
+                                      **kwargs) for i in lambda_1]]
+        rho += [[analytic_robin_robin(discretization,
+                                      w=-pi / t,
+                                      Lambda_1=i, semi_discrete=True,
+                                      **kwargs) for i in lambda_1]]
+    plt.fill_between(lambda_1,
+                     np.min(np.array(rho), axis=0),
+                     np.max(np.array(rho), axis=0),
+                     facecolor="grey",
+                     label="|w| < pi/dt",
+                     alpha=0.4)
+
+    print("> Starting simulations (this might take a while)")
+
+    x = np.linspace(lambda_min, lambda_max, steps)
+    if PARALLEL:
+        import concurrent.futures
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            rate_f = executor.map(rate_func, x)
+            rate_f_L2 = executor.map(rate_func_normL2, x)
+    else:
+        rate_f = map(rate_func, x)
+        rate_f_L2 = map(rate_func_normL2, x)
+
+    print("> Starting minimization in infinite norm.")
+    rate_f = list(rate_f)
+    rate_f_L2 = list(rate_f_L2)
+
+    best_linf_norm = x[np.argmin(np.array(list(rate_f)))] #minimize_scalar(fun=rate_func).x
+    print("> Starting minimization in L2 norm.")
+    best_L2_norm = x[np.argmin(np.array(list(rate_f_L2)))] #  minimize_scalar(fun=rate_func_normL2).x
+    plt.plot(x,
+             list(rate_f_L2),
+             "b",
+             label=discretization.name() + ", $L^2$ norm")
+    plt.vlines(best_L2_norm,
+               0,
+               1,
+               "b",
+               'dashed',
+               label='best $\\Lambda$ for $L^2$')
+    plt.plot(x,
+             list(rate_f),
+             "r",
+             label=discretization.name() + ", $L^\\infty$ norm")
+    plt.vlines(best_linf_norm,
+               0,
+               1,
+               "r",
+               'dashed',
+               label='best $\\Lambda$ for $L^\\infty$')
+
+    plt.xlabel("$\\Lambda^1$")
+    plt.ylabel("$\\rho$")
+
+    #plt.plot(lambda_1, [rate_finite_differences_by_z_transform(i) for i in lambda_1], "r--")
+    # plt.plot(lambda_1,
+    #       [analytic_robin_robin_finite_volumes(Lambda_1=i) \
+    #               for i in lambda_1], "k--", label="Theorical rate")
+    plt.title( "T=" + str(T) +
+            ", Courant number : D1.dt/h^2 = " + str(courant_number)\
+            + "\n $D_1$=" +
+            str(D1_DEFAULT) +
+            ", $D_2$=" +
+            str(D2_DEFAULT) +
+            ", " +
+            "$0=a\\approx c$, $H_1$=-" +
+            str(SIZE_DOMAIN_1) +
+            ", $H_2$=" +
+            str(SIZE_DOMAIN_2) +
+            "\n" +
+            "$\\Lambda^2$=" +
+            str(LAMBDA_2_DEFAULT) +
+            ", h=" + str(M1_DEFAULT / SIZE_DOMAIN_1))
+
+    plt.legend()
+    plt.show()
+
+#  def beauty_graph_finite_all_frequency(discretization,
+#                          lambda_min,
+#                          lambda_max,
+#                          steps=100,
+#                          **kwargs):
+#      rate_func = functools.partial(rate_freq, discretization,
+#                                    TIME_WINDOW_LEN_DEFAULT,
+#                                    seeds = range(1000),
+#                                    **kwargs)
+#      rate_func_normL2 = functools.partial(rate_freq,
+#                                           discretization,
+#                                           TIME_WINDOW_LEN_DEFAULT,
+#                                           function_to_use=np.linalg.norm,
+#                                           seeds = range(1000),
+#                                           **kwargs)
+#  
+#      import matplotlib.pyplot as plt
+#      from scipy.optimize import minimize_scalar, minimize
+#  
+#      lambda_1 = np.linspace(lambda_min, lambda_max, steps)
+#      dt = DT_DEFAULT
+#      T = dt * TIME_WINDOW_LEN_DEFAULT
+#      print("> Starting frequency analysis.")
+#      rho = []
+#      for t in np.linspace(dt, T, TIME_WINDOW_LEN_DEFAULT):
+#          rho += [[analytic_robin_robin(discretization,
+#                                        w=pi / t,
+#                                        Lambda_1=i, semi_discrete=True,
+#                                        **kwargs) for i in lambda_1]]
+#          rho += [[analytic_robin_robin(discretization,
+#                                        w=-pi / t,
+#                                        Lambda_1=i, semi_discrete=True,
+#                                        **kwargs) for i in lambda_1]]
+#  
+#      continuous_best_lam = continuous_best_lam_robin_neumann(
+#          discretization, TIME_WINDOW_LEN_DEFAULT)
+#  
+#      min_rho, max_rho = np.min(np.array(rho), axis=0), np.max(np.array(rho),
+#                                                               axis=0)
+#      best_analytic = lambda_1[np.argmin(max_rho)]
+#  
+#      plt.fill_between(lambda_1,
+#                       min_rho,
+#                       max_rho,
+#                       facecolor="green",
+#                       label="pi/T < |w| < pi/dt")
+#      plt.vlines(best_analytic,
+#                 0,
+#                 1,
+#                 "g",
+#                 'dashed',
+#                 label='best $\\Lambda$ with frequency analysis')
+#      plt.plot(
+#          lambda_1, [
+#              analytic_robin_robin(
+#                  discretization, w=0, Lambda_1=i,
+#                  semi_discrete=True, **kwargs) for i in lambda_1], "y")
+#      plt.vlines(continuous_best_lam,
+#                 0,
+#                 1,
+#                 "k",
+#                 'dashed',
+#                 label='best $\\Lambda$ in continuous case')
+#      #plt.plot(lambda_1, [rate_by_z_transform(discretization, i, TIME_WINDOW_LEN_DEFAULT) for i in lambda_1], "m")
+#      #plt.plot(lambda_1, [rate_by_z_transform(discretization, i, TIME_WINDOW_LEN_DEFAULT) for i in lambda_1], "m", label="Z TRANSFORMED ANALYTIC RATE")
+#      rho = []
+#      for logt in np.arange(0, 25):
+#          t = dt * 2.**logt
+#          rho += [[analytic_robin_robin(discretization,
+#                                        w=pi / t,
+#                                        Lambda_1=i, semi_discrete=True,
+#                                        **kwargs) for i in lambda_1]]
+#          rho += [[analytic_robin_robin(discretization,
+#                                        w=-pi / t,
+#                                        Lambda_1=i, semi_discrete=True,
+#                                        **kwargs) for i in lambda_1]]
+#      plt.fill_between(lambda_1,
+#                       np.min(np.array(rho), axis=0),
+#                       np.max(np.array(rho), axis=0),
+#                       facecolor="grey",
+#                       label="|w| < pi/dt",
+#                       alpha=0.4)
+#  
+#      print("> Starting simulations (this might take a while)")
+#  
+#      x = np.linspace(lambda_min, lambda_max, steps)
+#      if PARALLEL:
+#          import concurrent.futures
+#          with concurrent.futures.ProcessPoolExecutor() as executor:
+#              rate_f = executor.map(rate_func, x)
+#              rate_f_L2 = executor.map(rate_func_normL2, x)
+#      else:
+#          rate_f = map(rate_func, x)
+#          rate_f_L2 = map(rate_func_normL2, x)
+#  
+#      print("> Starting minimization in infinite norm.")
+#      rate_f = list(rate_f)
+#      rate_f_L2 = list(rate_f_L2)
+#  
+#      best_linf_norm = x[np.argmin(np.array(list(rate_f)))] #minimize_scalar(fun=rate_func).x
+#      print("> Starting minimization in L2 norm.")
+#      best_L2_norm = x[np.argmin(np.array(list(rate_f_L2)))] #  minimize_scalar(fun=rate_func_normL2).x
+#      plt.plot(x,
+#               list(rate_f_L2),
+#               "b",
+#               label=discretization.name() + ", $L^2$ norm")
+#      plt.vlines(best_L2_norm,
+#                 0,
+#                 1,
+#                 "b",
+#                 'dashed',
+#                 label='best $\\Lambda$ for $L^2$')
+#      plt.plot(x,
+#               list(rate_f),
+#               "r",
+#               label=discretization.name() + ", $L^\\infty$ norm")
+#      plt.vlines(best_linf_norm,
+#                 0,
+#                 1,
+#                 "r",
+#                 'dashed',
+#                 label='best $\\Lambda$ for $L^\\infty$')
+#  
+#      plt.xlabel("$\\Lambda^1$")
+#      plt.ylabel("$\\rho$")
+#  
+#      #plt.plot(lambda_1, [rate_finite_differences_by_z_transform(i) for i in lambda_1], "r--")
+#      # plt.plot(lambda_1,
+#      #       [analytic_robin_robin_finite_volumes(Lambda_1=i) \
+#      #               for i in lambda_1], "k--", label="Theorical rate")
+#      plt.title(
+#          "Global in time: T=" +
+#          str(TIME_WINDOW_LEN_DEFAULT) +
+#          "dt\n $D_1$=" +
+#          str(D1_DEFAULT) +
+#          ", $D_2$=" +
+#          str(D2_DEFAULT) +
+#          ", " +
+#          "$0=a\\approx c$, $H_1$=-" +
+#          str(SIZE_DOMAIN_1) +
+#          ", $H_2$=" +
+#          str(SIZE_DOMAIN_2) +
+#          "\n" +
+#          "$\\Lambda^2$=" +
+#          str(LAMBDA_2_DEFAULT) +
+#          ",  dt=" +
+#          str(DT_DEFAULT) +
+#          ", h=0.5")
+#  
+#      plt.legend()
+#      plt.show()
+#  
+
+def fig_all():
+    import concurrent.futures
+    import matplotlib
+    matplotlib.use('Agg')
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = []
+        for func in all_figures.values():
+            futures += [executor.submit(func)]
+        executor.shutdown(wait=True)
 
 ######################################################################
 # Filling the dictionnary with the functions beginning with "fig_":  #

@@ -482,6 +482,11 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         h1 = -self.SIZE_DOMAIN_1 / (M1 - 1)
         h2 = self.SIZE_DOMAIN_2 / (M2 - 1)
 
+        eta1_0 = D1 / h1 
+        eta2_0 = D2 / h2
+        y2_0 = D2 / h2
+        y1_0 = D1 / h1
+
         Y1_0 = -D1 / (h1 * h1) - .5 * a / h1
         Y1_1 = 2 * D1 / (h1 * h1) + c
         Y1_2 = -D1 / (h1 * h1) + .5 * a / h1
@@ -508,14 +513,8 @@ class FiniteDifferencesNaiveNeumann(Discretization):
             print("lambda1_plus:", lambda1_plus)
             print("lambda2_plus:", lambda2_plus)
 
-        lambda1 = lambda1_plus
-        lambda2 = lambda2_plus
-        teta1_0 = -D1/(2*h1) * lambda1**2 + \
-                lambda1 * 2*D1/h1 - 3*D1/(2*h1)
-        teta2_0 = -D2/(2*h2) * lambda2**2 + \
-                lambda2 * 2*D2/h2 - 3*D2/(2*h2)
-        teta1_0 *= -1
-        teta2_0 *= -1
+        teta1_0 = eta1_0 - y1_0 * lambda1_plus
+        teta2_0 = eta2_0 - y2_0 * lambda2_plus
         rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
         rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
         if verbose:

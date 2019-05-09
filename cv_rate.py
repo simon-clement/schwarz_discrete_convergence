@@ -19,25 +19,25 @@ def continuous_analytic_rate_robin_neumann(discretization, Lambda_1, w):
 
 def continuous_analytic_rate_robin_robin(discretization, Lambda_1, Lambda_2,
                                          w):
+
     D1 = discretization.D1_DEFAULT
     D2 = discretization.D2_DEFAULT
     H1 = - discretization.SIZE_DOMAIN_1
     H2 = discretization.SIZE_DOMAIN_2
     c = discretization.C_DEFAULT
-    # sig1 is \sigma^1_{+}
+
+    # sig1 is \sigma^1_{+} : should it be \sigma^1_{-} ?
     sig1 = np.sqrt((w*1j + c) / D1)
     sig2 = np.sqrt((w*1j + c) / D2)
-    # sig1 = np.sqrt(np.abs(w) / (2 * D1)) * (1 + np.abs(w) / w * 1j)
-    # sig2 is \sigma^2_{-}
-    # sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
-    #first_term = np.abs((D2 * sig2 + Lambda_1) / (D1 * sig1 + Lambda_1))
-    # TODO why is there here a "+" whereas in the paper it's 'D2*sig2-Lambda_2'
-    #second = np.abs((D1 * sig1 - Lambda_2) / (D2 * sig2 - Lambda_2))
-    # TODO put back a "+" ?
-    first_term = (-D2*sig2+Lambda_1*np.tanh(H2*sig2))/ \
-            (D1*sig1 + Lambda_1*np.tanh(H1*sig1))
-    second = (D1*sig1 + Lambda_2*np.tanh(H2*sig2))/ \
-            (-D2*sig2+Lambda_2*np.tanh(H1*sig1))
+
+    #TODO comprendre pourquoi cette ligne est nécessaire
+    #Lambda_2 = - Lambda_2 OR sig1 = -sig1
+    sig1 = -sig1
+
+    first_term = (D2*sig2-Lambda_1*np.tanh(H2*sig2))/ \
+            (D1*sig1 - Lambda_1*np.tanh(H1*sig1))
+    second = (D1*sig1 - Lambda_2*np.tanh(H2*sig2))/ \
+            (D2*sig2 - Lambda_2*np.tanh(H1*sig1))
     return np.abs(first_term * second)
 
 
@@ -138,7 +138,7 @@ def rate_fast(discretization,
                                  function_D1=None,
                                  function_D2=None)
     except BaseException:
-        PARALLEL = True
+        PARALLEL = False
         print("Cannot use rate_fast. Did you compile rust module ?" +
               "Using pure python...")
         errors = None
@@ -162,6 +162,110 @@ def rate_fast(discretization,
             errors = np.mean(np.abs(np.array(list(map(to_map, seeds)))),
                              axis=0)
 
+    return function_to_use(errors[2]) / function_to_use(errors[1])
+
+def rate_slow(discretization,
+              N,
+              Lambda_1=None,
+              Lambda_2=None,
+              a=None,
+              c=None,
+              dt=None,
+              M1=None,
+              M2=None,
+              function_to_use=lambda x: max(np.abs(x)),
+              seeds=range(100)):
+    """
+        Makes a simulation and gives the convergence rate.
+        does not use the rust module to be faster than python
+        For details of args and kwargs, see @interface_errors
+        function_to_use can be max for L^\\infty or np.linalg.norm for L^2
+        This particular function use a lot of different simulations with random
+        first guess to get a good convergence rate.
+    """
+    PARALLEL = False
+    print("Cannot use rate_fast. Did you compile rust module ?" +
+          "Using pure python...")
+    errors = None
+    to_map = functools.partial(rate_one_seed,
+                               discretization,
+                               N,
+                               function_to_use=function_to_use,
+                               Lambda_1=Lambda_1,
+                               Lambda_2=Lambda_2,
+                               a=a,
+                               c=c,
+                               dt=dt,
+                               M1=M1,
+                               M2=M2)
+    if PARALLEL:
+        import concurrent.futures
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            errors = np.mean(np.array(list(executor.map(to_map, seeds))),
+                             axis=0)
+    else:
+        errors = np.mean(np.abs(np.array(list(map(to_map, seeds)))),
+                         axis=0)
+
+    return function_to_use(errors[2]) / function_to_use(errors[1])
+
+
+
+def rate_freq(discretization,
+              N,
+              Lambda_1=None,
+              Lambda_2=None,
+              a=None,
+              c=None,
+              dt=None,
+              M1=None,
+              M2=None,
+              function_to_use=lambda x: max(np.abs(x)),
+              seeds=range(100)):
+    """
+        Makes a simulation and gives the convergence rate in frequencial domain.
+    """
+    try:
+        import rust_mod
+        errors = rust_mod.errors_raw(discretization,
+                                 N,
+                                 Lambda_1,
+                                 Lambda_2,
+                                 a,
+                                 c,
+                                 dt,
+                                 M1,
+                                 M2,
+                                 number_seeds=len(list(seeds)),
+                                 function_D1=None,
+                                 function_D2=None)
+    except BaseException:
+        PARALLEL = False
+        print("Cannot use rate_fast. Did you compile rust module ?" +
+              "Using pure python...")
+        errors = None
+        to_map = functools.partial(rate_one_seed,
+                                   discretization,
+                                   N,
+                                   function_to_use=function_to_use,
+                                   Lambda_1=Lambda_1,
+                                   Lambda_2=Lambda_2,
+                                   a=a,
+                                   c=c,
+                                   dt=dt,
+                                   M1=M1,
+                                   M2=M2)
+        if PARALLEL:
+            import concurrent.futures
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                errors = list(executor.map(to_map, seeds))
+        else:
+            errors = list(map(to_map, seeds))
+
+    from numpy.fft import fft, fftshift
+    freq_err = fftshift(fft(errors, norm="ortho", axis=-1), axes=(-1, ))
+
+    errors = np.mean(np.abs(freq_err), axis=0)
     return function_to_use(errors[2]) / function_to_use(errors[1])
 
 
@@ -371,15 +475,19 @@ def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
     except:
         print( "Cannot make a fast frequency simulation..." +
                "Going to pure python (but it will take some time)")
-        import concurrent.futures
-        from numpy.fft import fft, fftshift
-        to_map = functools.partial(interface_errors, discretization, N,
-                                   **kwargs)
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            errors = np.array(list(executor.map(to_map,
-                                                range(number_samples))))
-        freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))
-        return np.mean(np.abs(freq_err), axis=0)
+        return frequency_simulation_slow(discretization, N, number_samples, **kwargs)
+
+def frequency_simulation_slow(discretization, N, number_samples=1000, **kwargs):
+    import concurrent.futures
+    from numpy.fft import fft, fftshift
+    to_map = functools.partial(interface_errors, discretization, N,
+                               **kwargs)
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        errors = np.array(list(executor.map(to_map,
+                                            range(number_samples))))
+    freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))
+    return np.mean(np.abs(freq_err), axis=0)
+
 
 
 """
@@ -449,8 +557,8 @@ def interface_errors(discretization,
     np.random.seed(seed)
     all_u1_interface = 2 * (np.random.rand(time_window_len) - 0.5)
     all_phi1_interface = 2 * (np.random.rand(time_window_len) - 0.5)
-    all_u1_interface[-1] /= 1000
-    all_phi1_interface[-1] /= 1000
+    #all_u1_interface[-1] /= 1000
+    #all_phi1_interface[-1] /= 1000
     ret = [all_u1_interface]
     # Beginning of schwarz iterations:
     for k in range(NUMBER_IT):

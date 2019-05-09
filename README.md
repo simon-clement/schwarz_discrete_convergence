@@ -26,7 +26,7 @@ You may be asked for sudo password because of the multiples installations.
 
 You can add this line to your "~/.bashrc":
 ```
-    complete -W "test figure clean" ./cv_rate.py
+    complete -W "figure figname clean test" ./cv_rate.py
 ```
 
 The script can be launched with
@@ -38,8 +38,7 @@ Or
     ./main.py [ARG]
 ```
 
-where ARG is one of the arguments {test, debug, figure}
-and where the completion can be used for the argument.
+Where ARG is one of the arguments {test, debug, figure, clean, figname}.
 
 ### Use the code
 To make a figure that is inside the pdf, just use the argument figure:

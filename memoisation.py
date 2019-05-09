@@ -83,6 +83,10 @@ def memoised(func_to_memoise, *args_mem, **kwargs_mem):
         print("warning: collision in hashes or bug; very rare event")
         filename_res += str(int(np.random.rand()*10))
 
+    try:
+        dic = np.load(filename_dict)[()]
+    except IOError:  # there is no index yet !
+        dic = {}
     dic[key_dic] = filename_res
     np.save(filename_dict, dic)
     # Finally, we can compute and store our result.

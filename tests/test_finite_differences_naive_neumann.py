@@ -15,7 +15,7 @@ def launch_all_tests():
 
 def complete_test_schwarz():
     from tests.test_schwarz import schwarz_convergence
-    ecart = schwarz_convergence()
+    ecart = schwarz_convergence(fdifference)
     assert ecart[-1] < 2e-4
     return "ok"
 
