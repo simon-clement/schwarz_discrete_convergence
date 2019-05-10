@@ -23,6 +23,41 @@ def main():
                     print("id does not exist. Please use one of:")
                     print(list(ALL_LABELS.keys()))
 
+        elif sys.argv[1] == "figsave":
+            figures.set_save_to_png()
+            from label_to_figure import ALL_LABELS
+            if len(sys.argv) == 2:
+                print("Please enter the id of the figure in the paper.")
+                print("The following ids are allowed:")
+                print(list(ALL_LABELS.keys()))
+            else:
+                if sys.argv[2] in ALL_LABELS:
+                    print("Function found. Plotting figure...")
+                    import matplotlib
+                    matplotlib.use('Agg')
+                    figures.all_figures[ALL_LABELS[sys.argv[2]]]()
+                else:
+                    print("id does not exist. Please use one of:")
+                    print(list(ALL_LABELS.keys()))
+
+        elif sys.argv[1] == "all_figures":
+            try:
+                from label_to_figure import ALL_LABELS
+                import concurrent.futures
+                with concurrent.futures.ProcessPoolExecutor() as executor:
+                    list(executor.map(global_launch_figsave, list(ALL_LABELS.keys())))
+
+            except:
+                raise
+                # We cannot plot them in parallel...
+                # matplotlib won't work if you import it only once :/
+                # if you want to do all figures in parallel,
+                # you'll need an external script
+                from label_to_figure import ALL_LABELS
+                figures.set_save_to_png()
+                for fig in ALL_LABELS.values():
+                    figures.all_figures[fig]()
+
         elif sys.argv[1] == "figname":
             if len(sys.argv) == 2:
                 print("Please enter the name of the figure function.")
@@ -135,6 +170,13 @@ def main():
                     pass
                 elif sys.argv[2] == "2":  # ./cv_rate debug 2
                     pass
+
+def global_launch_figsave(number_fig):
+    import os
+    os.system('nice ./main.py figsave ' + str(number_fig))
+    os.system('sleep 4')
+    print("ok")
+    
 
 
 if __name__ == "__main__":

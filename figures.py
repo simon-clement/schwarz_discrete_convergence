@@ -51,7 +51,8 @@ def fig_rho_robin_neumann():
     r = 0.9
     all_Lambdaprime = np.linspace(-1.1, 1, 5)
     for Lambdaprime in all_Lambdaprime:
-        plt.plot(w, f(r,w, Lambdaprime)/f(1,w, Lambdaprime), label="$\\Lambda'="+str(Lambdaprime)+"$", )
+        plt.plot(w, f(r,w, Lambdaprime)/f(1,w, Lambdaprime), label="$\\Lambda'="+
+                str(round(Lambdaprime, 3))+"$", )
     plt.xlabel("$\\omega$")
     plt.ylabel("$\\hat{\\rho}$")
     plt.legend()
@@ -173,7 +174,8 @@ def w5_robin_neumann(discretization):
     steps = 100
     courant_numbers = [0.1, 1.]
     import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(1, 2)
+    # By default figsize is 6.4, 4.8
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
 
     to_map = functools.partial(beauty_graph_finite, discretization,
                                lambda_min, lambda_max, steps)
@@ -998,14 +1000,14 @@ def plot_3D_profile(dis, N):
         return memoised(rate_fast,dis, N, Lambda_1=x[0], Lambda_2=x[1])
     """
 
-    fig, ax = plot_3D_square(fun, -20., 20., 1.5, subplot_param=311)
+    fig, ax = plot_3D_square(fun, -20., 20., 1.5, subplot_param=211)
     ax.set_title("Continuous case: convergence rate ")
     fig, ax = plot_3D_square(fun_me,
                              -20.,
                              20.,
                              1.5,
                              fig=fig,
-                             subplot_param=312)
+                             subplot_param=212)
     ax.set_title(dis.name() + " case: convergence rate")
 
     '''
@@ -1196,20 +1198,11 @@ def compare_continuous_discrete_rate_robin_robin(
     plt.xlabel("h")
     plt.ylabel("$\\rho$")
     plt.legend()
-    plt.title('Error when using continuous Lambda with ' +
+    plt.title('Discrete analysis compared to continuous' +
+              ' (Robin-Robin)\n' +
               discretization.name() +
-              ' (Robin-Robin)' +
-              '\n$H_1$=' +
-              str(discretization.SIZE_DOMAIN_1) +
-              ', $H_2$=' +
-              str(discretization.SIZE_DOMAIN_2) +
-              ', T = ' +
-              str(N) +
-              'dt, $D_1$=' +
-              str(discretization.D1_DEFAULT) +
-              ', $D_2$=' +
-              str(discretization.D2_DEFAULT) +
-              ', a=c=0')
+              ', $D\\frac{dt}{h^2}$ = ' + str(number_dt_h2)
+              )
 
 
 def error_by_taking_continuous_rate_constant_number_dt_h2(
@@ -1453,23 +1446,19 @@ def beauty_graph_finite(discretization,
                      max_rho,
                      facecolor="green",
                      label="pi/T < |w| < pi/dt")
-    ax.vlines(best_analytic,
-               0,
-               1,
-               "g",
-               'dashed',
-               label='best $\\Lambda$ with frequency analysis')
-    ax.plot(
-        lambda_1, [
-            analytic_robin_robin(
-                discretization, w=0, Lambda_1=i,
-                semi_discrete=True, **kwargs) for i in lambda_1], "y")
+    # ax.vlines(best_analytic,
+    #            0,
+    #            1,
+    #            "g",
+    #            'dashed',
+    #            label='best $\\Lambda$ with frequency analysis')
+
     ax.vlines(continuous_best_lam,
                0,
                1,
                "k",
                'dashed',
-               label='best $\\Lambda$ in continuous case')
+               label='optimal $\\Lambda$ (continuous analysis)')
     rho = []
     for logt in np.arange(0, 25):
         t = dt * 2.**logt
@@ -1481,12 +1470,6 @@ def beauty_graph_finite(discretization,
                                       w=-pi / t,
                                       Lambda_1=i, semi_discrete=True,
                                       **kwargs) for i in lambda_1]]
-    ax.fill_between(lambda_1,
-                     np.min(np.array(rho), axis=0),
-                     np.max(np.array(rho), axis=0),
-                     facecolor="grey",
-                     label="|w| < pi/dt",
-                     alpha=0.4)
 
     print("> Starting simulations (this might take a while)")
 
@@ -1506,43 +1489,34 @@ def beauty_graph_finite(discretization,
              list(rate_f_L2),
              "b",
              label=discretization.name() + ", $L^2$ norm")
-    ax.vlines(best_L2_norm,
-               0,
-               1,
-               "b",
-               'dashed',
-               label='best $\\Lambda$ for $L^2$')
+    # ax.vlines(best_L2_norm,
+    #            0,
+    #            1,
+    #            "b",
+    #            'dashed',
+    #            label='best $\\Lambda$ for $L^2$')
     ax.plot(x,
              list(rate_f),
              "r",
              label=discretization.name() + ", $L^\\infty$ norm")
-    ax.vlines(best_linf_norm,
-               0,
-               1,
-               "r",
-               'dashed',
-               label='best $\\Lambda$ for $L^\\infty$')
+    # ax.vlines(best_linf_norm,
+    #            0,
+    #            1,
+    #            "r",
+    #            'dashed',
+    #            label='best $\\Lambda$ for $L^\\infty$')
 
     ax.set_xlabel("$\\Lambda^1$")
     ax.set_ylabel("$\\rho$")
 
-    ax.set_title( "T=" + str(T) +
-            ", Courant number : D1.dt/h^2 = " + str(courant_number)\
-            + "\n $D_1$=" +
-            str(D1_DEFAULT) +
-            ", $D_2$=" +
-            str(D2_DEFAULT) +
-            ", " +
-            "$0=a\\approx c$, $H_1$=-" +
-            str(SIZE_DOMAIN_1) +
-            ", $H_2$=" +
-            str(SIZE_DOMAIN_2) +
-            "\n" +
-            "$\\Lambda^2$=" +
-            str(LAMBDA_2_DEFAULT) +
-            ", h=" + str(M1_DEFAULT / SIZE_DOMAIN_1))
+    ax.set_title("Courant number : $D\\frac{dt}{h^2} = " + str(courant_number)+
+            "$, h=" + str(M1_DEFAULT / SIZE_DOMAIN_1) + ", T = " + str(round(T)))
 
     ax.legend()
+
+def set_save_to_png():
+    global SAVE_TO_PNG
+    SAVE_TO_PNG = True
 
 SAVE_TO_PNG = False
 def show_or_save(name_func):
@@ -1554,18 +1528,6 @@ def show_or_save(name_func):
         plt.savefig(directory + name_func[4:] + '.png')
     else:
         plt.show()
-
-def fig_all():
-    import concurrent.futures
-    import matplotlib
-    matplotlib.use('Agg')
-    global SAVE_TO_PNG
-    SAVE_TO_PNG = True
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = []
-        for func in all_figures.values():
-            futures += [executor.submit(func)]
-        executor.shutdown(wait=True)
 
 ######################################################################
 # Filling the dictionnary with the functions beginning with "fig_":  #
