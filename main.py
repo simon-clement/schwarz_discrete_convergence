@@ -1,4 +1,20 @@
 #!/usr/bin/python3
+"""
+    main file of the project.
+    You should have a PDF with the code with some figures inside.
+    It is possible to replicate the figure 4 (for example) by using:
+    ./main.py figure 4
+    The code of a figure is in figures.py, in the function indexed
+    by the file label_to_figure.py
+    all function name begin with "fig_".
+    you can also generate a figure named "fig_foo_bar" by using:
+    ./main.py figname fig_foo_bar
+    You can generate all figures (WILL TAKE A LOT OF TIME : >10 HOURS)
+    by using the command "./main.py all_figures".
+
+    All the results are stored in cache_npy to allow a fast re-generation
+    of figures. You can clean cache with "./main.py clean".
+"""
 import figures
 
 def main():
@@ -8,8 +24,8 @@ def main():
         print("to launch tests, use \"python3 cv_rate.py test\"")
         print("Usage: cv_rate {test, graph, optimize, debug, analytic}")
     else:
+        #  example of use : ./main.py figure 17
         if sys.argv[1] == "figure":
-
             from label_to_figure import ALL_LABELS
             if len(sys.argv) == 2:
                 print("Please enter the id of the figure in the paper.")
@@ -23,6 +39,7 @@ def main():
                     print("id does not exist. Please use one of:")
                     print(list(ALL_LABELS.keys()))
 
+        #  example of use : ./main.py figsave 17
         elif sys.argv[1] == "figsave":
             figures.set_save_to_png()
             from label_to_figure import ALL_LABELS
@@ -40,6 +57,8 @@ def main():
                     print("id does not exist. Please use one of:")
                     print(list(ALL_LABELS.keys()))
 
+        #  example of use : ./main.py all_figures
+        # WARNING THIS TAKES MULTIPLE HOURS IF YOUR CACHE IS EMPTY
         elif sys.argv[1] == "all_figures":
             try:
                 from label_to_figure import ALL_LABELS
@@ -58,6 +77,7 @@ def main():
                 for fig in ALL_LABELS.values():
                     figures.all_figures[fig]()
 
+        #  example of use : ./main.py figname fig_rho_robin_neumann
         elif sys.argv[1] == "figname":
             if len(sys.argv) == 2:
                 print("Please enter the name of the figure function.")
@@ -71,11 +91,17 @@ def main():
                     print("This name does not exist. Please use one of:")
                     print('\n'.join(figures.all_figures))
 
+        # clean cache. 
+        # If you want to clean the cache of only one function named fun,
+        # just delete the folder "cache_npy/fun/"
+        # example of use : ./main.py clean
         elif sys.argv[1] == "clean":
             import memoisation
             memoisation.clean()
             print("Memoisation folder cleaned.")
 
+        # Verify installation, and run non-regression tests
+        # example of use : ./main.py test
         elif sys.argv[1] == "test":
             import tests.test_linear_sys
             import tests.test_schwarz
@@ -107,6 +133,10 @@ def main():
                     raise
             print("All labels are reffering to an existing function.")
 
+        # example of use : ./main.py debug 1
+        # don't overuse this.
+        # It is here to tests things with default parameters,
+        # not to export figures
         elif sys.argv[1] == "debug":
             # defining discretizations:
 
@@ -172,11 +202,17 @@ def main():
                     pass
 
 def global_launch_figsave(number_fig):
+    """
+        This function launch an external python context for figure number_fig.
+        It allows to create a new matplotlib context, which is needed
+            to create different figures.
+        it is slightly better to launch this function sequentially
+            because of the risk of concurrent access to cache.
+        By launching multiple figures in parallel you will gain time
+            but you may do some computations multiple times.
+    """
     import os
     os.system('nice ./main.py figsave ' + str(number_fig))
-    os.system('sleep 4')
-    print("ok")
-    
 
 
 if __name__ == "__main__":

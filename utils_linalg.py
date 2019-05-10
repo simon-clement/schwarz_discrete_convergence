@@ -1,13 +1,17 @@
+"""
+    This module contains functions to use the banded matrix Y returned
+    by the functions get_Y and get_Y_star.
+"""
 import numpy as np
-"""
-    Returns "Y * u"
-    equivalent code :
-    return (np.diag(Y[1])+np.diag(Y[0], k=-1) + np.diag(Y[2], k=1)) @ u
-    Y is a tridiagonal matrix returned by get_Y or get_Y_star
-"""
 
 
 def multiply(Y, u):
+    """
+        Returns "Y * u"
+        equivalent code :
+        return (np.diag(Y[1])+np.diag(Y[0], k=-1) + np.diag(Y[2], k=1)) @ u
+        Y is a tridiagonal matrix returned by get_Y or get_Y_star
+    """
     assert len(Y) == 3
     assert u.ndim == Y[0].ndim == Y[1].ndim == Y[2].ndim == 1
     assert Y[1].shape[0] == Y[0].shape[0] + 1 == u.shape[0]
@@ -16,21 +20,23 @@ def multiply(Y, u):
         np.concatenate((Y[2] * u[1:], [0]))
 
 
-"""
-    Solve the linear TRIDIAGONAL system Yu = f and returns u.
-    This function is just a wrapper over scipy
-    Y is a tuple (Y_0, Y_1, Y_2) containing respectively:
-    - The left diagonal of size M-1
-    - The main diagonal of size M
-    - The right diagonal of size M-1
-    f is an array of size M.
-    f[0] is the condition on the bottom of the domain
-    f[-1] is the condition on top of the domain
-    /!\ f[1:-1] should be equal to f * (hm + hmm1) /!\
-
-    Y is returned by the functions get_Y and get_Y_star
-"""
 def solve_linear(Y, f):
+    """
+        Solve the linear TRIDIAGONAL system Yu = f and returns u.
+        This function is just a wrapper over scipy
+        Y is a tuple (Y_0, Y_1, Y_2) containing respectively:
+        - The left diagonal of size M-1
+        - The main diagonal of size M
+        - The right diagonal of size M-1
+        f is an array of size M.
+        f[0] is the condition on the bottom of the domain
+        f[-1] is the condition on top of the domain
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        /!\ f[1:-1] should be equal to f * (hm + hmm1) !
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        Y is returned by the functions get_Y and get_Y_star
+    """
     # We note Y_1 the main diagonal, Y_2 the right diag, Y_0 the left diag
     Y_0, Y_1, Y_2 = Y
     assert Y_0.ndim == Y_1.ndim == Y_2.ndim == f.ndim == 1
@@ -45,22 +51,24 @@ def solve_linear(Y, f):
     return solve_banded((1, 1), Y, f)
 
 
-"""
-    Solve the linear BANDED (4 diagonals) system Yu = f and returns u.
-    This function is just a wrapper over scipy
-    Y is a tuple (Y_0, Y_1, Y_2, Y_3) containing respectively:
-    - The left diagonal of size M-1
-    - The main diagonal of size M
-    - The right diagonal of size M-1
-    - The ultra-right diagonal of size M-2
-    f is an array of size M.
-    f[0] is the condition on the bottom of the domain
-    f[-1] is the condition on top of the domain
-    /!\ f[1:-1] should be equal to f * (hm + hmm1) /!\
-
-    Y is returned by the functions get_Y and get_Y_star
-"""
 def solve_linear_with_ultra_right(Y, f):
+    """
+        Solve the linear BANDED (4 diagonals) system Yu = f and returns u.
+        This function is just a wrapper over scipy
+        Y is a tuple (Y_0, Y_1, Y_2, Y_3) containing respectively:
+        - The left diagonal of size M-1
+        - The main diagonal of size M
+        - The right diagonal of size M-1
+        - The ultra-right diagonal of size M-2
+        f is an array of size M.
+        f[0] is the condition on the bottom of the domain
+        f[-1] is the condition on top of the domain
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        /!\ f[1:-1] should be equal to f * (hm + hmm1) !
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        Y is returned by the functions get_Y and get_Y_star
+    """
     # We note Y_1 the main diagonal, Y_2 the right diag, Y_0 the left diag
     Y_0, Y_1, Y_2, Y_3 = Y
     assert Y_0.ndim == Y_1.ndim == Y_2.ndim == Y_3.ndim == f.ndim == 1

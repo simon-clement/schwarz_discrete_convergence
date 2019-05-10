@@ -43,7 +43,13 @@ just declare a figure like that:
     fig_my_figure = functools.partial(my_func, 10, 100, ...)
 """
 
+
 def fig_rho_robin_neumann():
+    """
+        This is the shape of \\rho when using a Robin-Neumann interface.
+        We can see with one of the curve that the maximum is not always 0 or \\infty,
+        making it way harder to analyse.
+    """
     def f(r, w, Lambdaprime):
         return np.abs(Lambdaprime*w*1j + 1 - np.sqrt(1+r*w*1j))
 
@@ -60,6 +66,15 @@ def fig_rho_robin_neumann():
 
 
 def fig_want_to_show_decreasing(c=0.4):
+    """
+        We would like to show that the functions plot on this figure decrease with r.
+        it seems true.
+        The plot are done for one particular reaction coefficient,
+        and we chose some frequencies to plot the ratio for theses frequencies.
+        The figure @fig_want_to_show_decreasing_irregularities
+        show that for very high frequencies it may not be decreasing anymore,
+        but it seems to me that the problems are only from the floating precision.
+    """
     def f(r,w):
         return 1 + np.sqrt(r*w + 1) - np.sqrt(2*np.sqrt(r*w + 1) + c*(np.sqrt(4*r + c*c) - c)*w+2)
     def partial(r, w):
@@ -92,6 +107,18 @@ def fig_want_to_show_decreasing_irregularities(c=0.4):
     show_or_save("fig_want_to_show_decreasing_irregularities")
 
 def fig_w5_rob_neumann_volumes():
+    """
+        The green zone is the zone where for each value, there exist a frequency
+        between T/dt and 1/dt such that the convergence rate is equal to this value.
+        the function we minimize is therefore the top border of this zone.
+        Results of figure @fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol
+        can be seen here: when choosing the optimal lambda of the continuous analysis,
+        (take the intersection between red line and black dashed line) we have a
+        value of \\rho that is not really the lowest value \\rho can take.
+
+        We can see on this figure that the min-max frequency analysis is not always
+        exactly the same analysis we would do in the time domain.
+    """
     NUMBER_DDT_H2 = .1
     T = 100.
     M1_DEFAULT = 200
@@ -111,6 +138,18 @@ def fig_w5_rob_neumann_volumes():
     show_or_save("fig_w5_rob_neumann_volumes")
 
 def fig_w5_rob_neumann_diff_extrapolation():
+    """
+        The green zone is the zone where for each value, there exist a frequency
+        between T/dt and 1/dt such that the convergence rate is equal to this value.
+        the function we minimize is therefore the top border of this zone.
+        Results of figure @fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff
+        can be seen here: when choosing the optimal lambda of the continuous analysis,
+        (take the intersection between red line and black dashed line) we have a
+        value of \\rho that is not really the lowest value \\rho can take.
+
+        We can see on this figure that the min-max frequency analysis is not always
+        exactly the same analysis we would do in the time domain.
+    """
     NUMBER_DDT_H2 = .1
     T = 100.
     M1_DEFAULT = 200
@@ -130,6 +169,18 @@ def fig_w5_rob_neumann_diff_extrapolation():
     show_or_save("fig_w5_rob_neumann_diff_extrapolation")
 
 def fig_w5_rob_neumann_diff_naive():
+    """
+        The green zone is the zone where for each value, there exist a frequency
+        between T/dt and 1/dt such that the convergence rate is equal to this value.
+        the function we minimize is therefore the top border of this zone.
+        Results of figure @fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive
+        can be seen here: when choosing the optimal lambda of the continuous analysis,
+        (take the intersection between red line and black dashed line) we have a
+        value of \\rho that is not really the lowest value \\rho can take.
+
+        We can see on this figure that the min-max frequency analysis is not always
+        exactly the same analysis we would do in the time domain.
+    """
     NUMBER_DDT_H2 = .1
     T = 100.
     M1_DEFAULT = 200
@@ -149,6 +200,18 @@ def fig_w5_rob_neumann_diff_naive():
     show_or_save("fig_w5_rob_neumann_diff_naive")
 
 def fig_w5_rob_neumann_diff():
+    """
+        The green zone is the zone where for each value, there exist a frequency
+        between T/dt and 1/dt such that the convergence rate is equal to this value.
+        the function we minimize is therefore the top border of this zone.
+        Results of figure @fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff
+        can be seen here: when choosing the optimal lambda of the continuous analysis,
+        (take the intersection between red line and black dashed line) we have a
+        value of \\rho that is not really the lowest value \\rho can take.
+
+        We can see on this figure that the min-max frequency analysis is not always
+        exactly the same analysis we would do in the time domain.
+    """
     NUMBER_DDT_H2 = .1
     T = 100.
     M1_DEFAULT = 200
@@ -190,6 +253,16 @@ def w5_robin_neumann(discretization):
 
 
 def fig_schwarz_method_converging_to_full_domain_solution_global():
+    """
+        Evolution of errors across schwarz iterations.
+        The corrective term allows us to converge to the precision machine.
+        The other discretizations of the neumann condition don't
+        converge to the full domain solution.
+        All the methods have the same convergence rate,
+        because we use Dirichlet-Neumann algorithm and
+        the bottleneck are the low frequencies
+        (where the convergence rate are all the same)
+    """
     discretizations = (FiniteDifferencesNaiveNeumann(),
                        FiniteDifferencesNoCorrectiveTerm(),
                        FiniteDifferences())
@@ -223,6 +296,20 @@ def fig_schwarz_method_converging_to_full_domain_solution_local():
     show_or_save("fig_schwarz_method_converging_to_full_domain_solution_local")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
+    """
+        We see on this figure the utility of making the discrete analysis.
+        For a given h, we compute the optimal free parameter $\\Lambda^1$
+        of the robin interface condition.
+        If we compute it with the continuous framework, we get always the same 
+        $\\Lambda^1$.
+        We can then compare the observed convergence rate of the parameter
+        obtained in the continuous framework and the parameter obtained in the discrete framework.
+        The theorical convergence rate plotted on the figure is obtained with the discrete formula :
+        this is why it changes for the continuous framework when we change h.
+
+        In the case of the finite difference with a corrective term, it is better to use the continous framework.
+        This is explained in details in the PDF : the corrective term blocks the convergence of high frequencies.
+    """
     NUMBER_DDT_H2 = .1
     T = 100.
     M1_DEFAULT = 200
@@ -244,6 +331,20 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
+    """
+        We see on this figure the utility of making the discrete analysis.
+        For a given h, we compute the optimal free parameter $\\Lambda^1$
+        of the robin interface condition.
+        If we compute it with the continuous framework, we get always the same 
+        $\\Lambda^1$.
+        We can then compare the observed convergence rate of the parameter
+        obtained in the continuous framework and the parameter obtained in the discrete framework.
+        The theorical convergence rate plotted on the figure is obtained with the discrete formula :
+        this is why it changes for the continuous framework when we change h.
+
+        As expected, performing the optimization in the discrete framework gives better results,
+        since it is closer to reality.
+    """
     NUMBER_DDT_H2 = .1
     T = 100.
     M1_DEFAULT = 200
@@ -265,6 +366,20 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
+    """
+        We see on this figure the utility of making the discrete analysis.
+        For a given h, we compute the optimal free parameter $\\Lambda^1$
+        of the robin interface condition.
+        If we compute it with the continuous framework, we get always the same 
+        $\\Lambda^1$.
+        We can then compare the observed convergence rate of the parameter
+        obtained in the continuous framework and the parameter obtained in the discrete framework.
+        The theorical convergence rate plotted on the figure is obtained with the discrete formula :
+        this is why it changes for the continuous framework when we change h.
+
+        As expected, performing the optimization in the discrete framework gives better results,
+        since it is closer to reality.
+    """
     NUMBER_DDT_H2 = .1
     T = 100.
     M1_DEFAULT = 200
@@ -287,6 +402,10 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
 
 
 def fig_compare_continuous_discrete_rate_robin_robin_vol():
+    """
+        see @fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol
+        except it is in the Robin-Robin case instead of Robin-Neumann
+    """
     NUMBER_DDT_H2 = .1
     T = 6.
     M1_DEFAULT = 200
@@ -308,6 +427,11 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
+    """
+        see @fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff
+        except it is in the Robin-Robin case instead of Robin-Neumann.
+        The figure with naive discretization has not been done in Robin-Neumann, why ?
+    """
     NUMBER_DDT_H2 = .1
     T = 6.
     M1_DEFAULT = 200
@@ -329,6 +453,10 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff_naive")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff_extra():
+    """
+        see @fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr
+        except it is in the Robin-Robin case instead of Robin-Neumann
+    """
     NUMBER_DDT_H2 = .1
     T = 6.
     M1_DEFAULT = 200
@@ -350,6 +478,10 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_extra():
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff_extra")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff():
+    """
+        see @fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff
+        except it is in the Robin-Robin case instead of Robin-Neumann
+    """
     NUMBER_DDT_H2 = .1
     T = 6.
     M1_DEFAULT = 200
@@ -386,6 +518,15 @@ def values_str(H1, H2, dt, T, D1, D2, a, c, number_dt_h2):
           ', \n$\\frac{D_1 dt}{h^2}$='+ str(number_dt_h2)
 
 def fig_what_am_i_optimizing_criblage():
+    """
+        Simple plot of the function we minimize when looking for the
+        optimal Robin parameter.
+        The convergence rate is smaller in the non-degenerated discrete case
+        than in the continuous framework:
+        it means we can find a better parameter than the parameter yielded by the continuous analysis.
+        Once again, the corrective term blocks the convergence of the high frequencies:
+        The best parameter we can find still has a bad value.
+    """
     NUMBER_DDT_H2 = .1
     T = 10.
     M1_DEFAULT = 200
@@ -457,6 +598,19 @@ def fig_error_interface_time_domain_profiles():
 
 
 def fig_validation_code_frequency_error_diff1(ITERATION=0):
+    """
+        Initial error after ITERATION iteration.
+        It is a way of validation of the code : the theoric error
+        is close to the error observed in simulation.
+        for the first iteration (ITERATION==0), we see
+        that we do'nt match at all. This is explained by
+        the fact that the first guess is not a solution
+        of the diffusion equation. Therefore, we need to change
+        the theorical rate. It is explained in details in the PDF.
+        
+        to obtained the predictive errors, we multiply the first
+        guess by the theorical rate.
+    """
     NUMBER_DDT_H2 = .1
     M1_DEFAULT = 200
     SIZE_DOMAIN_1 = 200
@@ -596,6 +750,13 @@ def verification_analysis_naive_neumann():
     show_or_save("verification_analysis_naive_neumann")
 
 def fig_frequency_rate_dirichlet_neumann_comparison_c_nonzero():
+    """
+        see @fig_frequency_rate_dirichlet_neumann_comparison_c_zero,
+        except we have a reaction term.
+        We see that the reaction term changes the global maximum
+        of \\rho and changes it differently for each discretization.
+        Except for degenerated case (with corrective term), it diminuish it.
+    """
     NUMBER_DDT_H2 = 1.
     M1_DEFAULT = 200
     SIZE_DOMAIN_1 = 200
@@ -642,14 +803,25 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_nonzero():
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
 
-    analysis_frequency_rate((finite_difference, finite_volumes,
-                             finite_difference_wout_corr, finite_difference_naive),
-                            1000, lambda_1=-1e13)
+    analysis_frequency_rate((finite_difference_naive,), 1000, lambda_1=-1e13)
     plt.title("Convergence rate with $c\\neq 0$: Dirichlet-Neumann interface")
     show_or_save("fig_frequency_rate_dirichlet_neumann_comparison_c_nonzero")
 
 
 def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
+    """
+        Convergence rate for each frequency with
+        Dirichlet-Neumann interface conditions.
+        It is a way of validation of the code : the theoric rate
+        is very close to the observed rate in simulations.
+
+        We see that the finite difference scheme with a corrective term
+        have a very bad (close to 1) convergence rate for high frequencies.
+        The other discretizatiosn have a better (smaller) convergence rate
+        than the continuous analysis.
+        Note that the convergence rate is independant from the frequency
+        in the continuous analysis.
+    """
     NUMBER_DDT_H2 = 1.
     M1_DEFAULT = 200
     SIZE_DOMAIN_1 = 200
@@ -735,9 +907,13 @@ def fig_validation_code_frequency_rate_robin_neumann():
     show_or_save("fig_validation_code_frequency_rate_robin_neumann")
 
 def fig_plot3D_function_to_minimize():
-    #TODO gérer ce problème de "transposition"
-    # (lambda_2 qui est en fait -lambda_2 dans continuous_analytic_rate_robin_robin)
-    # le problème vient plus probablement de mon analyse ^^' -> meme pas !
+    """
+        Same function as @fig_what_am_i_optimizing_criblage
+        except it is now in the Robin-Robin case, with two parameters.
+        in 3D it is hard to visualize multiple data on the same plot,
+        but we can see that both continuous and discrete analysis
+        share the same global shape.
+    """
 
     NUMBER_DDT_H2 = .1
     M1_DEFAULT = 400
@@ -1307,6 +1483,13 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
 
 
 def fig_optimal_lambda_function_of_h():
+    """
+        Simple figure to show that when we work with a discrete framework,
+        we don't get the same optimal parameter than the parameters we get
+        with the analysis in the continuous framework.
+        The difference is greater with the finite difference scheme because
+        the corrective term used damp the convergence rate in high frequencies.
+    """
     NUMBER_DDT_H2 = .1
     T = 10.
     M1_DEFAULT = 200
@@ -1414,8 +1597,8 @@ def beauty_graph_finite(discretization,
                                          function_to_use=np.linalg.norm,
                                          seeds = range(100),
                                          **kwargs)
-    rate_func.__name__ = "bgf_rate_func" + discretization.name() + str(TIME_WINDOW_LEN_DEFAULT)
-    rate_func_normL2.__name__ = "bgf_rate_func_normL2" + discretization.name() + str(TIME_WINDOW_LEN_DEFAULT)
+    rate_func.__name__ = "bgf_rate_func" + discretization.repr() + str(TIME_WINDOW_LEN_DEFAULT)
+    rate_func_normL2.__name__ = "bgf_rate_func_normL2" + discretization.repr() + str(TIME_WINDOW_LEN_DEFAULT)
 
     from scipy.optimize import minimize_scalar, minimize
 
@@ -1520,13 +1703,23 @@ def set_save_to_png():
 
 SAVE_TO_PNG = False
 def show_or_save(name_func):
+    name_fig = name_func[4:]
+    directory = "figures_out/"
     if SAVE_TO_PNG:
-        directory = "figures_out/"
         print("exporting to directory " + directory)
         import os
         os.makedirs(directory, exist_ok=True)
-        plt.savefig(directory + name_func[4:] + '.png')
+        plt.savefig(directory + name_fig + '.png')
     else:
+        try:
+            import matplotlib as mpl
+            import os
+            os.makedirs(directory, exist_ok=True)
+            mpl.rcParams['savefig.directory'] = directory
+            fig = plt.get_current_fig_manager()
+            fig.canvas.set_window_title(name_fig) 
+        except:
+            print("cannot set default directory or name")
         plt.show()
 
 ######################################################################

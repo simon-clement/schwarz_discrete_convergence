@@ -98,10 +98,10 @@ class Discretization:
     """
 
     def __eq__(self, other):
-        return self.__dict__ == other.__dict__ and self.name() == other.name()
+        return self.__dict__ == other.__dict__ and self.repr() == other.repr()
 
     def __hash__(self):
-        return hash(repr(sorted(self.__dict__.items())) + self.name())
+        return hash(repr(sorted(self.__dict__.items())) + self.repr())
 
     def __repr__(self):
-        return repr(sorted(self.__dict__.items())) + self.name()
+        return repr(sorted(self.__dict__.items())) + self.repr()

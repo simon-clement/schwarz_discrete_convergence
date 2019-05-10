@@ -1,24 +1,42 @@
 #!/usr/bin/python3
+"""
+    This module computes theoric convergence rates and
+    provide functions to observe real convergence rate.
+"""
 import time
 import numpy as np
 from numpy import pi
 import functools
 
+#########################################################################
+# THEORIC PART : RETURN RATES YIELDED BY ANALYSIS IN FREQUENTIAL DOMAIN #
+#########################################################################
 
 def continuous_analytic_rate_robin_neumann(discretization, Lambda_1, w):
+    """
+        Returns the convergence rate predicted by continuous analysis.
+        The interface condition is Robin-Neumann.
+        This is equivalent to call continuous_analytic_rate_robin_robin
+        with the parameter Lambda_2=0.
+    """
     return continuous_analytic_rate_robin_robin(discretization, Lambda_1, 0., w)
-    D1 = discretization.D1_DEFAULT
-    D2 = discretization.D2_DEFAULT
-    # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt(np.abs(w) / (2 * D1)) * (1 + np.abs(w) / w * 1j)
-    # sig2 is \sigma^2_{-}
-    sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
-    return np.abs(D1 * sig1 * (D2 * sig2 + Lambda_1) /
-                  (D2 * sig2 * (D1 * sig1 + Lambda_1)))
 
 
 def continuous_analytic_rate_robin_robin(discretization, Lambda_1, Lambda_2,
                                          w):
+    """
+        Returns the convergence rate predicted by continuous analysis.
+        The equation is diffusion-reaction with constant coefficients.
+        The interface condition is Robin-Robin.
+        w is the frequency;
+        Lambda_{1,2} are the Robin condition free parameters.
+        discretization must have the following attributes:
+        discretization.D1_DEFAULT : diffusivity in \\Omega_1
+        discretization.D2_DEFAULT : diffusivity in \\Omega_2
+        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
+        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
+        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
+    """
 
     D1 = discretization.D1_DEFAULT
     D2 = discretization.D2_DEFAULT
@@ -42,6 +60,17 @@ def continuous_analytic_rate_robin_robin(discretization, Lambda_1, Lambda_2,
 
 
 def continuous_best_lam_robin_neumann(discretization, N):
+    """
+        Returns the optimal Robin free parameter according to
+        continuous analysis of the convergence rate.
+        The equation is pure diffusion.
+        N is the number of time steps of the window.
+        discretization must have the following attributes:
+        discretization.D1_DEFAULT : diffusivity in \\Omega_1
+        discretization.D2_DEFAULT : diffusivity in \\Omega_2
+        discretization.DT_DEFAULT : time step
+        It is assumed that the size of the domains infinite.
+    """
     sqD1 = np.sqrt(discretization.D1_DEFAULT)
     sqD2 = np.sqrt(discretization.D2_DEFAULT)
     dt = discretization.DT_DEFAULT
@@ -53,6 +82,15 @@ def continuous_best_lam_robin_neumann(discretization, N):
 
 
 def rate_by_z_transform(discretization, Lambda_1, NUMBER_SAMPLES):
+    """
+        This is an attempt to find the convergence rate in time domain
+        without making a simulation. The inverse Z transform is very
+        hard to do and the parameter r is hard to find.
+        Problem : if r is 1, the function is not inside the convergence ray.
+        if r > 1, there are numeric instabilities and the signal is false.
+        This problem is explained by Ehrhardt, M. in his paper
+        "Discrete transparent boundary conditions for parabolic equations"
+    """
     all_points = np.linspace(0, 2 * pi, NUMBER_SAMPLES, endpoint=False)
     dt = discretization.DT_DEFAULT
     def z_transformed(z): return discretization.analytic_robin_robin(
@@ -78,7 +116,27 @@ def analytic_robin_robin(discretization,
                          verbose=False,
                          semi_discrete=False,
                          N=None):
-    dt = discretization.DT_DEFAULT
+    """
+        returns the theoric discrete/semi-discrete convergence rate.
+        The equation is advection-diffusion-reaction with constant coefficients.
+        w is the frequency: if w is None, then the local-in-time rate is returned.
+        Lambda_{1,2} are the free robin parameters.
+        a is the advection coefficient.
+        c is the reaction coefficient.
+        dt is the time step.
+        M_j is the number of points in \\Omega_j
+        The size of the domains must be given in discretization:
+        discretization.SIZE_DOMAIN_{1,2} are the size of the domains \\omega{1,2}
+        D_j is the diffusivity in \\Omega_j
+        if w is not None and semi-discrete is True, returns semi-discrete analysis
+        if w is not None and semi-discrete is False, returns discrete analysis (with Z transform)
+        N is the number of time steps in the time window.
+
+        Main theoric function of the module. It is just a call
+        to the good discretization.
+    """
+    if dt is None:
+        dt = discretization.DT_DEFAULT
     if w is None:
         s = 1. / dt
     else:
@@ -104,6 +162,11 @@ def analytic_robin_robin(discretization,
                                                D2=D2,
                                                verbose=verbose)
 
+#########################################################################
+# SIMULATION PART : SOLVE THE SYSTEM OF ERROR AND RETURN RATES          #
+#########################################################################
+
+
 def rate_fast(discretization,
               N,
               Lambda_1=None,
@@ -117,11 +180,26 @@ def rate_fast(discretization,
               seeds=range(100)):
     """
         Makes a simulation and gives the convergence rate.
-        uses the rust module to be faster than python
-        For details of args and kwargs, see @interface_errors
+        N is the number of time steps.
+
+        Lambda_{1,2} are the free robin parameters.
+        a is the advection coefficient.
+        c is the reaction coefficient.
+        dt is the time step.
+        M_j is the number of points in \\Omega_j
+
+        The size of the domains must be given in discretization:
+        discretization.SIZE_DOMAIN_{1,2} are the size of the domains \\Omega{1,2}
+        The diffusivities of the domains must be given in discretization:
+        discretization.D{1,2}_DEFAULT are the diffusivities of the domains
+
+        Note that it would be easy to extend this function to variable D,
+        by giving to rust_mod.errors the arguments function_D{1,2}.
+
         function_to_use can be max for L^\\infty or np.linalg.norm for L^2
-        This particular function use a lot of different simulations with random
+        This function use a lot of different simulations with random
         first guess to get a good convergence rate.
+        uses the rust module to be faster than python
     """
     try:
         import rust_mod
@@ -176,16 +254,12 @@ def rate_slow(discretization,
               function_to_use=lambda x: max(np.abs(x)),
               seeds=range(100)):
     """
-        Makes a simulation and gives the convergence rate.
-        does not use the rust module to be faster than python
-        For details of args and kwargs, see @interface_errors
-        function_to_use can be max for L^\\infty or np.linalg.norm for L^2
-        This particular function use a lot of different simulations with random
-        first guess to get a good convergence rate.
+        see @rate_fast.
+        This function is the same but without any call to rust.
+        It is therefore slower, but it works without a doubt.
     """
     PARALLEL = False
-    print("Cannot use rate_fast. Did you compile rust module ?" +
-          "Using pure python...")
+    print("Using rate_slow.")
     errors = None
     to_map = functools.partial(rate_one_seed,
                                discretization,
@@ -210,7 +284,6 @@ def rate_slow(discretization,
     return function_to_use(errors[2]) / function_to_use(errors[1])
 
 
-
 def rate_freq(discretization,
               N,
               Lambda_1=None,
@@ -223,7 +296,9 @@ def rate_freq(discretization,
               function_to_use=lambda x: max(np.abs(x)),
               seeds=range(100)):
     """
-        Makes a simulation and gives the convergence rate in frequencial domain.
+        See @rate_fast.
+        It is the same but the rate is computed from the frequencial errors:
+        a fft is done to consider errors in frequencial domain.
     """
     try:
         import rust_mod
@@ -269,179 +344,27 @@ def rate_freq(discretization,
     return function_to_use(errors[2]) / function_to_use(errors[1])
 
 
-"""
-    Makes a simulation and gives the convergence rate.
-    For details of args and kwargs, see @interface_errors
-    function_to_use can be max for L^\\infty or np.linalg.norm for L^2
-    This particular function use a lot of different simulations with random
-    first guess to get a good convergence rate.
-"""
-
-
-def rate(discretization,
-         N,
-         Lambda_1=None,
-         Lambda_2=None,
-         a=None,
-         c=None,
-         dt=None,
-         M1=None,
-         M2=None,
-         function_to_use=lambda x: max(np.abs(x)),
-         seeds=range(10)):
-    errors = None
-    to_map = functools.partial(rate_one_seed,
-                               discretization,
-                               N,
-                               function_to_use=function_to_use,
-                               Lambda_1=Lambda_1,
-                               Lambda_2=Lambda_2,
-                               a=a,
-                               c=c,
-                               dt=dt,
-                               M1=M1,
-                               M2=M2)
-    if PARALLEL:
-        import concurrent.futures
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            errors = np.mean(np.array(list(executor.map(to_map, seeds))),
-                             axis=0)
-    else:
-        errors = np.mean(np.abs(np.array(list(map(to_map, seeds)))), axis=0)
-
-    return function_to_use(errors[2]) / function_to_use(errors[1])
-
-
 def rate_one_seed(discretization, N, seed, function_to_use=max, **kwargs):
-    errors = interface_errors(discretization, N, seed=seed, **kwargs)
-    return errors
-    return np.array([function_to_use([abs(e) for e in err]) for err in errors])
-
-
-def rate_old(discretization,
-             time_window_len,
-             Lambda_1=None,
-             Lambda_2=None,
-             a=None,
-             c=None,
-             dt=None,
-             M1=None,
-             M2=None,
-             function_to_use=max):
-
-    if M1 is None:
-        M1 = discretization.M1_DEFAULT
-    if M2 is None:
-        M2 = discretization.M2_DEFAULT
-    if Lambda_1 is None:
-        Lambda_1 = discretization.LAMBDA_1_DEFAULT
-    if Lambda_2 is None:
-        Lambda_2 = discretization.LAMBDA_2_DEFAULT
-    h1, h2 = discretization.get_h(discretization.SIZE_DOMAIN_1,
-                                  discretization.SIZE_DOMAIN_2, M1, M2)
-    D1, D2 = discretization.get_D(h1, h2)
-
-    f1 = np.zeros(M1)
-    f2 = np.zeros(M2)
-    neumann = 0
-    dirichlet = 0
-
-    precomputed_Y1 = discretization.precompute_Y(M=M1,
-                                                 h=h1,
-                                                 D=D1,
-                                                 a=a,
-                                                 c=c,
-                                                 dt=dt,
-                                                 f=f1,
-                                                 bd_cond=dirichlet,
-                                                 Lambda=Lambda_1,
-                                                 upper_domain=False)
-
-    precomputed_Y2 = discretization.precompute_Y(M=M2,
-                                                 h=h2,
-                                                 D=D2,
-                                                 a=a,
-                                                 c=c,
-                                                 dt=dt,
-                                                 f=f2,
-                                                 bd_cond=neumann,
-                                                 Lambda=Lambda_2,
-                                                 upper_domain=True)
-
-    # random false initialization:
-    u1_0 = np.zeros(M1)
-    u2_0 = np.zeros(M2)
-    error = []
-    np.random.seed(9380)
-    all_u1_interface = 2 * (np.random.rand(time_window_len) - 0.5)
-    all_phi1_interface = 2 * (np.random.rand(time_window_len) - 0.5)
-    all_u1_interface[-1] /= 1000.
-    all_phi1_interface[-1] /= 1000.
-    # Beginning of schwarz iterations:
-    for k in range(2):
-        all_u2_interface = []
-        all_phi2_interface = []
-        all_u2 = [u2_0]
-        # Time iteration:
-        for i in range(time_window_len):
-            u_interface = all_u1_interface[i]
-            phi_interface = all_phi1_interface[i]
-
-            u2_ret, u_interface, phi_interface = \
-                discretization.integrate_one_step(
-                    M=M2,
-                    h=h2,
-                    D=D2,
-                    a=a,
-                    c=c,
-                    dt=dt,
-                    f=f2,
-                    bd_cond=neumann,
-                    Lambda=Lambda_2,
-                    u_nm1=all_u2[-1],
-                    u_interface=u_interface,
-                    phi_interface=phi_interface,
-                    upper_domain=True,
-                    Y=precomputed_Y2)
-            all_u2 += [u2_ret]
-            all_u2_interface += [u_interface]
-            all_phi2_interface += [phi_interface]
-
-        all_u1_interface = []
-        all_phi1_interface = []
-        all_u1 = [u1_0]
-
-        for i in range(time_window_len):
-
-            u_interface = all_u2_interface[i]
-            phi_interface = all_phi2_interface[i]
-
-            u1_ret, u_interface, phi_interface = \
-                discretization.integrate_one_step(
-                    M=M1,
-                    h=h1,
-                    D=D1,
-                    a=a,
-                    c=c,
-                    dt=dt,
-                    f=f1,
-                    bd_cond=dirichlet,
-                    Lambda=Lambda_1,
-                    u_nm1=all_u1[-1],
-                    u_interface=u_interface,
-                    phi_interface=phi_interface,
-                    upper_domain=False,
-                    Y=precomputed_Y1)
-            all_u1 += [u1_ret]
-            all_u1_interface += [u_interface]
-            all_phi1_interface += [phi_interface]
-
-        error += [function_to_use([abs(e) for e in all_phi1_interface])]
-
-    return error[1] / error[0]
+    """
+        Warning: function_to_use won't be used.
+        Simulation with a single first guess created with the seed.
+        Do not use it directly, prefer using rate_slow with seeds=range(1).
+        The name is not explicit since it just calls interface_errors...
+        Maybe it would be good to replace rate_one_seed by interface_errors?
+    """
+    return interface_errors(discretization, N, seed=seed, **kwargs)
 
 
 def raw_simulation(discretization, N, number_samples=1000, **kwargs):
+    """
+        Simulate and returns directly errors in time domain.
+        number_samples simulations are done to have
+        an average on all possible first guess.
+        Every argument should be given in discretization.
+        N is the number of time steps.
+        kwargs can contain any argument of interface_errors:
+        Lambda_1, Lambda_2, a, c, dt, M1, M2,
+    """
     try:
         import rust_mod
         time_start = time.time()
@@ -464,6 +387,15 @@ def raw_simulation(discretization, N, number_samples=1000, **kwargs):
 
 
 def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
+    """
+        Simulate and returns directly errors in frequencial domain.
+        number_samples simulations are done to have
+        an average on all possible first guess.
+        Every argument should be given in discretization.
+        N is the number of time steps.
+        kwargs can contain any argument of interface_errors:
+        Lambda_1, Lambda_2, a, c, dt, M1, M2,
+    """
     try:
         import rust_mod
         errors = rust_mod.errors_raw(discretization,
@@ -478,6 +410,12 @@ def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
         return frequency_simulation_slow(discretization, N, number_samples, **kwargs)
 
 def frequency_simulation_slow(discretization, N, number_samples=1000, **kwargs):
+    """
+        See @frequency_simulation.
+        This function can be used if you are not sure of the results of the rust module.
+        kwargs can contain any argument of interface_errors:
+        Lambda_1, Lambda_2, a, c, dt, M1, M2,
+    """
     import concurrent.futures
     from numpy.fft import fft, fftshift
     to_map = functools.partial(interface_errors, discretization, N,
@@ -487,17 +425,6 @@ def frequency_simulation_slow(discretization, N, number_samples=1000, **kwargs):
                                             range(number_samples))))
     freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))
     return np.mean(np.abs(freq_err), axis=0)
-
-
-
-"""
-    returns errors at interface from beginning (first guess) until the end.
-    to get rate, just use the following code:
-    def rate(*args, function_to_use=max):
-        errors = interface_errors(*args)
-        errors = [function_to_use([abs(e) for e in err]) for err in errors]
-        return errors[2]/errors[1]
-"""
 
 
 def interface_errors(discretization,
@@ -511,6 +438,15 @@ def interface_errors(discretization,
                      M1=None,
                      M2=None,
                      NUMBER_IT=2):
+    """
+        returns errors at interface from beginning (first guess) until the end.
+        to get rate, just use the following code:
+        def rate(*args, function_to_use=max):
+            errors = interface_errors(*args)
+            errors = [function_to_use([abs(e) for e in err]) for err in errors]
+            return errors[2]/errors[1]
+        for details on the arguments, you can see for instance @rate_fast
+    """
 
     if M1 is None:
         M1 = discretization.M1_DEFAULT
