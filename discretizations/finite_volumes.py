@@ -564,9 +564,9 @@ class FiniteVolumes(Discretization):
         Y2_0 = -1 / (s + c) * (1 / h2 + a / (2 * D2)) + h2 / (6 * D2)
         Y2_1 = 1 / (s + c) * 2 / h2 + 2 * h2 / (3 * D2)
         Y2_2 = -1 / (s + c) * (1 / h2 - a / (2 * D2)) + h2 / (6 * D2)
-        lambda2_moins = (Y2_1 + np.sqrt(Y2_1**2 - 4 * Y2_0 * Y2_2)) \
+        lambda2_moins = (Y2_1 - np.sqrt(Y2_1**2 - 4 * Y2_0 * Y2_2)) \
                                 / (-2 * Y2_2)
-        lambda1_moins = (Y1_1 + np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) \
+        lambda1_moins = (Y1_1 - np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) \
                                 / (-2 * Y1_2)
         eta2_0 = ((lambda2_moins - 1) / h2 - a * (lambda2_moins + 1) /
                   (2 * D2)) / (s + c) - h2 * (lambda2_moins + 2) / (6 * D2)

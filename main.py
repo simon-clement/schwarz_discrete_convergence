@@ -63,8 +63,13 @@ def main():
             try:
                 from label_to_figure import ALL_LABELS
                 import concurrent.futures
-                with concurrent.futures.ProcessPoolExecutor() as executor:
-                    list(executor.map(global_launch_figsave, list(ALL_LABELS.keys())))
+                if len(sys.argv) > 2:
+                    with concurrent.futures.ProcessPoolExecutor() as executor:
+                        list(executor.map(global_launch_figsave, list(ALL_LABELS.keys())))
+                else:
+                    print("sequentially exporting all figures.")
+                    # I prefer doing it sequentially
+                    list(map(global_launch_figsave, list(ALL_LABELS.keys())))
 
             except:
                 raise

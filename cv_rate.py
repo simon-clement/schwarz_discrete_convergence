@@ -233,7 +233,7 @@ def rate_fast(discretization,
                                    M2=M2)
         if PARALLEL:
             import concurrent.futures
-            with concurrent.futures.ProcessPoolExecutor() as executor:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
                 errors = np.mean(np.array(list(executor.map(to_map, seeds))),
                                  axis=0)
         else:
@@ -274,7 +274,7 @@ def rate_slow(discretization,
                                M2=M2)
     if PARALLEL:
         import concurrent.futures
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             errors = np.mean(np.array(list(executor.map(to_map, seeds))),
                              axis=0)
     else:
@@ -332,7 +332,7 @@ def rate_freq(discretization,
                                    M2=M2)
         if PARALLEL:
             import concurrent.futures
-            with concurrent.futures.ProcessPoolExecutor() as executor:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
                 errors = list(executor.map(to_map, seeds))
         else:
             errors = list(map(to_map, seeds))
@@ -380,7 +380,7 @@ def raw_simulation(discretization, N, number_samples=1000, **kwargs):
         import concurrent.futures
         to_map = functools.partial(interface_errors, discretization, N,
                                    **kwargs)
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             errors = np.array(list(executor.map(to_map,
                                                 range(number_samples))))
         return np.mean(np.abs(errors), axis=0)
@@ -420,7 +420,7 @@ def frequency_simulation_slow(discretization, N, number_samples=1000, **kwargs):
     from numpy.fft import fft, fftshift
     to_map = functools.partial(interface_errors, discretization, N,
                                **kwargs)
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor() as executor:
         errors = np.array(list(executor.map(to_map,
                                             range(number_samples))))
     freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))

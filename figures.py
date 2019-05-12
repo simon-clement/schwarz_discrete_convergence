@@ -324,10 +324,16 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    error_by_taking_continuous_rate_constant_number_dt_h2(finite_difference,
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+    error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
                                                           steps=100,
                                                           bounds_h=(-1,2.5))
+    error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
+                                                          T=T, number_dt_h2=1.,
+                                                          steps=100,
+                                                          bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
@@ -359,10 +365,15 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    error_by_taking_continuous_rate_constant_number_dt_h2(finite_difference,
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+    error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
                                                           steps=100,
                                                           bounds_h=(-1,2.5))
+    error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
+                                                          T=T, number_dt_h2=1.,
+                                                          steps=100,
+                                                          bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
@@ -394,10 +405,15 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    error_by_taking_continuous_rate_constant_number_dt_h2(finite_volumes,
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+    error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
                                                           steps=100,
                                                           bounds_h=(-1,2.5))
+    error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_volumes,
+                                                          T=T, number_dt_h2=1.,
+                                                          steps=100,
+                                                          bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol")
 
 
@@ -1381,7 +1397,7 @@ def compare_continuous_discrete_rate_robin_robin(
               )
 
 
-def error_by_taking_continuous_rate_constant_number_dt_h2(
+def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
         discretization, T, number_dt_h2, steps=50, bounds_h=(0,2)):
     """
         We keep the ratio D*dt/(h^2) constant and we watch the
@@ -1451,27 +1467,26 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(
     rate_with_discrete_lambda = [max(w[2] / w[1])
             for w in rate_with_discrete_lambda]
 
-    import matplotlib.pyplot as plt
-    plt.semilogx(all_h[:len(rate_with_discrete_lambda)],
+    ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
                  "g",
                  label="Observed rate with discrete optimal $\\Lambda$")
-    plt.semilogx(all_h,
+    ax.semilogx(all_h,
                  theorical_rate_discrete,
                  "g--",
                  label="Theorical rate with discrete optimal $\\Lambda$")
-    plt.semilogx(all_h[:len(rate_with_continuous_lambda)],
+    ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
                  "r",
                  label="Observed rate with continuous optimal $\\Lambda$")
-    plt.semilogx(all_h,
+    ax.semilogx(all_h,
                  theorical_cont_rate,
                  "r--",
                  label="Theorical rate with continuous optimal $\\Lambda$")
-    plt.xlabel("h")
-    plt.ylabel("$\\rho$")
-    plt.legend()
-    plt.title('Discrete analysis compared to continuous' +
+    ax.set_xlabel("h")
+    ax.set_ylabel("$\\rho$")
+    fig.legend()
+    ax.set_title('Discrete analysis compared to continuous' +
               ' (Robin-Neumann)' +
               '\n' + discretization.name()
               #+', $D_1$='

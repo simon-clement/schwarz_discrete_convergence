@@ -6,12 +6,9 @@ import os
 
 os.system('pip3 install scipy')
 os.system('pip3 install matplotlib')
-os.system('sudo apt install python3-tk')
 try:
+    os.system('sudo apt install python3-tk gfortran libopenblas-dev liblapack-dev')
     os.system('curl https://sh.rustup.rs -sSf | sh')
-    os.system('sudo apt install gfortran')
-    os.system('sudo apt install libopenblas-dev')
-    os.system('sudo apt install liblapack-dev')
     os.system('pip3 install cffi')
     os.system("echo \'# added by setup script of schwarz_tbc_finder\'" +
               ">> ~/.bashrc")

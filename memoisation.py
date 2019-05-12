@@ -53,7 +53,7 @@ def memoised(func_to_memoise, *args_mem, **kwargs_mem):
     import os
     filename_dict = INDEX_NAME + "_" + fun.__name__ + ".npy"
     try:
-        dic = np.load(filename_dict)[()]
+        dic = np.load(filename_dict, allow_pickle=True)[()]
     except IOError:  # there is no index yet !
         dic = {}
 
@@ -65,7 +65,7 @@ def memoised(func_to_memoise, *args_mem, **kwargs_mem):
     if key_dic in dic:
         # dic[key_dic] is the name of the file we're interested in.
         try:
-            res = np.load(dic[key_dic])[()][KEY_FOR_UNIQUE_ITEM]
+            res = np.load(dic[key_dic], allow_pickle=True)[()][KEY_FOR_UNIQUE_ITEM]
             if res is None:
                 print("That is strange, we have a None result... " +
                       "Let's compute it again.")
@@ -84,7 +84,7 @@ def memoised(func_to_memoise, *args_mem, **kwargs_mem):
         filename_res += str(int(np.random.rand()*10))
 
     try:
-        dic = np.load(filename_dict)[()]
+        dic = np.load(filename_dict, allow_pickle=True)[()]
     except IOError:  # there is no index yet !
         dic = {}
     dic[key_dic] = filename_res
