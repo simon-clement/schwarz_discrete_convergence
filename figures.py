@@ -481,8 +481,9 @@ def fig_validation_code_frequency_error_diff1(ITERATION=0):
 
     analysis_frequency_error((finite_difference, ), 100, iteration=ITERATION, lambda_1=1e13)
     iteration_str = "first iteration" if ITERATION==0 else "second iteration"
+    suffixe_name = str(ITERATION+1)
     plt.title("Error profile: " + iteration_str + " (Finite differences)")
-    show_or_save("fig_validation_code_frequency_error_diff1")
+    show_or_save("fig_validation_code_frequency_error_diff" + suffixe_name)
 
 fig_validation_code_frequency_error_diff2 = \
         functools.partial(fig_validation_code_frequency_error_diff1,
