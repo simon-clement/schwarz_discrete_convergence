@@ -496,31 +496,17 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         Y2_0 = -D2 / (h2 * h2) - .5 * a / h2
         Y2_1 = 2 * D2 / (h2 * h2) + c
         Y2_2 = -D2 / (h2 * h2) + .5 * a / h2
-        lambda2_plus = (-Y2_1 - s +
-                        np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) / (2 * Y2_2)
-        # lambda2_moins = (-Y2_1 - s -
-        #                 np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) / (2 * Y2_2)
-        lambda1_plus = (-Y1_1 - s +
-                        np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) / (2 * Y1_2)
-        # lambda1_moins = (-Y1_1 - s -
-        #                 np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) / (2 * Y1_2)
-        # Properties of lambda:
-        # assert abs(lambda1_moins*lambda1_plus - Y1_0/Y1_2) < 1e-12
-        # assert abs(lambda2_moins*lambda2_plus - Y2_0/Y2_2) < 1e-12
-        # D constant continuous: assert abs(lambda1_moins
-        # - 1./lambda2_plus) < 1e-12
-        # D constant continuous: assert abs(lambda2_moins
-        # - 1./lambda1_plus) < 1e-12
-        if verbose:
-            print("lambda1_plus:", lambda1_plus)
-            print("lambda2_plus:", lambda2_plus)
+        lambda2_moins = (Y2_1 + s - np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) \
+                                / (-2 * Y2_2)
+        lambda1_moins = (Y1_1 + s - np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) \
+                                / (-2 * Y1_2)
 
-        lambda1 = lambda1_plus
-        lambda2 = lambda2_plus
+        lambda1 = lambda1_moins
+        lambda2 = lambda2_moins
         teta1_0 = -D1/(2*h1) * lambda1**2 + \
-                lambda1 * 2*D1/h1 - 3*D1/(2*h1)
+                    lambda1 * 2*D1/h1 - 3*D1/(2*h1)
         teta2_0 = -D2/(2*h2) * lambda2**2 + \
-                lambda2 * 2*D2/h2 - 3*D2/(2*h2)
+                    lambda2 * 2*D2/h2 - 3*D2/(2*h2)
         teta1_0 *= -1
         teta2_0 *= -1
         rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
@@ -577,8 +563,10 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         return D1, D2
 
     def name(self):
-        return "finite differences, no corrective term"
+        return "finite differences, extrapolated"
 
+    def repr(self):
+        return "finite differences, no corrective term"
 
 if __name__ == "__main__":
     from tests import test_finite_differences_no_corrective_term

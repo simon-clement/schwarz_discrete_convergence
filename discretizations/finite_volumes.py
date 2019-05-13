@@ -557,7 +557,6 @@ class FiniteVolumes(Discretization):
         h1 = self.SIZE_DOMAIN_1 / M1
         h2 = self.SIZE_DOMAIN_2 / M2
 
-        # TODO maybe we should exchange Y1_0 with Y1_2
         Y1_0 = -1 / (s + c) * (1 / h1 - a / (2 * D1)) + h1 / (6 * D1)
         Y1_1 = 1 / (s + c) * 2 / h1 + 2 * h1 / (3 * D1)
         Y1_2 = -1 / (s + c) * (1 / h1 + a / (2 * D1)) + h1 / (6 * D1)
@@ -565,28 +564,14 @@ class FiniteVolumes(Discretization):
         Y2_0 = -1 / (s + c) * (1 / h2 + a / (2 * D2)) + h2 / (6 * D2)
         Y2_1 = 1 / (s + c) * 2 / h2 + 2 * h2 / (3 * D2)
         Y2_2 = -1 / (s + c) * (1 / h2 - a / (2 * D2)) + h2 / (6 * D2)
-        lambda2_plus = (-Y2_1 + np.sqrt(Y2_1**2 - 4 * Y2_0 * Y2_2)) / (2 *
-                                                                       Y2_2)
-        lambda2_moins = (-Y2_1 - np.sqrt(Y2_1**2 - 4 * Y2_0 * Y2_2)) / (2 *
-                                                                        Y2_2)
-        lambda1_plus = (-Y1_1 + np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) / (2 *
-                                                                       Y1_2)
-        lambda1_moins = (-Y1_1 - np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) / (2 *
-                                                                        Y1_2)
-        # Properties of lambda:
-        # assert abs(lambda1_moins * lambda1_plus - Y1_0 / Y1_2) < 1e-12
-        # assert abs(lambda2_moins * lambda2_plus - Y2_0 / Y2_2) < 1e-12
-        # D constant continuous: assert abs(lambda1_moins - 1./lambda2_plus) < 1e-12
-        # D constant continuous: assert abs(lambda2_moins - 1./lambda1_plus) <
-        # 1e-12
-        if verbose:
-            print("lambda1_plus:", lambda1_plus)
-            print("lambda2_plus:", lambda2_plus)
-
-        eta2_0 = ((lambda2_plus - 1) / h2 - a * (lambda2_plus + 1) /
-                  (2 * D2)) / (s + c) - h2 * (lambda2_plus + 2) / (6 * D2)
-        eta1_0 = ((1 - lambda1_plus) / h1 - a * (lambda1_plus + 1) /
-                  (2 * D1)) / (s + c) + h1 * (lambda1_plus + 2) / (6 * D1)
+        lambda2_moins = (Y2_1 - np.sqrt(Y2_1**2 - 4 * Y2_0 * Y2_2)) \
+                                / (-2 * Y2_2)
+        lambda1_moins = (Y1_1 - np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) \
+                                / (-2 * Y1_2)
+        eta2_0 = ((lambda2_moins - 1) / h2 - a * (lambda2_moins + 1) /
+                  (2 * D2)) / (s + c) - h2 * (lambda2_moins + 2) / (6 * D2)
+        eta1_0 = ((1 - lambda1_moins) / h1 - a * (lambda1_moins + 1) /
+                  (2 * D1)) / (s + c) + h1 * (lambda1_moins + 2) / (6 * D1)
 
         rho_numerator = (Lambda_2 * eta1_0 + 1) * (Lambda_1 * eta2_0 + 1)
         rho_denominator = (Lambda_2 * eta2_0 + 1) * (Lambda_1 * eta1_0 + 1)
@@ -637,6 +622,9 @@ class FiniteVolumes(Discretization):
         return D1, D2
 
     def name(self):
+        return "finite volumes"
+
+    def repr(self):
         return "finite volumes"
 
 

@@ -482,7 +482,7 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         h1 = -self.SIZE_DOMAIN_1 / (M1 - 1)
         h2 = self.SIZE_DOMAIN_2 / (M2 - 1)
 
-        eta1_0 = D1 / h1 
+        eta1_0 = D1 / h1
         eta2_0 = D2 / h2
         y2_0 = D2 / h2
         y1_0 = D1 / h1
@@ -494,27 +494,13 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         Y2_0 = -D2 / (h2 * h2) - .5 * a / h2
         Y2_1 = 2 * D2 / (h2 * h2) + c
         Y2_2 = -D2 / (h2 * h2) + .5 * a / h2
-        lambda2_plus = (-Y2_1 - s +
-                        np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) / (2 * Y2_2)
-        # lambda2_moins = (-Y2_1 - s -
-        #                 np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) / (2 * Y2_2)
-        lambda1_plus = (-Y1_1 - s +
-                        np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) / (2 * Y1_2)
-        # lambda1_moins = (-Y1_1 - s -
-        #                 np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) / (2 * Y1_2)
-        # Properties of lambda:
-        # assert abs(lambda1_moins*lambda1_plus - Y1_0/Y1_2) < 1e-12
-        # assert abs(lambda2_moins*lambda2_plus - Y2_0/Y2_2) < 1e-12
-        # D constant continuous: assert abs(lambda1_moins
-        # - 1./lambda2_plus) < 1e-12
-        # D constant continuous: assert abs(lambda2_moins
-        # - 1./lambda1_plus) < 1e-12
-        if verbose:
-            print("lambda1_plus:", lambda1_plus)
-            print("lambda2_plus:", lambda2_plus)
+        lambda2_moins = (Y2_1 + s - np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) \
+                                / (-2 * Y2_2)
+        lambda1_moins = (Y1_1 + s - np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) \
+                                / (-2 * Y1_2)
 
-        teta1_0 = eta1_0 - y1_0 * lambda1_plus
-        teta2_0 = eta2_0 - y2_0 * lambda2_plus
+        teta1_0 = eta1_0 - y1_0 * lambda1_moins
+        teta2_0 = eta2_0 - y2_0 * lambda2_moins
         rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
         rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
         if verbose:
@@ -569,6 +555,9 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         return D1, D2
 
     def name(self):
+        return "finite differences, naive interface"
+
+    def repr(self):
         return "finite differences, naive interface"
 
 

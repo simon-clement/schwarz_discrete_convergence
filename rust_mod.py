@@ -1,3 +1,10 @@
+"""
+    Interface to rust module.
+    It may be faster but I am not sure about the validity of all the code.
+    For documentation, just look at the equivalent functions in cv_rate.py.
+    You should not use this module directly anyway.
+"""
+
 from cffi import FFI
 import numpy as np
 import discretizations.finite_difference as finite_diff
@@ -53,9 +60,9 @@ def int_as_i32(num):
 lib = ffi.dlopen(
     "rust_tbc_parab_schwarz/target/release/librust_rate_constant.so")
 
-allowed_discretizations = [ finite_vol.FiniteVolumes().name(),
-                            finite_diff.FiniteDifferences().name(),
-                            finite_diff_naive.FiniteDifferencesNaiveNeumann().name(),
+allowed_discretizations = [ finite_vol.FiniteVolumes().repr(),
+                            finite_diff.FiniteDifferences().repr(),
+                            finite_diff_naive.FiniteDifferencesNaiveNeumann().repr(),
                            ]
 
 def rate(discretization,
@@ -71,7 +78,7 @@ def rate(discretization,
          number_seeds=10,
          function_D1=None,
          function_D2=None):
-    assert discretization.name() in allowed_discretizations
+    assert discretization.repr() in allowed_discretizations
     if M1 is None:
         M1 = discretization.M1_DEFAULT
     if M2 is None:
@@ -94,9 +101,9 @@ def rate(discretization,
     dtarg = _as_f64(dt)
     M1arg = _as_u64(M1)
     M2arg = _as_u64(M2)
-    index_dis = int_as_i32(allowed_discretizations.index(discretization.name()))
+    index_dis = int_as_i32(allowed_discretizations.index(discretization.repr()))
     #is_finite_differences = bool_as_i32(
-    #    discretization.name() == finite_diff.FiniteDifferences().name())
+    #    discretization.repr() == finite_diff.FiniteDifferences().repr())
     number_samples = _as_u64(number_seeds)
 
     h1arg, h2arg, D1arg, D2arg = _as_f64_array(h1), _as_f64_array(h2), \
@@ -129,7 +136,7 @@ def errors(discretization,
            number_seeds=10,
            function_D1=None,
            function_D2=None):
-    assert discretization.name() in allowed_discretizations
+    assert discretization.repr() in allowed_discretizations
     if M1 is None:
         M1 = discretization.M1_DEFAULT
     if M2 is None:
@@ -152,9 +159,9 @@ def errors(discretization,
     dtarg = _as_f64(dt)
     M1arg = _as_u64(M1)
     M2arg = _as_u64(M2)
-    index_dis = int_as_i32(allowed_discretizations.index(discretization.name()))
+    index_dis = int_as_i32(allowed_discretizations.index(discretization.repr()))
     #is_finite_differences = bool_as_i32(
-    #    discretization.name() == finite_diff.FiniteDifferences().name())
+    #    discretization.repr() == finite_diff.FiniteDifferences().repr())
     number_samples = _as_u64(number_seeds)
 
     h1arg, h2arg, D1arg, D2arg = _as_f64_array(h1), _as_f64_array(h2), \
@@ -180,7 +187,7 @@ def errors_raw(discretization,
                number_seeds=10,
                function_D1=None,
                function_D2=None):
-    assert discretization.name() in allowed_discretizations
+    assert discretization.repr() in allowed_discretizations
     if M1 is None:
         M1 = discretization.M1_DEFAULT
     if M2 is None:
@@ -203,9 +210,9 @@ def errors_raw(discretization,
     dtarg = _as_f64(dt)
     M1arg = _as_u64(M1)
     M2arg = _as_u64(M2)
-    index_dis = int_as_i32(allowed_discretizations.index(discretization.name()))
+    index_dis = int_as_i32(allowed_discretizations.index(discretization.repr()))
     #is_finite_differences = bool_as_i32(
-    #    discretization.name() == finite_diff.FiniteDifferences().name())
+    #    discretization.repr() == finite_diff.FiniteDifferences().repr())
     number_samples = _as_u64(number_seeds)
 
     h1arg, h2arg, D1arg, D2arg = _as_f64_array(h1), _as_f64_array(h2), \
