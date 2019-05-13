@@ -325,15 +325,17 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
     import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
+    axes[1].yaxis.set_tick_params(labelbottom=True)
+
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
-                                                          steps=100,
-                                                          bounds_h=(-1,2.5))
+                                                          steps=50,
+                                                          bounds_h=(-1.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
-                                                          steps=100,
-                                                          bounds_h=(-2.5,1.))
+                                                          steps=50,
+                                                          bounds_h=(-1.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
@@ -365,11 +367,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
+    axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
                                                           steps=100,
-                                                          bounds_h=(-1,2.5))
+                                                          bounds_h=(-1,2.5), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
                                                           steps=100,
@@ -405,11 +408,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
+    axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
                                                           steps=100,
-                                                          bounds_h=(-1,2.5))
+                                                          bounds_h=(-1,2.5), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
                                                           steps=100,
@@ -436,10 +440,16 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    compare_continuous_discrete_rate_robin_robin(finite_volumes,
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
+    axes[1].yaxis.set_tick_params(labelbottom=True)
+    compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
-                                                          steps=60,
-                                                          bounds_h=(-2,1))
+                                                          steps=50,
+                                                          bounds_h=(-2.5,0.))
+    compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_volumes,
+                                                          T=T, number_dt_h2=1.,
+                                                          steps=50,
+                                                          bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
@@ -462,10 +472,16 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    compare_continuous_discrete_rate_robin_robin(finite_diff,
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
+    axes[1].yaxis.set_tick_params(labelbottom=True)
+    compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff,
                                                           T=T, number_dt_h2=.1,
-                                                          steps=60,
-                                                          bounds_h=(-2,1))
+                                                          steps=50,
+                                                          bounds_h=(-2.5,0.))
+    compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_diff,
+                                                          T=T, number_dt_h2=1.,
+                                                          steps=50,
+                                                          bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff_naive")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff_extra():
@@ -487,10 +503,16 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_extra():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    compare_continuous_discrete_rate_robin_robin(finite_diff_extra,
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
+    axes[1].yaxis.set_tick_params(labelbottom=True)
+    compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff_extra,
                                                           T=T, number_dt_h2=.1,
-                                                          steps=60,
-                                                          bounds_h=(-2,1))
+                                                          steps=50,
+                                                          bounds_h=(-2.5,0.))
+    compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_diff_extra,
+                                                          T=T, number_dt_h2=1.,
+                                                          steps=50,
+                                                          bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff_extra")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff():
@@ -512,10 +534,16 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff():
                                           LAMBDA_1_DEFAULT=0.,
                                           LAMBDA_2_DEFAULT=0.,
                                           DT_DEFAULT=DT_DEFAULT)
-    compare_continuous_discrete_rate_robin_robin(finite_diff,
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
+    axes[1].yaxis.set_tick_params(labelbottom=True)
+    compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff,
                                                           T=T, number_dt_h2=.1,
-                                                          steps=60,
-                                                          bounds_h=(-2,1))
+                                                          steps=50,
+                                                          bounds_h=(-2.5,0.))
+    compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_diff,
+                                                          T=T, number_dt_h2=1.,
+                                                          steps=50,
+                                                          bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff")
 
 def values_str(H1, H2, dt, T, D1, D2, a, c, number_dt_h2):
@@ -1295,8 +1323,8 @@ to_minimize_continuous_analytic_rate_robin_neumann2 = \
         FunMem(to_minimize_continuous_analytic_rate_robin_neumann)
 
 
-def compare_continuous_discrete_rate_robin_robin(
-        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2)):
+def compare_continuous_discrete_rate_robin_robin(fig, ax,
+        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2), legend=True):
     """
         We keep the ratio D*dt/(h^2) constant and we watch the
         convergence rate as h decreases.
@@ -1326,7 +1354,7 @@ def compare_continuous_discrete_rate_robin_robin(
         fun=to_minimize_continuous_analytic_rate_robin_robin2,
         x0=(0.6,0),
         args=(x, discretization, number_dt_h2, T))
-    print("Computing lambdas in discrete framework.")
+    print("Computing lambdas in continuous framework.")
     ret_continuous = list(map(func_to_map_cont, all_h))
     # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
     #    for h in all_h]
@@ -1371,35 +1399,35 @@ def compare_continuous_discrete_rate_robin_robin(
     rate_with_discrete_lambda = [max(w[2] / w[1])
             for w in rate_with_discrete_lambda]
 
-    import matplotlib.pyplot as plt
-    plt.semilogx(all_h[:len(rate_with_discrete_lambda)],
+    linedo, = ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
-                 "g",
-                 label="Observed rate with discrete optimal $\\Lambda$")
-    plt.semilogx(all_h,
+                 "g")
+    linedt, = ax.semilogx(all_h,
                  theorical_rate_discrete,
-                 "g--",
-                 label="Theorical rate with discrete optimal $\\Lambda$")
-    plt.semilogx(all_h[:len(rate_with_continuous_lambda)],
+                 "g--")
+    lineco, = ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
-                 "r",
-                 label="Observed rate with continuous optimal $\\Lambda$")
-    plt.semilogx(all_h,
+                 "r")
+    linect, = ax.semilogx(all_h,
                  theorical_cont_rate,
-                 "r--",
-                 label="Theorical rate with continuous optimal $\\Lambda$")
-    plt.xlabel("h")
-    plt.ylabel("$\\rho$")
-    plt.legend()
-    plt.title('Discrete analysis compared to continuous' +
-              ' (Robin-Robin)\n' +
-              discretization.name() +
-              ', $D\\frac{dt}{h^2}$ = ' + str(number_dt_h2)
-              )
+                 "r--")
+    if legend:
+        linedo.set_label("Observed rate with discrete optimal $\\Lambda$")
+        linedt.set_label("Theorical rate with discrete optimal $\\Lambda$")
+        lineco.set_label("Observed rate with continuous optimal $\\Lambda$")
+        linect.set_label("Theorical rate with continuous optimal $\\Lambda$")
+        fig.legend()
+
+    ax.set_xlabel("h")
+    ax.set_ylabel("$\\rho$")
+    fig.suptitle('Discrete analysis compared to continuous' +
+            ' (Robin-Robin): ' +
+              discretization.name())
+    ax.set_title('Courant number: $D\\frac{dt}{h^2}$ = ' + str(number_dt_h2))
 
 
 def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
-        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2)):
+        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2), legend=True):
     """
         We keep the ratio D*dt/(h^2) constant and we watch the
         convergence rate as h decreases.
@@ -1427,7 +1455,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
     def func_to_map_cont(x): return memoised(minimize_scalar,
         fun=to_minimize_continuous_analytic_rate_robin_neumann2,
         args=(x, discretization, number_dt_h2, T))
-    print("Computing lambdas in discrete framework.")
+    print("Computing lambdas in continuous framework.")
     ret_continuous = list(map(func_to_map_cont, all_h))
     # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
     #    for h in all_h]
@@ -1468,34 +1496,36 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
     rate_with_discrete_lambda = [max(w[2] / w[1])
             for w in rate_with_discrete_lambda]
 
-    ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
+    linedo, = ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
-                 "g",
-                 label="Observed rate with discrete optimal $\\Lambda$")
-    ax.semilogx(all_h,
+                 "g")
+    linedt, = ax.semilogx(all_h,
                  theorical_rate_discrete,
-                 "g--",
-                 label="Theorical rate with discrete optimal $\\Lambda$")
-    ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
+                 "g--")
+    lineco, = ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
-                 "r",
-                 label="Observed rate with continuous optimal $\\Lambda$")
-    ax.semilogx(all_h,
+                 "r")
+    linect, = ax.semilogx(all_h,
                  theorical_cont_rate,
-                 "r--",
-                 label="Theorical rate with continuous optimal $\\Lambda$")
+                 "r--")
+    if legend:
+        linedo.set_label("Observed rate with discrete optimal $\\Lambda$")
+        linedt.set_label("Theorical rate with discrete optimal $\\Lambda$")
+        lineco.set_label("Observed rate with continuous optimal $\\Lambda$")
+        linect.set_label("Theorical rate with continuous optimal $\\Lambda$")
+        fig.legend(loc="center left")
+
     ax.set_xlabel("h")
     ax.set_ylabel("$\\rho$")
-    fig.legend()
-    ax.set_title('Discrete analysis compared to continuous' +
-              ' (Robin-Neumann)' +
-              '\n' + discretization.name()
+    fig.suptitle('Discrete analysis compared to continuous' +
+              ' (Robin-Neumann): ' + discretization.name()
               #+', $D_1$='
               #+str(discretization.D1_DEFAULT)
               #+', $D_2$='
               #+str(discretization.D2_DEFAULT)
               #+', a=c=0'
               )
+    ax.set_title("Courant number: $\\frac{dt}{h^2}=$" + str(round(number_dt_h2, 3)))
 
 
 def fig_optimal_lambda_function_of_h():
