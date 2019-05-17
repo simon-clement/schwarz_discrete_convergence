@@ -331,9 +331,11 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
                                                           steps=50,
+                                                          number_samples=70,
                                                           bounds_h=(-1.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
+                                                          number_samples=500,
                                                           steps=50,
                                                           bounds_h=(-1.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff")
@@ -371,10 +373,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
+                                                          number_samples=70,
                                                           steps=50,
                                                           bounds_h=(-1.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
+                                                          number_samples=500,
                                                           steps=50,
                                                           bounds_h=(-1.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive")
@@ -412,10 +416,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
+                                                          number_samples=70,
                                                           steps=50,
                                                           bounds_h=(-1.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
+                                                          number_samples=500,
                                                           steps=50,
                                                           bounds_h=(-1.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr")
@@ -453,10 +459,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
+                                                          number_samples=70,
                                                           steps=50,
                                                           bounds_h=(-1.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
+                                                          number_samples=500,
                                                           steps=50,
                                                           bounds_h=(-1.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol")
@@ -485,11 +493,13 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
+                                                          number_samples=70,
                                                           steps=50,
                                                           legend=False,
                                                           bounds_h=(-2.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
+                                                          number_samples=500,
                                                           steps=50,
                                                           bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
@@ -518,11 +528,13 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff,
                                                           T=T, number_dt_h2=.1,
+                                                          number_samples=70,
                                                           steps=50,
                                                           legend=False,
                                                           bounds_h=(-2.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_diff,
                                                           T=T, number_dt_h2=1.,
+                                                          number_samples=500,
                                                           steps=50,
                                                           bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff_naive")
@@ -550,11 +562,13 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_extra():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff_extra,
                                                           T=T, number_dt_h2=.1,
+                                                          number_samples=70,
                                                           steps=50,
                                                           legend=False,
                                                           bounds_h=(-2.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_diff_extra,
                                                           T=T, number_dt_h2=1.,
+                                                          number_samples=500,
                                                           steps=50,
                                                           bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff_extra")
@@ -582,11 +596,13 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff,
                                                           T=T, number_dt_h2=.1,
+                                                          number_samples=70,
                                                           steps=50,
                                                           legend=False,
                                                           bounds_h=(-2.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_diff,
                                                           T=T, number_dt_h2=1.,
+                                                          number_samples=500,
                                                           steps=50,
                                                           bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff")
@@ -1012,7 +1028,7 @@ def fig_plot3D_function_to_minimize():
     SIZE_DOMAIN_1 = 200
     D1_DEFAULT = .6
     DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
+    finite_difference = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
                                           D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
                                           M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=400,
                                           SIZE_DOMAIN_1=SIZE_DOMAIN_1,
@@ -1268,12 +1284,14 @@ def plot_3D_profile(dis, N):
         return memoised(rate_fast,dis, N, Lambda_1=x[0], Lambda_2=x[1])
     """
 
-    fig, ax = plot_3D_square(fun, -20., 20., 1.5, subplot_param=211)
+    fig, ax = plot_3D_square(fun, 0., 8., -8., 0.,  30, subplot_param=211)
     ax.set_title("Continuous case: convergence rate ")
     fig, ax = plot_3D_square(fun_me,
-                             -20.,
-                             20.,
-                             1.5,
+                             0.,
+                             8.,
+                             -8.,
+                             0.,
+                             30,
                              fig=fig,
                              subplot_param=212)
     ax.set_title(dis.name() + " case: convergence rate")
@@ -1295,14 +1313,13 @@ def plot_3D_profile(dis, N):
 """
 
 
-def plot_3D_square(fun, bmin, bmax, step, fig=None, subplot_param=111):
+def plot_3D_square(fun, xmin, xmax, ymin, ymax, N, fig=None, subplot_param=111):
     from mpl_toolkits.mplot3d import Axes3D
     if fig is None:
         fig = plt.figure()
     ax = fig.add_subplot(subplot_param, projection='3d')
-    N = int(abs(bmin - bmax) / step)
-    X = np.ones((N, 1)) @ np.reshape(np.linspace(bmin, bmax, N), (1, N))
-    Y = np.copy(X.T)
+    X = np.ones((N, 1)) @ np.reshape(np.linspace(xmin, xmax, N), (1, N))
+    Y = (np.ones((N, 1)) @ np.reshape(np.linspace(ymin, ymax, N), (1, N))).T
     Z = np.array([[fun((x, y)) for x, y in zip(linex, liney)]
                   for linex, liney in zip(X, Y)])
     ax.plot_surface(X, Y, Z)
@@ -1371,7 +1388,7 @@ to_minimize_continuous_analytic_rate_robin_neumann2 = \
 
 
 def compare_continuous_discrete_rate_robin_robin(fig, ax,
-        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2), legend=True):
+        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2), legend=True, number_samples=500):
     """
         We keep the ratio D*dt/(h^2) constant and we watch the
         convergence rate as h decreases.
@@ -1427,7 +1444,7 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
                              M2=M2,
                              Lambda_1=optimal_continuous[i][0],
                              Lambda_2=optimal_continuous[i][1],
-                             number_samples=500,
+                             number_samples=number_samples,
                              dt=dt)
                 ]
             rate_with_discrete_lambda += [
@@ -1437,7 +1454,7 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
                          M2=M2,
                          Lambda_1=optimal_discrete[i][0],
                          Lambda_2=optimal_discrete[i][1],
-                         number_samples=500,
+                         number_samples=number_samples,
                          dt=dt)
             ]
     except:
@@ -1476,7 +1493,7 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
 
 
 def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
-        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2), legend=True):
+        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2), legend=True, number_samples=500):
     """
         We keep the ratio D*dt/(h^2) constant and we watch the
         convergence rate as h decreases.
@@ -1527,7 +1544,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
                              M1=M1,
                              M2=M2,
                              Lambda_1=optimal_continuous[i],
-                             number_samples=500,
+                             number_samples=number_samples,
                              dt=dt)
                 ]
             rate_with_discrete_lambda += [
@@ -1535,7 +1552,7 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
                          N,
                          M1=M1,
                          M2=M2,
-                         number_samples=500,
+                         number_samples=number_samples,
                          Lambda_1=optimal_discrete[i],
                          dt=dt)
             ]
