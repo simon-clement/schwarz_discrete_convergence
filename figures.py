@@ -295,12 +295,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
                                                           T=T, number_dt_h2=.1,
                                                           steps=50,
                                                           number_samples=70,
-                                                          bounds_h=(-1.5,1.), legend=False)
+                                                          bounds_h=(-2.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
                                                           number_samples=500,
                                                           steps=50,
-                                                          bounds_h=(-1.5,1.))
+                                                          bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive():
@@ -326,12 +326,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive():
                                                           T=T, number_dt_h2=.1,
                                                           number_samples=70,
                                                           steps=50,
-                                                          bounds_h=(-1.5,1.), legend=False)
+                                                          bounds_h=(-2.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
                                                           number_samples=500,
                                                           steps=50,
-                                                          bounds_h=(-1.5,1.))
+                                                          bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
@@ -357,12 +357,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
                                                           T=T, number_dt_h2=.1,
                                                           number_samples=70,
                                                           steps=50,
-                                                          bounds_h=(-1.5,1.), legend=False)
+                                                          bounds_h=(-2.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
                                                           number_samples=500,
                                                           steps=50,
-                                                          bounds_h=(-1.5,1.))
+                                                          bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr")
 
 def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
@@ -388,12 +388,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
                                                           T=T, number_dt_h2=.1,
                                                           number_samples=70,
                                                           steps=50,
-                                                          bounds_h=(-1.5,1.), legend=False)
+                                                          bounds_h=(-2.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
                                                           number_samples=500,
                                                           steps=50,
-                                                          bounds_h=(-1.5,1.))
+                                                          bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol")
 
 
@@ -728,8 +728,11 @@ def fig_plot3D_function_to_minimize():
         but we can see that both continuous and discrete analysis
         share the same global shape.
     """
-    finite_difference = DEFAULT.new(FiniteDifferencesNaiveNeumann)
-    fig = plot_3D_profile(finite_difference, DEFAULT.N)
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
+    finite_vol = DEFAULT.new(FiniteVolumes)
+    fig = plot_3D_profile((finite_difference2,finite_vol), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
 
@@ -951,52 +954,34 @@ def raw_plot(discretization, N, number_samples=1000):
     plt.ylabel("Error $\\hat{e}_0$")
     plt.legend()
 
-def plot_3D_profile(dis, N):
-    rate_fdiff = functools.partial(rate_fast, dis, N)
-    dt = dis.DT_DEFAULT
-    assert continuous_analytic_rate_robin_neumann(
-        dis, 2.3, pi / dt) - continuous_analytic_rate_robin_robin(
-            dis, 2.3, 0., pi / dt) < 1e-13
-    cont = functools.partial(continuous_analytic_rate_robin_robin, dis)
+def plot_3D_profile(all_dis, N):
+    dt = DEFAULT.DT
+
+    cont = functools.partial(continuous_analytic_rate_robin_robin, all_dis[0])
+    subplot_param = (1 + len(list(all_dis)))*100 + 11
 
     def fun(x):
         return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
                     for n in (1, N)])
 
-    def fun_me(x):
-        return max([analytic_robin_robin(dis,
-                                         Lambda_1=x[0], Lambda_2=x[1],
-                                         w=pi / (n * dt), semi_discrete=True)
-                    for n in (1, N)])
-
-    """
-    from cv_rate import rate_freq
-
-    def fun_sim(x):
-        return memoised(rate_fast,dis, N, Lambda_1=x[0], Lambda_2=x[1])
-    """
-
-    fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  30, subplot_param=211)
+    fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  100, subplot_param=subplot_param)
     ax.set_title("Continuous case: convergence rate ")
-    fig, ax = plot_3D_square(fun_me,
-                             0,
-                             4.,
-                             -4.,
-                             -0,
-                             30,
-                             fig=fig,
-                             subplot_param=212)
-    ax.set_title(dis.name() + " case: convergence rate")
+    for dis in all_dis:
+        subplot_param += 1
 
-    '''
-    fig, ax = plot_3D_square(fun_sim,
-                             -20.,
-                             20.,
-                             1.5,
-                             fig=fig,
-                             subplot_param=313)
-    ax.set_title(dis.name() + " case: convergence rate")
-    '''
+        rate_fdiff = functools.partial(rate_fast, dis, N)
+        def fun_me(x):
+            return max([analytic_robin_robin(dis,
+                                             Lambda_1=x[0], Lambda_2=x[1],
+                                             w=pi / (n * dt), semi_discrete=True)
+                        for n in (1, N)])
+
+        fig, ax = plot_3D_square(fun_me, 0, 4., -4., -0, 100, fig=fig,
+                                 subplot_param=subplot_param)
+        ax.set_ylabel("$\\Lambda^2$")
+        ax.set_title(dis.name())
+    ax.set_xlabel("$\\Lambda^1$")
+
     return fig
 
 
@@ -1010,16 +995,21 @@ def plot_3D_square(fun, xmin, xmax, ymin, ymax, N, fig=None, subplot_param=111):
     plot_colorbar = fig is None
     if fig is None:
         fig = plt.figure()
-    ax = fig.add_subplot(subplot_param, projection='3d')
+    ax = fig.add_subplot(subplot_param)
     X = np.ones((N, 1)) @ np.reshape(np.linspace(xmin, xmax, N), (1, N))
     Y = (np.ones((N, 1)) @ np.reshape(np.linspace(ymin, ymax, N), (1, N))).T
     Z = np.array([[fun((x, y)) for x, y in zip(linex, liney)]
                   for linex, liney in zip(X, Y)])
     from matplotlib import cm
-    surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm, vmin=0.2, vmax=0.6)
+    surf = ax.pcolormesh(X, Y, Z, cmap=cm.YlGnBu, vmin=0.15, vmax=0.8)
     #min=0.2, max=0.5
     if plot_colorbar:
-        fig.colorbar(surf, shrink=0.5, aspect=5)
+        fig.subplots_adjust(right=0.8, hspace=0.5)
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        cbar_ax.set_title("$\\hat{\\rho}$")
+        fig.colorbar(surf, shrink=0.5, aspect=5, cax=cbar_ax)
+
+
     return fig, ax
 
 
