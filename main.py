@@ -57,6 +57,25 @@ def main():
                     print("id does not exist. Please use one of:")
                     print(list(ALL_LABELS.keys()))
 
+        elif sys.argv[1] == "figsavepgf":
+            # Does not work yet.
+            figures.set_save_to_pgf()
+            from label_to_figure import ALL_LABELS
+            if len(sys.argv) == 2:
+                print("Please enter the id of the figure in the paper.")
+                print("The following ids are allowed:")
+                print(list(ALL_LABELS.keys()))
+            else:
+                if sys.argv[2] in ALL_LABELS:
+                    print("Function found. Plotting figure...")
+                    import matplotlib
+                    matplotlib.use('Agg')
+                    figures.all_figures[ALL_LABELS[sys.argv[2]]]()
+                else:
+                    print("id does not exist. Please use one of:")
+                    print(list(ALL_LABELS.keys()))
+
+
         #  example of use : ./main.py all_figures
         # WARNING THIS TAKES MULTIPLE HOURS IF YOUR CACHE IS EMPTY
         elif sys.argv[1] == "all_figures":

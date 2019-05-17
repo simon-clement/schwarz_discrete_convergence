@@ -25,7 +25,7 @@ def schwarz_convergence_global(discretisation):
     T = 5.
     d = .5
     t = 3.
-    dt = 0.02
+    dt = 0.2
     M1, M2 = 2000, 2000
     LENGTH = .5
 
@@ -103,7 +103,7 @@ def schwarz_convergence_global(discretisation):
     ecart = []
     np.random.seed(1)
 
-    for _ in range(300):
+    for _ in range(40):
         # random fixed false initialization:
         u1_interface = ustar_interface + np.array([np.random.random() for _ in all_times])-.5
         phi1_interface = phistar_interface + np.array([np.random.random() for _ in all_times])-.5
@@ -150,7 +150,9 @@ def schwarz_convergence_global(discretisation):
                     upper_domain=False)
                 u1_nm1 += [u1_ret]
 
-            interface_err = max(np.abs(np.fft.fft(u1_interface - ustar_interface, norm="ortho")))
+            # frequentiel :
+            #interface_err = max(np.abs(np.fft.fft(u1_interface - ustar_interface, norm="ortho")))
+            interface_err = max(np.abs(u1_interface - ustar_interface))
             all_u1_interfaces += [np.copy(u1_interface)]
             ecart[-1] += [interface_err]
             """

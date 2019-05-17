@@ -36,12 +36,39 @@ import matplotlib.pyplot as plt
 """
 all_figures = {}
 
-"""
-DONT DO things like that please:
-    all_figures["5"] = functools.partial(mu_func, 10, 100)
-just declare a figure like that:
-    fig_my_figure = functools.partial(my_func, 10, 100, ...)
-"""
+
+class Default():
+    """
+        AVOID AT ALL COST CHANGING DEFAULT : it will change all figures and invalidate all cache.
+        Remember to keep the synchronisation between this class and the PDF.
+    """
+    def __init__(self):
+        self.COURANT_NUMBER = .1
+        self.T = 100.
+        self.M1 = 200
+        self.M2 = 200
+        self.SIZE_DOMAIN_1 = 200
+        self.SIZE_DOMAIN_2 = 200
+        self.D1 = .54
+        self.D2 = .6
+        self.DT = self.COURANT_NUMBER * (self.M1 / self.SIZE_DOMAIN_1)**2 / self.D1
+        self.A = 0.
+        self.C = 1e-10
+        self.LAMBDA_1 = 0.
+        self.LAMBDA_2 = 0.
+        self.N = int(self.T/self.DT)
+
+    def new(self, Discretisation):
+        return Discretisation(A_DEFAULT=self.A, C_DEFAULT=self.C,
+                              D1_DEFAULT=self.D1, D2_DEFAULT=self.D2,
+                              M1_DEFAULT=self.M1, M2_DEFAULT=self.M2,
+                              SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,
+                              SIZE_DOMAIN_2=self.SIZE_DOMAIN_2,
+                              LAMBDA_1_DEFAULT=self.LAMBDA_1,
+                              LAMBDA_2_DEFAULT=self.LAMBDA_2,
+                              DT_DEFAULT=self.DT)
+
+DEFAULT = Default()
 
 
 def fig_rho_robin_neumann():
@@ -119,21 +146,8 @@ def fig_w5_rob_neumann_volumes():
         We can see on this figure that the min-max frequency analysis is not always
         exactly the same analysis we would do in the time domain.
     """
-    NUMBER_DDT_H2 = .1
-    T = 100.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
     import rust_mod
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
     w5_robin_neumann(finite_volumes)
     show_or_save("fig_w5_rob_neumann_volumes")
 
@@ -150,21 +164,8 @@ def fig_w5_rob_neumann_diff_extrapolation():
         We can see on this figure that the min-max frequency analysis is not always
         exactly the same analysis we would do in the time domain.
     """
-    NUMBER_DDT_H2 = .1
-    T = 100.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
     import rust_mod
-    finite_difference = FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     w5_robin_neumann(finite_difference)
     show_or_save("fig_w5_rob_neumann_diff_extrapolation")
 
@@ -181,21 +182,8 @@ def fig_w5_rob_neumann_diff_naive():
         We can see on this figure that the min-max frequency analysis is not always
         exactly the same analysis we would do in the time domain.
     """
-    NUMBER_DDT_H2 = .1
-    T = 100.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
     import rust_mod
-    finite_difference = FiniteDifferencesNaiveNeumann(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     w5_robin_neumann(finite_difference)
     show_or_save("fig_w5_rob_neumann_diff_naive")
 
@@ -212,21 +200,8 @@ def fig_w5_rob_neumann_diff():
         We can see on this figure that the min-max frequency analysis is not always
         exactly the same analysis we would do in the time domain.
     """
-    NUMBER_DDT_H2 = .1
-    T = 100.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
     import rust_mod
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferences)
     w5_robin_neumann(finite_difference)
     show_or_save("fig_w5_rob_neumann_diff")
 
@@ -263,9 +238,9 @@ def fig_schwarz_method_converging_to_full_domain_solution_global():
         the bottleneck are the low frequencies
         (where the convergence rate are all the same)
     """
-    discretizations = (FiniteDifferencesNaiveNeumann(),
-                       FiniteDifferencesNoCorrectiveTerm(),
-                       FiniteDifferences())
+    discretizations = (DEFAULT.new(FiniteDifferencesNaiveNeumann),
+                       DEFAULT.new(FiniteDifferencesNoCorrectiveTerm),
+                       DEFAULT.new(FiniteDifferences))
     colors = ['k:', 'y--', 'r']
     names = ("finite differences with naive interface",
              "finite differences with extrapolation",
@@ -278,7 +253,7 @@ def fig_schwarz_method_converging_to_full_domain_solution_global():
         ax.semilogy(errors, col, label=name)
     ax.set_title("Global in time Dirichlet-Neumann convergence of the Schwarz method")
     ax.set_xlabel("Schwarz iteration number")
-    ax.set_ylabel("$\\max_\\omega(\\hat{e})$")
+    ax.set_ylabel("$\\max_\\t(\\e)$")
     ax.legend()
     show_or_save("fig_schwarz_method_converging_to_full_domain_solution_global")
 
@@ -310,20 +285,8 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
         In the case of the finite difference with a corrective term, it is better to use the continous framework.
         This is explained in details in the PDF : the corrective term blocks the convergence of high frequencies.
     """
-    NUMBER_DDT_H2 = .1
-    T = 100.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    T = DEFAULT.T
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
@@ -355,20 +318,8 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive():
         As expected, performing the optimization in the discrete framework gives better results,
         since it is closer to reality.
     """
-    NUMBER_DDT_H2 = .1
-    T = 100.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferencesNaiveNeumann(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    T = DEFAULT.T
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
@@ -398,20 +349,8 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
         As expected, performing the optimization in the discrete framework gives better results,
         since it is closer to reality.
     """
-    NUMBER_DDT_H2 = .1
-    T = 100.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    T = DEFAULT.T
+    finite_difference = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
@@ -441,20 +380,8 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
         As expected, performing the optimization in the discrete framework gives better results,
         since it is closer to reality.
     """
-    NUMBER_DDT_H2 = .1
-    T = 100.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    T = DEFAULT.T
+    finite_volumes = DEFAULT.new(FiniteVolumes)
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_volumes,
@@ -475,20 +402,9 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
         see @fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol
         except it is in the Robin-Robin case instead of Robin-Neumann
     """
-    NUMBER_DDT_H2 = .1
+
     T = 6.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_volumes,
@@ -510,20 +426,8 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
         except it is in the Robin-Robin case instead of Robin-Neumann.
         The figure with naive discretization has not been done in Robin-Neumann, why ?
     """
-    NUMBER_DDT_H2 = .1
     T = 6.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_diff = FiniteDifferencesNaiveNeumann(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_diff = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff,
@@ -544,20 +448,8 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_extra():
         see @fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr
         except it is in the Robin-Robin case instead of Robin-Neumann
     """
-    NUMBER_DDT_H2 = .1
     T = 6.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_diff_extra = FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_diff_extra = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff_extra,
@@ -578,20 +470,8 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff():
         see @fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff
         except it is in the Robin-Robin case instead of Robin-Neumann
     """
-    NUMBER_DDT_H2 = .1
     T = 6.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_diff = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_diff = DEFAULT.new(FiniteDifferences)
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff,
@@ -632,69 +512,21 @@ def fig_what_am_i_optimizing_criblage():
         Once again, the corrective term blocks the convergence of the high frequencies:
         The best parameter we can find still has a bad value.
     """
-    NUMBER_DDT_H2 = .1
-    T = 10.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-    finite_difference_wout_corr = \
-            FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                              D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                              M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                              SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                              SIZE_DOMAIN_2=200,
-                                              LAMBDA_1_DEFAULT=0.,
-                                              LAMBDA_2_DEFAULT=0.,
-                                              DT_DEFAULT=DT_DEFAULT)
-
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    T = 10. / 7
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    finite_difference_wout_corr = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
 
     optim_by_criblage_plot((finite_difference, finite_volumes,
                             finite_difference_wout_corr),
-                           T=T/7, number_dt_h2=.1, steps=200)
+                           T=T, number_dt_h2=DEFAULT.COURANT_NUMBER, steps=200)
     show_or_save("fig_what_am_i_optimizing_criblage")
 
 
 def fig_error_interface_time_domain_profiles():
-    NUMBER_DDT_H2 = .1
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferences)
 
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-
+    finite_volumes = DEFAULT.new(FiniteVolumes)
 
     raw_plot((finite_difference, finite_volumes), 100)
     plt.title(values_str(200, -200, DT_DEFAULT, 100*DT_DEFAULT,
@@ -717,26 +549,16 @@ def fig_validation_code_frequency_error_diff1(ITERATION=0):
         guess by the theorical rate.
     """
     NUMBER_DDT_H2 = 10.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .1
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    D1 = .1
+    DT = NUMBER_DDT_H2 * (DEFAULT.M1 / DEFAULT.SIZE_DOMAIN_1)**2 / D1
+
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
+
+    finite_difference.D1_DEFAULT = D1
+    finite_volumes.D1_DEFAULT = D1
+    finite_difference.DT_DEFAULT = DT
+    finite_volumes.DT_DEFAULT = DT
 
     analysis_frequency_error((finite_difference, ), 100, iteration=ITERATION, lambda_1=1e13)
     iteration_str = "first iteration" if ITERATION==0 else "second iteration"
@@ -749,32 +571,13 @@ fig_validation_code_frequency_error_diff2 = \
                           ITERATION=1)
 
 def fig_validation_code_frequency_rate_dirichlet_neumann():
-    NUMBER_DDT_H2 = .1
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .54
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=0.,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=0.,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.6,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
 
     analysis_frequency_rate((finite_difference, finite_volumes),
                             100, lambda_1=-1e13)
-    plt.title(values_str(200, -200, DT_DEFAULT, 100*DT_DEFAULT,
-        D1_DEFAULT, .54, 0, 0, NUMBER_DDT_H2))
+    plt.title(values_str(200, -200, DEFAULT.DT, 100*DEFAULT.DT,
+        DEFAULT.D1, .54, 0, 0, DEFAULT.COURANT_NUMBER))
     show_or_save("fig_validation_code_frequency_rate_dirichlet_neumann")
 
 
@@ -863,51 +666,14 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_nonzero():
         of \\rho and changes it differently for each discretization.
         Except for degenerated case (with corrective term), it diminuish it.
     """
-    NUMBER_DDT_H2 = 1.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .54
-    D2 = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    a = .0
     c = 0.4
-    finite_difference = FiniteDifferences(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-    finite_volumes = FiniteVolumes(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-
-
-    finite_difference_wout_corr = \
-        FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-
-    finite_difference_naive = \
-        FiniteDifferencesNaiveNeumann(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
+    finite_difference_wout_corr = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
+    finite_difference_naive = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    for dis in (finite_difference, finite_volumes,
+                finite_difference_wout_corr, finite_difference_naive):
+        dis.C_DEFAULT = c
 
     analysis_frequency_rate((finite_difference, finite_volumes,
                              finite_difference_wout_corr, finite_difference_naive),
@@ -930,51 +696,10 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
         Note that the convergence rate is independant from the frequency
         in the continuous analysis.
     """
-    NUMBER_DDT_H2 = 1.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .54
-    D2 = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    a = .0
-    c = 0.0
-    finite_difference = FiniteDifferences(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-    finite_volumes = FiniteVolumes(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-
-
-    finite_difference_wout_corr = \
-        FiniteDifferencesNoCorrectiveTerm(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-
-    finite_difference_naive = \
-        FiniteDifferencesNaiveNeumann(A_DEFAULT=a, C_DEFAULT=c,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=D2,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
+    finite_difference_wout_corr = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
+    finite_difference_naive = DEFAULT.new(FiniteDifferencesNaiveNeumann)
 
     analysis_frequency_rate((finite_difference, finite_volumes,
                              finite_difference_wout_corr, finite_difference_naive),
@@ -984,34 +709,15 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
 
 
 def fig_validation_code_frequency_rate_robin_neumann():
-    NUMBER_DDT_H2 = .1
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
     T = 1000.
-    finite_difference = FiniteDifferences(A_DEFAULT=0.0, C_DEFAULT=0.,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-    finite_volumes = FiniteVolumes(A_DEFAULT=0.0, C_DEFAULT=0.,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
 
     analysis_frequency_rate((finite_difference, finite_volumes),
-                            N=int(T/DT_DEFAULT), number_samples=1350,
+                            N=int(T/DEFAULT.DT), number_samples=1350,
                             fftshift=False)
-    plt.title(values_str(200, -200, DT_DEFAULT, T,
-        D1_DEFAULT, .54, 0, 0, NUMBER_DDT_H2))
+    plt.title(values_str(200, -200, DEFAULT.DT, T,
+        DEFAULT.D1, .54, 0, 0, DEFAULT.COURANT_NUMBER))
     show_or_save("fig_validation_code_frequency_rate_robin_neumann")
 
 def fig_plot3D_function_to_minimize():
@@ -1022,22 +728,8 @@ def fig_plot3D_function_to_minimize():
         but we can see that both continuous and discrete analysis
         share the same global shape.
     """
-
-    NUMBER_DDT_H2 = .1
-    M1_DEFAULT = 400
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=400,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-    TIME_WINDOW_LEN = 10
-    fig = plot_3D_profile(finite_difference, TIME_WINDOW_LEN)
+    finite_difference = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    fig = plot_3D_profile(finite_difference, DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
 
@@ -1284,13 +976,13 @@ def plot_3D_profile(dis, N):
         return memoised(rate_fast,dis, N, Lambda_1=x[0], Lambda_2=x[1])
     """
 
-    fig, ax = plot_3D_square(fun, 0., 8., -8., 0.,  30, subplot_param=211)
+    fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  30, subplot_param=211)
     ax.set_title("Continuous case: convergence rate ")
     fig, ax = plot_3D_square(fun_me,
-                             0.,
-                             8.,
-                             -8.,
-                             0.,
+                             0,
+                             4.,
+                             -4.,
+                             -0,
                              30,
                              fig=fig,
                              subplot_param=212)
@@ -1315,6 +1007,7 @@ def plot_3D_profile(dis, N):
 
 def plot_3D_square(fun, xmin, xmax, ymin, ymax, N, fig=None, subplot_param=111):
     from mpl_toolkits.mplot3d import Axes3D
+    plot_colorbar = fig is None
     if fig is None:
         fig = plt.figure()
     ax = fig.add_subplot(subplot_param, projection='3d')
@@ -1322,7 +1015,11 @@ def plot_3D_square(fun, xmin, xmax, ymin, ymax, N, fig=None, subplot_param=111):
     Y = (np.ones((N, 1)) @ np.reshape(np.linspace(ymin, ymax, N), (1, N))).T
     Z = np.array([[fun((x, y)) for x, y in zip(linex, liney)]
                   for linex, liney in zip(X, Y)])
-    ax.plot_surface(X, Y, Z)
+    from matplotlib import cm
+    surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm, vmin=0.2, vmax=0.6)
+    #min=0.2, max=0.5
+    if plot_colorbar:
+        fig.colorbar(surf, shrink=0.5, aspect=5)
     return fig, ax
 
 
@@ -1604,31 +1301,12 @@ def fig_optimal_lambda_function_of_h():
         The difference is greater with the finite difference scheme because
         the corrective term used damp the convergence rate in high frequencies.
     """
-    NUMBER_DDT_H2 = .1
-    T = 10.
-    M1_DEFAULT = 200
-    SIZE_DOMAIN_1 = 200
-    D1_DEFAULT = .6
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-    finite_difference = FiniteDifferences(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
+    finite_difference = DEFAULT.new(FiniteDifferences)
+    finite_volumes = DEFAULT.new(FiniteVolumes)
+    N = DEFAULT.N
+    # it was N=100
 
-    finite_volumes = FiniteVolumes(A_DEFAULT=0., C_DEFAULT=1e-10,
-                                          D1_DEFAULT=D1_DEFAULT, D2_DEFAULT=.54,
-                                          M1_DEFAULT=M1_DEFAULT, M2_DEFAULT=200,
-                                          SIZE_DOMAIN_1=SIZE_DOMAIN_1,
-                                          SIZE_DOMAIN_2=200,
-                                          LAMBDA_1_DEFAULT=0.,
-                                          LAMBDA_2_DEFAULT=0.,
-                                          DT_DEFAULT=DT_DEFAULT)
-
-    optimal_function_of_h((finite_difference, finite_volumes), 100)
+    optimal_function_of_h((finite_difference, finite_volumes), N)
     show_or_save("fig_optimal_lambda_function_of_h")
 
 
@@ -1815,7 +1493,12 @@ def set_save_to_png():
     global SAVE_TO_PNG
     SAVE_TO_PNG = True
 
+def set_save_to_pgf():
+    global SAVE_TO_PGF
+    SAVE_TO_PGF = True
+
 SAVE_TO_PNG = False
+SAVE_TO_PGF = False
 def show_or_save(name_func):
     name_fig = name_func[4:]
     directory = "figures_out/"
@@ -1824,6 +1507,11 @@ def show_or_save(name_func):
         import os
         os.makedirs(directory, exist_ok=True)
         plt.savefig(directory + name_fig + '.png')
+    elif SAVE_TO_PGF:
+        print("exporting to directory " + directory)
+        import os
+        os.makedirs(directory, exist_ok=True)
+        plt.savefig(directory + name_fig + '.pgf')
     else:
         try:
             import matplotlib as mpl
