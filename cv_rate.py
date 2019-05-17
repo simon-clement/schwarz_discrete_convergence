@@ -386,7 +386,7 @@ def raw_simulation(discretization, N, number_samples=1000, **kwargs):
         return np.mean(np.abs(errors), axis=0)
 
 
-def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
+def frequency_simulation(discretization, N, number_samples=100, **kwargs):
     """
         Simulate and returns directly errors in frequencial domain.
         number_samples simulations are done to have
@@ -409,7 +409,7 @@ def frequency_simulation(discretization, N, number_samples=1000, **kwargs):
                "Going to pure python (but it will take some time)")
         return frequency_simulation_slow(discretization, N, number_samples, **kwargs)
 
-def frequency_simulation_slow(discretization, N, number_samples=1000, **kwargs):
+def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
     """
         See @frequency_simulation.
         This function can be used if you are not sure of the results of the rust module.
@@ -420,7 +420,7 @@ def frequency_simulation_slow(discretization, N, number_samples=1000, **kwargs):
     from numpy.fft import fft, fftshift
     to_map = functools.partial(interface_errors, discretization, N,
                                **kwargs)
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ProcessPoolExecutor() as executor:
         errors = np.array(list(executor.map(to_map,
                                             range(number_samples))))
     freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))
