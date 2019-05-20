@@ -253,7 +253,7 @@ def fig_schwarz_method_converging_to_full_domain_solution_global():
         ax.semilogy(errors, col, label=name)
     ax.set_title("Global in time Dirichlet-Neumann convergence of the Schwarz method")
     ax.set_xlabel("Schwarz iteration number")
-    ax.set_ylabel("$\\max_\\t(\\e)$")
+    ax.set_ylabel("$\\max_\\t(e)$")
     ax.legend()
     show_or_save("fig_schwarz_method_converging_to_full_domain_solution_global")
 
