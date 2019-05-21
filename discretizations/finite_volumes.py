@@ -622,7 +622,7 @@ class FiniteVolumes(Discretization):
         return D1, D2
 
     def name(self):
-        return "finite volumes"
+        return "Volumes finis"
 
     def repr(self):
         return "finite volumes"

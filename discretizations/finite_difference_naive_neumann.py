@@ -555,7 +555,7 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         return D1, D2
 
     def name(self):
-        return "finite differences, naive interface"
+        return "Différences finies : interface naïve "
 
     def repr(self):
         return "finite differences, naive interface"

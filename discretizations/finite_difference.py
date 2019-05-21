@@ -558,7 +558,7 @@ class FiniteDifferences(Discretization):
         return D1, D2
 
     def name(self):
-        return "finite differences"
+        return "Différences finies : terme correctif"
 
     def repr(self):
         return "finite differences"

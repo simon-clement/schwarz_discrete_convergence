@@ -563,7 +563,7 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         return D1, D2
 
     def name(self):
-        return "finite differences, extrapolated"
+        return "Différences finies : flux extrapolé"
 
     def repr(self):
         return "finite differences, no corrective term"
