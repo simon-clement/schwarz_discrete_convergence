@@ -1453,7 +1453,7 @@ def beauty_graph_finite(discretization,
                1,
                "k",
                'dashed',
-               label='optimal $\\Lambda$ (continuous analysis)')
+               label='$\\Lambda$ optimal (analyse continue)')
     rho = []
     for logt in np.arange(0, 25):
         t = dt * 2.**logt
