@@ -218,8 +218,8 @@ def w5_robin_neumann(discretization):
     to_map = functools.partial(beauty_graph_finite, discretization,
                                lambda_min, lambda_max, steps)
         
-    to_map(courant_numbers[0], fig, axes[0])
-    to_map(courant_numbers[1], fig, axes[1])
+    to_map(courant_numbers[0], fig, axes[0], legend=False)
+    to_map(courant_numbers[1], fig, axes[1], legend=True)
     """
     import concurrent.futures
     with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -1380,7 +1380,7 @@ def beauty_graph_finite(discretization,
                         lambda_max,
                         steps,
                         courant_number,
-                        fig, ax,
+                        fig, ax, legend,
                         **kwargs):
     PARALLEL = True
     LAMBDA_2_DEFAULT = discretization.LAMBDA_2_DEFAULT
@@ -1436,24 +1436,16 @@ def beauty_graph_finite(discretization,
                                                              axis=0)
     best_analytic = lambda_1[np.argmin(max_rho)]
 
-    ax.fill_between(lambda_1,
+    filled = ax.fill_between(lambda_1,
                      min_rho,
                      max_rho,
-                     facecolor="green",
-                     label="$\\hat{\\rho}$ : pi/T < |w| < pi/dt")
-    # ax.vlines(best_analytic,
-    #            0,
-    #            1,
-    #            "g",
-    #            'dashed',
-    #            label='best $\\Lambda$ with frequency analysis')
+                     facecolor="green")
 
-    ax.vlines(continuous_best_lam,
+    vline = ax.vlines(continuous_best_lam,
                0,
                1,
                "k",
-               'dashed',
-               label='$\\Lambda$ optimal (analyse continue)')
+               'dashed')
     rho = []
     for logt in np.arange(0, 25):
         t = dt * 2.**logt
@@ -1480,33 +1472,25 @@ def beauty_graph_finite(discretization,
     best_linf_norm = x[np.argmin(np.array(list(rate_f)))]
     print("> Starting minimization in L2 norm.")
     best_L2_norm = x[np.argmin(np.array(list(rate_f_L2)))]
-    ax.plot(x,
+    l2line, = ax.plot(x,
              list(rate_f_L2),
-             "b",
-             label=discretization.name() + ", norme $L^2$")
-    # ax.vlines(best_L2_norm,
-    #            0,
-    #            1,
-    #            "b",
-    #            'dashed',
-    #            label='best $\\Lambda$ for $L^2$')
-    ax.plot(x,
+             "b")
+    linfline, = ax.plot(x,
              list(rate_f),
-             "r",
-             label=discretization.name() + ", norme $L^\\infty$")
-    # ax.vlines(best_linf_norm,
-    #            0,
-    #            1,
-    #            "r",
-    #            'dashed',
-    #            label='best $\\Lambda$ for $L^\\infty$')
+             "r")
 
     ax.set_xlabel("$\\Lambda^1$")
     ax.set_ylabel("$\\hat{\\rho}$")
 
     ax.set_title("Nombre de Courant : $D\\frac{dt}{h^2} = " + str(courant_number)+"$")
 
-    ax.legend()
+    if legend:
+        filled.set_label("$\\hat{\\rho}$ : pi/T < |w| < pi/dt")
+        l2line.set_label(discretization.name() + ", norme $L^2$")
+        linfline.set_label(discretization.name() + ", norme $L^\\infty$")
+        vline.set_label('$\\Lambda$ optimal (analyse continue)')
+
+    fig.legend(loc="lower center")
 
 def set_save_to_png():
     global SAVE_TO_PNG
