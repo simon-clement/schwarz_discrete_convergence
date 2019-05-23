@@ -208,7 +208,7 @@ def fig_w5_rob_neumann_diff():
 
 def w5_robin_neumann(discretization):
     lambda_min = 1e-9
-    lambda_max = 10
+    lambda_max = 5
     steps = 100
     courant_numbers = [0.1, 1.]
     import matplotlib.pyplot as plt
