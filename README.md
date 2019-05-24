@@ -10,7 +10,7 @@ The diffusion equations may have variable coefficients (in space) and non-unifor
 ```
 You can check your install is correct:
 ```
-    ./cv_rate.py test
+    ./main.py test
 ```
 
 You may need to install scipy to make it work:
@@ -25,14 +25,10 @@ You may be asked for sudo password because of the multiples installations.
 
 The script can be launched with
 ```
-    ./cv_rate.py [ARG]
-```
-Or
-```
     ./main.py [ARG]
 ```
 
-Where ARG is one of the arguments {test, figure, clean, figname, figsave}.
+Where ARG is one of the arguments {test, figure, figsave, figname, clean}.
 
 ### Use the code
 To make a figure that is inside the pdf, just use the argument figure:
@@ -52,6 +48,11 @@ The file "label\_to\_figure.py" gives the map between the id of the figure and t
 Any function in the "figures.py" prefixed by "fig\_" can be executed the following way:
 ```
     ./main.py figname fig_plot3D_function_to_minimize #  will execute the so-called function
+```
+
+Almost every computation goes to a persistent cache on the disk. If you change something in the computations, you might need to run:
+```
+    ./main.py clean
 ```
 
 
