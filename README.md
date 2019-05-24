@@ -23,11 +23,6 @@ Or simply (Ubuntu systems):
 ```
 You may be asked for sudo password because of the multiples installations.
 
-You can add this line to your "~/.bashrc":
-```
-    complete -W "figure figname clean test" ./cv_rate.py
-```
-
 The script can be launched with
 ```
     ./cv_rate.py [ARG]
@@ -37,15 +32,27 @@ Or
     ./main.py [ARG]
 ```
 
-Where ARG is one of the arguments {test, debug, figure, clean, figname}.
+Where ARG is one of the arguments {test, figure, clean, figname, figsave}.
 
 ### Use the code
 To make a figure that is inside the pdf, just use the argument figure:
 example:
 ```
-    ./cv_rate.py figure 2.3
+    ./main.py figure 2.3
 ```
 will reproduce the figure 2.3.
+
+To export it, you can use:
+```
+    ./main.py figsave 2.3
+```
+
+The file "label\_to\_figure.py" gives the map between the id of the figure and the name of the function. The function is then inside the module "figures.py".
+
+Any function in the "figures.py" prefixed by "fig\_" can be executed the following way:
+```
+    ./main.py figname fig_plot3D_function_to_minimize #  will execute the so-called function
+```
 
 
 ### Dependencies for the fast versions
