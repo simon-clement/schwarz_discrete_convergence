@@ -1400,18 +1400,18 @@ def beauty_graph_finite(discretization,
     DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
     # should not be too different from the value with M2, Size_domain2, and D2
     TIME_WINDOW_LEN_DEFAULT = int(T / DT_DEFAULT)
-    rate_func = functools.partial(cv_rate.rate_slow, discretization,
+    rate_func = functools.partial(cv_rate.rate_freq_slow, discretization,
                                   TIME_WINDOW_LEN_DEFAULT,
                                   seeds = range(100),
                                   **kwargs)
-    rate_func_normL2 = functools.partial(cv_rate.rate_slow,
+    rate_func_normL2 = functools.partial(cv_rate.rate_freq_slow,
                                          discretization,
                                          TIME_WINDOW_LEN_DEFAULT,
                                          function_to_use=np.linalg.norm,
                                          seeds = range(100),
                                          **kwargs)
-    rate_func.__name__ = "bgf_rate_func" + discretization.repr() + str(TIME_WINDOW_LEN_DEFAULT)
-    rate_func_normL2.__name__ = "bgf_rate_func_normL2" + discretization.repr() + str(TIME_WINDOW_LEN_DEFAULT)
+    rate_func.__name__ = "bgf_rate_func_freq" + discretization.repr() + str(TIME_WINDOW_LEN_DEFAULT)
+    rate_func_normL2.__name__ = "bgf_rate_func_normL2_freq" + discretization.repr() + str(TIME_WINDOW_LEN_DEFAULT)
 
     from scipy.optimize import minimize_scalar, minimize
 

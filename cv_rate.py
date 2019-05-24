@@ -301,6 +301,7 @@ def rate_freq(discretization,
         a fft is done to consider errors in frequencial domain.
     """
     try:
+        raise
         import rust_mod
         errors = rust_mod.errors_raw(discretization,
                                  N,
@@ -314,35 +315,66 @@ def rate_freq(discretization,
                                  number_seeds=len(list(seeds)),
                                  function_D1=None,
                                  function_D2=None)
+        from numpy.fft import fft, fftshift
+        freq_err = fftshift(fft(errors, norm="ortho", axis=-1), axes=(-1, ))
+
+        errors = np.mean(np.abs(freq_err), axis=0)
+        return function_to_use(errors[2]) / function_to_use(errors[1])
     except BaseException:
-        PARALLEL = False
-        print("Cannot use rate_fast. Did you compile rust module ?" +
-              "Using pure python...")
-        errors = None
-        to_map = functools.partial(rate_one_seed,
-                                   discretization,
-                                   N,
-                                   function_to_use=function_to_use,
-                                   Lambda_1=Lambda_1,
-                                   Lambda_2=Lambda_2,
-                                   a=a,
-                                   c=c,
-                                   dt=dt,
-                                   M1=M1,
-                                   M2=M2)
-        if PARALLEL:
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                errors = list(executor.map(to_map, seeds))
-        else:
-            errors = list(map(to_map, seeds))
+        return rate_freq_slow(discretization,
+                              N,
+                              Lambda_1,
+                              Lambda_2,
+                              a,
+                              c,
+                              dt,
+                              M1,
+                              M2,
+                              function_to_use,
+                              seeds)
+
+def rate_freq_slow(discretization,
+                   N,
+                   Lambda_1=None,
+                   Lambda_2=None,
+                   a=None,
+                   c=None,
+                   dt=None,
+                   M1=None,
+                   M2=None,
+                   function_to_use=lambda x: max(np.abs(x)),
+                   seeds=range(100)):
+    """
+        See @rate_slow.
+        It is the same but the rate is computed from the frequencial errors:
+        a fft is done to consider errors in frequencial domain.
+    """
+    PARALLEL = False
+    print("Using rate_freq_slow...")
+    errors = None
+    to_map = functools.partial(rate_one_seed,
+                               discretization,
+                               N,
+                               function_to_use=function_to_use,
+                               Lambda_1=Lambda_1,
+                               Lambda_2=Lambda_2,
+                               a=a,
+                               c=c,
+                               dt=dt,
+                               M1=M1,
+                               M2=M2)
+    if PARALLEL:
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            errors = list(executor.map(to_map, seeds))
+    else:
+        errors = list(map(to_map, seeds))
 
     from numpy.fft import fft, fftshift
     freq_err = fftshift(fft(errors, norm="ortho", axis=-1), axes=(-1, ))
 
     errors = np.mean(np.abs(freq_err), axis=0)
     return function_to_use(errors[2]) / function_to_use(errors[1])
-
 
 def rate_one_seed(discretization, N, seed, function_to_use=max, **kwargs):
     """

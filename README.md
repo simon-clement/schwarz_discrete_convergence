@@ -3,7 +3,6 @@
 This repository is the main code of my MCS thesis, where the aim is to analyze transparent boundary conditions
 (TBC) of a coupled system formed by 1D diffusion equations.
 The diffusion equations may have variable coefficients (in space) and non-uniform discretization.
-There is an accelerated version written in Rust in a submodule. The accelerated part should only work on unix systems and has additional dependencies: everything works without it, but the pure Python version is ~10 times slower.
 
 ### Install the repository:
 ```
@@ -50,6 +49,7 @@ will reproduce the figure 2.3.
 
 
 ### Dependencies for the fast versions
+There is an accelerated version written in Rust in a submodule. The accelerated part should only work on unix systems and has additional dependencies: everything works without it, but the pure Python version is ~10 times slower. The results with the rust version appear to have a greater variance. It may be better to avoid using it. 
 All dependencies can be satisfied with the setup script (Ubuntu systems):
 ```
     ./setup.py
