@@ -764,7 +764,7 @@ def fig_plot3D_function_to_minimize():
     finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_vol = DEFAULT.new(FiniteVolumes)
-    fig = plot_3D_profile((finite_difference2,finite_vol), DEFAULT.N)
+    fig = plot_3D_profile((finite_difference, finite_difference2, finite_difference3,finite_vol), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
 
@@ -994,7 +994,7 @@ def plot_3D_profile(all_dis, N):
         return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
                     for n in (1, N)])
 
-    fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  100, subplot_param=subplot_param)
+    fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  500, 100, subplot_param=subplot_param)
     ax.set_title("Taux de convergence : analyse continue")
     ax.set_ylabel("$\\Lambda^2$")
     for dis in all_dis:
@@ -1007,7 +1007,7 @@ def plot_3D_profile(all_dis, N):
                                              w=pi / (n * dt), semi_discrete=True)
                         for n in (1, N)])
 
-        fig, ax = plot_3D_square(fun_me, 0, 4., -4., -0, 100, fig=fig,
+        fig, ax = plot_3D_square(fun_me, 0, 4., -4., -0, 500, 100, fig=fig,
                                  subplot_param=subplot_param)
         ax.set_ylabel("$\\Lambda^2$")
         ax.set_title(dis.name())
@@ -1016,23 +1016,61 @@ def plot_3D_profile(all_dis, N):
     return fig
 
 
+def reverse_colourmap(cmap, name = 'my_cmap_r'):
+    import matplotlib as mpl
+    """
+    In: 
+    cmap, name 
+    Out:
+    my_cmap_r
+
+    Explanation:
+    t[0] goes from 0 to 1
+    row i:   x  y0  y1 -> t[0] t[1] t[2]
+                   /
+                  /
+    row i+1: x  y0  y1 -> t[n] t[1] t[2]
+
+    so the inverse should do the same:
+    row i+1: x  y1  y0 -> 1-t[0] t[2] t[1]
+                   /
+                  /
+    row i:   x  y1  y0 -> 1-t[n] t[2] t[1]
+    """        
+    reverse = []
+    k = []   
+
+    for key in cmap._segmentdata:
+        k.append(key)
+        channel = cmap._segmentdata[key]
+        data = []
+
+        for t in channel:
+            data.append((1-t[0],t[2],t[1]))
+        reverse.append(sorted(data))
+
+    LinearL = dict(zip(k,reverse))
+    my_cmap_r = mpl.colors.LinearSegmentedColormap(name, LinearL)
+    return my_cmap_r
+
 """
     fun must take a tuple of two parameters.
 """
 
 
-def plot_3D_square(fun, xmin, xmax, ymin, ymax, N, fig=None, subplot_param=111):
+def plot_3D_square(fun, xmin, xmax, ymin, ymax, Nx, Ny, fig=None, subplot_param=111):
     from mpl_toolkits.mplot3d import Axes3D
     plot_colorbar = fig is None
     if fig is None:
-        fig = plt.figure()
+        fig = plt.figure(figsize=[6.4 , 4.8*2])
     ax = fig.add_subplot(subplot_param)
-    X = np.ones((N, 1)) @ np.reshape(np.linspace(xmin, xmax, N), (1, N))
-    Y = (np.ones((N, 1)) @ np.reshape(np.linspace(ymin, ymax, N), (1, N))).T
+    X = np.ones((Ny, 1)) @ np.reshape(np.linspace(xmin, xmax, Nx), (1, Nx))
+    Y = (np.ones((Nx, 1)) @ np.reshape(np.linspace(ymin, ymax, Ny), (1, Ny))).T
     Z = np.array([[fun((x, y)) for x, y in zip(linex, liney)]
                   for linex, liney in zip(X, Y)])
     from matplotlib import cm
-    surf = ax.pcolormesh(X, Y, Z, cmap=cm.YlGnBu, vmin=0.15, vmax=0.8)
+    cmap = reverse_colourmap(cm.YlGnBu)
+    surf = ax.pcolormesh(X, Y, Z, cmap=cmap, vmin=.15, vmax=.8)
     #min=0.2, max=0.5
     if plot_colorbar:
         fig.subplots_adjust(right=0.8, hspace=0.5)
@@ -1284,10 +1322,10 @@ def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
 
     linedo, = ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
-                 "g")
+                 "g", linewidth=2.5)
     linedt, = ax.semilogx(all_h,
                  theorical_rate_discrete,
-                 "g--")
+                 "g--", linewidth=2.5)
     lineco, = ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
                  "r")
@@ -1375,6 +1413,35 @@ def optimal_function_of_h(discretizations, N):
     plt.ylabel("$\\Lambda$ optimal")
 
 
+def fig_contour_advection():
+    N = 1000
+    fig, ax = plt.subplots(1,1,figsize=[6.4 , 4.8])
+    xmin, xmax = 0, 0.75
+    ymin, ymax = 0, 2
+
+    def function_to_plot(aw_h, Dw_h2):
+        return np.clip(np.abs(1+((-1/2) + np.sqrt(Dw_h2*1j + 1/12 + aw_h**2))/ ((1/6) - Dw_h2*1j + aw_h*1j)), 0, 1.2)
+    from mpl_toolkits.mplot3d import Axes3D
+    plot_colorbar = fig is None
+    X = np.ones((N, 1)) @ np.reshape(np.linspace(xmin, xmax, N), (1, N))
+    Y = (np.ones((N, 1)) @ np.reshape(np.linspace(ymin, ymax, N), (1, N))).T
+    Z = np.array([[function_to_plot(x, y) for x, y in zip(linex, liney)]
+                  for linex, liney in zip(X, Y)])
+    from matplotlib import cm
+
+    cmap = reverse_colourmap(cm.YlGnBu)
+    surf = ax.pcolormesh(X, Y, Z, cmap=cmap)
+    ax.contour(X, Y, Z, levels=[1])
+    #min=0.2, max=0.5
+    fig.subplots_adjust(right=0.8, hspace=0.5)
+    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    cbar_ax.set_title("$|\\lambda^{FV}_{-}|$")
+    ax.set_xlabel("$\\frac{a\\omega}{h}$")
+    ax.set_ylabel("$\\frac{D\\omega}{h^2}$")
+    fig.colorbar(surf, shrink=0.5, aspect=5, cax=cbar_ax)
+    show_or_save("fig_contour_advection")
+
+
 def beauty_graph_finite(discretization,
                         lambda_min,
                         lambda_max,
@@ -1439,7 +1506,7 @@ def beauty_graph_finite(discretization,
     filled = ax.fill_between(lambda_1,
                      min_rho,
                      max_rho,
-                     facecolor="green")
+                     facecolor="green", alpha=0.3)
 
     vline = ax.vlines(continuous_best_lam,
                0,
@@ -1477,7 +1544,7 @@ def beauty_graph_finite(discretization,
              "b")
     linfline, = ax.plot(x,
              list(rate_f),
-             "r")
+             "r", linewidth=2.5)
 
     ax.set_xlabel("$\\Lambda^1$")
     ax.set_ylabel("$\\hat{\\rho}$")
