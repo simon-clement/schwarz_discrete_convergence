@@ -733,10 +733,9 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
     for dis in (finite_difference, finite_volumes, finite_difference_wout_corr, finite_difference_naive):
         dis.DT_DEFAULT *= 10
 
-    analysis_frequency_rate((finite_difference, finite_volumes,
-                             finite_difference_wout_corr, finite_difference_naive),
+    analysis_frequency_rate((finite_difference_naive,),
                             1000, lambda_1=-1e13)
-    plt.title("Taux de convergence : interface \"Dirichlet Neumann\"")
+    plt.title("Convergence rate : \"Dirichlet Neumann\" transmission operators")
     show_or_save("fig_frequency_rate_dirichlet_neumann_comparison_c_zero")
 
 
@@ -764,7 +763,7 @@ def fig_plot3D_function_to_minimize():
     finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_vol = DEFAULT.new(FiniteVolumes)
-    fig = plot_3D_profile((finite_difference, finite_difference2, finite_difference3,finite_vol), DEFAULT.N)
+    fig = plot_3D_profile((finite_difference2, ), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
 
@@ -938,10 +937,10 @@ def analysis_frequency_rate(discretization, N,
     lsemi = Line2D([0], [0], color="k", linestyle=":")
 
     ax.set_xlabel("$\\omega$")
-    ax.set_ylabel("Taux de convergence $\\hat{\\rho}$")
+    ax.set_ylabel("Convergence rate $\\hat{\\rho}$")
     plt.legend((lsimu, lsemi, lfull, lcont),
-               ('Simulation', 'Semi-discret (théorique)',
-                'Discret (théorique)', 'Continu (théorique)'), loc='center right')
+               ('Simulation', 'Semi-discrete (theoric)',
+                'Discrete (theoric)', 'Continuous (theoric)'), loc='center right')
 
 
 def raw_plot(discretization, N, number_samples=1000):
@@ -995,7 +994,7 @@ def plot_3D_profile(all_dis, N):
                     for n in (1, N)])
 
     fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  500, 100, subplot_param=subplot_param)
-    ax.set_title("Taux de convergence : analyse continue")
+    ax.set_title("Convergence rate : continuous analysis")
     ax.set_ylabel("$\\Lambda^2$")
     for dis in all_dis:
         subplot_param += 1
@@ -1062,7 +1061,7 @@ def plot_3D_square(fun, xmin, xmax, ymin, ymax, Nx, Ny, fig=None, subplot_param=
     from mpl_toolkits.mplot3d import Axes3D
     plot_colorbar = fig is None
     if fig is None:
-        fig = plt.figure(figsize=[6.4 , 4.8*2])
+        fig = plt.figure(figsize=[6.4 , 4.8])
     ax = fig.add_subplot(subplot_param)
     X = np.ones((Ny, 1)) @ np.reshape(np.linspace(xmin, xmax, Nx), (1, Nx))
     Y = (np.ones((Nx, 1)) @ np.reshape(np.linspace(ymin, ymax, Ny), (1, Ny))).T
@@ -1234,18 +1233,18 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
                  theorical_cont_rate,
                  "r--")
     if legend:
-        linedo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret")
-        linedt.set_label("Taux théorique avec $\\Lambda$ optimal semi-discret")
-        lineco.set_label("Taux observé avec $\\Lambda$ optimal continu")
-        linect.set_label("Taux théorique avec $\\Lambda$ optimal continu")
+        linedo.set_label("Observed rate with $\\Lambda$ given by discrete analysis")
+        linedt.set_label("Theoric rate with $\\Lambda$ given by discrete analysis")
+        lineco.set_label("Observed rate with $\\Lambda$ given by continuous analysis")
+        linect.set_label("Observed rate with $\\Lambda$ given by continuous analysis")
         fig.legend(loc="center left")
 
     ax.set_xlabel("h")
     ax.set_ylabel("$\\hat{\\rho}$")
-    fig.suptitle('Comparaison des analyses semi-discrètes et continues' +
+    fig.suptitle('Comparison of discrete and continuous analysis' +
             ' (Robin-Robin), ' +
               discretization.name())
-    ax.set_title('Nombre de Courant : $D_1\\frac{dt}{h^2}$ = ' + str(number_dt_h2))
+    ax.set_title('Courant number : $D_1\\frac{dt}{h^2}$ = ' + str(number_dt_h2))
 
 
 def error_by_taking_continuous_rate_constant_number_dt_h2(fig, ax,
