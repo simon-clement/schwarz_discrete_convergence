@@ -52,6 +52,7 @@ def memoised(func_to_memoise, *args_mem, **kwargs_mem):
     fun = func_to_memoise
     import os
     filename_dict = INDEX_NAME + "_" + fun.__name__ + ".npy"
+    print(filename_dict)
     try:
         dic = np.load(filename_dict, allow_pickle=True)[()]
     except IOError:  # there is no index yet !

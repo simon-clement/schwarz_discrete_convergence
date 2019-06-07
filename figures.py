@@ -733,7 +733,7 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
     for dis in (finite_difference, finite_volumes, finite_difference_wout_corr, finite_difference_naive):
         dis.DT_DEFAULT *= 10
 
-    analysis_frequency_rate((finite_difference_naive,),
+    analysis_frequency_rate((finite_difference_naive, finite_volumes),
                             1000, lambda_1=-1e13)
     plt.title("Convergence rate : \"Dirichlet Neumann\" transmission operators")
     show_or_save("fig_frequency_rate_dirichlet_neumann_comparison_c_zero")
@@ -763,7 +763,7 @@ def fig_plot3D_function_to_minimize():
     finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_vol = DEFAULT.new(FiniteVolumes)
-    fig = plot_3D_profile((finite_difference2, ), DEFAULT.N)
+    fig = plot_3D_profile((finite_difference2, finite_vol), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
 
@@ -936,7 +936,7 @@ def analysis_frequency_rate(discretization, N,
     lsimu = Line2D([0], [0], color="k")
     lsemi = Line2D([0], [0], color="k", linestyle=":")
 
-    ax.set_xlabel("$\\omega$")
+    ax.set_xlabel("$s$")
     ax.set_ylabel("Convergence rate $\\hat{\\rho}$")
     plt.legend((lsimu, lsemi, lfull, lcont),
                ('Simulation', 'Semi-discrete (theoric)',
@@ -1061,13 +1061,50 @@ def plot_3D_square(fun, xmin, xmax, ymin, ymax, Nx, Ny, fig=None, subplot_param=
     from mpl_toolkits.mplot3d import Axes3D
     plot_colorbar = fig is None
     if fig is None:
-        fig = plt.figure(figsize=[6.4 , 4.8])
+        fig = plt.figure(figsize=[6.4 , 4.8*1.3])
     ax = fig.add_subplot(subplot_param)
     X = np.ones((Ny, 1)) @ np.reshape(np.linspace(xmin, xmax, Nx), (1, Nx))
     Y = (np.ones((Nx, 1)) @ np.reshape(np.linspace(ymin, ymax, Ny), (1, Ny))).T
     Z = np.array([[fun((x, y)) for x, y in zip(linex, liney)]
                   for linex, liney in zip(X, Y)])
     from matplotlib import cm
+    import matplotlib as mpl
+    def reverse_colourmap(cmap, name = 'my_cmap_r'):
+        """
+        In: 
+        cmap, name 
+        Out:
+        my_cmap_r
+
+        Explanation:
+        t[0] goes from 0 to 1
+        row i:   x  y0  y1 -> t[0] t[1] t[2]
+                       /
+                      /
+        row i+1: x  y0  y1 -> t[n] t[1] t[2]
+
+        so the inverse should do the same:
+        row i+1: x  y1  y0 -> 1-t[0] t[2] t[1]
+                       /
+                      /
+        row i:   x  y1  y0 -> 1-t[n] t[2] t[1]
+        """        
+        reverse = []
+        k = []   
+
+        for key in cmap._segmentdata:    
+            k.append(key)
+            channel = cmap._segmentdata[key]
+            data = []
+
+            for t in channel:                    
+                data.append((1-t[0],t[2],t[1]))            
+            reverse.append(sorted(data))    
+
+        LinearL = dict(zip(k,reverse))
+        my_cmap_r = mpl.colors.LinearSegmentedColormap(name, LinearL) 
+        return my_cmap_r
+
     cmap = reverse_colourmap(cm.YlGnBu)
     surf = ax.pcolormesh(X, Y, Z, cmap=cmap, vmin=.15, vmax=.8)
     #min=0.2, max=0.5
@@ -1222,10 +1259,10 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
 
     linedo, = ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
-                 "g")
+                 "g", linewidth=2.5)
     linedt, = ax.semilogx(all_h,
                  theorical_rate_discrete,
-                 "g--")
+                 "g--", linewidth=2.5)
     lineco, = ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
                  "r")
