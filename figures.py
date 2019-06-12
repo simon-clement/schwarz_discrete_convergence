@@ -1271,14 +1271,14 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
                  "r--")
     if legend:
         linedo.set_label("Observed rate with $\\Lambda$ given by discrete analysis")
-        linedt.set_label("Theoric rate with $\\Lambda$ given by discrete analysis")
+        linedt.set_label("Theoretical rate with $\\Lambda$ given by discrete analysis")
         lineco.set_label("Observed rate with $\\Lambda$ given by continuous analysis")
-        linect.set_label("Observed rate with $\\Lambda$ given by continuous analysis")
-        fig.legend(loc="center left")
+        linect.set_label("Theoretical rate with $\\Lambda$ given by continuous analysis")
+        fig.legend(loc="lower center")
 
     ax.set_xlabel("h")
     ax.set_ylabel("$\\hat{\\rho}$")
-    fig.suptitle('Comparison of discrete and continuous analysis' +
+    fig.suptitle('Comparison of discrete and continuous analyses' +
             ' (Robin-Robin), ' +
               discretization.name())
     ax.set_title('Courant number : $D_1\\frac{dt}{h^2}$ = ' + str(number_dt_h2))
