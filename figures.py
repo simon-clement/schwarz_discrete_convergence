@@ -764,7 +764,7 @@ def fig_plot3D_function_to_minimize():
     finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_vol = DEFAULT.new(FiniteVolumes)
-    fig = plot_3D_profile((finite_difference, finite_difference2, finite_difference3,finite_vol), DEFAULT.N)
+    fig = plot_3D_profile((finite_difference2, ), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
 
@@ -988,15 +988,40 @@ def plot_3D_profile(all_dis, N):
     dt = DEFAULT.DT
 
     cont = functools.partial(continuous_analytic_rate_robin_robin, all_dis[0])
-    subplot_param = (1 + len(list(all_dis)))*100 + 11
+    subplot_param = (3 + len(list(all_dis)))*100 + 11
 
     def fun(x):
-        return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
+        return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi / (2*n * dt))
                     for n in (1, N)])
 
-    fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  500, 100, subplot_param=subplot_param)
+    fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  200, 100, subplot_param=subplot_param)
     ax.set_title("Taux de convergence : analyse continue")
     ax.set_ylabel("$\\Lambda^2$")
+
+
+    cont_modified = functools.partial(cv_rate.continuous_analytic_rate_robin_robin_modified_naive, all_dis[0])
+    subplot_param += 1
+
+    def fun_modified(x):
+        return max([cont_modified(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
+                    for n in (1, N)])
+
+    fig, ax = plot_3D_square(fun_modified, -0, 4., -4., 0,  500, 100, fig=fig, subplot_param=subplot_param)
+    ax.set_title("Taux de convergence : analyse continue modifiée")
+    ax.set_ylabel("$\\Lambda^2$")
+
+    cont_modified3 = functools.partial(cv_rate.continuous_analytic_rate_robin_robin_modified_naive_ordre3, all_dis[0])
+    subplot_param += 1
+
+    def fun_modified3(x):
+        return max([cont_modified3(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
+                    for n in (1, N)])
+
+    fig, ax = plot_3D_square(fun_modified3, -0, 4., -4., 0,  500, 100, fig=fig, subplot_param=subplot_param)
+    ax.set_title("Taux de convergence : analyse continue modifiée ordre 3")
+    ax.set_ylabel("$\\Lambda^2$")
+
+
     for dis in all_dis:
         subplot_param += 1
 
@@ -1007,7 +1032,7 @@ def plot_3D_profile(all_dis, N):
                                              w=pi / (n * dt), semi_discrete=True)
                         for n in (1, N)])
 
-        fig, ax = plot_3D_square(fun_me, 0, 4., -4., -0, 500, 100, fig=fig,
+        fig, ax = plot_3D_square(fun_me, -0, 4., -4., 0, 500, 100, fig=fig,
                                  subplot_param=subplot_param)
         ax.set_ylabel("$\\Lambda^2$")
         ax.set_title(dis.name())
@@ -1070,7 +1095,7 @@ def plot_3D_square(fun, xmin, xmax, ymin, ymax, Nx, Ny, fig=None, subplot_param=
                   for linex, liney in zip(X, Y)])
     from matplotlib import cm
     cmap = reverse_colourmap(cm.YlGnBu)
-    surf = ax.pcolormesh(X, Y, Z, cmap=cmap, vmin=.15, vmax=.8)
+    surf = ax.pcolormesh(X, Y, Z, cmap=cmap, vmin=.15, vmax=1)
     #min=0.2, max=0.5
     if plot_colorbar:
         fig.subplots_adjust(right=0.8, hspace=0.5)
