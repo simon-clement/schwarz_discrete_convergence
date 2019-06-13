@@ -192,6 +192,7 @@ def analytic_robin_robin(discretization,
                          D2=None,
                          verbose=False,
                          semi_discrete=False,
+                         modified_time=0,
                          N=None):
     """
         returns the theoric discrete/semi-discrete convergence rate.
@@ -209,6 +210,8 @@ def analytic_robin_robin(discretization,
         if w is not None and semi-discrete is False, returns discrete analysis (with Z transform)
         N is the number of time steps in the time window.
 
+        modified time is the order of approximation in the modified equation (only in dt)
+
         Main theoric function of the module. It is just a call
         to the good discretization.
     """
@@ -219,6 +222,14 @@ def analytic_robin_robin(discretization,
     else:
         if semi_discrete:
             s = w * 1j
+            if modified_time > 0:
+                s += dt/2 * w**2
+            if modified_time > 1:
+                s -= dt**2/8 * 1j * w**3
+            if modified_time > 2:
+                s -= dt**3 / 48 * w**4
+            if modified_time > 3:
+                s += dt**4/(16*4*6) * 1j * w**5
         else:
             # Note : in full discrete case, a fftshift MAY BE needed
             # I don't really know when it's accurate,

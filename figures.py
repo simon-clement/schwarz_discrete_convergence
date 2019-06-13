@@ -734,7 +734,7 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
         dis.DT_DEFAULT *= 10
 
     analysis_frequency_rate((finite_difference, finite_volumes,
-                             finite_difference_wout_corr, finite_difference_naive),
+                             finite_difference_naive),
                             1000, lambda_1=-1e13)
     plt.title("Taux de convergence : interface \"Dirichlet Neumann\"")
     show_or_save("fig_frequency_rate_dirichlet_neumann_comparison_c_zero")
@@ -871,13 +871,14 @@ def analysis_frequency_rate(discretization, N,
         sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
         return D1 * sig1 / (D2 * sig2)
 
-    colors = ['r', 'g', 'y', 'm']
+    colors = ['r', 'g', 'm']
     for dis, col, col2 in zip(discretization, colors, colors[::-1]):
         # first: find a correct lambda : we take the optimal yielded by
         # continuous analysis
 
         # continuous_best_lam_robin_neumann(dis, N)
         #print("rate", dis.name(), ":", rate(dis, N, Lambda_1=lambda_1))
+        dis.DT_DEFAULT /= 10
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi / dt, pi / dt, N)
 
@@ -915,6 +916,39 @@ def analysis_frequency_rate(discretization, N,
                                  N=N) for w in axis_freq
         ]
 
+        real_freq_semidiscrete_modified_time1 = [
+            analytic_robin_robin(dis,
+                                 w=w,
+                                 Lambda_1=lambda_1,
+                                 semi_discrete=True,
+                                 modified_time=1,
+                                 N=N) for w in axis_freq
+        ]
+        real_freq_semidiscrete_modified_time2 = [
+            analytic_robin_robin(dis,
+                                 w=w,
+                                 Lambda_1=lambda_1,
+                                 semi_discrete=True,
+                                 modified_time=2,
+                                 N=N) for w in axis_freq
+        ]
+        real_freq_semidiscrete_modified_time3 = [
+            analytic_robin_robin(dis,
+                                 w=w,
+                                 Lambda_1=lambda_1,
+                                 semi_discrete=True,
+                                 modified_time=3,
+                                 N=N) for w in axis_freq
+        ]
+        real_freq_semidiscrete_modified_time4 = [
+            analytic_robin_robin(dis,
+                                 w=w,
+                                 Lambda_1=lambda_1,
+                                 semi_discrete=True,
+                                 modified_time=4,
+                                 N=N) for w in axis_freq
+        ]
+
         real_freq_continuous = [
             continuous_analytic_rate_robin_neumann(dis, w=w, Lambda_1=lambda_1)
             for w in axis_freq
@@ -924,10 +958,28 @@ def analysis_frequency_rate(discretization, N,
                  real_freq_semidiscrete,
                  col,
                  linestyle='dotted')
+        lmodified, = ax.plot(axis_freq,
+                 real_freq_semidiscrete_modified_time1,
+                 'k',
+                 linestyle='dashed')
+        lmodified, = ax.plot(axis_freq,
+                 real_freq_semidiscrete_modified_time2,
+                 'k',
+                 linestyle='dashed')
+        lmodified, = ax.plot(axis_freq,
+                 real_freq_semidiscrete_modified_time3,
+                 'k',
+                 linestyle='dashed')
+        lmodified, = ax.plot(axis_freq,
+                 real_freq_semidiscrete_modified_time4,
+                 'k',
+                 linestyle='dashed')
+        """
         lfull, = ax.plot(axis_freq,
                  real_freq_discrete,
                  'k',
                  linestyle='dashed')
+        """
 
     lcont, = ax.plot(axis_freq,
              real_freq_continuous,
@@ -939,9 +991,9 @@ def analysis_frequency_rate(discretization, N,
 
     ax.set_xlabel("$\\omega$")
     ax.set_ylabel("Taux de convergence $\\hat{\\rho}$")
-    plt.legend((lsimu, lsemi, lfull, lcont),
+    plt.legend((lsimu, lsemi, lmodified, lcont),
                ('Simulation', 'Semi-discret (théorique)',
-                'Discret (théorique)', 'Continu (théorique)'), loc='center right')
+                'Semi-Discret (théorique, modifié avec termes 1,2,3,4 en temps)', 'Continu (théorique)'), loc='upper right')
 
 
 def raw_plot(discretization, N, number_samples=1000):
