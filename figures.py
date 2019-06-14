@@ -406,15 +406,16 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
-                                                          number_samples=70,
-                                                          steps=50,
+                                                          number_samples=20,
+                                                          steps=9,
                                                           legend=False,
-                                                          bounds_h=(-2.5,0.))
+                                                          bounds_h=(-1.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
-                                                          number_samples=500,
-                                                          steps=50,
-                                                          bounds_h=(-2.5,0.))
+                                                          number_samples=50,
+                                                          steps=9,
+                                                          bounds_h=(-1.5,0.),
+                                                          plot_perfect_performances=True)
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
@@ -1208,11 +1209,60 @@ def to_minimize_analytic_robin_robin(l, h, discretization, number_dt_h2, T):
                           dt=dt)
     return max([f(pi / t * 1j) for t in np.linspace(dt, T, N)])
 
+def to_minimize_analytic_robin_robin_modified_eq(l, h, discretization, number_dt_h2, T):
+    dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
+    M1 = int(discretization.SIZE_DOMAIN_1 / h)
+    M2 = int(discretization.SIZE_DOMAIN_2 / h)
+    f = functools.partial(cv_rate.analytic_robin_robin, discretization,
+                          Lambda_1=l[0],
+                          Lambda_2=l[1],
+                          M1=M1,
+                          M2=M2,
+                          semi_discrete=True,
+                          modified_time=3,
+                          N=N,
+                          dt=dt)
+    return max([f(pi / t) for t in np.linspace(dt, T, N)])
+
+def to_minimize_analytic_robin_robin_fulldiscrete(l, h, discretization, number_dt_h2, T):
+    dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
+    M1 = int(discretization.SIZE_DOMAIN_1 / h)
+    M2 = int(discretization.SIZE_DOMAIN_2 / h)
+    f = functools.partial(cv_rate.analytic_robin_robin, discretization,
+                          Lambda_1=l[0],
+                          Lambda_2=l[1],
+                          M1=M1,
+                          M2=M2,
+                          semi_discrete=False,
+                          dt=dt,
+                          N=N)
+    return max([f(w) for w in np.concatenate(((0,), pi/np.linspace(dt, T, N)))])
+
+def to_minimize_robin_robin_perfect(l, h, discretization, number_dt_h2, T, number_samples):
+    dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
+    M1 = int(discretization.SIZE_DOMAIN_1 / h)
+    M2 = int(discretization.SIZE_DOMAIN_2 / h)
+    lambda_1 = l[0]
+    lambda_2 = l[1]
+    w = frequency_simulation(discretization,
+                         N,
+                         M1=M1,
+                         M2=M2,
+                         Lambda_1=lambda_1,
+                         Lambda_2=lambda_2,
+                         number_samples=number_samples,
+                         dt=dt)
+    return max(w[2] / w[1])
+
+
 # The function can be passed in parameters of memoised:
 to_minimize_analytic_robin_robin2 = FunMem(to_minimize_analytic_robin_robin)
+to_minimize_analytic_robin_robin2_fulldiscrete = FunMem(to_minimize_analytic_robin_robin_fulldiscrete)
+to_minimize_analytic_robin_robin2_modified = FunMem(to_minimize_analytic_robin_robin_modified_eq)
 to_minimize_continuous_analytic_rate_robin_robin2 = \
         FunMem(to_minimize_continuous_analytic_rate_robin_robin)
 
+to_minimize_robin_robin2_perfect = FunMem(to_minimize_robin_robin_perfect)
 
 # The function can be passed in parameters of memoised:
 to_minimize_analytic_robin_neumann2 = FunMem(to_minimize_analytic_robin_neumann)
@@ -1221,7 +1271,8 @@ to_minimize_continuous_analytic_rate_robin_neumann2 = \
 
 
 def compare_continuous_discrete_rate_robin_robin(fig, ax,
-        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2), legend=True, number_samples=500):
+        discretization, T, number_dt_h2, steps=50, bounds_h=(0,2), legend=True,
+        number_samples=500, plot_perfect_performances=False):
     """
         We keep the ratio D*dt/(h^2) constant and we watch the
         convergence rate as h decreases.
@@ -1240,12 +1291,40 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
         fun=to_minimize_analytic_robin_robin2,
         x0=(0.6, 0.),
         args=(x, discretization, number_dt_h2, T))
+
+    def func_to_map_fulldiscrete(x): return memoised(minimize,
+        fun=to_minimize_analytic_robin_robin2_fulldiscrete,
+        x0=(0.6, 0.),
+        args=(x, discretization, number_dt_h2, T))
+
+    def func_to_map_discrete_modif(x): return memoised(minimize,
+        fun=to_minimize_analytic_robin_robin2_modified,
+        x0=(0.6, 0.),
+        args=(x, discretization, number_dt_h2, T))
+
+    def func_to_map_perfect_perf(x): 
+        ret = memoised(minimize, method="Powell",
+                fun=to_minimize_robin_robin2_perfect,
+                x0=(0.5, -0.5),
+                args=(x, discretization, number_dt_h2, T, number_samples*4))
+        print(ret)
+        return ret
+
+
     print("Computing lambdas in discrete framework.")
     ret_discrete = list(map(func_to_map, all_h))
-    # ret_discrete = [minimize_scalar(fun=to_minimize_discrete, args=(h)) \
-    #    for h in all_h]
+    ret_fulldiscrete = list(map(func_to_map_fulldiscrete, all_h))
+    ret_discrete_modif = list(map(func_to_map_discrete_modif, all_h))
+
+    if plot_perfect_performances:
+        perfect_performances = list(map(func_to_map_perfect_perf, all_h))
+        theorical_rate_perfect = [ret.fun for ret in perfect_performances]
+
     optimal_discrete = [ret.x for ret in ret_discrete]
+    optimal_fulldiscrete = [ret.x for ret in ret_fulldiscrete]
+    optimal_discrete_modif = [ret.x for ret in ret_discrete_modif]
     theorical_rate_discrete = [ret.fun for ret in ret_discrete]
+    theorical_rate_discrete_modif = [ret.fun for ret in ret_discrete_modif]
 
     def func_to_map_cont(x): return memoised(minimize,
         fun=to_minimize_continuous_analytic_rate_robin_robin2,
@@ -1260,6 +1339,8 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
 
     rate_with_continuous_lambda = []
     rate_with_discrete_lambda = []
+    rate_with_fulldiscrete_lambda = []
+    rate_with_discrete_modif_lambda = []
     print("optimal-continuous[0]:", optimal_continuous[0])
     print("optimal-discrete[0]:", optimal_discrete[0])
 
@@ -1290,6 +1371,27 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
                          number_samples=number_samples,
                          dt=dt)
             ]
+
+            rate_with_fulldiscrete_lambda += [
+                memoised(frequency_simulation, discretization,
+                         N,
+                         M1=M1,
+                         M2=M2,
+                         Lambda_1=optimal_fulldiscrete[i][0],
+                         Lambda_2=optimal_fulldiscrete[i][1],
+                         number_samples=number_samples,
+                         dt=dt)
+            ]
+            rate_with_discrete_modif_lambda += [
+                memoised(frequency_simulation, discretization,
+                         N,
+                         M1=M1,
+                         M2=M2,
+                         Lambda_1=optimal_discrete_modif[i][0],
+                         Lambda_2=optimal_discrete_modif[i][1],
+                         number_samples=number_samples,
+                         dt=dt)
+            ]
     except:
         pass
 
@@ -1297,6 +1399,21 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
             for w in rate_with_continuous_lambda]
     rate_with_discrete_lambda = [max(w[2] / w[1])
             for w in rate_with_discrete_lambda]
+    rate_with_fulldiscrete_lambda = [max(w[2] / w[1])
+            for w in rate_with_fulldiscrete_lambda]
+    rate_with_discrete_modif_lambda = [max(w[2] / w[1])
+            for w in rate_with_discrete_modif_lambda]
+
+    linefdo, = ax.semilogx(all_h[:len(rate_with_fulldiscrete_lambda)],
+                 rate_with_fulldiscrete_lambda,
+                 "y")
+
+    linemdo, = ax.semilogx(all_h[:len(rate_with_discrete_modif_lambda)],
+                 rate_with_discrete_modif_lambda,
+                 "b")
+    linemdt, = ax.semilogx(all_h,
+                 theorical_rate_discrete_modif,
+                 "b--")
 
     linedo, = ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
@@ -1310,12 +1427,22 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
     linect, = ax.semilogx(all_h,
                  theorical_cont_rate,
                  "r--")
+
+    if plot_perfect_performances:
+        linept, = ax.semilogx(all_h,
+                     theorical_rate_perfect,
+                     "k--")
+        if legend:
+            linept.set_label("Taux théorique avec optimisation directement sur le taux observé")
+
     if legend:
+        linefdo.set_label("Taux observé avec $\\Lambda$ optimal discret en temps et en espace")
+        linemdo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret, modifié en temps")
         linedo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret")
         linedt.set_label("Taux théorique avec $\\Lambda$ optimal semi-discret")
         lineco.set_label("Taux observé avec $\\Lambda$ optimal continu")
         linect.set_label("Taux théorique avec $\\Lambda$ optimal continu")
-        fig.legend(loc="center left")
+        fig.legend(loc="lower left")
 
     ax.set_xlabel("h")
     ax.set_ylabel("$\\hat{\\rho}$")
