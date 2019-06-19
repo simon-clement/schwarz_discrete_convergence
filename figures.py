@@ -406,16 +406,16 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
-                                                          number_samples=20,
-                                                          steps=9,
+                                                          number_samples=120,
+                                                          steps=100,
                                                           legend=False,
-                                                          bounds_h=(-1.5,0.))
+                                                          bounds_h=(-3.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
-                                                          number_samples=50,
-                                                          steps=9,
-                                                          bounds_h=(-1.5,0.),
-                                                          plot_perfect_performances=True)
+                                                          number_samples=800,
+                                                          steps=100,
+                                                          bounds_h=(-3.5,0.),
+                                                          plot_perfect_performances=False)
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
@@ -765,6 +765,9 @@ def fig_plot3D_function_to_minimize():
     finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_vol = DEFAULT.new(FiniteVolumes)
+    facteur = 1.1
+    finite_difference2.M1_DEFAULT *= facteur
+    finite_difference2.M2_DEFAULT *= facteur
     fig = plot_3D_profile((finite_difference2, ), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
@@ -1041,28 +1044,29 @@ def plot_3D_profile(all_dis, N):
     dt = DEFAULT.DT
 
     cont = functools.partial(continuous_analytic_rate_robin_robin, all_dis[0])
-    subplot_param = (3 + len(list(all_dis)))*100 + 11
+    subplot_param = (2 + len(list(all_dis)))*100 + 11
 
     def fun(x):
-        return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi / (2*n * dt))
+        return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
                     for n in (1, N)])
 
-    fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  200, 100, subplot_param=subplot_param)
+    fig, ax = plot_3D_square(fun, 0, 2., -2., -0,  200, 100, subplot_param=subplot_param)
     ax.set_title("Taux de convergence : analyse continue")
     ax.set_ylabel("$\\Lambda^2$")
 
 
-    cont_modified = functools.partial(cv_rate.continuous_analytic_rate_robin_robin_modified_naive, all_dis[0])
+    cont_modified = functools.partial(cv_rate.continuous_analytic_rate_robin_robin_modified_naive_ordre3, all_dis[0])
     subplot_param += 1
 
     def fun_modified(x):
         return max([cont_modified(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
                     for n in (1, N)])
 
-    fig, ax = plot_3D_square(fun_modified, -0, 4., -4., 0,  500, 100, fig=fig, subplot_param=subplot_param)
+    fig, ax = plot_3D_square(fun_modified, -0, 2., -2., 0,  500, 100, fig=fig, subplot_param=subplot_param)
     ax.set_title("Taux de convergence : analyse continue modifiée")
     ax.set_ylabel("$\\Lambda^2$")
 
+    """
     cont_modified3 = functools.partial(cv_rate.continuous_analytic_rate_robin_robin_modified_naive_ordre3, all_dis[0])
     subplot_param += 1
 
@@ -1070,10 +1074,11 @@ def plot_3D_profile(all_dis, N):
         return max([cont_modified3(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
                     for n in (1, N)])
 
-    fig, ax = plot_3D_square(fun_modified3, -0, 4., -4., 0,  500, 100, fig=fig, subplot_param=subplot_param)
-    ax.set_title("Taux de convergence : analyse continue modifiée ordre 3")
+    fig, ax = plot_3D_square(fun_modified3, -0, 2., -2., 0,  500, 100, fig=fig, subplot_param=subplot_param)
+    ax.set_title("Taux de convergence : analyse continue modifiée (interface ordre 3)")
     ax.set_ylabel("$\\Lambda^2$")
 
+    """
 
     for dis in all_dis:
         subplot_param += 1
@@ -1082,13 +1087,13 @@ def plot_3D_profile(all_dis, N):
         def fun_me(x):
             return max([analytic_robin_robin(dis,
                                              Lambda_1=x[0], Lambda_2=x[1],
-                                             w=pi / (n * dt), semi_discrete=True)
+                                             w=pi / (n * dt), semi_discrete=True, modified_time=3)
                         for n in (1, N)])
 
-        fig, ax = plot_3D_square(fun_me, -0, 4., -4., 0, 500, 100, fig=fig,
+        fig, ax = plot_3D_square(fun_me, -0, 2., -2., 0, 500, 100, fig=fig,
                                  subplot_param=subplot_param)
         ax.set_ylabel("$\\Lambda^2$")
-        ax.set_title(dis.name())
+        ax.set_title(dis.name() + ", modifiée en temps")
     ax.set_xlabel("$\\Lambda^1$")
 
     return fig

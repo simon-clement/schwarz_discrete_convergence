@@ -50,12 +50,12 @@ def continuous_analytic_rate_robin_robin(discretization, Lambda_1, Lambda_2,
 
     #This line is necessary because we have sig1=\sigma^{-} and sig2=\sigma^{+}
     #Lambda_2 = - Lambda_2 OR sig1 = -sig1
-    sig1 = -sig1
+    sig2 = -sig2
 
-    first_term = (D2*sig2-Lambda_1)/ \
-            (D1*sig1 - Lambda_1)
-    second = (D1*sig1 - Lambda_2)/ \
-            (D2*sig2 - Lambda_2)
+    first_term = (D2*sig2+Lambda_1)/ \
+            (D1*sig1 + Lambda_1)
+    second = (D1*sig1 + Lambda_2)/ \
+            (D2*sig2 + Lambda_2)
     return np.abs(first_term * second)
 
 
@@ -78,23 +78,24 @@ def continuous_analytic_rate_robin_robin_modified_naive(discretization, Lambda_1
     D1 = discretization.D1_DEFAULT
     D2 = discretization.D2_DEFAULT
     H1 = - discretization.SIZE_DOMAIN_1
+    h1 = H1/(discretization.M1_DEFAULT - 1)
     H2 = discretization.SIZE_DOMAIN_2
+    h2 = H2/(discretization.M2_DEFAULT - 1)
     c = discretization.C_DEFAULT
-    h1 = 0.5# discretization.M1_DEFAULT/discretization.SIZE_DOMAIN_1/1.5
-    h2 = 0.5#discretization.M2_DEFAULT/discretization.SIZE_DOMAIN_2/1.5
+    dt = discretization.DT_DEFAULT
 
-    # sig1 is \sigma^1_{-}
-    sig1 = np.sqrt((w*1j + c) / D1)
-    sig2 = np.sqrt((w*1j + c) / D2)
+    # sig1 is \sigma^1_{+}
+    sig1 = np.sqrt((w*1j +w**2*(h1**2/(12*D1**2) + dt/2) - 1j*h1**2*dt/(12*D1**2) * w**3 + c) / D1)
+    sig2 = np.sqrt((w*1j +w**2*(h2**2/(12*D2**2) + dt/2) - 1j*h2**2*dt/(12*D2**2) * w**3 + c) / D2)
 
-    #This line is necessary because we have sig1=\sigma^{-} and sig2=\sigma^{+}
-    #Lambda_2 = - Lambda_2 OR sig1 = -sig1
-    sig1 = -sig1
+    #This line is necessary because we have sig2=\sigma^{-} and sig1=\sigma^{+}
+    sig2 = -sig2
 
-    first_term = (D2*sig2*np.exp(h2*sig2/2)-Lambda_1)/ \
-            (D1*sig1*np.exp(h1*sig1/2) - Lambda_1)
-    second = (D1*sig1*np.exp(h1*sig1/2) - Lambda_2)/ \
-            (D2*sig2*np.exp(h2*sig2/2) - Lambda_2)
+    first_term = (D2*sig2*np.exp(h2*sig2/2)+Lambda_1)/ \
+            (D1*sig1*np.exp(h1*sig1/2) + Lambda_1)
+    second = (D1*sig1*np.exp(h1*sig1/2) + Lambda_2)/ \
+            (D2*sig2*np.exp(h2*sig2/2) + Lambda_2)
+
     return np.abs(first_term * second)
 
 
@@ -115,26 +116,29 @@ def continuous_analytic_rate_robin_robin_modified_naive_ordre3(discretization, L
         discretization.C_DEFAULT : reaction coefficient (may be complex or real)
     """
 
+    dt = discretization.DT_DEFAULT
     D1 = discretization.D1_DEFAULT
     D2 = discretization.D2_DEFAULT
     H1 = - discretization.SIZE_DOMAIN_1
     H2 = discretization.SIZE_DOMAIN_2
     c = discretization.C_DEFAULT
-    h1 = 0.5# discretization.M1_DEFAULT/discretization.SIZE_DOMAIN_1/1.5
-    h2 = 0.5#discretization.M2_DEFAULT/discretization.SIZE_DOMAIN_2/1.5
+    h1 = H1 / (discretization.M1_DEFAULT - 1)
+    h2 = H2 / (discretization.M2_DEFAULT - 1)
 
-    # sig1 is \sigma^1_{-}
+    # sig1 is \sigma^1_{+}
     sig1 = np.sqrt((w*1j + c) / D1)
     sig2 = np.sqrt((w*1j + c) / D2)
+    sig1 = np.sqrt((w*1j +w**2*(h1**2/(12*D1) + dt/2) - 1j*h1**2*dt/(12*D1) * w**3 + c) / D1)
+    sig2 = np.sqrt((w*1j +w**2*(h2**2/(12*D2) + dt/2) - 1j*h2**2*dt/(12*D2) * w**3 + c) / D2)
 
-    #This line is necessary because we have sig1=\sigma^{-} and sig2=\sigma^{+}
-    #Lambda_2 = - Lambda_2 OR sig1 = -sig1
-    sig1 = -sig1
+    # sig2 is \sigma^2_{-}
+    sig2 = -sig2
 
-    first_term = (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2)-Lambda_1)/ \
-            (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) - Lambda_1)
-    second = (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) - Lambda_2)/ \
-            (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2) - Lambda_2)
+    first_term = (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2)+Lambda_1)/ \
+            (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_1)
+    second = (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_2)/ \
+            (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2) + Lambda_2)
+
     return np.abs(first_term * second)
 def continuous_best_lam_robin_neumann(discretization, N):
     """
