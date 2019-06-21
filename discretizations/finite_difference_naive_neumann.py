@@ -498,16 +498,26 @@ class FiniteDifferencesNaiveNeumann(Discretization):
                                 / (-2 * Y2_2)
         lambda1_moins = (Y1_1 + s - np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) \
                                 / (-2 * Y1_2)
+        lambda2_plus = (Y2_1 + s + np.sqrt((Y2_1 + s)**2 - 4 * Y2_0 * Y2_2)) \
+                                / (-2 * Y2_2)
+        lambda1_plus = (Y1_1 + s + np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) \
+                                / (-2 * Y1_2)
 
-        teta1_0 = eta1_0 - y1_0 * lambda1_moins
-        teta2_0 = eta2_0 - y2_0 * lambda2_moins
-        rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
-        rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
+
+
+        eta1_neu = D1/h1 * (lambda1_moins - 1 + (lambda1_plus - 1) * (lambda1_moins / lambda1_plus)**M1)
+        eta1_dir = 1 + (lambda1_moins / lambda1_plus) ** M1
+
+        eta2_neu = D2/h2 * (lambda2_moins - 1 + (lambda2_plus - 1) * (lambda2_moins-1) / (lambda2_plus - 1) *(lambda2_moins / lambda2_plus) ** (M2 - 1))
+
+        eta2_dir = 1 + (lambda2_moins-1) / (lambda2_plus - 1) *(lambda2_moins / lambda2_plus) ** (M2 - 1)
+        rho_numerator = (Lambda_2*eta1_dir + eta1_neu) * (Lambda_1*eta2_dir + eta2_neu)
+        rho_denominator = (Lambda_2*eta2_dir + eta2_neu) * (Lambda_1*eta1_dir + eta1_neu)
         if verbose:
             print("only with Lambda2:",
-                  (Lambda_2 - teta1_0) / (Lambda_2 - teta2_0))
+                  (Lambda_2 + eta1_neu) / (Lambda_2 + eta2_neu))
             print("only with Lambda1:",
-                  (Lambda_1 - teta2_0) / (Lambda_1 - teta1_0))
+                  (Lambda_1 + eta2_neu) / (Lambda_1 + eta1_neu))
 
         return np.abs(rho_numerator / rho_denominator)
 
