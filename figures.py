@@ -407,15 +407,15 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
                                                           number_samples=120,
-                                                          steps=100,
+                                                          steps=40,
                                                           legend=False,
-                                                          bounds_h=(-3.5,0.))
+                                                          bounds_h=(-1.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
                                                           number_samples=800,
-                                                          steps=100,
-                                                          bounds_h=(-3.5,0.),
-                                                          plot_perfect_performances=False)
+                                                          steps=40,
+                                                          bounds_h=(-1.5,0.),
+                                                          plot_perfect_performances=True)
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
 
 def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
@@ -765,7 +765,7 @@ def fig_plot3D_function_to_minimize():
     finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_vol = DEFAULT.new(FiniteVolumes)
-    facteur = 1.1
+    facteur = 1.4
     finite_difference2.M1_DEFAULT *= facteur
     finite_difference2.M2_DEFAULT *= facteur
     fig = plot_3D_profile((finite_difference2, ), DEFAULT.N)
@@ -1308,7 +1308,7 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
         args=(x, discretization, number_dt_h2, T))
 
     def func_to_map_perfect_perf(x): 
-        ret = memoised(minimize, method="Powell",
+        ret = memoised(minimize, method="Nelder-Mead",
                 fun=to_minimize_robin_robin2_perfect,
                 x0=(0.5, -0.5),
                 args=(x, discretization, number_dt_h2, T, number_samples*4))
