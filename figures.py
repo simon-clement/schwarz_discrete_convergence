@@ -51,7 +51,7 @@ class Default():
         self.SIZE_DOMAIN_2 = 200
         self.D1 = .54
         self.D2 = .6
-        self.DT = self.COURANT_NUMBER * (self.M1 / self.SIZE_DOMAIN_1)**2 / self.D1
+        self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
         self.A = 0.
         self.C = 1e-10
         self.LAMBDA_1 = 0.
@@ -548,7 +548,7 @@ def fig_validation_code_frequency_error_diffboth():
     """
     NUMBER_DDT_H2 = .1
     D1 = .1
-    DT = NUMBER_DDT_H2 * (DEFAULT.M1 / DEFAULT.SIZE_DOMAIN_1)**2 / D1
+    DT = NUMBER_DDT_H2 * (DEFAULT.SIZE_DOMAIN_1 / DEFAULT.M1)**2 / D1
 
     finite_difference = DEFAULT.new(FiniteDifferences)
 
@@ -580,7 +580,7 @@ def fig_validation_code_frequency_error_diff1(ITERATION=0):
     """
     NUMBER_DDT_H2 = .1
     D1 = .1
-    DT = NUMBER_DDT_H2 * (DEFAULT.M1 / DEFAULT.SIZE_DOMAIN_1)**2 / D1
+    DT = NUMBER_DDT_H2 * (DEFAULT.SIZE_DOMAIN_1 / DEFAULT.M1)**2 / D1
 
     finite_difference = DEFAULT.new(FiniteDifferences)
     finite_volumes = DEFAULT.new(FiniteVolumes)
@@ -1673,7 +1673,7 @@ def beauty_graph_finite(discretization,
     NUMBER_DDT_H2 = courant_number
     T = 100.
 
-    DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+    DT_DEFAULT = NUMBER_DDT_H2 * (SIZE_DOMAIN_1 / M1_DEFAULT)**2 / D1_DEFAULT
     # should not be too different from the value with M2, Size_domain2, and D2
     TIME_WINDOW_LEN_DEFAULT = int(T / DT_DEFAULT)
     rate_func = functools.partial(cv_rate.rate_freq_slow, discretization,
