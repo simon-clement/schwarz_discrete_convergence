@@ -429,6 +429,7 @@ def frequency_simulation(discretization, N, number_samples=100, **kwargs):
         Lambda_1, Lambda_2, a, c, dt, M1, M2,
     """
     try:
+        raise
         import rust_mod
         errors = rust_mod.errors_raw(discretization,
                                      N,
@@ -469,7 +470,7 @@ def interface_errors(discretization,
                      dt=None,
                      M1=None,
                      M2=None,
-                     NUMBER_IT=2):
+                     NUMBER_IT=20):
     """
         returns errors at interface from beginning (first guess) until the end.
         to get rate, just use the following code:

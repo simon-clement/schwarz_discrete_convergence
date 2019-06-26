@@ -731,11 +731,15 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
     finite_difference_wout_corr = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_difference_naive = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     for dis in (finite_difference, finite_volumes, finite_difference_wout_corr, finite_difference_naive):
-        dis.DT_DEFAULT *= 10
+        dis.SIZE_DOMAIN_1 = 20
+        dis.SIZE_DOMAIN_2 = 20
+        dis.M1_DEFAULT = 1000
+        dis.M2_DEFAULT = 1000
+        courant_number = 1
+        dis.DT_DEFAULT = courant_number * (dis.SIZE_DOMAIN_1 / (dis.M1_DEFAULT-1))**2 / DEFAULT.D1
 
-    analysis_frequency_rate((finite_difference, finite_volumes,
-                             finite_difference_wout_corr, finite_difference_naive),
-                            1000, lambda_1=-1e13)
+    analysis_frequency_rate((finite_difference_naive,),
+                            int(1e3), lambda_1=-1e13)
     plt.title("Taux de convergence : interface \"Dirichlet Neumann\"")
     show_or_save("fig_frequency_rate_dirichlet_neumann_comparison_c_zero")
 
@@ -860,7 +864,7 @@ def optim_by_criblage_plot(discretization, T, number_dt_h2, steps=50):
 
 def analysis_frequency_rate(discretization, N,
                             lambda_1=0.6139250052109033,
-                            number_samples=135, fftshift=True):
+                            number_samples=1, fftshift=True):
     fig, ax = plt.subplots()
     def continuous_analytic_error_neumann(discretization, w):
         D1 = discretization.D1_DEFAULT
@@ -889,9 +893,10 @@ def analysis_frequency_rate(discretization, N,
         # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
         # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
         #plt.plot(axis_freq, frequencies[1], col+"--", label=dis.name()+" frequential error after the first iteration")
-        lsimu, = ax.plot(axis_freq,
-                 frequencies[2] / frequencies[1],
-                 col)
+        for i in range(1,20):
+            lsimu, = ax.semilogy(axis_freq,
+                     frequencies[i+1] / frequencies[i],
+                     col)
         ax.annotate(dis.name(), xy=(axis_freq[0], frequencies[2][0] / frequencies[1][0]),
                     xycoords='data', horizontalalignment='left', verticalalignment='top')
 
