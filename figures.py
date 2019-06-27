@@ -776,14 +776,6 @@ def fig_plot3D_function_to_minimize():
 def analysis_frequency_error(discretization, N, iteration=1, lambda_1=0.6139250052109033, fig=None, ax=None, legend=True):
     if fig is None:
         fig, ax = plt.subplots()
-    def continuous_analytic_error_neumann(discretization, w):
-        D1 = discretization.D1_DEFAULT
-        D2 = discretization.D2_DEFAULT
-        # sig1 is \sigma^1_{+}
-        sig1 = np.sqrt(np.abs(w) / (2 * D1)) * (1 + np.abs(w) / w * 1j)
-        # sig2 is \sigma^2_{-}
-        sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
-        return D1 * sig1 / (D2 * sig2)
 
     colors = ['r', 'g', 'y', 'm']
     for dis, col, col2 in zip(discretization, colors, colors[::-1]):
@@ -861,19 +853,74 @@ def optim_by_criblage_plot(discretization, T, number_dt_h2, steps=50):
     plt.legend()
 
 
+def fig_plot_finite_domains():
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    dis.M1 = 10
+    dis.M2 = 10
+    dis.SIZE_DOMAIN_1 = 30
+    dis.SIZE_DOMAIN_2 = 30
+    N = 100000
+
+    lambda_1 = 1e13
+    lambda_2 = 0
+
+    fig, ax = plt.subplots()
+    dt = dis.DT_DEFAULT
+    axis_freq = np.linspace(-pi / dt, pi / dt, N)
+
+    real_freq_discrete = np.array([
+        analytic_robin_robin(dis,
+                             w=w,
+                             Lambda_1=lambda_1,
+                             semi_discrete=False,
+                             N=N) for w in axis_freq
+    ])
+    real_freq_discrete[np.isnan(real_freq_discrete)] = 1.
+    real_freq_discrete = np.fft.fftshift(real_freq_discrete)
+
+    real_freq_semidiscrete = [
+        analytic_robin_robin(dis,
+                             w=w,
+                             Lambda_1=lambda_1,
+                             semi_discrete=True,
+                             N=N) for w in axis_freq
+    ]
+
+    real_freq_continuous = [
+        continuous_analytic_rate_robin_neumann(dis, w=w, Lambda_1=lambda_1)
+        for w in axis_freq
+    ]
+
+    lsemi, = ax.plot(axis_freq,
+             real_freq_semidiscrete,
+             "r",
+             linestyle='dotted')
+    lfull, = ax.plot(axis_freq,
+             real_freq_discrete,
+             'k',
+             linestyle='dashed')
+
+    lcont, = ax.plot(axis_freq,
+             real_freq_continuous,
+             'b-.')
+    from matplotlib.lines import Line2D
+    lsimu = Line2D([0], [0], color="k")
+    lsemi = Line2D([0], [0], color="k", linestyle=":")
+
+    ax.set_xlabel("$\\omega$")
+    ax.set_ylabel("Taux de convergence $\\hat{\\rho}$")
+    plt.legend((lsimu, lsemi, lfull, lcont),
+               ('Simulation', 'Semi-discret (théorique)',
+                'Discret (théorique)', 'Continu (théorique)'), loc='center right')
+
+    show_or_save("fig_plot_finite_domains")
+
+
 
 def analysis_frequency_rate(discretization, N,
                             lambda_1=0.6139250052109033,
                             number_samples=1, fftshift=True):
     fig, ax = plt.subplots()
-    def continuous_analytic_error_neumann(discretization, w):
-        D1 = discretization.D1_DEFAULT
-        D2 = discretization.D2_DEFAULT
-        # sig1 is \sigma^1_{+}
-        sig1 = np.sqrt(np.abs(w) / (2 * D1)) * (1 + np.abs(w) / w * 1j)
-        # sig2 is \sigma^2_{-}
-        sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
-        return D1 * sig1 / (D2 * sig2)
 
     colors = ['r', 'g', 'y', 'm']
     for dis, col, col2 in zip(discretization, colors, colors[::-1]):
