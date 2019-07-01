@@ -765,11 +765,75 @@ def fig_plot3D_function_to_minimize():
     finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_vol = DEFAULT.new(FiniteVolumes)
-    facteur = 1.4
+    facteur = 1.6
     finite_difference2.M1_DEFAULT *= facteur
     finite_difference2.M2_DEFAULT *= facteur
     fig = plot_3D_profile((finite_difference2, ), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
+
+def fig_compare_modif_approaches():
+    """
+        Compare the approaches used with modified equations :
+        plot cv rate :
+        - simulated
+        - with continuous approach
+        - with semi-discrete in space, modif in time
+        - with modified equations, modified operators
+        - with interface operator
+    """
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    dis.DT_DEFAULT *= 1
+    # 0.5; -0.5 is generally a good choice with our parameters
+    lambda_1 = 0.5
+    lambda_2 = -0.5
+    N = DEFAULT.N * 10
+
+    # we take a little more points
+    facteur = 1.3
+    dis.M1_DEFAULT *= facteur
+    dis.M2_DEFAULT *= facteur
+
+    dt = dis.DT_DEFAULT
+
+    axis_freq = np.linspace(-pi / dt, pi / dt, N)
+
+    fig, ax = plt.subplots()
+
+    simulated_freq = memoised(frequency_simulation,
+                           dis,
+                           N,
+                           Lambda_1=lambda_1,
+                           Lambda_2=lambda_2,
+                           number_samples=5)
+    simulated_cv = simulated_freq[2] / simulated_freq[1]
+    nomodif_approach = [continuous_analytic_rate_robin_robin(dis, w=w,
+                                                               Lambda_1=lambda_1,
+                                                               Lambda_2=lambda_2)
+                                        for w in axis_freq]
+    semi_discrete_modif_time = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
+                                             w=w, semi_discrete=True, modified_time=3)
+                                        for w in axis_freq]
+    continuous_modified = [cv_rate.continuous_analytic_rate_robin_robin_modified_naive_ordre3(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+    continuous_operators_modified = [cv_rate.continuous_analytic_rate_robin_robin_modified_operator_naive_ordre3(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+
+
+    ax.plot(axis_freq, simulated_cv, label="simulation")
+    ax.plot(axis_freq, nomodif_approach, label="continuous, not modified")
+    ax.plot(axis_freq, continuous_modified, label="continuous modified in space and time")
+    ax.plot(axis_freq, continuous_operators_modified, label="continuous with modified operators")
+
+
+    ax.plot(axis_freq, semi_discrete_modif_time, "k--", label="semi-discrete in space, modified in time")
+    ax.set_xlabel("$\\omega$")
+    ax.set_ylabel("$\\hat{\\rho}$")
+
+    fig.legend()
+    show_or_save("fig_compare_modif_approaches")
+    
 
 
 
@@ -1085,15 +1149,32 @@ def plot_3D_profile(all_dis, N):
 
         rate_fdiff = functools.partial(rate_fast, dis, N)
         def fun_me(x):
-            return max([analytic_robin_robin(dis,
+            return abs(np.linalg.norm(np.array([analytic_robin_robin(dis,
                                              Lambda_1=x[0], Lambda_2=x[1],
                                              w=pi / (n * dt), semi_discrete=True, modified_time=3)
-                        for n in (1, N)])
+                                             - cont_modified(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
+                        for n in (1, N)])))
 
         fig, ax = plot_3D_square(fun_me, -0, 2., -2., 0, 500, 100, fig=fig,
                                  subplot_param=subplot_param)
         ax.set_ylabel("$\\Lambda^2$")
         ax.set_title(dis.name() + ", modifiée en temps")
+
+        subplot_param += 1
+        """
+
+        def fun_me(x):
+            return abs(max([analytic_robin_robin(dis,
+                                             Lambda_1=x[0], Lambda_2=x[1],
+                                             w=pi / (n * dt), semi_discrete=True, modified_time=3)
+
+                        for n in (1, N)]))
+
+        fig, ax = plot_3D_square(fun_me, -0, 2., -2., 0, 500, 100, fig=fig,
+                                 subplot_param=subplot_param)
+        ax.set_ylabel("$\\Lambda^2$")
+        ax.set_title(dis.name() + ", modifiée en temps")
+        """
     ax.set_xlabel("$\\Lambda^1$")
 
     return fig
@@ -1153,7 +1234,7 @@ def plot_3D_square(fun, xmin, xmax, ymin, ymax, Nx, Ny, fig=None, subplot_param=
                   for linex, liney in zip(X, Y)])
     from matplotlib import cm
     cmap = reverse_colourmap(cm.YlGnBu)
-    surf = ax.pcolormesh(X, Y, Z, cmap=cmap, vmin=.15, vmax=1)
+    surf = ax.pcolormesh(X, Y, Z, cmap=cmap)#, vmin=.15, vmax=1)
     #min=0.2, max=0.5
     if plot_colorbar:
         fig.subplots_adjust(right=0.8, hspace=0.5)

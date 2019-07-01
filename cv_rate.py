@@ -140,6 +140,51 @@ def continuous_analytic_rate_robin_robin_modified_naive_ordre3(discretization, L
             (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2) + Lambda_2)
 
     return np.abs(first_term * second)
+
+
+def continuous_analytic_rate_robin_robin_modified_operator_naive_ordre3(discretization, Lambda_1, Lambda_2,
+                                         w):
+    """
+        Returns the convergence rate predicted by continuous analysis.
+        The equation is diffusion-reaction with constant coefficients.
+        The interface condition is Robin-Robin.
+        w is the frequency;
+        modified operators, but heat equation
+        Lambda_{1,2} are the Robin condition free parameters.
+        discretization must have the following attributes:
+        discretization.D1_DEFAULT : diffusivity in \\Omega_1
+        discretization.D2_DEFAULT : diffusivity in \\Omega_2
+        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
+        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
+        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
+    """
+
+    dt = discretization.DT_DEFAULT
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    H1 = - discretization.SIZE_DOMAIN_1
+    H2 = discretization.SIZE_DOMAIN_2
+    c = discretization.C_DEFAULT
+    h1 = H1 / (discretization.M1_DEFAULT - 1)
+    h2 = H2 / (discretization.M2_DEFAULT - 1)
+
+    # sig1 is \sigma^1_{+}
+    sig1 = np.sqrt((w*1j + c) / D1)
+    sig2 = np.sqrt((w*1j + c) / D2)
+    sig1 = np.sqrt((w*1j + c) / D1)
+    sig2 = np.sqrt((w*1j + c) / D2)
+
+    # sig2 is \sigma^2_{-}
+    sig2 = -sig2
+
+    first_term = (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2)+Lambda_1)/ \
+            (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_1)
+    second = (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_2)/ \
+            (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2) + Lambda_2)
+
+    return np.abs(first_term * second)
+
+
 def continuous_best_lam_robin_neumann(discretization, N):
     """
         Returns the optimal Robin free parameter according to
