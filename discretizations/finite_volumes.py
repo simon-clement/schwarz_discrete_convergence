@@ -495,8 +495,8 @@ class FiniteVolumes(Discretization):
                      Lambda,
                      upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
-        a, c, dt, bd_cond, Lambda, = float(a), \
-            float(c), float(dt), float(bd_cond), float(Lambda)
+        a, c, dt, Lambda, = float(a), \
+            float(c), float(dt), float(Lambda)
 
         # Broadcasting / verification of type:
         D = np.zeros(M + 1) + D
@@ -515,6 +515,38 @@ class FiniteVolumes(Discretization):
                           dt=dt,
                           Lambda=Lambda,
                           upper_domain=upper_domain)
+
+    def give_Y_for_analysis(self,
+                            M,
+                            h,
+                            D,
+                            a,
+                            c,
+                            dt,
+                            f,
+                            bd_cond,
+                            Lambda,
+                            upper_domain=True):
+        """
+           Give Y for the analysis. just a call to precompute_Y
+        """
+        Y = self.precompute_Y(M, h, D, a, c, dt, f, bd_cond, Lambda, upper_domain)
+        return np.diag(Y[0], k=-1)+np.diag(Y[1]) + np.diag(Y[2],k=1)
+
+    def give_robin_projector(self, M, h, D, a, c, dt, f, Lambda):
+        """
+            To perform the analysis in the time domain, we need the matrix Y
+            such that Yu_{n+1} = u_{n}.
+            It may be different from the precompute_Y, because the output of
+            precompute_Y is used internally and can be modified for stability issues.
+        """
+            #u_n needs u_{n-1} or a dirichlet condition on the other side to
+            #be computed. Since we don't have any of the conditions,
+            #a projector from fluxes to the interface value doesn't exist.
+            #u_interface = u_n[0] - h[0] * d[1] / 6 - h[0] * d[0] / 3
+            #phi_interface = phi_ret[0]
+        raise
+        return 
 
     """
         When D and h are constant, it is possible to find the convergence

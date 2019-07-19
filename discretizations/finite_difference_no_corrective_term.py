@@ -430,8 +430,8 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
                      Lambda,
                      upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
-        a, c, dt, bd_cond, Lambda = float(a), \
-            float(c), float(dt), float(bd_cond), float(Lambda)
+        a, c, dt, Lambda = float(a), \
+            float(c), float(dt), float(Lambda)
 
         # Broadcasting / verification of type:
         D = np.zeros(M - 1) + D
@@ -449,6 +449,55 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
                        upper_domain=upper_domain)
         Y[1][1:-1] += (np.ones(M - 2) / dt) * (h[1:] + h[:-1])
         return Y
+
+    def give_Y_for_analysis(self,
+                            M,
+                            h,
+                            D,
+                            a,
+                            c,
+                            dt,
+                            f,
+                            bd_cond,
+                            Lambda,
+                            upper_domain=True):
+        """
+           Give Y for the analysis. The difference between this and precompute_Y
+           is a multiplication by dt/(2h).
+        """
+        h = np.zeros(M - 1) + h
+        a, c, dt = self.get_a_c_dt(a, c, dt)
+        Y = self.precompute_Y(M, h, D, a, c, dt, f, bd_cond, Lambda, upper_domain)
+        Y[0][:-1] *= dt / (h[1:] + h[:-1])
+        Y[1][1:-1] *= dt / (h[1:] + h[:-1])
+        Y[2][1:] *= dt / (h[1:] + h[:-1])
+        return np.diag(Y[0], k=-1)+np.diag(Y[1]) + np.diag(Y[2],k=1) + np.diag(Y[3], k=2)
+
+    def give_robin_projector(self, M, h, D, a, c, dt, f, Lambda):
+        """
+            since the discretisation of the first order derivative in the robin condition
+            depends on the discretization, we use this function that must return a
+            projector, from R^M to R, that gives the robin condition for the other domain.
+        """
+        """
+            new_u_interface = u_n[0]
+            # extrapolation of flux: f(0) ~ f(h/2) - h/2*f'(h)
+            phi_1_2 = D[0] / h[0] * (u_n[1] - u_n[0])
+            phi_3_2 = D[1] / h[1] * (u_n[2] - u_n[1])
+            new_phi_interface = ((2*h[0]+h[1])*phi_1_2 - h[0]*phi_3_2) / (h[0] + h[1])
+        """
+        h = np.zeros(M - 1) + h
+        D = np.zeros(M - 1) + D
+        # Contribution of u_n[0]:
+        contrib_phi1_u_n_0 = D[0] / h[0] * (0 - 1)
+        contrib_phi1_u_n_1 = D[0] / h[0] * (1 - 0)
+        contrib_phi3_u_n_1 = D[1] / h[1] * (0 - 1)
+        contrib_phi3_u_n_2 = D[1] / h[1] * (1 - 0)
+
+        contrib_u0 = ((2*h[0]+h[1])*contrib_phi1_u_n_0 - h[0]*0) / (h[0] + h[1])
+        contrib_u1 = ((2*h[0]+h[1])*contrib_phi1_u_n_1 - h[0]*contrib_phi3_u_n_1) / (h[0] + h[1])
+        contrib_u2 = ((2*h[0]+h[1])*0 - h[0]*contrib_phi3_u_n_2) / (h[0] + h[1])
+        return np.concatenate(((Lambda + contrib_u0, contrib_u1, contrib_u2), [0]*(M-3)))
 
     """
         When D and h are constant, it is possible to find the convergence

@@ -84,6 +84,26 @@ class Discretization:
                      upper_domain):
         return None
 
+    def give_Y_for_analysis(self, M, h, D, a, c, dt, f, Lambda,
+                     upper_domain):
+        """
+            To perform the analysis in the time domain, we need the matrix Y
+            such that Yu_{n+1} = u_{n}.
+            It may be different from the precompute_Y, because the output of
+            precompute_Y is used internally and can be modified for stability issues.
+        """
+        raise NotImplementedError
+
+    def give_robin_projector(self, M, h, D, a, c, dt, f, Lambda,
+            upper_domain):
+        """
+            since the discretisation of the first order derivative in the robin condition
+            depends on the discretization, we use this function that must return a
+            projector, from R^M to R, that gives the robin condition for the other domain.
+        """
+        raise NotImplementedError
+
+
     """
         Returns the name of the discretization, no caps.
     """

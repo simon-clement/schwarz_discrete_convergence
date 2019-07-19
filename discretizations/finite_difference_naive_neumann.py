@@ -423,8 +423,8 @@ class FiniteDifferencesNaiveNeumann(Discretization):
                      Lambda,
                      upper_domain=True):
         a, c, dt = self.get_a_c_dt(a, c, dt)
-        a, c, dt, bd_cond, Lambda = float(a), \
-            float(c), float(dt), float(bd_cond), float(Lambda)
+        a, c, dt, Lambda = float(a), \
+            float(c), float(dt), float(Lambda)
 
         # Broadcasting / verification of type:
         D = np.zeros(M - 1) + D
@@ -442,6 +442,41 @@ class FiniteDifferencesNaiveNeumann(Discretization):
                        upper_domain=upper_domain)
         Y[1][1:-1] += (np.ones(M - 2) / dt) * (h[1:] + h[:-1])
         return Y
+
+
+    def give_Y_for_analysis(self,
+                            M,
+                            h,
+                            D,
+                            a,
+                            c,
+                            dt,
+                            f,
+                            bd_cond,
+                            Lambda,
+                            upper_domain=True):
+        """
+           Give Y for the analysis. The difference between this and precompute_Y
+           is a multiplication by dt/(2h).
+        """
+        h = np.zeros(M - 1) + h
+        a, c, dt = self.get_a_c_dt(a, c, dt)
+        Y = self.precompute_Y(M, h, D, a, c, dt, f, bd_cond, Lambda, upper_domain)
+        Y[0][:-1] *= dt / (h[1:] + h[:-1])
+        Y[1][1:-1] *= dt / (h[1:] + h[:-1])
+        Y[2][1:] *= dt / (h[1:] + h[:-1])
+        return np.diag(Y[0], k=-1)+np.diag(Y[1]) + np.diag(Y[2],k=1)
+
+    def give_robin_projector(self, M, h, D, a, c, dt, f, Lambda):
+        """
+            To perform the analysis in the time domain, we need the matrix Y
+            such that Yu_{n+1} = u_{n}.
+            It may be different from the precompute_Y, because the output of
+            precompute_Y is used internally and can be modified for stability issues.
+        """
+        return np.array([Lambda - D/h] + [D/h] + [0]*(M-2))
+
+
 
     """
         When D and h are constant, it is possible to find the convergence

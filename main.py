@@ -115,6 +115,17 @@ def main():
                     print("This name does not exist. Please use one of:")
                     print('\n'.join(figures.all_figures))
 
+        #  use : ./main.py try function_name
+        if sys.argv[1] == "try":
+            from validation import all_functions
+            if len(sys.argv) == 2:
+                print("Please enter the name of the function contained in validation.py !")
+            else:
+                if sys.argv[2] in all_functions:
+                    print("Function found. Calling it...")
+                    all_functions[sys.argv[2]]()
+                else:
+                    print("Name does not exist. Are you sure the function is inside validation.py ?")
         # clean cache. 
         # If you want to clean the cache of only one function named fun,
         # just delete the folder "cache_npy/fun/"

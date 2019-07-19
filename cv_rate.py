@@ -587,6 +587,13 @@ def interface_errors(discretization,
             all_u1 += [u1_ret]
             all_u1_interface += [u_interface]
             all_phi1_interface += [phi_interface]
+        """
+        if k==0:
+            print("first simu:")
+            print(all_u1[1])
+            print("second simu:")
+            print(all_u1[2])
+        """
 
         ret += [all_u1_interface]
 
