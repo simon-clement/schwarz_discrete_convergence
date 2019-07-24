@@ -731,16 +731,17 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
     finite_difference_wout_corr = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_difference_naive = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     for dis in (finite_difference, finite_volumes, finite_difference_wout_corr, finite_difference_naive):
-        dis.SIZE_DOMAIN_1 = 20
-        dis.SIZE_DOMAIN_2 = 20
-        dis.M1_DEFAULT = 1000
-        dis.M2_DEFAULT = 1000
-        courant_number = 1
+        dis.SIZE_DOMAIN_1 = 5
+        dis.SIZE_DOMAIN_2 = 5
+        dis.M1_DEFAULT = 4
+        dis.M2_DEFAULT = 4
+        dis.A_DEFAULT = .0
+        courant_number = .01
         dis.DT_DEFAULT = courant_number * (dis.SIZE_DOMAIN_1 / (dis.M1_DEFAULT-1))**2 / DEFAULT.D1
 
-    analysis_frequency_rate((finite_difference_naive,),
-                            int(1e3), lambda_1=-1e13)
-    plt.title("Taux de convergence : interface \"Dirichlet Neumann\"")
+    analysis_frequency_rate((finite_difference_naive, ),
+                            int(1e5), lambda_1=.5, number_samples=3)
+    plt.title("\"Robin Neumann\", $\\Lambda_1=0.5$, $H_1=H_2=100$, $M_1=M_2=80$, $a=0$, $Courant=0.01$ \n 30 premières itérations")
     show_or_save("fig_frequency_rate_dirichlet_neumann_comparison_c_zero")
 
 
@@ -919,7 +920,7 @@ def fig_plot_finite_domains():
 
 def analysis_frequency_rate(discretization, N,
                             lambda_1=0.6139250052109033,
-                            number_samples=1, fftshift=True):
+                            number_samples=2, fftshift=True):
     fig, ax = plt.subplots()
 
     colors = ['r', 'g', 'y', 'm']
@@ -936,11 +937,12 @@ def analysis_frequency_rate(discretization, N,
                                dis,
                                N,
                                Lambda_1=lambda_1,
-                               number_samples=number_samples)
+                               number_samples=number_samples, NUMBER_IT=30)
+        print("end of simulation.")
         # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
         # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
         #plt.plot(axis_freq, frequencies[1], col+"--", label=dis.name()+" frequential error after the first iteration")
-        for i in range(1,20):
+        for i in range(1,30):
             lsimu, = ax.semilogy(axis_freq,
                      frequencies[i+1] / frequencies[i],
                      col)

@@ -457,7 +457,10 @@ def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
         errors = np.array(list(executor.map(to_map,
                                             range(number_samples))))
     freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))
-    return np.mean(np.abs(freq_err), axis=0)
+    if number_samples != 1:
+        return np.std(freq_err, axis=0)
+    else:
+        return np.abs(freq_err)[0]
 
 
 def interface_errors(discretization,
