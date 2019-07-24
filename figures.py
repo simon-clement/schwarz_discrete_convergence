@@ -732,12 +732,18 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
     finite_difference_wout_corr = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_difference_naive = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     for dis in (finite_difference, finite_volumes, finite_difference_wout_corr, finite_difference_naive):
-        dis.DT_DEFAULT *= 10
+        dis.SIZE_DOMAIN_1 = 100
+        dis.SIZE_DOMAIN_2 = 100
+        dis.M1_DEFAULT = 400
+        dis.M2_DEFAULT = 400
+        courant_number = .1
+        dis.A_DEFAULT = 0
+        #dis.C_DEFAULT = 10
+        dis.DT_DEFAULT = courant_number * (dis.SIZE_DOMAIN_1 / (dis.M1_DEFAULT-1))**2 / DEFAULT.D1
 
-    analysis_frequency_rate((finite_difference, finite_volumes,
-                             finite_difference_naive),
-                            1000, lambda_1=-1e13)
-    plt.title("Taux de convergence : interface \"Dirichlet Neumann\"")
+    analysis_frequency_rate((finite_difference_naive,finite_volumes),
+                            int(1e4), lambda_1=.5, number_samples=3)
+    plt.title("Taux de convergence : interface \"Robin Neumann\"")
     show_or_save("fig_frequency_rate_dirichlet_neumann_comparison_c_zero")
 
 
@@ -928,7 +934,7 @@ def optim_by_criblage_plot(discretization, T, number_dt_h2, steps=50):
 
 def analysis_frequency_rate(discretization, N,
                             lambda_1=0.6139250052109033,
-                            number_samples=135, fftshift=True):
+                            number_samples=13, fftshift=True):
     fig, ax = plt.subplots()
     def continuous_analytic_error_neumann(discretization, w):
         D1 = discretization.D1_DEFAULT
@@ -946,7 +952,7 @@ def analysis_frequency_rate(discretization, N,
 
         # continuous_best_lam_robin_neumann(dis, N)
         #print("rate", dis.name(), ":", rate(dis, N, Lambda_1=lambda_1))
-        dis.DT_DEFAULT /= 10
+        #dis.DT_DEFAULT /= 10
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi / dt, pi / dt, N)
 
@@ -954,21 +960,22 @@ def analysis_frequency_rate(discretization, N,
                                dis,
                                N,
                                Lambda_1=lambda_1,
-                               number_samples=number_samples)
+                               number_samples=number_samples, NUMBER_IT=15)
         # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
         # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
         #plt.plot(axis_freq, frequencies[1], col+"--", label=dis.name()+" frequential error after the first iteration")
-        lsimu, = ax.plot(axis_freq,
-                 frequencies[2] / frequencies[1],
-                 col)
-        ax.annotate(dis.name(), xy=(axis_freq[0], frequencies[2][0] / frequencies[1][0]),
-                    xycoords='data', horizontalalignment='left', verticalalignment='top')
+        for i in range(1,14):
+            lsimu, = ax.semilogy(axis_freq,
+                    frequencies[i+1] / frequencies[i],
+                     col)
+            ax.annotate(dis.name(), xy=(axis_freq[0], frequencies[2][0] / frequencies[1][0]), xycoords='data', horizontalalignment='left', verticalalignment='top')
 
 
         real_freq_discrete = np.array([
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
+                                 Lambda_2=0,
                                  semi_discrete=False,
                                  N=N) for w in axis_freq
         ])
@@ -980,6 +987,7 @@ def analysis_frequency_rate(discretization, N,
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
+                                 Lambda_2=0,
                                  semi_discrete=True,
                                  N=N) for w in axis_freq
         ]
@@ -988,6 +996,7 @@ def analysis_frequency_rate(discretization, N,
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
+                                 Lambda_2=0,
                                  semi_discrete=True,
                                  modified_time=1,
                                  N=N) for w in axis_freq
@@ -996,6 +1005,7 @@ def analysis_frequency_rate(discretization, N,
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
+                                 Lambda_2=0,
                                  semi_discrete=True,
                                  modified_time=2,
                                  N=N) for w in axis_freq
@@ -1004,6 +1014,7 @@ def analysis_frequency_rate(discretization, N,
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
+                                 Lambda_2=0,
                                  semi_discrete=True,
                                  modified_time=3,
                                  N=N) for w in axis_freq
@@ -1012,6 +1023,7 @@ def analysis_frequency_rate(discretization, N,
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
+                                 Lambda_2=0,
                                  semi_discrete=True,
                                  modified_time=4,
                                  N=N) for w in axis_freq

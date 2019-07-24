@@ -566,13 +566,14 @@ def frequency_simulation(discretization, N, number_samples=100, **kwargs):
         Lambda_1, Lambda_2, a, c, dt, M1, M2,
     """
     try:
+        raise
         import rust_mod
         errors = rust_mod.errors_raw(discretization,
                                      N,
                                      number_seeds=number_samples,
                                      **kwargs)
         freq_err = np.fft.fftshift(np.fft.fft(errors, axis=-1), axes=(-1, ))
-        return np.mean(np.abs(freq_err), axis=0)
+        return np.mean(np.real(freq_err), axis=0)
     except:
         print( "Cannot make a fast frequency simulation..." +
                "Going to pure python (but it will take some time)")
@@ -593,7 +594,7 @@ def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
         errors = np.array(list(executor.map(to_map,
                                             range(number_samples))))
     freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))
-    return np.mean(np.abs(freq_err), axis=0)
+    return np.std(freq_err, axis=0)
 
 
 def interface_errors(discretization,

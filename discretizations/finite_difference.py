@@ -445,6 +445,54 @@ class FiniteDifferences(Discretization):
         Y[1][1:-1] += (np.ones(M - 2) / dt) * (h[1:] + h[:-1])
         return Y
 
+
+    def eta_dirneu(self, j, s=None, a=None, c=None, dt=None, M=None, D=None):
+        """
+            Gives the \\eta of the discretization:
+            can be:
+                -eta(1, ..);
+                -eta(2, ..);
+            returns tuple (etaj_dir, etaj_neu).
+        """
+        assert j == 1 or j == 2
+
+        a, c, dt = self.get_a_c_dt(a, c, dt)
+        if s is None:
+            s = 1 / dt
+
+        if j == 1:
+            if M is None:
+                M = self.M1_DEFAULT
+            if D is None:
+                D = self.D1_DEFAULT
+            h = -self.SIZE_DOMAIN_1 / (M - 1)
+        elif j == 2: 
+            if M is None:
+                M = self.M2_DEFAULT
+            if D is None:
+                D = self.D2_DEFAULT
+            h = self.SIZE_DOMAIN_2 / (M - 1)
+
+        Y_0 = -D / (h * h) - .5 * a / h
+        Y_1 = 2 * D / (h * h) + c
+        Y_2 = -D / (h * h) + .5 * a / h
+
+        lambda_moins = (Y_1 + s - np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        lambda_plus = (Y_1 + s + np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+
+        # The computation is then different because the boundary condition is different
+        if j == 1:
+            eta1_dir = 1 + (lambda_moins / lambda_plus) ** M
+            eta1_neu = (D/h - a/2) * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins / lambda_plus)**M) - h/2 * (s + c)
+            return eta1_dir, eta1_neu
+        elif j == 2:
+            eta2_dir = 1 + (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1)
+            eta2_neu = (D/h - a/2) * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1)) - h/2 * (s+c)
+            return eta2_dir, eta2_neu
+
+
     """
         When D and h are constant, it is possible to find the convergence
         rate in frequency domain. analytic_robin_robin computes this convergence rate.
@@ -454,7 +502,7 @@ class FiniteDifferences(Discretization):
         for implicit euler discretisation.
     """
 
-    def analytic_robin_robin(self,
+    def analytic_robin_robin_legacy(self,
                              s=None,
                              Lambda_1=None,
                              Lambda_2=None,

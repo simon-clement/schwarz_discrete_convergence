@@ -516,6 +516,61 @@ class FiniteVolumes(Discretization):
                           Lambda=Lambda,
                           upper_domain=upper_domain)
 
+
+    def eta_dirneu(self, j, s=None, a=None, c=None, dt=None, M=None, D=None):
+        """
+            Gives the \\eta of the discretization:
+            can be:
+                -eta(1, ..);
+                -eta(2, ..);
+            returns tuple (etaj_dir, etaj_neu).
+        """
+        assert j == 1 or j == 2
+
+        a, c, dt = self.get_a_c_dt(a, c, dt)
+        if s is None:
+            s = 1 / dt
+
+        if j == 1:
+            if M is None:
+                M = self.M1_DEFAULT
+            if D is None:
+                D = self.D1_DEFAULT
+            h = -self.SIZE_DOMAIN_1 / M
+        elif j == 2: 
+            if M is None:
+                M = self.M2_DEFAULT
+            if D is None:
+                D = self.D2_DEFAULT
+            h = self.SIZE_DOMAIN_2 / M
+
+        Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (6 * D)
+        Y_1 = 1 / (s + c) * 2 / h + 2 * h / (3 * D)
+        Y_2 = -1 / (s + c) * (1 / h - a / (2 * D)) + h / (6 * D)
+
+        lambda_moins = (Y_1 - np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        lambda_plus = (Y_1 + np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+
+        # The computation is then different because the boundary condition is different
+        if j == 1:
+            xi = (h/(6*D) * (s+c) + 1/h + a/(2*D)) / (h/(3*D) * (s+c) + 1/h - a/(2*D))
+            eta1_dir = (-(1/h + a/(2*D))/(s+c) - h/(3*D)) \
+                    * (1 - (lambda_moins - xi) / (lambda_plus - xi) * (lambda_moins / lambda_plus)**(M-1)) \
+                    + ((1/h - a/(2*D))/(s+c) - h/(6*D)) \
+                    * (lambda_moins - lambda_plus* (lambda_moins - xi) / (lambda_plus - xi) *(lambda_moins / lambda_plus)**M)
+            eta1_neu = 1 + (lambda_moins-xi) / (lambda_plus - xi) *(lambda_moins / lambda_plus) ** (M - 1)
+            return eta1_dir, eta1_neu
+        elif j == 2:
+            eta2_dir = (-(1/h + a/(2*D))/(s+c) - h/(3*D)) \
+                    * (1 - (lambda_moins / lambda_plus)**M) \
+                    + ((1/h - a/(2*D))/(s+c) - h/(6*D)) \
+                    * (lambda_moins - lambda_plus*(lambda_moins / lambda_plus)**M)
+            eta2_neu = 1 + (lambda_moins / lambda_plus) ** M
+            return eta2_dir, eta2_neu
+
+
     """
         When D and h are constant, it is possible to find the convergence
         rate in frequency domain. analytic_robin_robin computes this convergence rate.
@@ -525,7 +580,7 @@ class FiniteVolumes(Discretization):
         for implicit euler discretisation.
     """
 
-    def analytic_robin_robin(self,
+    def analytic_robin_robin_legacy(self,
                              s=None,
                              Lambda_1=None,
                              Lambda_2=None,
