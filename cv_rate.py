@@ -417,6 +417,143 @@ def raw_simulation(discretization, N, number_samples=1000, **kwargs):
                                                 range(number_samples))))
         return np.mean(np.abs(errors), axis=0)
 
+def one_schwarz_iteration_matrix(dis, N, Lambda_1, Lambda_2):
+    """
+        Gives the matrices:
+        - Z such that:
+            Z(Lambda_1*e^k + phi^k) = Lambda_1*e^{k+1} + phi^{k+1}
+        - Z_fin such that:
+            Z_fin(Lambda_1*e^k + phi^k) = e^{k+1}
+        returns Z, Z_fin
+    """
+    a, c, dt = dis.get_a_c_dt(None, None, None)
+    M1 = dis.M1_DEFAULT
+    M2 = dis.M2_DEFAULT
+    h1 = -dis.SIZE_DOMAIN_1 / (M1-1)
+    h2 = dis.SIZE_DOMAIN_2 / (M2-1)
+    D1 = dis.D1_DEFAULT
+    D2 = dis.D2_DEFAULT
+
+    R1 = np.diag(np.concatenate(((0,), np.ones(M1-2), (0,))))
+    R2 = np.diag(np.concatenate(((0,), np.ones(M2-2), (0,))))
+
+    I_0_1 = np.array([1] + [0]*(M1-1))
+    I_0_2 = np.array([1] + [0]*(M2-1))
+    I_1_1 = dis.give_robin_projector(M1, h1, D1, a, c, dt, 0, Lambda_2)
+    I_1_2 = dis.give_robin_projector(M2, h2, D2, a, c, dt, 0, Lambda_1)
+
+    Y1 = dis.give_Y_for_analysis(M=M1, h=h1, D=D1, a=a, c=c, dt=dt,
+                          f=None, bd_cond=None,
+                          Lambda=Lambda_1, upper_domain=False)
+    Y2 = dis.give_Y_for_analysis(M=M2, h=h2, D=D2, a=a, c=c, dt=dt,
+                          f=None, bd_cond=None,
+                          Lambda=Lambda_2, upper_domain=True)
+
+    Y_inv_2 = np.linalg.inv(Y2)
+    Y_inv_1 = np.linalg.inv(Y1)
+    Z1_fin = []
+    Z2_fin = []
+    Z1 = []
+    Z2 = []
+    for n in range(1, N+1):
+        bloc1 = []
+        bloc1_fin = []
+        bloc2 = []
+        bloc2_fin = []
+        for i in range(N):
+            if i < n:
+                bloc1_fin += [I_0_1.T @ np.linalg.matrix_power(Y_inv_1 @ R1, n - i-1) @Y_inv_1 @ I_0_1]
+                bloc1 += [I_1_1.T @ np.linalg.matrix_power(Y_inv_1 @ R1, n - i-1) @Y_inv_1 @ I_0_1]
+                bloc2_fin += [np.reshape(np.linalg.matrix_power(Y_inv_2 @ R2, n - i-1) @Y_inv_2 @ I_0_2, (-1, 1))]
+                bloc2 += [I_1_2.T @ np.linalg.matrix_power(Y_inv_2 @ R2, n - i-1) @Y_inv_2 @ I_0_2]
+            else:
+                bloc1_fin += [np.zeros(1)]
+                bloc2_fin += [np.zeros_like(np.reshape(I_0_2, (-1,1)))]
+                bloc1 += [np.zeros(1)]
+                bloc2 += [np.zeros(1)]
+        Z1_fin += [np.hstack(bloc1_fin)]
+        Z2_fin += [np.hstack(bloc2_fin)]
+        Z1 += [np.hstack(bloc1)]
+        Z2 += [np.hstack(bloc2)]
+    Z1_fin = np.vstack(Z1_fin)
+    Z2_fin = np.vstack(Z2_fin)
+    Z1 = np.vstack(Z1)
+    Z2 = np.vstack(Z2)
+    
+    Z = Z1@Z2
+    Z_fin = Z1_fin@Z2
+    return Z, Z_fin
+
+def norm_matrix_for_performances(dis, N, Lambda_1, Lambda_2, norm='fro'):
+    """
+        possible norms:
+        - 'fro': Frobenius norm
+        - 'nuc': Nuclear norm
+        - 2: Largest singular value
+        - 1: max(sum(abs(x), axis=0))
+    """
+    a, c, dt = dis.get_a_c_dt(None, None, None)
+    M1 = dis.M1_DEFAULT
+    M2 = dis.M2_DEFAULT
+    h1 = -dis.SIZE_DOMAIN_1 / (M1-1)
+    h2 = dis.SIZE_DOMAIN_2 / (M2-1)
+    D1 = dis.D1_DEFAULT
+    D2 = dis.D2_DEFAULT
+
+    R1 = np.diag(np.concatenate(((0,), np.ones(M1-2), (0,))))
+    R2 = np.diag(np.concatenate(((0,), np.ones(M2-2), (0,))))
+
+    I_0_1 = np.array([1] + [0]*(M1-1))
+    I_0_2 = np.array([1] + [0]*(M2-1))
+    I_1_1 = dis.give_robin_projector(M1, h1, D1, a, c, dt, 0, Lambda_2)
+    I_1_2 = dis.give_robin_projector(M2, h2, D2, a, c, dt, 0, Lambda_1)
+
+    Y1 = dis.give_Y_for_analysis(M=M1, h=h1, D=D1, a=a, c=c, dt=dt,
+                          f=None, bd_cond=None,
+                          Lambda=Lambda_1, upper_domain=False)
+    Y2 = dis.give_Y_for_analysis(M=M2, h=h2, D=D2, a=a, c=c, dt=dt,
+                          f=None, bd_cond=None,
+                          Lambda=Lambda_2, upper_domain=True)
+
+    Y_inv_2 = np.linalg.inv(Y2)
+    Y_inv_1 = np.linalg.inv(Y1)
+    Z1 = []
+    Z2 = []
+    for n in range(1, N+1):
+        bloc1 = []
+        bloc2 = []
+        for i in range(N):
+            if i < n:
+                bloc1 += [I_1_1.T @ np.linalg.matrix_power(Y_inv_1 @ R1, n - i-1) @Y_inv_1 @ I_0_1]
+                bloc2 += [I_1_2.T @ np.linalg.matrix_power(Y_inv_2 @ R2, n - i-1) @Y_inv_2 @ I_0_2]
+            else:
+                bloc1 += [np.zeros(1)]
+                bloc2 += [np.zeros(1)]
+        Z1 += [np.hstack(bloc1)]
+        Z2 += [np.hstack(bloc2)]
+    Z1 = np.vstack(Z1)
+    Z2 = np.vstack(Z2)
+    Z = Z1@Z2
+
+    return np.linalg.norm(Z, norm)
+
+
+def fast_simulation_by_matrix(dis, N, Lambda_1, Lambda_2, number_samples=1000, NUMBER_IT=3):
+
+    Z, Z_fin = one_schwarz_iteration_matrix(dis, N, Lambda_1, Lambda_2)
+    e_simu = []
+    for k in range(number_samples):
+        np.random.seed(k)
+        all_u1_interface = 2 * (np.random.rand(N) - 0.5)
+        all_phi1_interface = 2 * (np.random.rand(N) - 0.5)
+        first_guess = (Lambda_2 * all_u1_interface + all_phi1_interface)
+        e_simu += [[first_guess]]
+        for i in range(NUMBER_IT):
+            #e_simu[-1] += [np.fft.fftshift(np.fft.fft(Z_fin @ np.linalg.matrix_power(Z, i) @ first_guess, axis=-1), axes=(-1, ))]
+            e_simu[-1] += [np.fft.fftshift(np.fft.fft(np.linalg.matrix_power(Z, i) @ first_guess, axis=-1), axes=(-1, ))]
+    
+    return np.std(np.array(e_simu), axis=0)
+
 
 def frequency_simulation(discretization, N, number_samples=100, **kwargs):
     """

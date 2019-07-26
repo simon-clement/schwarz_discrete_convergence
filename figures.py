@@ -731,17 +731,17 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
     finite_difference_wout_corr = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_difference_naive = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     for dis in (finite_difference, finite_volumes, finite_difference_wout_corr, finite_difference_naive):
-        dis.SIZE_DOMAIN_1 = 5
-        dis.SIZE_DOMAIN_2 = 5
-        dis.M1_DEFAULT = 4
-        dis.M2_DEFAULT = 4
-        dis.A_DEFAULT = .0
-        courant_number = .01
-        dis.DT_DEFAULT = courant_number * (dis.SIZE_DOMAIN_1 / (dis.M1_DEFAULT-1))**2 / DEFAULT.D1
+        dis.SIZE_DOMAIN_1 = 20
+        dis.SIZE_DOMAIN_2 = 20
+        dis.M1_DEFAULT = 100
+        dis.M2_DEFAULT = 100
+        dis.A_DEFAULT = 0
+        courant_number = 2.5 / 2
+        dis.DT_DEFAULT = courant_number * (2 / 10)**2 / DEFAULT.D1
 
     analysis_frequency_rate((finite_difference_naive, ),
-                            int(1e5), lambda_1=.5, number_samples=3)
-    plt.title("\"Robin Neumann\", $\\Lambda_1=0.5$, $H_1=H_2=100$, $M_1=M_2=80$, $a=0$, $Courant=0.01$ \n 30 premières itérations")
+                            int(8e2), lambda_1=0.5, lambda_2=0., number_samples=3)
+    plt.title("\"Robin Neumann\", $\\Lambda_1=0.5$, $H_1=H_2=20$, $M_1=M_2=100$, $Courant=0.01$ \n 30 premières itérations")
     show_or_save("fig_frequency_rate_dirichlet_neumann_comparison_c_zero")
 
 
@@ -765,11 +765,16 @@ def fig_plot3D_function_to_minimize():
         but we can see that both continuous and discrete analysis
         share the same global shape.
     """
+    DEFAULT.N = 10
     finite_difference = DEFAULT.new(FiniteDifferences)
     finite_difference2 = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     finite_difference3 = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     finite_vol = DEFAULT.new(FiniteVolumes)
-    fig = plot_3D_profile((finite_difference, finite_difference2, finite_difference3,finite_vol), DEFAULT.N)
+    finite_difference3.M1_DEFAULT = 20
+    finite_difference3.M2_DEFAULT = 20
+    finite_difference3.SIZE_DOMAIN_1 = 20
+    finite_difference3.SIZE_DOMAIN_2 = 20
+    fig = plot_3D_profile((finite_difference3, ), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
 
@@ -920,6 +925,7 @@ def fig_plot_finite_domains():
 
 def analysis_frequency_rate(discretization, N,
                             lambda_1=0.6139250052109033,
+                            lambda_2=-0.,
                             number_samples=2, fftshift=True):
     fig, ax = plt.subplots()
 
@@ -933,18 +939,32 @@ def analysis_frequency_rate(discretization, N,
         dt = dis.DT_DEFAULT
         axis_freq = np.linspace(-pi / dt, pi / dt, N)
 
+        np.random.seed(0)
         frequencies = memoised(frequency_simulation,
                                dis,
                                N,
                                Lambda_1=lambda_1,
-                               number_samples=number_samples, NUMBER_IT=30)
+                               Lambda_2=lambda_2,
+                               number_samples=number_samples,
+                               NUMBER_IT=30)
         print("end of simulation.")
-        # plt.plot(axis_freq, frequencies[0], col2+"--", label=" initial frequency ")
-        # plt.plot(axis_freq, frequencies[1], col, label=dis.name()+" after 1 iteration")
-        #plt.plot(axis_freq, frequencies[1], col+"--", label=dis.name()+" frequential error after the first iteration")
+        time_domain_frequencies = memoised(cv_rate.fast_simulation_by_matrix,
+                               dis,
+                               N,
+                               Lambda_1=lambda_1,
+                               Lambda_2=lambda_2,
+                               number_samples=200*number_samples,
+                               NUMBER_IT=30)
+        print("end of time domain simulation.")
+
         for i in range(1,30):
+            """
             lsimu, = ax.semilogy(axis_freq,
                      frequencies[i+1] / frequencies[i],
+                     col)
+            """
+            ltimedomain, = ax.semilogy(axis_freq,
+                     time_domain_frequencies[i+1] / time_domain_frequencies[i],
                      col)
         ax.annotate(dis.name(), xy=(axis_freq[0], frequencies[2][0] / frequencies[1][0]),
                     xycoords='data', horizontalalignment='left', verticalalignment='top')
@@ -954,6 +974,7 @@ def analysis_frequency_rate(discretization, N,
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
+                                 Lambda_2=lambda_2,
                                  semi_discrete=False,
                                  N=N) for w in axis_freq
         ])
@@ -965,12 +986,13 @@ def analysis_frequency_rate(discretization, N,
             analytic_robin_robin(dis,
                                  w=w,
                                  Lambda_1=lambda_1,
+                                 Lambda_2=lambda_2,
                                  semi_discrete=True,
                                  N=N) for w in axis_freq
         ]
 
         real_freq_continuous = [
-            continuous_analytic_rate_robin_neumann(dis, w=w, Lambda_1=lambda_1)
+            continuous_analytic_rate_robin_robin(dis, w=w, Lambda_1=lambda_1, Lambda_2=lambda_2)
             for w in axis_freq
         ]
 
@@ -1042,14 +1064,49 @@ def plot_3D_profile(all_dis, N):
     dt = DEFAULT.DT
 
     cont = functools.partial(continuous_analytic_rate_robin_robin, all_dis[0])
-    subplot_param = (1 + len(list(all_dis)))*100 + 11
+    subplot_param = (5 + len(list(all_dis)))*100 + 11
 
     def fun(x):
         return max([cont(Lambda_1=x[0], Lambda_2=x[1], w=pi / (n * dt))
                     for n in (1, N)])
 
+    """
     fig, ax = plot_3D_square(fun, 0, 4., -4., -0,  500, 100, subplot_param=subplot_param)
     ax.set_title("Taux de convergence : analyse continue")
+    ax.set_ylabel("$\\Lambda^2$")
+    """
+
+    time_dom = functools.partial(cv_rate.norm_matrix_for_performances, all_dis[0], N)
+
+    def fun_time_dom_normfro(x):
+        return time_dom(x[0], x[1], norm='fro')
+    def fun_time_dom_normnuc(x):
+        return time_dom(x[0], x[1], norm='nuc')
+    def fun_time_dom_norm1(x):
+        return time_dom(x[0], x[1], norm=1)
+    def fun_time_dom_norm2(x):
+        return time_dom(x[0], x[1], norm=2)
+    def fun_time_dom_norminf(x):
+        return time_dom(x[0], x[1], norm=float('inf'))
+
+    fig, ax = plot_3D_square(fun_time_dom_normfro, 0, 4., -4., -0,  400, 100, subplot_param=subplot_param)
+    ax.set_title("domaine temporel : fro")
+    ax.set_ylabel("$\\Lambda^2$")
+    subplot_param += 1
+    fig, ax = plot_3D_square(fun_time_dom_normnuc, 0, 4., -4., -0,  400, 100, fig=fig, subplot_param=subplot_param)
+    ax.set_title("domaine temporel : nuc")
+    ax.set_ylabel("$\\Lambda^2$")
+    subplot_param += 1
+    fig, ax = plot_3D_square(fun_time_dom_norm1, 0, 4., -4., -0,  400, 100, fig=fig, subplot_param=subplot_param)
+    ax.set_title("domaine temporel : norm 1")
+    ax.set_ylabel("$\\Lambda^2$")
+    subplot_param += 1
+    fig, ax = plot_3D_square(fun_time_dom_norm2, 0, 4., -4., -0,  400, 100, fig=fig, subplot_param=subplot_param)
+    ax.set_title("domaine temporel : norm 2")
+    ax.set_ylabel("$\\Lambda^2$")
+    subplot_param += 1
+    fig, ax = plot_3D_square(fun_time_dom_norminf, 0, 4., -4., -0,  400, 100, fig=fig, subplot_param=subplot_param)
+    ax.set_title("domaine temporel : norm inf")
     ax.set_ylabel("$\\Lambda^2$")
     for dis in all_dis:
         subplot_param += 1
@@ -1124,13 +1181,15 @@ def plot_3D_square(fun, xmin, xmax, ymin, ymax, Nx, Ny, fig=None, subplot_param=
                   for linex, liney in zip(X, Y)])
     from matplotlib import cm
     cmap = reverse_colourmap(cm.YlGnBu)
-    surf = ax.pcolormesh(X, Y, Z, cmap=cmap, vmin=.15, vmax=.8)
+    surf = ax.pcolormesh(X, Y, Z, cmap=cmap)#, vmin=.05, vmax=.8)
     #min=0.2, max=0.5
+    """
     if plot_colorbar:
         fig.subplots_adjust(right=0.8, hspace=0.5)
         cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
         cbar_ax.set_title("$\\max_s\\hat{\\rho}$")
         fig.colorbar(surf, shrink=0.5, aspect=5, cax=cbar_ax)
+    """
 
 
     return fig, ax
