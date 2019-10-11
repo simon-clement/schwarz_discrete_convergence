@@ -555,6 +555,7 @@ class FiniteVolumes(Discretization):
 
         # The computation is then different because the boundary condition is different
         if j == 1:
+            lambda_moins, lambda_plus = lambda_plus, lambda_moins # we invert the l- and l+ to have |l-|<1
             xi = (h/(6*D) * (s+c) + 1/h + a/(2*D)) / (h/(3*D) * (s+c) + 1/h - a/(2*D))
             eta1_dir = (-(1/h + a/(2*D))/(s+c) - h/(3*D)) \
                     * (1 - (lambda_moins - xi) / (lambda_plus - xi) * (lambda_moins / lambda_plus)**(M-1)) \
