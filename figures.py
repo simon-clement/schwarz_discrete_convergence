@@ -777,6 +777,78 @@ def fig_plot3D_function_to_minimize():
     fig = plot_3D_profile((finite_difference2, ), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
+
+def fig_compare_modif_approaches_vol():
+    """
+        Compare the approaches used with modified equations :
+        plot cv rate :
+        - simulated
+        - with continuous approach
+        - with semi-discrete in space, modif in time
+        - with modified equations, modified operators
+        - with interface operator
+    """
+    dis = DEFAULT.new(FiniteVolumes)
+    dis.DT_DEFAULT *= 1
+    # 0.5; -0.5 is generally a good choice with our parameters
+    lambda_1 = 0.1
+    lambda_2 = -0.5
+    N = DEFAULT.N * 10
+
+    # we take a little more points
+    facteur = 1
+    dis.M1_DEFAULT = int(dis.M1_DEFAULT*facteur)
+    dis.M2_DEFAULT = int(dis.M2_DEFAULT*facteur)
+
+    dt = dis.DT_DEFAULT
+
+    axis_freq = np.linspace(-pi / dt, pi / dt, N)
+
+    fig, ax = plt.subplots()
+
+    simulated_freq = memoised(frequency_simulation,
+                           dis,
+                           N,
+                           Lambda_1=lambda_1,
+                           Lambda_2=lambda_2,
+                           number_samples=5)
+    simulated_cv = simulated_freq[2] / simulated_freq[1]
+    nomodif_approach = [continuous_analytic_rate_robin_robin(dis, w=w,
+                                                               Lambda_1=lambda_1,
+                                                               Lambda_2=lambda_2)
+                                        for w in axis_freq]
+    semi_discrete_modif_time = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
+                                             w=w, semi_discrete=True, modified_time=3)
+                                        for w in axis_freq]
+    continuous_modified_op = [cv_rate.continuous_analytic_rate_robin_robin_modified_operator_vol(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+    continuous_modified = [cv_rate.continuous_analytic_rate_robin_robin_modified_vol(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+    continuous_modified_time = [cv_rate.continuous_analytic_rate_robin_robin_modified_time_vol(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+
+
+    ax.plot(axis_freq, simulated_cv, label="simulation")
+    ax.plot(axis_freq, nomodif_approach, label="continuous, not modified")
+    ax.plot(axis_freq, continuous_modified_op, label="continuous with modified operators")
+    ax.plot(axis_freq, continuous_modified_time, label="continuous modified operators and eq, in time")
+    ax.plot(axis_freq, continuous_modified, label="continuous modified operators and eq, in space and time")
+
+
+    ax.plot(axis_freq, semi_discrete_modif_time, "k--", label="semi-discrete in space, modified in time")
+    ax.set_xlabel("$\\omega$")
+    ax.set_ylabel("$\\hat{\\rho}$")
+
+    fig.legend()
+    show_or_save("fig_compare_modif_approaches_vol")
+    
+
+
+
+
 def fig_compare_modif_approaches():
     """
         Compare the approaches used with modified equations :
@@ -790,14 +862,14 @@ def fig_compare_modif_approaches():
     dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     dis.DT_DEFAULT *= 1
     # 0.5; -0.5 is generally a good choice with our parameters
-    lambda_1 = 0.5
+    lambda_1 = 0.1
     lambda_2 = -0.5
     N = DEFAULT.N * 10
 
     # we take a little more points
-    facteur = 1.3
-    dis.M1_DEFAULT *= facteur
-    dis.M2_DEFAULT *= facteur
+    facteur = 1
+    dis.M1_DEFAULT = int(dis.M1_DEFAULT*facteur)
+    dis.M2_DEFAULT = int(dis.M2_DEFAULT*facteur)
 
     dt = dis.DT_DEFAULT
 
@@ -822,6 +894,9 @@ def fig_compare_modif_approaches():
     continuous_modified = [cv_rate.continuous_analytic_rate_robin_robin_modified_naive_ordre3(dis,
                                         Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
                                         for w in axis_freq]
+    continuous_modified_time = [cv_rate.continuous_analytic_rate_robin_robin_modified_time_naive_ordre3(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
     continuous_operators_modified = [cv_rate.continuous_analytic_rate_robin_robin_modified_operator_naive_ordre3(dis,
                                         Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
                                         for w in axis_freq]
@@ -829,8 +904,9 @@ def fig_compare_modif_approaches():
 
     ax.plot(axis_freq, simulated_cv, label="simulation")
     ax.plot(axis_freq, nomodif_approach, label="continuous, not modified")
-    ax.plot(axis_freq, continuous_modified, label="continuous modified in space and time")
     ax.plot(axis_freq, continuous_operators_modified, label="continuous with modified operators")
+    ax.plot(axis_freq, continuous_modified_time, label="continuous modified operators and eq, in time")
+    ax.plot(axis_freq, continuous_modified, label="continuous modified operators and eq, in space and time")
 
 
     ax.plot(axis_freq, semi_discrete_modif_time, "k--", label="semi-discrete in space, modified in time")
@@ -840,6 +916,66 @@ def fig_compare_modif_approaches():
     fig.legend()
     show_or_save("fig_compare_modif_approaches")
     
+
+def fig_validate_analysis_modif_approach():
+    """
+        Compare the equations used with modified equations :
+        plot cv rate :
+        - simulated
+        - with continuous approach
+        - with semi-discrete in space, modif in time
+        - with modified equations, modified operators
+        - with interface operator
+    """
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    dis.D1_DEFAULT = dis.D2_DEFAULT
+    dis.C_DEFAULT = 0
+    dis.DT_DEFAULT *= 1
+    # 0.5; -0.5 is generally a good choice with our parameters
+    lambda_1 = 0.1
+    lambda_2 = -0.5
+    N = DEFAULT.N * 10
+
+    # we take a little more points
+    facteur = 1
+    dis.M1_DEFAULT = int(dis.M1_DEFAULT*facteur)
+    dis.M2_DEFAULT = int(dis.M2_DEFAULT*facteur)
+
+    dt = dis.DT_DEFAULT
+
+    axis_freq = np.linspace(-pi / dt, pi / dt, N)
+
+    fig, ax = plt.subplots()
+
+    simulated_freq = memoised(frequency_simulation,
+                           dis,
+                           N,
+                           Lambda_1=lambda_1,
+                           Lambda_2=lambda_2,
+                           number_samples=5)
+    simulated_cv = simulated_freq[2] / simulated_freq[1]
+    nomodif_approach = [continuous_analytic_rate_robin_robin(dis, w=w,
+                                                               Lambda_1=lambda_1,
+                                                               Lambda_2=lambda_2)
+                                        for w in axis_freq]
+    continuous_modified_basic = [cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+    continuous_modified_simpler = [cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq_simple_formula(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+
+
+    ax.plot(axis_freq, simulated_cv, label="simulation")
+    ax.plot(axis_freq, nomodif_approach, label="continuous, not modified")
+    ax.plot(axis_freq, continuous_modified_basic, label="continuous modified equations, initial formula")
+    ax.plot(axis_freq, continuous_modified_simpler, label="continuous modified equations, simpler (but false) formula")
+
+    ax.set_xlabel("$\\omega$")
+    ax.set_ylabel("$\\hat{\\rho}$")
+
+    fig.legend()
+    show_or_save("fig_validate_analysis_modif_approach")
 
 
 

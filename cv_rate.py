@@ -59,6 +59,76 @@ def continuous_analytic_rate_robin_robin(discretization, Lambda_1, Lambda_2,
     return np.abs(first_term * second)
 
 
+def continuous_analytic_rate_robin_robin_modified_only_eq(discretization, Lambda_1, Lambda_2,
+                                         w):
+    """
+        Returns the convergence rate predicted by continuous analysis with modified equations..
+    """
+
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    assert(D1==D2)
+    H1 = - discretization.SIZE_DOMAIN_1
+    H2 = discretization.SIZE_DOMAIN_2
+    c = discretization.C_DEFAULT
+    assert(c==0)
+    h1 = H1/(discretization.M1_DEFAULT - 1)
+    dt = discretization.DT_DEFAULT
+
+    c_mod = h1**2 / (12*D1**2) + dt / 2
+
+    # sig1 is \sigma^1_{-}
+    sig1 = np.sqrt((w*1j + c_mod*w**2 + c) / D1)
+    sig2 = np.sqrt((w*1j + c_mod*w**2 + c) / D2)
+
+    #This line is necessary because we have sig1=\sigma^{-} and sig2=\sigma^{+}
+    #Lambda_2 = - Lambda_2 OR sig1 = -sig1
+    sig2 = -sig2
+
+    first_term = (D2*sig2+Lambda_1)/ \
+            (D1*sig1 + Lambda_1)
+    second = (D1*sig1 + Lambda_2)/ \
+            (D2*sig2 + Lambda_2)
+    return np.abs(first_term * second)
+
+
+def continuous_analytic_rate_robin_robin_modified_only_eq_simple_formula(discretization, Lambda_1, Lambda_2,
+                                         w):
+    """
+        Returns the convergence rate predicted by continuous analysis with modified equations.
+        It is called simple formula because there is no complex number involved in the computations.
+    """
+
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    assert D1 == D2
+    H1 = - discretization.SIZE_DOMAIN_1
+    H2 = discretization.SIZE_DOMAIN_2
+    c = discretization.C_DEFAULT
+    assert c == 0
+    h1 = H1/(discretization.M1_DEFAULT - 1)
+    dt = discretization.DT_DEFAULT
+
+    c_mod = h1**2 / (12*D1**2) + dt / 2
+    assert c_mod > 0
+
+    Lambda_2 /= np.sqrt(D1)
+    Lambda_1 /= np.sqrt(D1) # we remove all the D from the convergence rate thanks to this
+    # Now we have Lambda_{1,2}+sqrt(iw+cw^2)
+    #let's multiply everywhere by sqrt(c_mod) :
+    Lambda_1 *= np.sqrt(c_mod)
+    Lambda_2 *= np.sqrt(c_mod)
+    w *= c_mod
+    w = w**2
+
+    # We now have Lambda_{1,2} + sqrt(iw + w^2)
+    def f(pm, l1_or_2):
+        return np.sqrt(2)*pm*l1_or_2*np.sqrt(w+np.sqrt(w*(1+w)))+np.sqrt(w*(1+w)) + l1_or_2**2
+
+    # This should be equal to the output of continuous_analytic_rate_robin_robin_modified_only_eq.
+    return np.sqrt(f(-1, Lambda_1)*f(1, Lambda_2) / (f(1, Lambda_1) * f(-1, Lambda_2)))
+
+
 def continuous_analytic_rate_robin_robin_modified_naive(discretization, Lambda_1, Lambda_2,
                                          w):
     """
@@ -95,6 +165,166 @@ def continuous_analytic_rate_robin_robin_modified_naive(discretization, Lambda_1
             (D1*sig1*np.exp(h1*sig1/2) + Lambda_1)
     second = (D1*sig1*np.exp(h1*sig1/2) + Lambda_2)/ \
             (D2*sig2*np.exp(h2*sig2/2) + Lambda_2)
+
+    return np.abs(first_term * second)
+
+def continuous_analytic_rate_robin_robin_modified_operator_vol(discretization, Lambda_1, Lambda_2,
+                                         w):
+    """
+        Returns the convergence rate predicted by continuous analysis.
+        The equation is diffusion-reaction with constant coefficients.
+        The interface condition is Robin-Robin.
+        w is the frequency;
+        Lambda_{1,2} are the Robin condition free parameters.
+        discretization must have the following attributes:
+        discretization.D1_DEFAULT : diffusivity in \\Omega_1
+        discretization.D2_DEFAULT : diffusivity in \\Omega_2
+        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
+        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
+        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
+    """
+
+    dt = discretization.DT_DEFAULT
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    H1 = - discretization.SIZE_DOMAIN_1
+    H2 = discretization.SIZE_DOMAIN_2
+    c = discretization.C_DEFAULT
+    h1 = H1 / (discretization.M1_DEFAULT - 1)
+    h2 = H2 / (discretization.M2_DEFAULT - 1)
+
+    # sig1 is \sigma^1_{+}
+    sig1 = np.sqrt((w*1j + c) / D1)
+    sig2 = np.sqrt((w*1j + c) / D2)
+
+    # sig2 is \sigma^2_{-}
+    sig2 = -sig2
+
+    first_term = (D2*sig2+Lambda_1*(1+h2**2*sig2**3/24))/ (D1*sig1 + Lambda_1*(1+h1**2*sig1**3/24))
+    second = (D1*sig1 + Lambda_2*(1+h1**2*sig1**3/24))/ (D2*sig2 + Lambda_2*(1+h2**2*sig2**3/24))
+
+    return np.abs(first_term * second)
+def continuous_analytic_rate_robin_robin_modified_time_vol(discretization, Lambda_1, Lambda_2,
+                                         w):
+    """
+        Returns the convergence rate predicted by continuous analysis.
+        The equation is diffusion-reaction with constant coefficients.
+        The interface condition is Robin-Robin.
+        w is the frequency;
+        Lambda_{1,2} are the Robin condition free parameters.
+        discretization must have the following attributes:
+        discretization.D1_DEFAULT : diffusivity in \\Omega_1
+        discretization.D2_DEFAULT : diffusivity in \\Omega_2
+        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
+        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
+        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
+    """
+
+    dt = discretization.DT_DEFAULT
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    H1 = - discretization.SIZE_DOMAIN_1
+    H2 = discretization.SIZE_DOMAIN_2
+    c = discretization.C_DEFAULT
+    h1 = H1 / (discretization.M1_DEFAULT - 1)
+    h2 = H2 / (discretization.M2_DEFAULT - 1)
+
+    # sig1 is \sigma^1_{+}
+    sig1 = np.sqrt((w*1j + c) / D1)
+    sig2 = np.sqrt((w*1j + c) / D2)
+    sig1 = np.sqrt((w*1j +w**2*(dt/2) + c) / D1)
+    sig2 = np.sqrt((w*1j +w**2*(dt/2) + c) / D2)
+
+    # sig2 is \sigma^2_{-}
+    sig2 = -sig2
+
+    first_term = (D2*sig2+Lambda_1*(1+h2**2*sig2**3/24))/ (D1*sig1 + Lambda_1*(1+h1**2*sig1**3/24))
+    second = (D1*sig1 + Lambda_2*(1+h1**2*sig1**3/24))/ (D2*sig2 + Lambda_2*(1+h2**2*sig2**3/24))
+
+    return np.abs(first_term * second)
+
+
+def continuous_analytic_rate_robin_robin_modified_vol(discretization, Lambda_1, Lambda_2,
+                                         w):
+    """
+        Returns the convergence rate predicted by continuous analysis.
+        The equation is diffusion-reaction with constant coefficients.
+        The interface condition is Robin-Robin.
+        w is the frequency;
+        Lambda_{1,2} are the Robin condition free parameters.
+        discretization must have the following attributes:
+        discretization.D1_DEFAULT : diffusivity in \\Omega_1
+        discretization.D2_DEFAULT : diffusivity in \\Omega_2
+        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
+        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
+        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
+    """
+
+    dt = discretization.DT_DEFAULT
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    H1 = - discretization.SIZE_DOMAIN_1
+    H2 = discretization.SIZE_DOMAIN_2
+    c = discretization.C_DEFAULT
+    h1 = H1 / (discretization.M1_DEFAULT - 1)
+    h2 = H2 / (discretization.M2_DEFAULT - 1)
+
+    # sig1 is \sigma^1_{+}
+    sig1 = np.sqrt((w*1j + c) / D1)
+    sig2 = np.sqrt((w*1j + c) / D2)
+    sig1 = np.sqrt((w*1j +w**2*(h1**2/(24*D1) + dt/2) + c) / D1)
+    sig2 = np.sqrt((w*1j +w**2*(h2**2/(24*D2) + dt/2) + c) / D2)
+
+    # sig2 is \sigma^2_{-}
+    sig2 = -sig2
+
+    first_term = (D2*sig2+Lambda_1*(1+h2**2*sig2**3/24))/ (D1*sig1 + Lambda_1*(1+h1**2*sig1**3/24))
+    second = (D1*sig1 + Lambda_2*(1+h1**2*sig1**3/24))/ (D2*sig2 + Lambda_2*(1+h2**2*sig2**3/24))
+
+    return np.abs(first_term * second)
+
+
+
+
+
+def continuous_analytic_rate_robin_robin_modified_time_naive_ordre3(discretization, Lambda_1, Lambda_2,
+                                         w):
+    """
+        Returns the convergence rate predicted by continuous analysis.
+        The equation is diffusion-reaction with constant coefficients.
+        The interface condition is Robin-Robin.
+        w is the frequency;
+        Lambda_{1,2} are the Robin condition free parameters.
+        discretization must have the following attributes:
+        discretization.D1_DEFAULT : diffusivity in \\Omega_1
+        discretization.D2_DEFAULT : diffusivity in \\Omega_2
+        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
+        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
+        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
+    """
+
+    dt = discretization.DT_DEFAULT
+    D1 = discretization.D1_DEFAULT
+    D2 = discretization.D2_DEFAULT
+    H1 = - discretization.SIZE_DOMAIN_1
+    H2 = discretization.SIZE_DOMAIN_2
+    c = discretization.C_DEFAULT
+    h1 = H1 / (discretization.M1_DEFAULT - 1)
+    h2 = H2 / (discretization.M2_DEFAULT - 1)
+
+    # sig1 is \sigma^1_{+}
+    sig1 = np.sqrt((w*1j + c) / D1)
+    sig2 = np.sqrt((w*1j + c) / D2)
+    sig1 = np.sqrt((w*1j +w**2*(dt/2) + c) / D1)
+    sig2 = np.sqrt((w*1j +w**2*(dt/2) + c) / D2)
+
+    # sig2 is \sigma^2_{-}
+    sig2 = -sig2
+
+    first_term = (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2)+Lambda_1)/ \
+            (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_1)
+    second = (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_2)/ \
+            (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2) + Lambda_2)
 
     return np.abs(first_term * second)
 
@@ -169,8 +399,6 @@ def continuous_analytic_rate_robin_robin_modified_operator_naive_ordre3(discreti
     h2 = H2 / (discretization.M2_DEFAULT - 1)
 
     # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt((w*1j + c) / D1)
-    sig2 = np.sqrt((w*1j + c) / D2)
     sig1 = np.sqrt((w*1j + c) / D1)
     sig2 = np.sqrt((w*1j + c) / D2)
 
@@ -590,6 +818,7 @@ def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
     from numpy.fft import fft, fftshift
     to_map = functools.partial(interface_errors, discretization, N,
                                **kwargs)
+    print(number_samples)
     with concurrent.futures.ProcessPoolExecutor() as executor:
         errors = np.array(list(executor.map(to_map,
                                             range(number_samples))))
