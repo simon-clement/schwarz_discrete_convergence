@@ -8,6 +8,7 @@
 import numpy as np
 from utils_linalg import solve_linear
 from discretizations.discretization import Discretization
+import cv_rate
 
 
 class FiniteVolumes(Discretization):
@@ -682,6 +683,9 @@ class FiniteVolumes(Discretization):
 
     def repr(self):
         return "finite volumes"
+    
+    def modified_equations_fun(self):
+        return cv_rate.continuous_analytic_rate_robin_robin_modified_vol
 
 
 if __name__ == "__main__":

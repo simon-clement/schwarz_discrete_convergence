@@ -4,9 +4,11 @@
     provide functions to observe real convergence rate.
 """
 import time
+import functools
 import numpy as np
 from numpy import pi
-import functools
+from discretizations import finite_difference_naive_neumann
+from discretizations import finite_volumes
 
 #########################################################################
 # THEORIC PART : RETURN RATES YIELDED BY ANALYSIS IN FREQUENTIAL DOMAIN #
@@ -259,6 +261,7 @@ def continuous_analytic_rate_robin_robin_modified_vol(discretization, Lambda_1, 
         discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
         discretization.C_DEFAULT : reaction coefficient (may be complex or real)
     """
+    assert discretization.name() == finite_volumes.FiniteVolumes().name()
 
     dt = discretization.DT_DEFAULT
     D1 = discretization.D1_DEFAULT
@@ -302,6 +305,7 @@ def continuous_analytic_rate_robin_robin_modified_time_naive_ordre3(discretizati
         discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
         discretization.C_DEFAULT : reaction coefficient (may be complex or real)
     """
+    assert discretization.name() == finite_difference_naive_neumann.FiniteDifferencesNaiveNeumann().name()
 
     dt = discretization.DT_DEFAULT
     D1 = discretization.D1_DEFAULT
@@ -345,6 +349,7 @@ def continuous_analytic_rate_robin_robin_modified_naive_ordre3(discretization, L
         discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
         discretization.C_DEFAULT : reaction coefficient (may be complex or real)
     """
+    assert discretization.name() == FiniteDifferencesNaiveNeumann().name()
 
     dt = discretization.DT_DEFAULT
     D1 = discretization.D1_DEFAULT
@@ -433,6 +438,37 @@ def continuous_best_lam_robin_neumann(discretization, N):
     sqw2 = np.sqrt(pi / dt)
     return 1 / (2 * np.sqrt(2)) * ((sqD2 - sqD1) * (sqw1 + sqw2) + np.sqrt(
         (sqD2 - sqD1)**2 * (sqw1 + sqw2)**2 + 8 * sqD1 * sqD2 * sqw1 * sqw2))
+
+
+def continuous_best_lam_robin_onesided_modif_vol(discretization, dt, courant_number, wmin, wmax):
+    assert discretization.name() == finite_volumes.FiniteVolumes().name()
+    assert discretization.D1_DEFAULT == discretization.D2_DEFAULT
+    def rho(lam, a, b):
+        return ((lam-a)**2 + b**2)/((lam+a)**2 + b**2)
+
+    D = discretization.D1_DEFAULT
+    facteur_transfo = dt *(1/(24*D * courant_number) + 1/2)
+    xi_min = wmin * facteur_transfo
+    xi_max = wmax * facteur_transfo
+    amin = np.real(np.sqrt(xi_min*1j + xi_min**2))
+    amax = np.real(np.sqrt(xi_max*1j + xi_max**2))
+    bmax = np.imag(np.sqrt(xi_max*1j + xi_max**2))
+    lam_1 = np.sqrt(amin**2 + bmax**2)
+    lam_2 = np.sqrt(amax**2 + bmax**2)
+
+    if amin*amax < bmax**2:
+        return np.sqrt(D)*lam_2/np.sqrt(facteur_transfo), rho(lam_2, amax, bmax)
+
+    lam_l = np.sqrt(amin*amax - bmax**2)
+
+    if lam_l < lam_1:
+        ret = lam_l if rho(lam_l, amin, bmax) < rho(lam_2, amax, bmax) else lam_2
+    elif lam_l < lam_2:
+        ret = lam_1 if rho(lam_1, amin, bmax) < rho(lam_2, amax, bmax) else lam_2
+    else: # lam_l > lam2:
+        ret = lam_1 if rho(lam_1, amin, bmax) < rho(lam_l, amax, bmax) else lam_l
+
+    return np.sqrt(D)*ret / np.sqrt(facteur_transfo), max(rho(ret, amax, bmax), rho(ret, amin, bmax))
 
 
 def rate_by_z_transform(discretization, Lambda_1, NUMBER_SAMPLES):

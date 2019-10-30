@@ -26,4 +26,6 @@ FIGURE["5.6"] = "fig_w5_rob_neumann_diff_extrapolation"
 FIGURE["5.7"] = "fig_compare_continuous_discrete_rate_robin_robin_diff"
 FIGURE["5.8"] = "fig_compare_continuous_discrete_rate_robin_robin_diff_extra"
 FIGURE["5.9"] = "fig_compare_continuous_discrete_rate_robin_robin_vol"
+FIGURE["T1.0"] = "figModifEqRobinOneSidedVol"
+FIGURE["T1.1"] = "figProjectionComplexPlan"
 ALL_LABELS = FIGURE

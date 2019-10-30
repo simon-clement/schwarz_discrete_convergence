@@ -8,6 +8,7 @@
 import numpy as np
 from discretizations.discretization import Discretization
 from utils_linalg import solve_linear
+import cv_rate
 
 
 class FiniteDifferencesNaiveNeumann(Discretization):
@@ -607,6 +608,9 @@ class FiniteDifferencesNaiveNeumann(Discretization):
 
     def repr(self):
         return "finite differences, naive interface"
+
+    def modified_equations_fun(self):
+        return cv_rate.continuous_analytic_rate_robin_robin_modified_naive_ordre3
 
 
 if __name__ == "__main__":
