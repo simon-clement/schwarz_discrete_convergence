@@ -6,7 +6,7 @@ The diffusion equations may have variable coefficients (in space) and non-unifor
 
 ### Install the repository:
 ```
-    git clone --recursive https://github.com/nuftau/schwarz_tbc_finder
+    git clone --recursive https://github.com/simon-clement/schwarz_tbc_finder
 ```
 You can check your install is correct:
 ```
