@@ -28,4 +28,5 @@ FIGURE["5.8"] = "fig_compare_continuous_discrete_rate_robin_robin_diff_extra"
 FIGURE["5.9"] = "fig_compare_continuous_discrete_rate_robin_robin_vol"
 FIGURE["T1.0"] = "figModifEqRobinOneSidedVol"
 FIGURE["T1.1"] = "figProjectionComplexPlan"
+FIGURE["T1.2"] = "figMainErrorTermModified"
 ALL_LABELS = FIGURE

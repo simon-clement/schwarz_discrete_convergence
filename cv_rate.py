@@ -349,7 +349,7 @@ def continuous_analytic_rate_robin_robin_modified_naive_ordre3(discretization, L
         discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
         discretization.C_DEFAULT : reaction coefficient (may be complex or real)
     """
-    assert discretization.name() == FiniteDifferencesNaiveNeumann().name()
+    assert discretization.name() == finite_difference_naive_neumann.FiniteDifferencesNaiveNeumann().name()
 
     dt = discretization.DT_DEFAULT
     D1 = discretization.D1_DEFAULT
@@ -441,6 +441,8 @@ def continuous_best_lam_robin_neumann(discretization, N):
 
 
 def continuous_best_lam_robin_onesided_modif_vol(discretization, dt, courant_number, wmin, wmax):
+    from figures import figProjectionComplexPlan
+
     assert discretization.name() == finite_volumes.FiniteVolumes().name()
     assert discretization.D1_DEFAULT == discretization.D2_DEFAULT
     def rho(lam, a, b):
@@ -457,17 +459,27 @@ def continuous_best_lam_robin_onesided_modif_vol(discretization, dt, courant_num
     lam_2 = np.sqrt(amax**2 + bmax**2)
 
     if amin*amax < bmax**2:
-        return np.sqrt(D)*lam_2/np.sqrt(facteur_transfo), rho(lam_2, amax, bmax)
+        print("cas amin*amax < bmax")
+        return np.sqrt(D)*lam_1/np.sqrt(facteur_transfo), rho(lam_1, amin, bmax)
 
     lam_l = np.sqrt(amin*amax - bmax**2)
 
     if lam_l < lam_1:
-        ret = lam_l if rho(lam_l, amin, bmax) < rho(lam_2, amax, bmax) else lam_2
+        assert rho(lam_2, amax, bmax) < rho(lam_2, amin, bmax)
+        print("cas lam_l < lam_1 -> on prend amin, bmax (cas le plus courant)")
+        ret = lam_1
     elif lam_l < lam_2:
-        ret = lam_1 if rho(lam_1, amin, bmax) < rho(lam_2, amax, bmax) else lam_2
+        print("cas lam_1 < lam_l < lam_2 -> on prend amin ou amax")
+        print("lam_2 =", lam_2, "LAM_l =", lam_l, "lam_1 = ", lam_1)
+        assert rho(lam_2, amax, bmax) < rho(lam_2, amin, bmax)
+        assert rho(lam_1, amax, bmax) > rho(lam_1, amin, bmax)
+        ret = lam_l
     else: # lam_l > lam2:
-        ret = lam_1 if rho(lam_1, amin, bmax) < rho(lam_l, amax, bmax) else lam_l
+        print("cas lam_l > lam_2 -> on prend amax, bmax (cas le moins courant)")
+        assert rho(lam_1, amax, bmax) > rho(lam_1, amin, bmax)
+        ret = lam_2
 
+    #figProjectionComplexPlan(ret, xi_min, xi_max)
     return np.sqrt(D)*ret / np.sqrt(facteur_transfo), max(rho(ret, amax, bmax), rho(ret, amin, bmax))
 
 
