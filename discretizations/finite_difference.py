@@ -90,7 +90,7 @@ class FiniteDifferences(Discretization):
                            u_interface,
                            phi_interface,
                            upper_domain=True,
-                           Y=None):
+                           Y=None, **kwargs):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
@@ -561,6 +561,54 @@ class FiniteDifferences(Discretization):
                   (Lambda_1 - teta2_0) / (Lambda_1 - teta1_0))
 
         return np.abs(rho_numerator / rho_denominator)
+
+
+    def sigma_modified(self, w, order_equations):
+        h1, h2 = self.get_h()
+        h1, h2 = h1[0], h2[0]
+        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
+        dt = self.DT_DEFAULT
+
+        s1 = 1j*w + self.C_DEFAULT
+        if order_equations > 0:
+            s1 += w**2 * (h1**2/(12*D1) + dt/2)
+        if order_equations > 1:
+            s1 -= 1j * w**3 * (h1**2/(12*D1) * dt/2 + dt**2/6 - h1**4/(12*30*D1**2))
+
+        s2 = 1j*w + self.C_DEFAULT
+        if order_equations > 0:
+            s2 += w**2 * (h2**2/(12*D2) + dt/2)
+        if order_equations > 1:
+            s2 -= 1j * w**3 * (h2**2/(12*D2) * dt/2 + dt**2/6 - h2**4/(12*30*D2**2))
+
+        sig1 = np.sqrt(s1/self.D1_DEFAULT)
+        sig2 = -np.sqrt(s2/self.D2_DEFAULT)
+        return sig1, sig2
+
+    def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
+        # This code should not run and is here as an example
+        h1, h2 = self.get_h()
+        h1, h2 = h1[0], h2[0]
+        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
+        dt = self.DT_DEFAULT
+        if j==1:
+            eta_dir_modif = 1
+            if  order_operators == 0:
+                eta_neu_modif = D1*sigj
+            if  order_operators > 0:
+                eta_neu_modif = D1*sigj*np.exp(h1*sigj/2) - h1/2*(1j*w)
+            if  order_operators > 1:
+                eta_neu_modif += D1*h1**2*sigj**3/24*np.exp(h1*sigj/2) - h1/4*(dt*w*w)
+            return eta_dir_modif, eta_neu_modif
+        else:
+            eta_dir_modif = 1
+            if  order_operators == 0:
+                eta_neu_modif = D1*sigj
+            if order_operators > 0:
+                eta_neu_modif = D2*sigj*np.exp(h2*sigj/2) - h2/2*(1j*w)
+            if order_operators > 1:
+                eta_neu_modif += D2*h2**2*sigj**3/24*np.exp(h2*sigj/2) - h2/4*(dt*w*w)
+            return eta_dir_modif, eta_neu_modif
 
     """
         Simple function to return h in each subdomains,

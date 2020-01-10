@@ -8,6 +8,11 @@ import functools
 import numpy as np
 from numpy import pi
 from discretizations import finite_difference_naive_neumann
+from discretizations import rk4_finite_differences
+from discretizations import rk4_finite_volumes
+from discretizations import rk2_finite_differences
+from discretizations import finite_difference
+from discretizations import finite_difference_no_corrective_term
 from discretizations import finite_volumes
 
 #########################################################################
@@ -75,6 +80,8 @@ def continuous_analytic_rate_robin_robin_modified_only_eq(discretization, Lambda
     c = discretization.C_DEFAULT
     assert(c==0)
     h1 = H1/(discretization.M1_DEFAULT - 1)
+    if discretization.name() == finite_volumes.FiniteVolumes().name():
+        h1 = H1/discretization.M1_DEFAULT
     dt = discretization.DT_DEFAULT
 
     c_mod = h1**2 / (12*D1**2) + dt / 2
@@ -109,6 +116,8 @@ def continuous_analytic_rate_robin_robin_modified_only_eq_simple_formula(discret
     c = discretization.C_DEFAULT
     assert c == 0
     h1 = H1/(discretization.M1_DEFAULT - 1)
+    if discretization.name() == finite_volumes.FiniteVolumes().name():
+        h1 = H1/discretization.M1_DEFAULT
     dt = discretization.DT_DEFAULT
 
     c_mod = h1**2 / (12*D1**2) + dt / 2
@@ -129,293 +138,6 @@ def continuous_analytic_rate_robin_robin_modified_only_eq_simple_formula(discret
 
     # This should be equal to the output of continuous_analytic_rate_robin_robin_modified_only_eq.
     return np.sqrt(f(-1, Lambda_1)*f(1, Lambda_2) / (f(1, Lambda_1) * f(-1, Lambda_2)))
-
-
-def continuous_analytic_rate_robin_robin_modified_naive(discretization, Lambda_1, Lambda_2,
-                                         w):
-    """
-        Returns the convergence rate predicted by continuous analysis.
-        The equation is diffusion-reaction with constant coefficients.
-        The interface condition is Robin-Robin.
-        w is the frequency;
-        Lambda_{1,2} are the Robin condition free parameters.
-        discretization must have the following attributes:
-        discretization.D1_DEFAULT : diffusivity in \\Omega_1
-        discretization.D2_DEFAULT : diffusivity in \\Omega_2
-        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
-        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
-        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
-    """
-
-    D1 = discretization.D1_DEFAULT
-    D2 = discretization.D2_DEFAULT
-    H1 = - discretization.SIZE_DOMAIN_1
-    h1 = H1/(discretization.M1_DEFAULT - 1)
-    H2 = discretization.SIZE_DOMAIN_2
-    h2 = H2/(discretization.M2_DEFAULT - 1)
-    c = discretization.C_DEFAULT
-    dt = discretization.DT_DEFAULT
-
-    # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt((w*1j +w**2*(h1**2/(12*D1**2) + dt/2) - 1j*h1**2*dt/(12*D1**2) * w**3 + c) / D1)
-    sig2 = np.sqrt((w*1j +w**2*(h2**2/(12*D2**2) + dt/2) - 1j*h2**2*dt/(12*D2**2) * w**3 + c) / D2)
-
-    #This line is necessary because we have sig2=\sigma^{-} and sig1=\sigma^{+}
-    sig2 = -sig2
-
-    first_term = (D2*sig2*np.exp(h2*sig2/2)+Lambda_1)/ \
-            (D1*sig1*np.exp(h1*sig1/2) + Lambda_1)
-    second = (D1*sig1*np.exp(h1*sig1/2) + Lambda_2)/ \
-            (D2*sig2*np.exp(h2*sig2/2) + Lambda_2)
-
-    return np.abs(first_term * second)
-
-def continuous_analytic_rate_robin_robin_modified_operator_vol(discretization, Lambda_1, Lambda_2,
-                                         w):
-    """
-        Returns the convergence rate predicted by continuous analysis.
-        The equation is diffusion-reaction with constant coefficients.
-        The interface condition is Robin-Robin.
-        w is the frequency;
-        Lambda_{1,2} are the Robin condition free parameters.
-        discretization must have the following attributes:
-        discretization.D1_DEFAULT : diffusivity in \\Omega_1
-        discretization.D2_DEFAULT : diffusivity in \\Omega_2
-        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
-        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
-        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
-    """
-
-    dt = discretization.DT_DEFAULT
-    D1 = discretization.D1_DEFAULT
-    D2 = discretization.D2_DEFAULT
-    H1 = - discretization.SIZE_DOMAIN_1
-    H2 = discretization.SIZE_DOMAIN_2
-    c = discretization.C_DEFAULT
-    h1 = H1 / (discretization.M1_DEFAULT - 1)
-    h2 = H2 / (discretization.M2_DEFAULT - 1)
-
-    # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt((w*1j + c) / D1)
-    sig2 = np.sqrt((w*1j + c) / D2)
-
-    # sig2 is \sigma^2_{-}
-    sig2 = -sig2
-
-    first_term = (D2*sig2+Lambda_1*(1+h2**2*sig2**3/24))/ (D1*sig1 + Lambda_1*(1+h1**2*sig1**3/24))
-    second = (D1*sig1 + Lambda_2*(1+h1**2*sig1**3/24))/ (D2*sig2 + Lambda_2*(1+h2**2*sig2**3/24))
-
-    return np.abs(first_term * second)
-def continuous_analytic_rate_robin_robin_modified_time_vol(discretization, Lambda_1, Lambda_2,
-                                         w):
-    """
-        Returns the convergence rate predicted by continuous analysis.
-        The equation is diffusion-reaction with constant coefficients.
-        The interface condition is Robin-Robin.
-        w is the frequency;
-        Lambda_{1,2} are the Robin condition free parameters.
-        discretization must have the following attributes:
-        discretization.D1_DEFAULT : diffusivity in \\Omega_1
-        discretization.D2_DEFAULT : diffusivity in \\Omega_2
-        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
-        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
-        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
-    """
-
-    dt = discretization.DT_DEFAULT
-    D1 = discretization.D1_DEFAULT
-    D2 = discretization.D2_DEFAULT
-    H1 = - discretization.SIZE_DOMAIN_1
-    H2 = discretization.SIZE_DOMAIN_2
-    c = discretization.C_DEFAULT
-    h1 = H1 / (discretization.M1_DEFAULT - 1)
-    h2 = H2 / (discretization.M2_DEFAULT - 1)
-
-    # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt((w*1j + c) / D1)
-    sig2 = np.sqrt((w*1j + c) / D2)
-    sig1 = np.sqrt((w*1j +w**2*(dt/2) + c) / D1)
-    sig2 = np.sqrt((w*1j +w**2*(dt/2) + c) / D2)
-
-    # sig2 is \sigma^2_{-}
-    sig2 = -sig2
-
-    first_term = (D2*sig2+Lambda_1*(1+h2**2*sig2**3/24))/ (D1*sig1 + Lambda_1*(1+h1**2*sig1**3/24))
-    second = (D1*sig1 + Lambda_2*(1+h1**2*sig1**3/24))/ (D2*sig2 + Lambda_2*(1+h2**2*sig2**3/24))
-
-    return np.abs(first_term * second)
-
-
-def continuous_analytic_rate_robin_robin_modified_vol(discretization, Lambda_1, Lambda_2,
-                                         w):
-    """
-        Returns the convergence rate predicted by continuous analysis.
-        The equation is diffusion-reaction with constant coefficients.
-        The interface condition is Robin-Robin.
-        w is the frequency;
-        Lambda_{1,2} are the Robin condition free parameters.
-        discretization must have the following attributes:
-        discretization.D1_DEFAULT : diffusivity in \\Omega_1
-        discretization.D2_DEFAULT : diffusivity in \\Omega_2
-        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
-        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
-        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
-    """
-    assert discretization.name() == finite_volumes.FiniteVolumes().name()
-
-    dt = discretization.DT_DEFAULT
-    D1 = discretization.D1_DEFAULT
-    D2 = discretization.D2_DEFAULT
-    H1 = - discretization.SIZE_DOMAIN_1
-    H2 = discretization.SIZE_DOMAIN_2
-    c = discretization.C_DEFAULT
-    h1 = H1 / (discretization.M1_DEFAULT - 1)
-    h2 = H2 / (discretization.M2_DEFAULT - 1)
-
-    # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt((w*1j + c) / D1)
-    sig2 = np.sqrt((w*1j + c) / D2)
-    sig1 = np.sqrt((w*1j +w**2*(h1**2/(24*D1) + dt/2) + c) / D1)
-    sig2 = np.sqrt((w*1j +w**2*(h2**2/(24*D2) + dt/2) + c) / D2)
-
-    # sig2 is \sigma^2_{-}
-    sig2 = -sig2
-
-    first_term = (D2*sig2+Lambda_1*(1+h2**2*sig2**3/24))/ (D1*sig1 + Lambda_1*(1+h1**2*sig1**3/24))
-    second = (D1*sig1 + Lambda_2*(1+h1**2*sig1**3/24))/ (D2*sig2 + Lambda_2*(1+h2**2*sig2**3/24))
-
-    return np.abs(first_term * second)
-
-
-
-
-
-def continuous_analytic_rate_robin_robin_modified_time_naive_ordre3(discretization, Lambda_1, Lambda_2,
-                                         w):
-    """
-        Returns the convergence rate predicted by continuous analysis.
-        The equation is diffusion-reaction with constant coefficients.
-        The interface condition is Robin-Robin.
-        w is the frequency;
-        Lambda_{1,2} are the Robin condition free parameters.
-        discretization must have the following attributes:
-        discretization.D1_DEFAULT : diffusivity in \\Omega_1
-        discretization.D2_DEFAULT : diffusivity in \\Omega_2
-        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
-        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
-        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
-    """
-    assert discretization.name() == finite_difference_naive_neumann.FiniteDifferencesNaiveNeumann().name()
-
-    dt = discretization.DT_DEFAULT
-    D1 = discretization.D1_DEFAULT
-    D2 = discretization.D2_DEFAULT
-    H1 = - discretization.SIZE_DOMAIN_1
-    H2 = discretization.SIZE_DOMAIN_2
-    c = discretization.C_DEFAULT
-    h1 = H1 / (discretization.M1_DEFAULT - 1)
-    h2 = H2 / (discretization.M2_DEFAULT - 1)
-
-    # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt((w*1j + c) / D1)
-    sig2 = np.sqrt((w*1j + c) / D2)
-    sig1 = np.sqrt((w*1j +w**2*(dt/2) + c) / D1)
-    sig2 = np.sqrt((w*1j +w**2*(dt/2) + c) / D2)
-
-    # sig2 is \sigma^2_{-}
-    sig2 = -sig2
-
-    first_term = (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2)+Lambda_1)/ \
-            (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_1)
-    second = (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_2)/ \
-            (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2) + Lambda_2)
-
-    return np.abs(first_term * second)
-
-
-
-def continuous_analytic_rate_robin_robin_modified_naive_ordre3(discretization, Lambda_1, Lambda_2,
-                                         w):
-    """
-        Returns the convergence rate predicted by continuous analysis.
-        The equation is diffusion-reaction with constant coefficients.
-        The interface condition is Robin-Robin.
-        w is the frequency;
-        Lambda_{1,2} are the Robin condition free parameters.
-        discretization must have the following attributes:
-        discretization.D1_DEFAULT : diffusivity in \\Omega_1
-        discretization.D2_DEFAULT : diffusivity in \\Omega_2
-        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
-        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
-        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
-    """
-    assert discretization.name() == finite_difference_naive_neumann.FiniteDifferencesNaiveNeumann().name()
-
-    dt = discretization.DT_DEFAULT
-    D1 = discretization.D1_DEFAULT
-    D2 = discretization.D2_DEFAULT
-    H1 = - discretization.SIZE_DOMAIN_1
-    H2 = discretization.SIZE_DOMAIN_2
-    c = discretization.C_DEFAULT
-    h1 = H1 / (discretization.M1_DEFAULT - 1)
-    h2 = H2 / (discretization.M2_DEFAULT - 1)
-
-    # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt((w*1j + c) / D1)
-    sig2 = np.sqrt((w*1j + c) / D2)
-    sig1 = np.sqrt((w*1j +w**2*(h1**2/(12*D1) + dt/2) - 1j*h1**2*dt/(12*D1) * w**3 + c) / D1)
-    sig2 = np.sqrt((w*1j +w**2*(h2**2/(12*D2) + dt/2) - 1j*h2**2*dt/(12*D2) * w**3 + c) / D2)
-
-    # sig2 is \sigma^2_{-}
-    sig2 = -sig2
-
-    first_term = (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2)+Lambda_1)/ \
-            (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_1)
-    second = (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_2)/ \
-            (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2) + Lambda_2)
-
-    return np.abs(first_term * second)
-
-
-def continuous_analytic_rate_robin_robin_modified_operator_naive_ordre3(discretization, Lambda_1, Lambda_2,
-                                         w):
-    """
-        Returns the convergence rate predicted by continuous analysis.
-        The equation is diffusion-reaction with constant coefficients.
-        The interface condition is Robin-Robin.
-        w is the frequency;
-        modified operators, but heat equation
-        Lambda_{1,2} are the Robin condition free parameters.
-        discretization must have the following attributes:
-        discretization.D1_DEFAULT : diffusivity in \\Omega_1
-        discretization.D2_DEFAULT : diffusivity in \\Omega_2
-        discretization.SIZE_DOMAIN_1 : Size of \\Omega_1
-        discretization.SIZE_DOMAIN_2 : Size of \\Omega_2
-        discretization.C_DEFAULT : reaction coefficient (may be complex or real)
-    """
-
-    dt = discretization.DT_DEFAULT
-    D1 = discretization.D1_DEFAULT
-    D2 = discretization.D2_DEFAULT
-    H1 = - discretization.SIZE_DOMAIN_1
-    H2 = discretization.SIZE_DOMAIN_2
-    c = discretization.C_DEFAULT
-    h1 = H1 / (discretization.M1_DEFAULT - 1)
-    h2 = H2 / (discretization.M2_DEFAULT - 1)
-
-    # sig1 is \sigma^1_{+}
-    sig1 = np.sqrt((w*1j + c) / D1)
-    sig2 = np.sqrt((w*1j + c) / D2)
-
-    # sig2 is \sigma^2_{-}
-    sig2 = -sig2
-
-    first_term = (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2)+Lambda_1)/ \
-            (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_1)
-    second = (D1*(sig1+h1**2*sig1**3/24)*np.exp(h1*sig1/2) + Lambda_2)/ \
-            (D2*(sig2+h2**2*sig2**3/24)*np.exp(h2*sig2/2) + Lambda_2)
-
-    return np.abs(first_term * second)
 
 
 def continuous_best_lam_robin_neumann(discretization, N):
@@ -449,7 +171,7 @@ def continuous_best_lam_robin_onesided_modif_vol(discretization, dt, courant_num
         return ((lam-a)**2 + b**2)/((lam+a)**2 + b**2)
 
     D = discretization.D1_DEFAULT
-    facteur_transfo = dt *(1/(24*D * courant_number) + 1/2)
+    facteur_transfo = dt *(1/(12*D * courant_number) + 1/2)
     xi_min = wmin * facteur_transfo
     xi_max = wmax * facteur_transfo
     amin = np.real(np.sqrt(xi_min*1j + xi_min**2))
@@ -546,15 +268,7 @@ def analytic_robin_robin(discretization,
         s = 1. / dt
     else:
         if semi_discrete:
-            s = w * 1j
-            if modified_time > 0:
-                s += dt/2 * w**2
-            if modified_time > 1:
-                s -= dt**2/8 * 1j * w**3
-            if modified_time > 2:
-                s -= dt**3 / 48 * w**4
-            if modified_time > 3:
-                s += dt**4/(16*4*6) * 1j * w**5
+            s = discretization.s_time_modif(w, dt, modified_time)
         else:
             # Note : in full discrete case, a fftshift MAY BE needed
             # I don't really know when it's accurate,
@@ -894,7 +608,6 @@ def interface_errors(discretization,
             return errors[2]/errors[1]
         for details on the arguments, you can see for instance @rate_fast
     """
-
     if M1 is None:
         M1 = discretization.M1_DEFAULT
     if M2 is None:
@@ -938,18 +651,26 @@ def interface_errors(discretization,
     u1_0 = np.zeros(M1)
     u2_0 = np.zeros(M2)
     np.random.seed(seed)
-    all_u1_interface = 2 * (np.random.rand(time_window_len) - 0.5)
-    all_phi1_interface = 2 * (np.random.rand(time_window_len) - 0.5)
+    all_u1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
+    all_phi1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
     #all_u1_interface[-1] /= 1000
     #all_phi1_interface[-1] /= 1000
-    ret = [all_u1_interface]
+    ret = [all_u1_interface[1:]]
     # Beginning of schwarz iterations:
+    from scipy.interpolate import interp1d
     for k in range(NUMBER_IT):
-        all_u2_interface = []
-        all_phi2_interface = []
+        all_u2_interface = [0]
+        all_phi2_interface = [0]
         all_u2 = [u2_0]
         # Time iteration:
-        for i in range(time_window_len):
+        interpolator_u1 = interp1d(x=np.array(range(time_window_len+1)), y=all_u1_interface, kind='cubic')
+        interpolator_phi1 = interp1d(x=np.array(range(time_window_len+1)), y=all_phi1_interface, kind='cubic')
+
+        for i in range(1, time_window_len+1):
+            u_nm1_interface = all_u1_interface[i-1]
+            phi_nm1_interface = all_phi1_interface[i-1]
+            u_nm1_2_interface = interpolator_u1(i-1/2)
+            phi_nm1_2_interface = interpolator_phi1(i-1/2)
             u_interface = all_u1_interface[i]
             phi_interface = all_phi1_interface[i]
 
@@ -962,25 +683,39 @@ def interface_errors(discretization,
                 c=c,
                 dt=dt,
                 f=f2,
+                f_nm1=f2,
+                f_nm1_2=f2,
                 bd_cond=neumann,
+                bd_cond_nm1_2=neumann,
+                bd_cond_nm1=neumann,
                 Lambda=Lambda_2,
                 u_nm1=all_u2[-1],
                 u_interface=u_interface,
                 phi_interface=phi_interface,
+                u_nm1_2_interface=u_nm1_2_interface,
+                phi_nm1_2_interface=phi_nm1_2_interface,
+                u_nm1_interface=u_nm1_interface,
+                phi_nm1_interface=phi_nm1_interface,
                 upper_domain=True,
                 Y=precomputed_Y2)
             all_u2 += [u2_ret]
             all_u2_interface += [u_interface]
             all_phi2_interface += [phi_interface]
 
-        all_u1_interface = []
-        all_phi1_interface = []
+        all_u1_interface = [0]
+        all_phi1_interface = [0]
         all_u1 = [u1_0]
 
-        for i in range(time_window_len):
+        interpolator_u2 = interp1d(x=np.array(range(time_window_len+1)), y=all_u2_interface, kind='cubic')
+        interpolator_phi2 = interp1d(x=np.array(range(time_window_len+1)), y=all_phi2_interface, kind='cubic')
+        for i in range(1, time_window_len+1):
 
             u_interface = all_u2_interface[i]
             phi_interface = all_phi2_interface[i]
+            u_nm1_2_interface = interpolator_u2(i-1/2)
+            phi_nm1_2_interface = interpolator_phi2(i-1/2)
+            u_nm1_interface = all_u2_interface[i-1]
+            phi_nm1_interface = all_phi2_interface[i-1]
 
             u1_ret, u_interface, phi_interface = \
                     discretization.integrate_one_step(
@@ -991,19 +726,28 @@ def interface_errors(discretization,
                 c=c,
                 dt=dt,
                 f=f1,
+                f_nm1_2=f1, #0 anywayy
+                f_nm1=f1,#0 anywayy
                 bd_cond=dirichlet,
+                bd_cond_nm1_2=dirichlet,
+                bd_cond_nm1=dirichlet,
                 Lambda=Lambda_1,
                 u_nm1=all_u1[-1],
                 u_interface=u_interface,
                 phi_interface=phi_interface,
+                u_nm1_interface=u_nm1_interface,
+                phi_nm1_interface=phi_nm1_interface,
+                u_nm1_2_interface=u_nm1_2_interface,
+                phi_nm1_2_interface=phi_nm1_2_interface,
                 upper_domain=False,
                 Y=precomputed_Y1)
             all_u1 += [u1_ret]
             all_u1_interface += [u_interface]
             all_phi1_interface += [phi_interface]
 
-        ret += [all_u1_interface]
+        ret += [all_u1_interface[1:]]
 
+    print("eeend")
     return ret
 
 

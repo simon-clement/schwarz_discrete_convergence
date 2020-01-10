@@ -8,6 +8,10 @@ import numpy as np
 from numpy import pi
 from discretizations.finite_difference import FiniteDifferences
 from discretizations.finite_volumes import FiniteVolumes
+from discretizations.rk4_finite_volumes import Rk4FiniteVolumes
+from discretizations.rk2_finite_volumes import Rk2FiniteVolumes
+from discretizations.rk4_finite_differences import Rk4FiniteDifferences
+from discretizations.rk2_finite_differences import Rk2FiniteDifferences
 from discretizations.finite_difference_no_corrective_term \
         import FiniteDifferencesNoCorrectiveTerm
 from discretizations.finite_difference_naive_neumann \
@@ -419,17 +423,23 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
 
 def figModifEqRobinOneSidedVol():
-    T = 10.
+    T = 80.
     finite_volumes = DEFAULT.new(FiniteVolumes)
     finite_volumes.D1_DEFAULT = finite_volumes.D2_DEFAULT
     finite_volumes.D1_DEFAULT = finite_volumes.D2_DEFAULT
-    fig, axes = plt.subplots(1, 1)
-    validation_theorical_modif_resolution_robin_onesided(fig, axes, finite_volumes,
+    fig, axes = plt.subplots(1, 2)
+    validation_theorical_modif_resolution_robin_onesided(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=1,
-                                                          number_samples=800,
+                                                          number_samples=100,
                                                           steps=40,
                                                           bounds_h=(-1.5,0.),
                                                           plot_perfect_performances=False)
+    validation_theorical_modif_resolution_robin_onesided(fig, axes[1], finite_volumes,
+                                                          T=T, number_dt_h2=10,
+                                                          number_samples=100,
+                                                          steps=40,
+                                                          bounds_h=(-1.5,0.),
+                                                          plot_perfect_performances=False, legend=False)
     show_or_save("figModifEqRobinOneSidedVol")
 
 
@@ -793,8 +803,56 @@ def fig_plot3D_function_to_minimize():
     fig = plot_3D_profile((finite_difference2, ), DEFAULT.N)
     show_or_save("fig_plot3D_function_to_minimize")
 
+def fig_compare_modif_approaches_corr():
+    dis = DEFAULT.new(FiniteDifferences)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Differences : modified convergence factor (corrected interface)")
+    show_or_save("fig_compare_modif_approaches_corr")
+
+def fig_compare_modif_approaches_naive():
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Differences : modified convergence factor (naive interface)")
+    show_or_save("fig_compare_modif_approaches_naive")
+    
+def fig_compare_modif_approaches_extra():
+    dis = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Differences : modified convergence factor (extrapolated interface)")
+    show_or_save("fig_compare_modif_approaches_extra")
+    
+def fig_compare_modif_approaches_naive_rk2():
+    dis = DEFAULT.new(Rk2FiniteDifferences)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Differences : modified convergence factor (naive interface, rk2)")
+    show_or_save("fig_compare_modif_approaches_naive_rk2")
+
+def fig_compare_modif_approaches_naive_rk4():
+    dis = DEFAULT.new(Rk4FiniteDifferences)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Differences : modified convergence factor (naive interface, rk4)")
+    show_or_save("fig_compare_modif_approaches_naive_rk4")
 
 def fig_compare_modif_approaches_vol():
+    dis = DEFAULT.new(FiniteVolumes)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Volumes : modified convergence factor")
+    show_or_save("fig_compare_modif_approaches_vol")
+
+def fig_compare_modif_approaches_vol_rk2():
+    dis = DEFAULT.new(Rk2FiniteVolumes)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Volumes : modified convergence factor (rk2)")
+    show_or_save("fig_compare_modif_approaches_vol_rk2")
+
+def fig_compare_modif_approaches_vol_rk4():
+    dis = DEFAULT.new(Rk4FiniteVolumes)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Volumes : modified convergence factor (rk4)")
+    show_or_save("fig_compare_modif_approaches_vol_rk4")
+
+
+def compare_modif_approaches(dis):
     """
         Compare the approaches used with modified equations :
         plot cv rate :
@@ -804,16 +862,15 @@ def fig_compare_modif_approaches_vol():
         - with modified equations, modified operators
         - with interface operator
     """
-    dis = DEFAULT.new(FiniteVolumes)
-    dis.DT_DEFAULT *= 1
     # 0.5; -0.5 is generally a good choice with our parameters
-    lambda_1 = 0.1
-    lambda_2 = -0.5
+    lambda_1 = .5
+    lambda_2 = -.5
     N = DEFAULT.N * 10
-    dis.D1_DEFAULT = dis.D2_DEFAULT
 
     # we take a little more points
     facteur = 1
+    dis.SIZE_DOMAIN_1 *= facteur
+    dis.SIZE_DOMAIN_2 *= facteur
     dis.M1_DEFAULT = int(dis.M1_DEFAULT*facteur)
     dis.M2_DEFAULT = int(dis.M2_DEFAULT*facteur)
 
@@ -828,7 +885,7 @@ def fig_compare_modif_approaches_vol():
                            N,
                            Lambda_1=lambda_1,
                            Lambda_2=lambda_2,
-                           number_samples=5)
+                           number_samples=50)
     simulated_cv = simulated_freq[2] / simulated_freq[1]
     nomodif_approach = [continuous_analytic_rate_robin_robin(dis, w=w,
                                                                Lambda_1=lambda_1,
@@ -837,42 +894,27 @@ def fig_compare_modif_approaches_vol():
     semi_discrete_modif_time = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
                                              w=w, semi_discrete=True, modified_time=3)
                                         for w in axis_freq]
-    continuous_modified_op = [cv_rate.continuous_analytic_rate_robin_robin_modified_operator_vol(dis,
-                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+    continuous_modified = [dis.analytic_robin_robin_modified(w=w, Lambda_1=lambda_1, Lambda_2=lambda_2, order_equations=1, order_operators=float('inf'))
                                         for w in axis_freq]
-    continuous_modified = [cv_rate.continuous_analytic_rate_robin_robin_modified_vol(dis,
-                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
-                                        for w in axis_freq]
-    continuous_modified_time = [cv_rate.continuous_analytic_rate_robin_robin_modified_time_vol(dis,
-                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
-                                        for w in axis_freq]
-
-    marge_erreur_continuous_modified = continuous_modified*(1 - 0.4*dt**(3/2)*np.abs(axis_freq)**(3/2)/lambda_1)
-
-    ax.fill_between(axis_freq*dt, continuous_modified, marge_erreur_continuous_modified, label="marge d'erreur", facecolor="grey", alpha=0.6)
 
 
     ax.plot(axis_freq*dt, simulated_cv, label="simulation")
     ax.plot(axis_freq*dt, nomodif_approach, label="continuous, not modified")
-    ax.plot(axis_freq*dt, continuous_modified_op, label="continuous with modified operators")
-    ax.plot(axis_freq*dt, continuous_modified_time, label="continuous modified operators and eq, in time")
-    ax.plot(axis_freq*dt, continuous_modified, label="continuous modified operators and eq, in space and time")
+    ax.plot(axis_freq*dt, continuous_modified, label="continuous modified")
 
 
     ax.plot(axis_freq*dt, semi_discrete_modif_time, "k--", label="semi-discrete in space, modified in time")
     ax.set_xlabel("$\\omega*\\delta t$")
     ax.set_ylabel("$\\hat{\\rho}$")
+    ax.set_xlim(left=-5*np.pi/dt/N, right=axis_freq[-1]*dt)
+    ax.set_ylim(bottom=0, top=1)
+    ax.grid()
+    fig.legend(loc="center right")
+    return fig, ax
 
-    fig.legend()
-    show_or_save("fig_compare_modif_approaches_vol")
-    
-
-
-
-
-def fig_compare_modif_approaches():
+def fig_validate_analysis_modif_approach():
     """
-        Compare the approaches used with modified equations :
+        Compare the equations used with modified equations :
         plot cv rate :
         - simulated
         - with continuous approach
@@ -881,9 +923,11 @@ def fig_compare_modif_approaches():
         - with interface operator
     """
     dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    dis.D1_DEFAULT = dis.D2_DEFAULT
+    dis.C_DEFAULT = 0
     dis.DT_DEFAULT *= 1
     # 0.5; -0.5 is generally a good choice with our parameters
-    lambda_1 = 0.5
+    lambda_1 = 0.1
     lambda_2 = -0.5
     N = DEFAULT.N * 10
 
@@ -909,37 +953,24 @@ def fig_compare_modif_approaches():
                                                                Lambda_1=lambda_1,
                                                                Lambda_2=lambda_2)
                                         for w in axis_freq]
-    semi_discrete_modif_time = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
-                                             w=w, semi_discrete=True, modified_time=3)
-                                        for w in axis_freq]
-    continuous_modified = [cv_rate.continuous_analytic_rate_robin_robin_modified_naive_ordre3(dis,
+    continuous_modified_basic = [cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq(dis,
                                         Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
                                         for w in axis_freq]
-    continuous_modified_time = [cv_rate.continuous_analytic_rate_robin_robin_modified_time_naive_ordre3(dis,
+    continuous_modified_simpler = [cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq_simple_formula(dis,
                                         Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
                                         for w in axis_freq]
-    continuous_operators_modified = [cv_rate.continuous_analytic_rate_robin_robin_modified_operator_naive_ordre3(dis,
-                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
-                                        for w in axis_freq]
-
-    marge_erreur_continuous_modified = continuous_modified*(1 - 0.2*dt**(3/2)*axis_freq**(3/2)/lambda_1)
-    ax.fill_between(axis_freq, continuous_modified, marge_erreur_continuous_modified, label="marge d'erreur", facecolor="grey", alpha=0.6)
 
 
     ax.plot(axis_freq, simulated_cv, label="simulation")
     ax.plot(axis_freq, nomodif_approach, label="continuous, not modified")
-    ax.plot(axis_freq, continuous_operators_modified, label="continuous with modified operators")
-    ax.plot(axis_freq, continuous_modified_time, label="continuous modified operators and eq, in time")
-    ax.plot(axis_freq, continuous_modified, label="continuous modified operators and eq, in space and time")
+    ax.plot(axis_freq, continuous_modified_basic, label="continuous modified equations, initial formula")
+    ax.plot(axis_freq, continuous_modified_simpler, label="continuous modified equations, simpler (but false) formula")
 
-
-    ax.plot(axis_freq, semi_discrete_modif_time, "k--", label="semi-discrete in space, modified in time")
     ax.set_xlabel("$\\omega$")
     ax.set_ylabel("$\\hat{\\rho}$")
 
     fig.legend()
-    show_or_save("fig_compare_modif_approaches")
-    
+    show_or_save("fig_validate_analysis_modif_approach")
 
 def fig_validate_analysis_modif_approach():
     """
@@ -2011,7 +2042,7 @@ def validation_theorical_modif_resolution_robin_onesided(fig, ax,
             ]
 
     except:
-        raise
+        pass
 
     rate_with_continuous_lambda = [max(w[2] / w[1])
             for w in rate_with_continuous_lambda]
@@ -2050,21 +2081,21 @@ def validation_theorical_modif_resolution_robin_onesided(fig, ax,
     lineco, = ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
                  "r")
-    linect, = ax.semilogx(all_h,
+    linect, = ax.semilogx(all_h[:len(theorical_cont_rate)],
                  theorical_cont_rate,
                  "r--")
 
-    linefmo, = ax.semilogx(all_h,
+    linefmo, = ax.semilogx(all_h[:len(rate_with_fullmodif_lambda)],
                  rate_with_fullmodif_lambda,
                  "m")
-    linefmt, = ax.semilogx(all_h,
+    linefmt, = ax.semilogx(all_h[:len(theorical_rate_full_modif)],
                  theorical_rate_full_modif,
                  "m--")
 
-    linetfmo, = ax.semilogx(all_h,
+    linetfmo, = ax.semilogx(all_h[:len(rate_with_theomodif_lambda)],
                  rate_with_theomodif_lambda,
                  "y")
-    linetfmt, = ax.semilogx(all_h,
+    linetfmt, = ax.semilogx(all_h[:len(theorical_rate_theomodif)],
                  theorical_rate_theomodif,
                  "y--")
 
@@ -2076,17 +2107,22 @@ def validation_theorical_modif_resolution_robin_onesided(fig, ax,
             linept.set_label("Taux théorique avec optimisation directement sur le taux observé")
 
     if legend:
-        linefmt.set_label("Taux théorique avec optimisation sur les équations modifiées")
         #linefdo.set_label("Taux observé avec $\\Lambda$ optimal discret en temps et en espace")
         linemdo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret, modifié en temps")
+        linemdt.set_label("Taux théorique avec $\\Lambda$ optimal semi-discret, modifié en temps")
         #linedo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret")
         #linedt.set_label("Taux théorique avec $\\Lambda$ optimal semi-discret")
         lineco.set_label("Taux observé avec $\\Lambda$ optimal continu")
         linect.set_label("Taux théorique avec $\\Lambda$ optimal continu")
-        fig.legend(loc="lower left")
+        linefmo.set_label("Optimisation numérique sur les équations modifiées : taux observé")
+        linefmt.set_label("Optimisation numérique sur les équations modifiées : taux théorique")
+        linetfmo.set_label("Optimisation analytique sur les équations modifiées : taux observé")
+        linetfmt.set_label("Optimisation analytique sur les équations modifiées : taux théorique")
+        fig.legend(loc="lower left", ncol=2)
 
     ax.set_xlabel("h")
     ax.set_ylabel("$\\hat{\\rho}$")
+    ax.grid()
     fig.suptitle('Comparaison des différentes analyses' +
             ' (Robin one-sided), ' +
               discretization.name())
@@ -2297,6 +2333,38 @@ def figMainErrorTermModified():
     plt.plot(Co,eps_2_dif / (eps_1_dif**2))
     plt.show()
     
+def figRhoModifiedOperators(l=1):
+    wmin, wmax = 0, 10
+    w = np.linspace(wmin, wmax, 1000)
+    alpha_cpx = np.sqrt(1j*w)
+    alpha = np.sqrt(w)
+    rho_initial = np.abs((l-alpha_cpx*np.exp(alpha_cpx))**2/(l+alpha_cpx*np.exp(alpha_cpx))**2)
+
+    rho_avant_calcul = np.abs((l-alpha*np.exp(1j*np.pi/4 + np.sqrt(2)*(1+1j)/2 * alpha))/(l+alpha*np.exp(1j*np.pi/4 + np.sqrt(2)/2*(1+1j)*alpha)))**2
+    alpha /= np.sqrt(2)
+    l /= np.sqrt(2)
+    co = np.cos(alpha + np.pi / 4)
+    si = np.sin(alpha + np.pi / 4)
+
+    rho_avant_calcul = np.abs((l-alpha*np.exp(1j*(alpha+ np.pi/4) + alpha))**2/(l+alpha*np.exp(1j*(alpha+np.pi/4) + alpha))**2)
+
+    rho_avant_calcul = np.abs((l - alpha*np.exp(alpha)*co - 1j*alpha*np.exp(alpha)*si)**2/(l + alpha*np.exp(alpha)*co + 1j*alpha*np.exp(alpha)*si)**2)
+
+    rho_avant_calcul = np.abs((l**2 - (alpha*np.exp(alpha))**2 - 2*l*1j*alpha*np.exp(alpha)*si)/((l + alpha*np.exp(alpha)*co)**2 + (alpha*np.exp(alpha)*si)**2))**2
+
+    rho_apres_calcul = (((l**2 - (alpha*np.exp(alpha))**2)**2 + (2*l*alpha*np.exp(alpha)*si)**2)/((l + alpha*np.exp(alpha)*co)**2 + (alpha*np.exp(alpha)*si)**2)**2)
+    
+    rho_apres_calcul = (((l**2 - (alpha*np.exp(alpha))**2)**2 + (2*l*alpha*np.exp(alpha)*si)**2)/((l + alpha*np.exp(alpha)*co)**2 + (alpha*np.exp(alpha)*si)**2)**2)
+
+    rho_apres_calcul = (((l**2 - (alpha*np.exp(alpha))**2)**2 + (2*l*alpha*np.exp(alpha)*si)**2)/((l**2 + 2*l*alpha*np.exp(alpha)*co + alpha**2*np.exp(2*alpha))**2))
+    #https://www.wolframalpha.com/input/?i=%28%28l%5E2-alpha%5E2e%5E%282*alpha%29%29%5E2+%2B+4*l%5E2*alpha%5E2*e%5E%282*alpha%29*sin%28alpha%2Bpi%2F4%29%5E2%29%2F%28l%5E2%2B2*l*alpha*e%5Ealpha*cos%28alpha%2Bpi%2F4%29%2Balpha%5E2*e%5E%282*alpha%29%29
+
+    #with x : https://www.wolframalpha.com/input/?i=d%2Fdx%28%28%28l%5E2-x%5E2*e%5E%282*x%29%29%5E2+%2B+4*l%5E2*x%5E2*e%5E%282*x%29*sin%28x%2Bpi%2F4%29%5E2%29%2F%28l%5E2%2B2*l*x*e%5Ex*cos%28x%2Bpi%2F4%29%2Bx%5E2*e%5E%282*x%29%29%29
+
+    plt.plot(w, rho_initial)
+    plt.plot(w, rho_avant_calcul)
+    plt.plot(w, rho_apres_calcul)
+    plt.show()
 
 def figProjectionComplexPlan(l1=1.2,freqmin=0.1, freqmax=1.5*pi):
     import matplotlib.patches as patches

@@ -51,6 +51,20 @@ class Discretization:
 
         raise NotImplementedError
 
+
+    def s_time_modif(self, w, dt, order):
+        """ By default, we are in the euler implicit time scheme"""
+        s = w * 1j
+        if order > 0:
+            s += dt/2 * w**2
+        if order > 1:
+            s -= dt**2/6 * 1j * w**3
+        if order > 2:
+            s -= dt**3 / 24 * w**4
+        if order > 3:
+            s += dt**4/(120) * 1j * w**5
+        return s
+
     def get_h(self, size_domain_1, size_domain_2, M1, M2):
         """
             Simple function to return h in each subdomains,
@@ -132,8 +146,44 @@ class Discretization:
         """
         raise NotImplementedError
 
+    def sigma_modified(self, w, order_equations):
+        # This code should not run and is here as an example
+        raise NotImplementedError
+        sig1 = np.sqrt((w*1j + self.C_DEFAULT)/self.D1_DEFAULT)
+        sig2 = -np.sqrt((w*1j + self.C_DEFAULT)/self.D2_DEFAULT)
+        return sig1, sig2
 
+    def eta_dirneu_modif(self, j, sigj, order_operators, *kwargs, **dicargs):
+        # This code should not run and is here as an example
+        raise NotImplementedError
+        if j==1:
+            eta_dir_modif = 1
+            eta_neu_modif = sigj * self.D1_DEFAULT
+            return eta_dir_modif, eta_neu_modif
+        else:
+            eta_dir_modif = 1
+            eta_neu_modif = sigj * self.D2_DEFAULT
+            return eta_dir_modif, eta_neu_modif
 
+    def analytic_robin_robin_modified(self, w, Lambda_1=None, Lambda_2=None, order_operators=float('inf'), order_equations=float('inf')):
+        """
+            When D and h are constant, it is possible to find the convergence
+            rate in frequency domain. analytic_robin_robin computes this convergence rate.
+            s is 1/dt when considering the local-in-time case, otherwise it
+            should be iw (with w the desired frequency)
+            In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
+            for implicit euler discretisation.
+
+            This method should *not* be overriden, the
+            particularity of the discretization is specified
+            through the method eta_dirneu
+        """
+        sig1, sig2 = self.sigma_modified(w, order_equations)
+        eta1_dir, eta1_neu = self.eta_dirneu_modif(j=1, sigj=sig1, order_operators=order_operators, w=w)
+        eta2_dir, eta2_neu = self.eta_dirneu_modif(j=2, sigj=sig2, order_operators=order_operators, w=w)
+        rho_numerator = (Lambda_2*eta1_dir + eta1_neu) * (Lambda_1*eta2_dir + eta2_neu)
+        rho_denominator = (Lambda_2*eta2_dir + eta2_neu) * (Lambda_1*eta1_dir + eta1_neu)
+        return np.abs(rho_numerator / rho_denominator)
     """
         __eq__ and __hash__ are implemented, so that a discretization
         can be stored as key in a dict

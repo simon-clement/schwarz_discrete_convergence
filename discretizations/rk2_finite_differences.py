@@ -7,10 +7,11 @@
 
 import numpy as np
 from discretizations.discretization import Discretization
-from utils_linalg import solve_linear_with_ultra_right, solve_linear
+from utils_linalg import solve_linear
+import cv_rate
 
 
-class FiniteDifferencesNoCorrectiveTerm(Discretization):
+class Rk2FiniteDifferences(Discretization):
     """
         give default values of all variables.
     """
@@ -84,13 +85,21 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
                            c,
                            dt,
                            f,
+                           f_nm1_2,
+                           f_nm1,
                            bd_cond,
+                           bd_cond_nm1_2,
+                           bd_cond_nm1,
                            Lambda,
                            u_nm1,
                            u_interface,
                            phi_interface,
+                           u_nm1_2_interface,
+                           phi_nm1_2_interface,
+                           u_nm1_interface,
+                           phi_nm1_interface,
                            upper_domain=True,
-                           Y=None, **kwargs):
+                           Y=None):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
@@ -105,32 +114,39 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
             u_nm1, np.ndarray) and u_nm1.ndim == 1 and u_nm1.shape[0] == M
         assert upper_domain is True or upper_domain is False
 
-        if Y is None:
-            Y = self.precompute_Y(M=M,
-                                  h=h,
-                                  D=D,
-                                  a=a,
-                                  c=c,
-                                  dt=dt,
-                                  f=f,
-                                  bd_cond=bd_cond,
-                                  Lambda=Lambda,
-                                  upper_domain=upper_domain)
 
-        rhs = (f[1:-1] + u_nm1[1:-1] / dt) * (h[1:] + h[:-1])
+        #h and D need *not* to be constant :
+        #assert np.linalg.norm(h-h[0]) < 1e-11
+        #assert np.linalg.norm(D-D[0]) < 1e-11
 
-        # extrapolation ? no! it is inside phi_interface
-        cond_robin = Lambda * u_interface + phi_interface
+        robin_nm1_2 = Lambda * u_nm1_2_interface + phi_nm1_2_interface
+        robin_np1 = Lambda * u_interface + phi_interface
 
-        rhs = np.concatenate(([cond_robin], rhs, [bd_cond]))
+        def compute_k(f, u):
+            return f[1:-1] + np.diff(D*np.diff(u)/h)/((h[1:] + h[:-1])/2) - a*(u[2:] - u[:-2])/(h[1:] + h[:-1]) - c*u[1:-1]
 
-        u_n = solve_linear_with_ultra_right(Y, rhs)
+        def compute_u_ni(step, bd_cond, robin_cond):
+            u_ni = np.copy(u_nm1)
+            u_ni[1:-1] += step
+            # Robin :
+            u_ni[0] = (robin_cond - D[0]*u_ni[1]/h[0])/(Lambda - D[0]/h[0])
+            if upper_domain: # Neumann :
+                u_ni[-1] = u_ni[-2] + h[-1]*bd_cond
+            else: # Dirichlet :
+                u_ni[-1] = bd_cond
+            return u_ni
+
+        k1 = compute_k(f_nm1, u_nm1)
+
+        u_n1 = compute_u_ni(dt/2 * k1, bd_cond_nm1_2, robin_nm1_2)
+        #u_n1 is our approximation of u at n+1/2
+        k2 = compute_k(f_nm1_2, u_n1)
+        u_n = compute_u_ni(dt * k2, bd_cond, robin_np1)
 
         new_u_interface = u_n[0]
         # extrapolation of flux: f(0) ~ f(h/2) - h/2*f'(h)
         phi_1_2 = D[0] / h[0] * (u_n[1] - u_n[0])
-        phi_3_2 = D[1] / h[1] * (u_n[2] - u_n[1])
-        new_phi_interface = ((2*h[0]+h[1])*phi_1_2 - h[0]*phi_3_2) / (h[0] + h[1])
+        new_phi_interface = phi_1_2
 
         assert u_n.shape[0] == M
         return u_n, new_u_interface, new_phi_interface
@@ -291,7 +307,7 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         Y_1[1:M - 1] = c * sum_both_h + 2 * \
             (h_mm1 * D_mp1_2 + h_m * D_mm1_2) / (h_m * h_mm1)
 
-        Y_1[0] = Lambda - (D[0] / h[0]) * (2*h[0]+h[1]) / (h[0] + h[1])
+        Y_1[0] = Lambda - D[0] / h[0]
         # Robin bd conditions at interface
         Y_1[M - 1] = 1  # Neumann bd conditions for \Omega_2, Dirichlet for \Omega_1
         if upper_domain:
@@ -301,14 +317,8 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         Y_2 = np.empty(M - 1)
         Y_2[1:] = -2 * D_mp1_2 / h_m
 
-        Y_2[0] = (D[0] / h[0]) * (2*h[0]+h[1]) / (h[0] + h[1]) + \
-                (D[1] / h[1]) * h[0] / (h[0] + h[1])
+        Y_2[0] = (D[0] / h[0])
         Y_2[1:] += a
-
-        #ULTRA-RIGHT DIAGONAL
-        Y_3 = np.zeros(M - 2)
-
-        Y_3[0] = - (D[1] / h[1]) * h[0] / (h[0] + h[1])
 
         # LEFT DIAGONAL
         Y_0 = np.empty(M - 1)
@@ -319,7 +329,7 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         else:
             Y_0[-1] = -1 / h[-1]  # In \Omega_2 we have Neumann bd conditions
 
-        return (Y_0, Y_1, Y_2, Y_3)
+        return (Y_0, Y_1, Y_2)
 
     """
         Returns the tridiagonal matrix Y* in the shape asked by solve_linear.
@@ -490,31 +500,11 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         # The computation is then different because the boundary condition is different
         if j == 1:
             eta1_dir = 1 + (lambda_moins / lambda_plus) ** M
-            eta1_neu = D/h * ((lambda_moins - 1) * (3/2 - lambda_moins/2) \
-                    + (lambda_plus - 1) * (3/2 - lambda_plus/2) \
-                    * (lambda_moins / lambda_plus)**M)
-
-            sol_calc = (s*h/2 + np.sqrt((s*h/2)**2 + s*D))*(1 - s*h*h/(4*D) - h/(2*D)*np.sqrt((s*h/2)**2 + s*D))
-            sol_calc2 = (-s*h*h/(2*D) + 1)*np.sqrt((s*h/2)**2 + s*D) - s**2*h**3/(4*D)
-            print(abs(sol_calc2-D/h * ((lambda_moins - 1) * (3/2 - lambda_moins/2))))
-            if abs(sol_calc-D/h * ((lambda_moins - 1) * (3/2 - lambda_moins/2))) > 1e-6:
-                print(1)
-                print(abs(sol_calc-eta1_neu), eta1_neu)
-                input()
+            eta1_neu = D/h * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins / lambda_plus)**M)
             return eta1_dir, eta1_neu
         elif j == 2:
             eta2_dir = 1 + (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1)
-            eta2_neu = D/h * ((lambda_moins - 1) * (3/2 - lambda_moins/2) \
-                    + (lambda_plus - 1)  * (3/2 - lambda_plus/2) \
-                    * (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1))
-            sol_calc = (s*h/2 - np.sqrt((s*h/2)**2 + s*D))*(1 - s*h*h/(4*D) + h/(2*D)*np.sqrt((s*h/2)**2 + s*D))
-            sol_calc2 = (s*h*h/(2*D) - 1)*np.sqrt((s*h/2)**2 + s*D) - s**2*h**3/(4*D)
-            print(abs(sol_calc2-D/h * ((lambda_moins - 1) * (3/2 - lambda_moins/2))))
-            if abs(sol_calc-D/h * ((lambda_moins - 1) * (3/2 - lambda_moins/2))) > 1e-6:
-                print(abs(sol_calc-eta2_neu), eta2_neu)
-                input()
-
-
+            eta2_neu = D/h * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1))
             return eta2_dir, eta2_neu
 
 
@@ -557,6 +547,11 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         h1 = -self.SIZE_DOMAIN_1 / (M1 - 1)
         h2 = self.SIZE_DOMAIN_2 / (M2 - 1)
 
+        eta1_0 = D1 / h1
+        eta2_0 = D2 / h2
+        y2_0 = D2 / h2
+        y1_0 = D1 / h1
+
         Y1_0 = -D1 / (h1 * h1) - .5 * a / h1
         Y1_1 = 2 * D1 / (h1 * h1) + c
         Y1_2 = -D1 / (h1 * h1) + .5 * a / h1
@@ -569,14 +564,8 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         lambda1_moins = (Y1_1 + s - np.sqrt((Y1_1 + s)**2 - 4 * Y1_0 * Y1_2)) \
                                 / (-2 * Y1_2)
 
-        lambda1 = lambda1_moins
-        lambda2 = lambda2_moins
-        teta1_0 = -D1/(2*h1) * lambda1**2 + \
-                    lambda1 * 2*D1/h1 - 3*D1/(2*h1)
-        teta2_0 = -D2/(2*h2) * lambda2**2 + \
-                    lambda2 * 2*D2/h2 - 3*D2/(2*h2)
-        teta1_0 *= -1
-        teta2_0 *= -1
+        teta1_0 = eta1_0 - y1_0 * lambda1_moins
+        teta2_0 = eta2_0 - y2_0 * lambda2_moins
         rho_numerator = (Lambda_2 - teta1_0) * (Lambda_1 - teta2_0)
         rho_denominator = (Lambda_2 - teta2_0) * (Lambda_1 - teta1_0)
         if verbose:
@@ -609,33 +598,31 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         sig2 = -np.sqrt(s2/self.D2_DEFAULT)
         return sig1, sig2
 
+
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
-        # This code should not run and is here as an example
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
         if j==1:
-            sig1=sigj
-            eta_dir_modif = 1
-            eta_neu_modif = D1*sig1
-            if order_operators > 0:
-                eta_neu_modif -= D1*h1**2*sig1**3/3
-            if order_operators > 1:
-                eta_neu_modif -= D1*h1**3*sig1**4/4
-            if order_operators > 2:
-                eta_neu_modif -= D1*h1**4*sig1**5*7/60
-            return eta_dir_modif, eta_neu_modif
+            hj = h1
+            Dj = D1
         else:
-            sig2=sigj
-            eta_dir_modif = 1
-            eta_neu_modif = D2*sig2
-            if order_operators > 0:
-                eta_neu_modif -= D2*h2**2*sig2**3/3
-            if order_operators > 1:
-                eta_neu_modif -= D2*h2**3*sig2**4/4
-            if order_operators > 2:
-                eta_neu_modif -= D2*h2**4*sig2**5*7/60
-            return eta_dir_modif, eta_neu_modif
+            hj = h2
+            Dj = D2
+        eta_dir_modif = 1
+        if order_operators == 0:
+            eta_neu_modif = Dj*sigj
+        if order_operators > 0:
+            eta_neu_modif = Dj*sigj*np.exp(hj*sigj/2)
+        if order_operators > 1:
+            eta_neu_modif += Dj*hj**2*sigj**3/24*np.exp(hj*sigj/2)
+
+        return eta_dir_modif, eta_neu_modif
+
+
+    def s_time_modif(self, w, dt, order):
+        s = w * 1j
+        return s
 
     """
         Simple function to return h in each subdomains,
@@ -681,10 +668,14 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         return D1, D2
 
     def name(self):
-        return "Différences finies : flux extrapolé"
+        return "Différences finies avec RK2"
 
     def repr(self):
-        return "finite differences, no corrective term"
+        return "finite differences, naive interface rk2"
+
+    def modified_equations_fun(self):
+        return cv_rate.continuous_analytic_rate_robin_robin_modified_naive_rk2
+
 
 if __name__ == "__main__":
     from tests import test_finite_differences_no_corrective_term

@@ -134,6 +134,8 @@ def main():
             import tests.test_finite_differences_no_corrective_term
             import tests.test_finite_differences_naive_neumann
             import tests.test_optimal_neumann_robin
+            import tests.test_rk4_finite_differences_naive_neumann
+            import tests.test_rk4_finite_volumes
             test_dict = {
                 'linear_sys': tests.test_linear_sys.launch_all_tests,
                 'schwarz': tests.test_schwarz.launch_all_tests,
@@ -141,7 +143,9 @@ def main():
                 'rate': tests.test_optimal_neumann_robin.launch_all_tests,
                 'fdifferences': tests.test_finite_differences.launch_all_tests,
                 'fdifferences_no_corr': tests.test_finite_differences_no_corrective_term.launch_all_tests,
-                'fdifferences_naive': tests.test_finite_differences_naive_neumann.launch_all_tests
+                'fdifferences_naive': tests.test_finite_differences_naive_neumann.launch_all_tests,
+                'fdifferences_rk4': tests.test_rk4_finite_differences_naive_neumann.launch_all_tests,
+                'fvolumes_rk4': tests.test_rk4_finite_volumes.launch_all_tests
             }
             if len(sys.argv) > 2:
                 test_dict[sys.argv[2]]()

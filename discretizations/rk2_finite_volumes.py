@@ -11,7 +11,7 @@ from discretizations.discretization import Discretization
 import cv_rate
 
 
-class FiniteVolumes(Discretization):
+class Rk2FiniteVolumes(Discretization):
     """
         give default values of all variables.
     """
@@ -85,13 +85,21 @@ class FiniteVolumes(Discretization):
                            c,
                            dt,
                            f,
+                           f_nm1_2,
+                           f_nm1,
                            bd_cond,
+                           bd_cond_nm1_2,
+                           bd_cond_nm1,
                            Lambda,
                            u_nm1,
                            u_interface,
                            phi_interface,
+                           u_nm1_2_interface,
+                           phi_nm1_2_interface,
+                           u_nm1_interface,
+                           phi_nm1_interface,
                            upper_domain=True,
-                           Y=None, **kwargs):
+                           Y=None):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
@@ -109,6 +117,7 @@ class FiniteVolumes(Discretization):
         if not upper_domain:  # from now h, D, f, u_nm1 are 0 at bottom of the ocean.
             h, D, f, u_nm1 = np.flipud(h), np.flipud(D), np.flipud(f), \
                 np.flipud(u_nm1)
+            f_nm1_2, f_nm1= np.flipud(f_nm1_2), np.flipud(f_nm1)
 
         if Y is None:
             Y = self.get_Y(M=M,
@@ -119,33 +128,68 @@ class FiniteVolumes(Discretization):
                            dt=dt,
                            Lambda=Lambda,
                            upper_domain=upper_domain)
+        #actually Y is only here to get the size of the matrix xD
 
-        rhs = dt / (1 + dt * c) * (f[1:] - f[:-1] +
-                                   (u_nm1[1:] - u_nm1[:-1]) / dt)
-        if upper_domain:  # Neumann condition: user give derivative but I need flux
-            cond_robin = Lambda * u_interface + phi_interface \
-                - Lambda * dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
+        # h and D consts !  (1/12phi + 10/12phi + 1/12phi = D[0]*np.diff(u)/h[0])
+        assert np.linalg.norm(h-h[0]) < 1e-15
+        assert np.linalg.norm(D-D[0]) < 1e-15
 
-            cond_M = bd_cond * D[-1]
-            rhs = np.concatenate(([cond_robin], rhs, [cond_M]))
-        else:  # Dirichlet condition: user gives value, rhs is more complicated
-            cond_robin = Lambda * u_interface + phi_interface \
-                - Lambda * dt / (1 + dt * c) * (f[-1] + u_nm1[-1] / dt)
+        Y_0, Y_1, Y_2 = Y
+        Y_0[:-1] = 1/12
+        Y_1[0:-1] = 10/12
+        Y_2[0:] = 1/12
 
-            cond_M = bd_cond - dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
-            rhs = np.concatenate(([cond_M], rhs, [cond_robin]))
+        if upper_domain:
+            # Neumann :
+            Y_0[-1] = 0
+            Y_1[-1] = 1
 
-        phi_ret = solve_linear(Y, rhs)
+            # Robin :
+            Y_1[0] = -h[0]*Lambda * 5/(12*D[0]) + 1
+            Y_2[0] = -h[0]*Lambda * 1/(12*D[0])
+
+            def get_phi(u, u_interface, phi_interface, bd_cond):
+                robin_cond = Lambda * (u_interface-u[0]) + phi_interface
+                return solve_linear((Y_0, Y_1, Y_2),
+                                  np.concatenate(([robin_cond],
+                                                  D[0]*np.diff(u)/h[0],
+                                                  [bd_cond*D[-1]])))
+
+            def compute_k(f, u, bd_cond, u_interface, phi_interface):
+                phi = get_phi(u, u_interface, phi_interface, bd_cond)
+                return f + np.diff(phi)/h[0] - a*(phi[1:]/D[1:] + phi[:-1]/D[:-1])/2 - c*u
+        else: # on est dans le domaine du bas
+            # Dirichlet :
+            Y_1[0] = -h[0] * 5/(12*D[0])
+            Y_2[0] = -h[0] * 1/(12*D[0])
+
+            # Robin :
+            Y_1[-1] = h[0]*Lambda * 5/(12*D[0]) + 1
+            Y_0[-1] = h[0]*Lambda * 1/(12*D[0])
+
+
+            def get_phi(u, u_interface, phi_interface, bd_cond):
+                robin_cond = Lambda * (u_interface-u[-1]) + phi_interface
+                return solve_linear((Y_0, Y_1, Y_2),
+                                  np.concatenate(([bd_cond - u[0]],
+                                                  D[0]*np.diff(u)/h[0],
+                                                  [robin_cond])))
+
+            def compute_k(f, u, bd_cond, u_interface, phi_interface):
+                phi = get_phi(u, u_interface, phi_interface, bd_cond)
+                return f + np.diff(phi)/h - a*(phi[1:]/D[1:] + phi[:-1]/D[:-1])/2 - c*u
+
+        k1 = compute_k(f_nm1, u_nm1, bd_cond_nm1,
+                u_nm1_interface, phi_nm1_interface)
+
+        k2 = compute_k(f_nm1_2, u_nm1 + dt/2 * k1, bd_cond_nm1_2,
+                u_nm1_2_interface, phi_nm1_2_interface)
+
+        u_n = u_nm1 + dt * k2
+
+        phi_ret = get_phi(u_n, u_interface, phi_interface, bd_cond)
+
         d = phi_ret / D  # We take the derivative of u
-
-        d_kp1 = d[1:]
-        d_km1 = d[:-1]
-        D_mp1_2 = D[1:]
-        D_mm1_2 = D[:-1]
-
-        u_n = dt / (1 + dt * c) * (f + u_nm1 / dt
-                                   + (D_mp1_2 * d_kp1 - D_mm1_2 * d_km1) / h
-                                   - a * (d_kp1 + d_km1) / 2)
 
         assert u_n.shape[0] == M
         if upper_domain:
@@ -340,6 +384,9 @@ class FiniteVolumes(Discretization):
             Y_0 = Y_0[1:]
             Y_1 = Y_1[1:]
             Y_2 = Y_2[1:]
+            Y_0[:-1] = 1/12
+            Y_1[:-1] = 10/12
+            Y_2[:] = 1/12
 
             # Now we have the tridiagonal matrices, except for the Robin bd
             # condition
@@ -368,6 +415,9 @@ class FiniteVolumes(Discretization):
             Y_0 = Y_0[:-1]
             Y_1 = Y_1[:-1]
             Y_2 = Y_2[:-1]
+            Y_0[:] = 1/12
+            Y_1[1:] = 10/12
+            Y_2[1:] = 1/12
             # Now we have the tridiagonal matrices, except for the Robin bd
             # condition
             dirichlet_cond_extreme_point = dt / (1 + dt * c) * (
@@ -657,16 +707,12 @@ class FiniteVolumes(Discretization):
         dt = self.DT_DEFAULT
 
         s1 = 1j*w + self.C_DEFAULT
-        if order_equations > 0:
-            s1 += w**2 * dt/2
-        if order_equations > 1:
+        if order_equations > 1: #warning, euler coefficients
             s1 -= dt**2/6 * 1j * w**3
         if order_equations > 2:
             s1 -= dt**3 / 24 * w**4
 
         s2 = 1j*w + self.C_DEFAULT
-        if order_equations > 0:
-            s2 += w**2 * dt/2
         if order_equations > 1:
             s2 -= dt**2/6 * 1j * w**3
         if order_equations > 2:
@@ -693,8 +739,12 @@ class FiniteVolumes(Discretization):
         if order_operators > 0:
             eta_dir_modif += hj**2*sigj/12 
         if order_operators > 1:
-            eta_dir_modif += - hj**4*sigj**3/180- dt**2/2*w**2/(sigj)
+            eta_dir_modif += - hj**4*sigj**3/180- dt**2/2*w**2/(sigj) # warning, time term comes from euler
         return eta_dir_modif, eta_neu_modif
+
+    def s_time_modif(self, w, dt, order):
+        s = w * 1j
+        return s
 
     """
         Simple function to return h in each subdomains,
@@ -740,13 +790,13 @@ class FiniteVolumes(Discretization):
         return D1, D2
 
     def name(self):
-        return "Volumes finis"
+        return "Volumes finis, RK2"
 
     def repr(self):
-        return "finite volumes"
+        return "finite volumes rk2"
     
     def modified_equations_fun(self):
-        return cv_rate.continuous_analytic_rate_robin_robin_modified_vol
+        return cv_rate.continuous_analytic_rate_robin_robin_modified_vol_rk4
 
 
 if __name__ == "__main__":
