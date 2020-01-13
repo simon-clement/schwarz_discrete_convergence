@@ -707,16 +707,16 @@ class Rk2FiniteVolumes(Discretization):
         dt = self.DT_DEFAULT
 
         s1 = 1j*w + self.C_DEFAULT
-        if order_equations > 1: #warning, euler coefficients
+        if order_equations > 1:
             s1 -= dt**2/6 * 1j * w**3
-        if order_equations > 2:
-            s1 -= dt**3 / 24 * w**4
+        #if order_equations > 2: #warning, euler coefficients
+        #    s1 -= dt**3 / 24 * w**4
 
         s2 = 1j*w + self.C_DEFAULT
         if order_equations > 1:
             s2 -= dt**2/6 * 1j * w**3
-        if order_equations > 2:
-            s2 -= dt**3 / 24 * w**4
+        #if order_equations > 2: #warning, euler coefficients
+        #    s2 -= dt**3 / 24 * w**4
 
         sig1 = np.sqrt(s1/self.D1_DEFAULT)
         sig2 = -np.sqrt(s2/self.D2_DEFAULT)
@@ -743,7 +743,7 @@ class Rk2FiniteVolumes(Discretization):
         return eta_dir_modif, eta_neu_modif
 
     def s_time_modif(self, w, dt, order):
-        s = w * 1j
+        s = w * 1j - w**3 * dt**2/6 * 1j
         return s
 
     """

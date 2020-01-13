@@ -584,15 +584,15 @@ class Rk2FiniteDifferences(Discretization):
 
         s1 = 1j*w + self.C_DEFAULT
         if order_equations > 0:
-            s1 += w**2 * (h1**2/(12*D1) + dt/2)
+            s1 += w**2 * (h1**2/(12*D1))
         if order_equations > 1:
-            s1 -= 1j * w**3 * (h1**2/(12*D1) * dt/2 + dt**2/6 - h1**4/(12*30*D1**2))
+            s1 -= 1j * w**3 * (dt**2/6 - h1**4/(12*30*D1**2))
 
         s2 = 1j*w + self.C_DEFAULT
         if order_equations > 0:
-            s2 += w**2 * (h2**2/(12*D2) + dt/2)
+            s2 += w**2 * (h2**2/(12*D2))
         if order_equations > 1:
-            s2 -= 1j * w**3 * (h2**2/(12*D2) * dt/2 + dt**2/6 - h2**4/(12*30*D2**2))
+            s2 -= 1j * w**3 * (dt**2/6 - h2**4/(12*30*D2**2))
 
         sig1 = np.sqrt(s1/self.D1_DEFAULT)
         sig2 = -np.sqrt(s2/self.D2_DEFAULT)
@@ -621,7 +621,7 @@ class Rk2FiniteDifferences(Discretization):
 
 
     def s_time_modif(self, w, dt, order):
-        s = w * 1j
+        s = w * 1j - w**3 * dt**2/6 * 1j
         return s
 
     """
