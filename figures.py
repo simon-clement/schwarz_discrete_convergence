@@ -12,6 +12,8 @@ from discretizations.rk4_finite_volumes import Rk4FiniteVolumes
 from discretizations.rk2_finite_volumes import Rk2FiniteVolumes
 from discretizations.rk4_finite_differences import Rk4FiniteDifferences
 from discretizations.rk2_finite_differences import Rk2FiniteDifferences
+from discretizations.rk2_finite_difference_extra import Rk2FiniteDifferencesExtra
+from discretizations.rk4_finite_difference_extra import Rk4FiniteDifferencesExtra
 from discretizations.finite_difference_no_corrective_term \
         import FiniteDifferencesNoCorrectiveTerm
 from discretizations.finite_difference_naive_neumann \
@@ -295,11 +297,11 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff():
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
                                                           steps=50,
-                                                          number_samples=70,
+                                                          number_samples=20,
                                                           bounds_h=(-2.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
-                                                          number_samples=500,
+                                                          number_samples=100,
                                                           steps=50,
                                                           bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff")
@@ -325,12 +327,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
-                                                          number_samples=70,
+                                                          number_samples=20,
                                                           steps=50,
                                                           bounds_h=(-2.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
-                                                          number_samples=500,
+                                                          number_samples=100,
                                                           steps=50,
                                                           bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_naive")
@@ -356,12 +358,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_difference,
                                                           T=T, number_dt_h2=.1,
-                                                          number_samples=70,
+                                                          number_samples=20,
                                                           steps=50,
                                                           bounds_h=(-2.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_difference,
                                                           T=T, number_dt_h2=1.,
-                                                          number_samples=500,
+                                                          number_samples=100,
                                                           steps=50,
                                                           bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_diff_no_corr")
@@ -387,12 +389,12 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
-                                                          number_samples=70,
+                                                          number_samples=20,
                                                           steps=50,
                                                           bounds_h=(-2.5,1.), legend=False)
     error_by_taking_continuous_rate_constant_number_dt_h2(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
-                                                          number_samples=500,
+                                                          number_samples=100,
                                                           steps=50,
                                                           bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol")
@@ -456,13 +458,13 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_naive():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff,
                                                           T=T, number_dt_h2=.1,
-                                                          number_samples=70,
+                                                          number_samples=20,
                                                           steps=50,
                                                           legend=False,
                                                           bounds_h=(-2.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_diff,
                                                           T=T, number_dt_h2=1.,
-                                                          number_samples=500,
+                                                          number_samples=100,
                                                           steps=50,
                                                           bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff_naive")
@@ -478,13 +480,13 @@ def fig_compare_continuous_discrete_rate_robin_robin_diff_extra():
     axes[1].yaxis.set_tick_params(labelbottom=True)
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_diff_extra,
                                                           T=T, number_dt_h2=.1,
-                                                          number_samples=70,
+                                                          number_samples=20,
                                                           steps=50,
                                                           legend=False,
                                                           bounds_h=(-2.5,0.))
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_diff_extra,
                                                           T=T, number_dt_h2=1.,
-                                                          number_samples=500,
+                                                          number_samples=100,
                                                           steps=50,
                                                           bounds_h=(-2.5,0.))
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_diff_extra")
@@ -815,6 +817,12 @@ def fig_compare_modif_approaches_naive():
     ax.set_title("Finite Differences : modified convergence factor (naive interface)")
     show_or_save("fig_compare_modif_approaches_naive")
     
+def fig_compare_fullmodif_approaches_naive():
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    fig, ax = compare_modif_approaches(dis, full_discrete=True)
+    ax.set_title("Finite Differences : modified convergence factor (naive interface)")
+    show_or_save("fig_compare_modif_approaches_naive")
+    
 def fig_compare_modif_approaches_extra():
     dis = DEFAULT.new(FiniteDifferencesNoCorrectiveTerm)
     fig, ax = compare_modif_approaches(dis)
@@ -832,6 +840,19 @@ def fig_compare_modif_approaches_naive_rk4():
     fig, ax = compare_modif_approaches(dis)
     ax.set_title("Finite Differences : modified convergence factor (naive interface, rk4)")
     show_or_save("fig_compare_modif_approaches_naive_rk4")
+    
+def fig_compare_modif_approaches_extra_rk2():
+    dis = DEFAULT.new(Rk2FiniteDifferencesExtra)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Differences : modified convergence factor (extrapolated interface, rk2)")
+    show_or_save("fig_compare_modif_approaches_extra_rk2")
+
+def fig_compare_modif_approaches_extra_rk4():
+    dis = DEFAULT.new(Rk4FiniteDifferencesExtra)
+    fig, ax = compare_modif_approaches(dis)
+    ax.set_title("Finite Differences : modified convergence factor (extrapolated interface, rk4)")
+    show_or_save("fig_compare_modif_approaches_extra_rk4")
+
 
 def fig_compare_modif_approaches_vol():
     dis = DEFAULT.new(FiniteVolumes)
@@ -852,7 +873,7 @@ def fig_compare_modif_approaches_vol_rk4():
     show_or_save("fig_compare_modif_approaches_vol_rk4")
 
 
-def compare_modif_approaches(dis):
+def fig_plzplotwhatIwant():
     """
         Compare the approaches used with modified equations :
         plot cv rate :
@@ -862,6 +883,7 @@ def compare_modif_approaches(dis):
         - with modified equations, modified operators
         - with interface operator
     """
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     # 0.5; -0.5 is generally a good choice with our parameters
     lambda_1 = .5
     lambda_2 = -.5
@@ -876,7 +898,15 @@ def compare_modif_approaches(dis):
 
     dt = dis.DT_DEFAULT
 
-    axis_freq = np.linspace(-pi / dt, pi / dt, N)
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[N//2] = .5
+
+    # w = 2 pi k T / (N)
+    axis_freq = 2 * pi*all_k / N / dt
+    print(axis_freq)
 
     fig, ax = plt.subplots()
 
@@ -892,7 +922,73 @@ def compare_modif_approaches(dis):
                                                                Lambda_2=lambda_2)
                                         for w in axis_freq]
     semi_discrete_modif_time = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
-                                             w=w, semi_discrete=True, modified_time=3)
+                                             w=w, semi_discrete=False, modified_time=3, N=N)
+                                        for w in axis_freq]
+
+
+    ax.plot(axis_freq*dt, simulated_cv, label="simulation")
+    ax.plot(axis_freq*dt, nomodif_approach, label="continuous, not modified")
+    #ax.plot(axis_freq*dt, continuous_modified, label="continuous modified")
+
+
+    ax.plot(axis_freq*dt, semi_discrete_modif_time, "k--", label="semi-discrete in space, modified in time")
+    ax.set_xlabel("$\\omega*\\delta t$")
+    ax.set_ylabel("$\\hat{\\rho}$")
+    ax.set_xlim(left=-5*np.pi/dt/N, right=axis_freq[-1]*dt)
+    ax.set_ylim(bottom=0, top=1)
+    ax.grid()
+    fig.legend(loc="center right")
+    plt.show()
+
+def compare_modif_approaches(dis, full_discrete=False):
+    """
+        Compare the approaches used with modified equations :
+        plot cv rate :
+        - simulated
+        - with continuous approach
+        - with semi-discrete in space, modif in time
+        - with modified equations, modified operators
+        - with interface operator
+    """
+    # 0.5; -0.5 is generally a good choice with our parameters
+    lambda_1 = .5
+    lambda_2 = -.5
+    N = DEFAULT.N * 100
+
+    # we take a little more points
+    facteur = 1
+    dis.SIZE_DOMAIN_1 *= facteur
+    dis.SIZE_DOMAIN_2 *= facteur
+    dis.M1_DEFAULT = int(dis.M1_DEFAULT*facteur)
+    dis.M2_DEFAULT = int(dis.M2_DEFAULT*facteur)
+
+    dt = dis.DT_DEFAULT
+
+    #axis_freq = np.linspace(-pi / dt, pi / dt, N)
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[N//2] = 1/2
+    # w = 2 pi k / (N)
+    axis_freq = 2 * pi*all_k / N / dt
+
+
+    fig, ax = plt.subplots()
+
+    simulated_freq = memoised(frequency_simulation,
+                           dis,
+                           N,
+                           Lambda_1=lambda_1,
+                           Lambda_2=lambda_2,
+                           number_samples=50)
+    simulated_cv = simulated_freq[2] / simulated_freq[1]
+    nomodif_approach = [continuous_analytic_rate_robin_robin(dis, w=w,
+                                                               Lambda_1=lambda_1,
+                                                               Lambda_2=lambda_2)
+                                        for w in axis_freq]
+    semi_discrete_modif_time = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
+                                             w=w, semi_discrete=not full_discrete, modified_time=3, N=N)
                                         for w in axis_freq]
     continuous_modified = [dis.analytic_robin_robin_modified(w=w, Lambda_1=lambda_1, Lambda_2=lambda_2, order_equations=1, order_operators=float('inf'))
                                         for w in axis_freq]
@@ -1511,9 +1607,17 @@ def to_minimize_continuous_analytic_rate_robin_robin_fullmodif(l,
         h, discretization, number_dt_h2, T):
     dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
     cont = functools.partial(
-        discretization.modified_equations_fun(),
-        discretization, l[0], l[1])
-    return np.max([cont(pi / t) for t in np.linspace(dt, T, N)])
+        discretization.analytic_robin_robin_modified,
+        Lambda_1=l[0], Lambda_2=l[1])
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[N//2] = .5
+
+    # w = 2 pi k T / (N)
+    axis_freq = 2 * pi*all_k / N / dt
+    return np.max([cont(w) for w in axis_freq])
 
 
 def to_minimize_analytic_robin_robin(l, h, discretization, number_dt_h2, T):
@@ -1555,7 +1659,15 @@ def to_minimize_analytic_robin_robin_fulldiscrete(l, h, discretization, number_d
                           semi_discrete=False,
                           dt=dt,
                           N=N)
-    return max([f(w) for w in list(pi/np.linspace(dt, T, N))])
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[N//2] = .5
+
+    # w = 2 pi k T / (N)
+    axis_freq = 2 * pi*all_k / N / dt
+    return max([f(w) for w in axis_freq])
 
 def to_minimize_robin_robin_perfect(l, h, discretization, number_dt_h2, T, number_samples):
     dt, N = get_dt_N(h, number_dt_h2, T, discretization.D1_DEFAULT)
@@ -1655,7 +1767,6 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
     theorical_rate_discrete = [ret.fun for ret in ret_discrete]
     theorical_rate_discrete_modif = [ret.fun for ret in ret_discrete_modif]
 
-    print(list(zip(optimal_fullmodif, optimal_fulldiscrete)))
     def func_to_map_cont(x): return memoised(minimize,
         fun=to_minimize_continuous_analytic_rate_robin_robin2,
         x0=(0.6,0),
@@ -1755,27 +1866,27 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
     linemdo, = ax.semilogx(all_h[:len(rate_with_discrete_modif_lambda)],
                  rate_with_discrete_modif_lambda,
                  "b")
-    linemdt, = ax.semilogx(all_h,
+    linemdt, = ax.semilogx(all_h[:len(theorical_rate_discrete_modif)],
                  theorical_rate_discrete_modif,
                  "b--")
 
     linedo, = ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
                  "g")
-    linedt, = ax.semilogx(all_h,
+    linedt, = ax.semilogx(all_h[:len(theorical_rate_discrete)],
                  theorical_rate_discrete,
                  "g--")
     lineco, = ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
                  "r")
-    linect, = ax.semilogx(all_h,
+    linect, = ax.semilogx(all_h[:len(theorical_cont_rate)],
                  theorical_cont_rate,
                  "r--")
 
-    linefmo, = ax.semilogx(all_h,
+    linefmo, = ax.semilogx(all_h[:len(rate_with_fullmodif_lambda)],
                  rate_with_fullmodif_lambda,
                  "m")
-    linefmt, = ax.semilogx(all_h,
+    linefmt, = ax.semilogx(all_h[:len(theorical_rate_full_modif)],
                  theorical_rate_full_modif,
                  "m--")
 
@@ -1817,7 +1928,17 @@ def to_minimize_continuous_analytic_rate_robin_onesided_fullmodif(l,
     cont = functools.partial(
         discretization.modified_equations_fun(),
         discretization, l, -l)
-    return np.max([cont(pi / t) for t in np.linspace(dt*3, T, N)])
+
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[N//2] = .5
+
+    # w = 2 pi k T / (N)
+    axis_freq = 2 * pi*all_k / N / dt
+
+    return np.max([cont(w) for w in axis_freq])
 
 
 def to_minimize_analytic_robin_onesided(l, h, discretization, number_dt_h2, T):

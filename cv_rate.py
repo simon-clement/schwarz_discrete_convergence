@@ -270,11 +270,17 @@ def analytic_robin_robin(discretization,
         if semi_discrete:
             s = discretization.s_time_modif(w, dt, modified_time)
         else:
-            # Note : in full discrete case, a fftshift MAY BE needed
-            # I don't really know when it's accurate,
-            # it seems that with a small N it is necessary to perform
-            # a fftshift. That's a little bit some dark magic...
-            z = 1.0 * np.exp(-w * 1j * dt * N)
+            # Note : in full discrete case, the case N odd / even must be separated
+            # if N % 2 == 0: # even
+            #     all_k = np.linspace(-N/2, N/2 - 1, N)
+            # else: #odd
+            #     all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+            # w = 2 pi k / (N)
+            z = 1.0 * np.exp(w * 1j * dt)
+            #   raise
+            #k = w
+            #z = 1.0 * np.exp(2*k * 1j*np.pi / N)
+
             s = 1. / dt * (z - 1) / z
 
     return discretization.analytic_robin_robin(s=s,
@@ -747,7 +753,6 @@ def interface_errors(discretization,
 
         ret += [all_u1_interface[1:]]
 
-    print("eeend")
     return ret
 
 

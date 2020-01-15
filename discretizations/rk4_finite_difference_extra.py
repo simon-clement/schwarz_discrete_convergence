@@ -10,7 +10,7 @@ from discretizations.discretization import Discretization
 from utils_linalg import solve_linear_with_ultra_right, solve_linear
 
 
-class FiniteDifferencesNoCorrectiveTerm(Discretization):
+class Rk4FiniteDifferencesExtra(Discretization):
     """
         give default values of all variables.
     """
@@ -84,13 +84,21 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
                            c,
                            dt,
                            f,
+                           f_nm1_2,
+                           f_nm1,
                            bd_cond,
+                           bd_cond_nm1_2,
+                           bd_cond_nm1,
                            Lambda,
                            u_nm1,
                            u_interface,
                            phi_interface,
+                           u_nm1_2_interface,
+                           phi_nm1_2_interface,
+                           u_nm1_interface,
+                           phi_nm1_interface,
                            upper_domain=True,
-                           Y=None, **kwargs):
+                           Y=None):
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
@@ -105,26 +113,43 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
             u_nm1, np.ndarray) and u_nm1.ndim == 1 and u_nm1.shape[0] == M
         assert upper_domain is True or upper_domain is False
 
-        if Y is None:
-            Y = self.precompute_Y(M=M,
-                                  h=h,
-                                  D=D,
-                                  a=a,
-                                  c=c,
-                                  dt=dt,
-                                  f=f,
-                                  bd_cond=bd_cond,
-                                  Lambda=Lambda,
-                                  upper_domain=upper_domain)
+        #h and D need *not* to be constant :
+        #assert np.linalg.norm(h-h[0]) < 1e-11
+        #assert np.linalg.norm(D-D[0]) < 1e-11
 
-        rhs = (f[1:-1] + u_nm1[1:-1] / dt) * (h[1:] + h[:-1])
+        robin_nm1_2 = Lambda * u_nm1_2_interface + phi_nm1_2_interface
+        robin_np1 = Lambda * u_interface + phi_interface
 
-        # extrapolation ? no! it is inside phi_interface
-        cond_robin = Lambda * u_interface + phi_interface
+        def compute_k(f, u):
+            return f[1:-1] + np.diff(D*np.diff(u)/h)/((h[1:] + h[:-1])/2) - a*(u[2:] - u[:-2])/(h[1:] + h[:-1]) - c*u[1:-1]
 
-        rhs = np.concatenate(([cond_robin], rhs, [bd_cond]))
+        def compute_u_ni(step, bd_cond, robin_cond):
+            u_ni = np.copy(u_nm1)
+            u_ni[1:-1] += step
+            # Robin : robin_cond = Lambda u + (2h0+h1)/(h0+h1)phi_1_2 -  h0/(h0+h1)phi_3_2
+            phi_3_2 = D[1] / h[1] * (u_ni[2] - u_ni[1])
+            u_ni[0] = (robin_cond + h[0]/(h[0]+h[1])*phi_3_2
+                    - (2*h[0]+h[1])/(h[0]+h[1])*D[0]/h[0]*u_ni[1] ) / \
+                (Lambda - (2*h[0]+h[1])/(h[0]+h[1])*D[0]/h[0])
+            if upper_domain: # Neumann :
+                u_ni[-1] = u_ni[-2] + h[-1]*bd_cond
+            else: # Dirichlet :
+                u_ni[-1] = bd_cond
+            return u_ni
 
-        u_n = solve_linear_with_ultra_right(Y, rhs)
+        k1 = compute_k(f_nm1, u_nm1)
+
+
+        u_n1 = compute_u_ni(dt/2 * k1, bd_cond_nm1_2, robin_nm1_2)
+        k2 = compute_k(f_nm1_2, u_n1)
+
+        u_n2 = compute_u_ni(dt/2 * k2, bd_cond_nm1_2, robin_nm1_2)
+        k3 = compute_k(f_nm1_2, u_n2)
+
+        u_n3 = compute_u_ni(dt * k3, bd_cond, robin_np1)
+        k4 = compute_k(f, u_n3)
+
+        u_n = compute_u_ni(dt/6 * (k1+2*k2+2*k3+k4), bd_cond, robin_np1)
 
         new_u_interface = u_n[0]
         # extrapolation of flux: f(0) ~ f(h/2) - h/2*f'(h)
@@ -497,9 +522,9 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
             sol_calc = (s*h/2 + np.sqrt((s*h/2)**2 + s*D))*(1 - s*h*h/(4*D) - h/(2*D)*np.sqrt((s*h/2)**2 + s*D))
             sol_calc2 = (-s*h*h/(2*D) + 1)*np.sqrt((s*h/2)**2 + s*D) - s**2*h**3/(4*D)
             if abs(sol_calc-D/h * ((lambda_moins - 1) * (3/2 - lambda_moins/2))) > 1e-6:
-                print("Error Euler extra 1: computation is not right")
-                print(abs(sol_calc-eta1_neu)/abs(eta1_neu), eta1_neu)
-                #raise
+                print("Error rk4 extra 1: computation is not right")
+                print(abs(sol_calc-eta1_neu), eta1_neu)
+                raise
             return eta1_dir, eta1_neu
         elif j == 2:
             eta2_dir = 1 + (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1)
@@ -509,8 +534,9 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
             sol_calc = (s*h/2 - np.sqrt((s*h/2)**2 + s*D))*(1 - s*h*h/(4*D) + h/(2*D)*np.sqrt((s*h/2)**2 + s*D))
             sol_calc2 = (s*h*h/(2*D) - 1)*np.sqrt((s*h/2)**2 + s*D) - s**2*h**3/(4*D)
             if abs(sol_calc-D/h * ((lambda_moins - 1) * (3/2 - lambda_moins/2))) > 1e-6:
-                print("Error Euler extra 1: computation is not right")
-                print(abs(sol_calc-eta2_neu)/abs(eta2_neu), eta2_neu)
+                print("Error rk4 extra 2: computation is not right")
+                print(abs(sol_calc-eta2_neu), eta2_neu)
+                raise
 
 
             return eta2_dir, eta2_neu
@@ -593,15 +619,15 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
 
         s1 = 1j*w + self.C_DEFAULT
         if order_equations > 0:
-            s1 += w**2 * (h1**2/(12*D1) + dt/2)
+            s1 += w**2 * (h1**2/(12*D1))
         if order_equations > 1:
-            s1 -= 1j * w**3 * (h1**2/(12*D1) * dt/2 + dt**2/6 - h1**4/(12*30*D1**2))
+            s1 -= 1j * w**3 * (- h1**4/(12*30*D1**2))
 
         s2 = 1j*w + self.C_DEFAULT
         if order_equations > 0:
-            s2 += w**2 * (h2**2/(12*D2) + dt/2)
+            s2 += w**2 * (h2**2/(12*D2))
         if order_equations > 1:
-            s2 -= 1j * w**3 * (h2**2/(12*D2) * dt/2 + dt**2/6 - h2**4/(12*30*D2**2))
+            s2 -= 1j * w**3 * (- h2**4/(12*30*D2**2))
 
         sig1 = np.sqrt(s1/self.D1_DEFAULT)
         sig2 = -np.sqrt(s2/self.D2_DEFAULT)
@@ -634,6 +660,10 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
             if order_operators > 2:
                 eta_neu_modif -= D2*h2**4*sig2**5*7/60
             return eta_dir_modif, eta_neu_modif
+
+    def s_time_modif(self, w, dt, order):
+        s = w * 1j
+        return s
 
     """
         Simple function to return h in each subdomains,
@@ -679,10 +709,10 @@ class FiniteDifferencesNoCorrectiveTerm(Discretization):
         return D1, D2
 
     def name(self):
-        return "Différences finies : flux extrapolé"
+        return "Différences finies : flux extrapolé (rk4)"
 
     def repr(self):
-        return "finite differences, no corrective term"
+        return "finite differences, extrapolated flux (rk4)"
 
 if __name__ == "__main__":
     from tests import test_finite_differences_no_corrective_term
