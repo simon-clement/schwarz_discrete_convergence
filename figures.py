@@ -410,18 +410,20 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
     finite_volumes = DEFAULT.new(FiniteVolumes)
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     axes[1].yaxis.set_tick_params(labelbottom=True)
+    """
     compare_continuous_discrete_rate_robin_robin(fig, axes[0], finite_volumes,
                                                           T=T, number_dt_h2=.1,
-                                                          number_samples=120,
+                                                          number_samples=20,
                                                           steps=40,
                                                           legend=False,
                                                           bounds_h=(-1.5,0.))
+    """
     compare_continuous_discrete_rate_robin_robin(fig, axes[1], finite_volumes,
                                                           T=T, number_dt_h2=1.,
                                                           number_samples=800,
                                                           steps=40,
                                                           bounds_h=(-1.5,0.),
-                                                          plot_perfect_performances=True)
+                                                          plot_perfect_performances=False)
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
 
 def figModifEqRobinOneSidedVol():
@@ -1614,6 +1616,7 @@ def to_minimize_continuous_analytic_rate_robin_robin_fullmodif(l,
     else: #odd
         all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
     all_k[N//2] = .5
+    all_k = all_k[N//2 - N//4-1:N//2 + N//4+1]
 
     # w = 2 pi k T / (N)
     axis_freq = 2 * pi*all_k / N / dt
@@ -1736,7 +1739,7 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
 
     def func_to_map_full_modif(x): return memoised(minimize,
         fun=to_minimize_analytic_robin_robin2_fullmodified,
-        x0=(0.6, 0.),
+        x0=(0.60002, 0.),
         args=(x, discretization, number_dt_h2, T))
 
     def func_to_map_perfect_perf(x): 

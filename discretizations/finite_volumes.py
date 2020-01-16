@@ -89,9 +89,15 @@ class FiniteVolumes(Discretization):
                            Lambda,
                            u_nm1,
                            u_interface,
+                           u_nm1_interface,
                            phi_interface,
+                           phi_nm1_interface,
+                           phi_for_FV,
                            upper_domain=True,
-                           Y=None, **kwargs):
+                           Y=None,
+                           **kwargs):
+        assert phi_for_FV != []
+        phi_nm1 = phi_for_FV[0]
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
@@ -109,6 +115,7 @@ class FiniteVolumes(Discretization):
         if not upper_domain:  # from now h, D, f, u_nm1 are 0 at bottom of the ocean.
             h, D, f, u_nm1 = np.flipud(h), np.flipud(D), np.flipud(f), \
                 np.flipud(u_nm1)
+            phi_nm1 = np.flipud(phi_nm1)
 
         if Y is None:
             Y = self.get_Y(M=M,
@@ -120,8 +127,12 @@ class FiniteVolumes(Discretization):
                            Lambda=Lambda,
                            upper_domain=upper_domain)
 
+        # diffu_nm1 was before = u_nm1[1:] - u_nm1[:-1]
+        diffu_nm1 = (phi_nm1[2:]/D[2:] * h[1:] +
+                5*phi_nm1[1:-1]/D[1:-1] * (h[1:] + h[:-1]) +
+                    phi_nm1[:-2]/D[:-2] * h[:-1])/12
         rhs = dt / (1 + dt * c) * (f[1:] - f[:-1] +
-                                   (u_nm1[1:] - u_nm1[:-1]) / dt)
+                                   diffu_nm1 / dt)
         if upper_domain:  # Neumann condition: user give derivative but I need flux
             cond_robin = Lambda * u_interface + phi_interface \
                 - Lambda * dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
@@ -155,8 +166,9 @@ class FiniteVolumes(Discretization):
             u_interface = u_n[-1] + h[-1] * d[-2] / 12 + h[-1] * d[-1] * 5 / 12
             phi_interface = phi_ret[-1]
             u_n = np.flipud(u_n)
+            phi_ret = np.flipud(phi_ret)
 
-        return u_n, u_interface, phi_interface
+        return u_n, u_interface, phi_interface, phi_ret
 
     """
         Same as integrate_one_step, but with full domain. The parameters are

@@ -653,9 +653,11 @@ def interface_errors(discretization,
                                                  Lambda=Lambda_2,
                                                  upper_domain=True)
 
-    # random false initialization:
     u1_0 = np.zeros(M1)
     u2_0 = np.zeros(M2)
+    phi1_0_fvol = np.zeros(M1 + 1)
+    phi2_0_fvol = np.zeros(M2 + 1)
+    # random false initialization:
     np.random.seed(seed)
     all_u1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
     all_phi1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
@@ -668,6 +670,7 @@ def interface_errors(discretization,
         all_u2_interface = [0]
         all_phi2_interface = [0]
         all_u2 = [u2_0]
+        phi_for_FV = [phi2_0_fvol]
         # Time iteration:
         interpolator_u1 = interp1d(x=np.array(range(time_window_len+1)), y=all_u1_interface, kind='cubic')
         interpolator_phi1 = interp1d(x=np.array(range(time_window_len+1)), y=all_phi1_interface, kind='cubic')
@@ -680,7 +683,7 @@ def interface_errors(discretization,
             u_interface = all_u1_interface[i]
             phi_interface = all_phi1_interface[i]
 
-            u2_ret, u_interface, phi_interface = \
+            u2_ret, u_interface, phi_interface, *phi_for_FV = \
                     discretization.integrate_one_step(
                 M=M2,
                 h=h2,
@@ -702,6 +705,7 @@ def interface_errors(discretization,
                 phi_nm1_2_interface=phi_nm1_2_interface,
                 u_nm1_interface=u_nm1_interface,
                 phi_nm1_interface=phi_nm1_interface,
+                phi_for_FV=phi_for_FV,
                 upper_domain=True,
                 Y=precomputed_Y2)
             all_u2 += [u2_ret]
@@ -711,6 +715,7 @@ def interface_errors(discretization,
         all_u1_interface = [0]
         all_phi1_interface = [0]
         all_u1 = [u1_0]
+        phi_for_FV = [phi1_0_fvol]
 
         interpolator_u2 = interp1d(x=np.array(range(time_window_len+1)), y=all_u2_interface, kind='cubic')
         interpolator_phi2 = interp1d(x=np.array(range(time_window_len+1)), y=all_phi2_interface, kind='cubic')
@@ -723,7 +728,7 @@ def interface_errors(discretization,
             u_nm1_interface = all_u2_interface[i-1]
             phi_nm1_interface = all_phi2_interface[i-1]
 
-            u1_ret, u_interface, phi_interface = \
+            u1_ret, u_interface, phi_interface, *phi_for_FV = \
                     discretization.integrate_one_step(
                 M=M1,
                 h=h1,
@@ -745,6 +750,7 @@ def interface_errors(discretization,
                 phi_nm1_interface=phi_nm1_interface,
                 u_nm1_2_interface=u_nm1_2_interface,
                 phi_nm1_2_interface=phi_nm1_2_interface,
+                phi_for_FV=phi_for_FV,
                 upper_domain=False,
                 Y=precomputed_Y1)
             all_u1 += [u1_ret]

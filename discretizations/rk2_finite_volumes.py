@@ -98,8 +98,11 @@ class Rk2FiniteVolumes(Discretization):
                            phi_nm1_2_interface,
                            u_nm1_interface,
                            phi_nm1_interface,
+                           phi_for_FV,
                            upper_domain=True,
                            Y=None):
+        assert phi_for_FV != []
+        phi_nm1 = phi_for_FV[0] # c'est sale mais j'ai pas mieux
         a, c, dt = self.get_a_c_dt(a, c, dt)
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
