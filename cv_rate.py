@@ -587,10 +587,15 @@ def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
     to_map = functools.partial(interface_errors, discretization, N,
                                **kwargs)
     print(number_samples)
+
+    from progressbar import ProgressBar
+    progressbar = ProgressBar(maxval=number_samples)
+
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        errors = np.array(list(executor.map(to_map,
-                                            range(number_samples))))
-    freq_err = fftshift(fft(errors, axis=-1), axes=(-1, ))
+        errors = []
+        for result in progressbar(executor.map(to_map, range(number_samples))):
+            errors += [result]
+    freq_err = fftshift(fft(np.array(errors), axis=-1), axes=(-1, ))
     return np.std(freq_err, axis=0)
 
 
