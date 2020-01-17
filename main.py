@@ -130,6 +130,7 @@ def main():
             import tests.test_linear_sys
             import tests.test_schwarz
             import tests.test_finite_volumes
+            import tests.test_finite_volumes_spline2
             import tests.test_finite_differences
             import tests.test_finite_differences_no_corrective_term
             import tests.test_finite_differences_naive_neumann
@@ -145,7 +146,8 @@ def main():
                 'fdifferences_no_corr': tests.test_finite_differences_no_corrective_term.launch_all_tests,
                 'fdifferences_naive': tests.test_finite_differences_naive_neumann.launch_all_tests,
                 'fdifferences_rk4': tests.test_rk4_finite_differences_naive_neumann.launch_all_tests,
-                'fvolumes_rk4': tests.test_rk4_finite_volumes.launch_all_tests
+                'fvolumes_rk4': tests.test_rk4_finite_volumes.launch_all_tests,
+                'fvolumes_spline2': tests.test_finite_volumes_spline2.launch_all_tests
             }
             if len(sys.argv) > 2:
                 test_dict[sys.argv[2]]()

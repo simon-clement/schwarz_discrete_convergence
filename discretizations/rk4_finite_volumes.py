@@ -706,16 +706,15 @@ class Rk4FiniteVolumes(Discretization):
 
         return np.abs(rho_numerator / rho_denominator)
 
-    def sigma_modified(self, w, order_equations):
+    def sigma_modified(self, w, order_time, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
         dt = self.DT_DEFAULT
 
-        s1 = 1j*w + self.C_DEFAULT
-        s2 = 1j*w + self.C_DEFAULT
-        sig1 = np.sqrt(s1/self.D1_DEFAULT)
-        sig2 = -np.sqrt(s2/self.D2_DEFAULT)
+        s = self.s_time_modif(w, dt, order_time) + self.C_DEFAULT
+        sig1 = np.sqrt(s/self.D1_DEFAULT)
+        sig2 = -np.sqrt(s/self.D2_DEFAULT)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):

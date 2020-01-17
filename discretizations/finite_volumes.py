@@ -662,30 +662,19 @@ class FiniteVolumes(Discretization):
 
         return np.abs(rho_numerator / rho_denominator)
 
-    def sigma_modified(self, w, order_equations):
-        h1, h2 = self.get_h()
-        h1, h2 = h1[0], h2[0]
-        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
+    def sigma_modified(self, w, order_time, order_equations):
         dt = self.DT_DEFAULT
+        s = self.s_time_modif(w, dt, order_time) + self.C_DEFAULT
+        h1, h2 = self.get_h()
+        D1 = self.D1_DEFAULT
+        D2 = self.D2_DEFAULT
+        s1, s2 = s, s
+        if order_equations > 3:
+            s1 = s - 1j*w**3*D1*h1[0]**4/200
+            s2 = s - 1j*w**3*D2*h2[0]**4/200
 
-        s1 = 1j*w + self.C_DEFAULT
-        if order_equations > 0:
-            s1 += w**2 * dt/2
-        if order_equations > 1:
-            s1 -= dt**2/6 * 1j * w**3
-        if order_equations > 2:
-            s1 -= dt**3 / 24 * w**4
-
-        s2 = 1j*w + self.C_DEFAULT
-        if order_equations > 0:
-            s2 += w**2 * dt/2
-        if order_equations > 1:
-            s2 -= dt**2/6 * 1j * w**3
-        if order_equations > 2:
-            s2 -= dt**3 / 24 * w**4
-
-        sig1 = np.sqrt(s1/self.D1_DEFAULT)
-        sig2 = -np.sqrt(s2/self.D2_DEFAULT)
+        sig1 = np.sqrt(s1/D1)
+        sig2 = -np.sqrt(s2/D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
@@ -705,7 +694,7 @@ class FiniteVolumes(Discretization):
         if order_operators > 0:
             eta_dir_modif += hj**2*sigj/12 
         if order_operators > 1:
-            eta_dir_modif += - hj**4*sigj**3/180- dt**2/2*w**2/(sigj)
+            eta_dir_modif += - hj**4*sigj**3/180 - dt**2/2*w**2/(sigj)
         return eta_dir_modif, eta_neu_modif
 
     """

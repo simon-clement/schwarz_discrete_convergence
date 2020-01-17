@@ -855,6 +855,12 @@ def fig_compare_modif_approaches_extra_rk4():
     ax.set_title("Finite Differences : modified convergence factor (extrapolated interface, rk4)")
     show_or_save("fig_compare_modif_approaches_extra_rk4")
 
+def fig_compare_all_modif_approaches_vol():
+    dis = DEFAULT.new(FiniteVolumes)
+    setup_modified = [(0,0,0, "continuous"), (0,4,0,"operators"), (4,4,0,"operators+time"), (4, 4, 4, "operators+time+space")]
+    fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified)
+    ax.set_title("Finite Volumes : modified convergence factor")
+    show_or_save("fig_compare_modif_approaches_vol")
 
 def fig_compare_modif_approaches_vol():
     dis = DEFAULT.new(FiniteVolumes)
@@ -942,15 +948,17 @@ def fig_plzplotwhatIwant():
     fig.legend(loc="center right")
     plt.show()
 
-def compare_modif_approaches(dis, full_discrete=False):
+def compare_modif_approaches(dis, full_discrete=False, setup_modified=[(0,0,0, "continuous"), (4, 4, 4, "modified")]):
     """
         Compare the approaches used with modified equations :
         plot cv rate :
         - simulated
-        - with continuous approach
-        - with semi-discrete in space, modif in time
-        - with modified equations, modified operators
-        - with interface operator
+        - with discrete in space time if full_discrete == True
+        - with continuous approach if continuous==True
+        - with all the modified setups (modified in time,
+                                        modified interface operators,
+                                        modified space equations,
+                                        label)
     """
     # 0.5; -0.5 is generally a good choice with our parameters
     lambda_1 = .5
@@ -983,25 +991,27 @@ def compare_modif_approaches(dis, full_discrete=False):
                            N,
                            Lambda_1=lambda_1,
                            Lambda_2=lambda_2,
-                           number_samples=50)
+                           number_samples=500)
     simulated_cv = simulated_freq[2] / simulated_freq[1]
-    nomodif_approach = [continuous_analytic_rate_robin_robin(dis, w=w,
-                                                               Lambda_1=lambda_1,
-                                                               Lambda_2=lambda_2)
-                                        for w in axis_freq]
-    semi_discrete_modif_time = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
-                                             w=w, semi_discrete=not full_discrete, modified_time=3, N=N)
-                                        for w in axis_freq]
-    continuous_modified = [dis.analytic_robin_robin_modified(w=w, Lambda_1=lambda_1, Lambda_2=lambda_2, order_equations=1, order_operators=float('inf'))
-                                        for w in axis_freq]
+    #ax.plot(axis_freq*dt, simulated_cv, label="simulation")
+
+    if full_discrete:
+        discrete = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
+                                                 w=w, semi_discrete=not full_discrete, N=N)
+                                            for w in axis_freq]
+        #ax.plot(axis_freq*dt, semi_discrete_modif_time, "k--", label="discrete in space and time")
+        ax.semilogy(axis_freq*dt, np.abs(simulated_cv - np.array(discrete))/simulated_cv, label=label)
+
+    for (modified_time, modified_op, modified_space, label) in setup_modified:
+        continuous_modified = [dis.analytic_robin_robin_modified(w=w, Lambda_1=lambda_1, Lambda_2=lambda_2,
+                                                                 order_time=modified_time,
+                                                                 order_equations=modified_space,
+                                                                 order_operators=modified_op)
+                                            for w in axis_freq]
+
+        ax.semilogy(axis_freq*dt, np.abs(simulated_cv - np.array(continuous_modified))/simulated_cv, label=label)
 
 
-    ax.plot(axis_freq*dt, simulated_cv, label="simulation")
-    ax.plot(axis_freq*dt, nomodif_approach, label="continuous, not modified")
-    ax.plot(axis_freq*dt, continuous_modified, label="continuous modified")
-
-
-    ax.plot(axis_freq*dt, semi_discrete_modif_time, "k--", label="semi-discrete in space, modified in time")
     ax.set_xlabel("$\\omega*\\delta t$")
     ax.set_ylabel("$\\hat{\\rho}$")
     ax.set_xlim(left=-5*np.pi/dt/N, right=axis_freq[-1]*dt)

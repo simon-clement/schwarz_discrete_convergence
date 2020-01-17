@@ -276,7 +276,7 @@ def analytic_robin_robin(discretization,
             # else: #odd
             #     all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
             # w = 2 pi k / (N)
-            z = 1.0 * np.exp(w * 1j * dt)
+            z = 1 * np.exp(w * 1j * dt)
             #   raise
             #k = w
             #z = 1.0 * np.exp(2*k * 1j*np.pi / N)

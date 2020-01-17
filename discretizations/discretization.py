@@ -146,11 +146,12 @@ class Discretization:
         """
         raise NotImplementedError
 
-    def sigma_modified(self, w, order_equations):
+    def sigma_modified(self, w, order_time, order_equations):
         # This code should not run and is here as an example
         raise NotImplementedError
-        sig1 = np.sqrt((w*1j + self.C_DEFAULT)/self.D1_DEFAULT)
-        sig2 = -np.sqrt((w*1j + self.C_DEFAULT)/self.D2_DEFAULT)
+        s = self.s_time_modif(w, self.DT_DEFAULT, order_time) + self.C_DEFAULT
+        sig1 = np.sqrt(s/self.D1_DEFAULT)
+        sig2 = -np.sqrt(s/self.D2_DEFAULT)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, *kwargs, **dicargs):
@@ -165,7 +166,7 @@ class Discretization:
             eta_neu_modif = sigj * self.D2_DEFAULT
             return eta_dir_modif, eta_neu_modif
 
-    def analytic_robin_robin_modified(self, w, Lambda_1=None, Lambda_2=None, order_operators=float('inf'), order_equations=float('inf')):
+    def analytic_robin_robin_modified(self, w, Lambda_1=None, Lambda_2=None, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
         """
             When D and h are constant, it is possible to find the convergence
             rate in frequency domain. analytic_robin_robin computes this convergence rate.
@@ -178,7 +179,7 @@ class Discretization:
             particularity of the discretization is specified
             through the method eta_dirneu
         """
-        sig1, sig2 = self.sigma_modified(w, order_equations)
+        sig1, sig2 = self.sigma_modified(w, order_time, order_equations)
         eta1_dir, eta1_neu = self.eta_dirneu_modif(j=1, sigj=sig1, order_operators=order_operators, w=w)
         eta2_dir, eta2_neu = self.eta_dirneu_modif(j=2, sigj=sig2, order_operators=order_operators, w=w)
         rho_numerator = (Lambda_2*eta1_dir + eta1_neu) * (Lambda_1*eta2_dir + eta2_neu)

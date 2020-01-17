@@ -703,21 +703,18 @@ class Rk2FiniteVolumes(Discretization):
 
         return np.abs(rho_numerator / rho_denominator)
 
-    def sigma_modified(self, w, order_equations):
+    def sigma_modified(self, w, order_time, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
         dt = self.DT_DEFAULT
 
-        s1 = 1j*w + self.C_DEFAULT
-        if order_equations > 1:
-            s1 -= dt**2/6 * 1j * w**3
+        s = self.s_time_modif(w, dt, order_time) + self.C_DEFAULT
+        s1 = s
         #if order_equations > 2: #warning, euler coefficients
         #    s1 -= dt**3 / 24 * w**4
 
-        s2 = 1j*w + self.C_DEFAULT
-        if order_equations > 1:
-            s2 -= dt**2/6 * 1j * w**3
+        s2 = s
         #if order_equations > 2: #warning, euler coefficients
         #    s2 -= dt**3 / 24 * w**4
 

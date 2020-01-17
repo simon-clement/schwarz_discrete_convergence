@@ -561,23 +561,24 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         return np.abs(rho_numerator / rho_denominator)
 
 
-    def sigma_modified(self, w, order_equations):
+    def sigma_modified(self, w, order_time, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
         dt = self.DT_DEFAULT
 
-        s1 = 1j*w + self.C_DEFAULT
+        s = self.s_time_modif(w, dt, order_time) + self.C_DEFAULT
+        s1 = s
         if order_equations > 0:
-            s1 += w**2 * (h1**2/(12*D1) + dt/2)
+            s1 += w**2 * (h1**2/(12*D1))
         if order_equations > 1:
-            s1 -= 1j * w**3 * (h1**2/(12*D1) * dt/2 + dt**2/6 - h1**4/(12*30*D1**2))
+            s1 -= 1j * w**3 * (h1**2/(12*D1) * dt/2 - h1**4/(12*30*D1**2))
 
-        s2 = 1j*w + self.C_DEFAULT
+        s2 = s
         if order_equations > 0:
-            s2 += w**2 * (h2**2/(12*D2) + dt/2)
+            s2 += w**2 * (h2**2/(12*D2))
         if order_equations > 1:
-            s2 -= 1j * w**3 * (h2**2/(12*D2) * dt/2 + dt**2/6 - h2**4/(12*30*D2**2))
+            s2 -= 1j * w**3 * (h2**2/(12*D2) * dt/2 - h2**4/(12*30*D2**2))
 
         sig1 = np.sqrt(s1/self.D1_DEFAULT)
         sig2 = -np.sqrt(s2/self.D2_DEFAULT)
