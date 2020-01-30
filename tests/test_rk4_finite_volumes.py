@@ -32,7 +32,8 @@ def test_integrate_one_step():
 
     #assert "ok" == first_correctness_test1()
     #assert "ok" == first_correctness_test2()
-    assert "ok" == order_error_term()
+    #assert "ok" == order_error_term()
+    assert "ok" == order_error_term_linear_time()
     return "ok"
 
 
@@ -265,12 +266,13 @@ def order_error_term():
     Dirichlet en -1
     """
     T = 8.
-    Lambda = 1e100 # does not work for lambda<0 ? .-.
+    Lambda = -1 # does not work for lambda<0 ? .-.
     Courant = .02
-    D = .5
+    D = 5
 
     M = 4
-    dt = Courant/M**2/D
+    dt = Courant/M**2/D # en essayant avec dt = Courant/M/D,
+    # on peut affirmer la chose suivante : l'erreur est en h**2, et pas en dt.
     N = int(T/dt)
     print("M:", M, "dt:", dt)
 
@@ -366,5 +368,122 @@ def order_error_term():
         """
 
     print("erreur domaine 1:", np.linalg.norm(u_bar(-x1-h1/2, h1, t_n+dt) - np.flipud(u1_0))/np.linalg.norm(u_bar(-x1-h1/2, h1, t_n+dt)))
+    return "ok"
+
+
+def order_error_term_linear_time():
+    """
+    Simple Case : a=c=0
+    on se place en (-1, 0)
+    Dirichlet en -1
+    Notre fonction est sin(x) + t
+    Donc le schéma en temps résout exactement sa partie,
+    l'erreur en h**2 vient seulement de l'espace :)
+    On compense l'erreur au bord en h**2 par une condition
+    de "Dirichlet" : u + h**2/12*u''
+    """
+    T = 8.
+    Lambda = -1
+    Courant = .2
+    D = 5
+
+    # on peut affirmer la chose suivante : l'erreur est en h**2, et pas en dt.
+    ret = []
+    for M in (8, 16):
+        dt = 1/M**2*Courant/D # en essayant avec dt = Courant/M/D, only 10 steps to go faast
+        print("M:", M, "dt:", dt)
+        N = int(T/dt)
+
+        M1, M2 = M,M
+        h1 = 1 / M1 + np.zeros(M1)
+        h2 = 1 / M2 + np.zeros(M2)
+        h = h1[0]
+        
+        t_initial = 2.
+        t_final = t_initial + T
+
+        D1, D2 = D, D
+
+        x1 = np.cumsum(np.concatenate(([h1[0] / 2], (h1[1:] + h1[:-1]) / 2)))
+        x2 = np.cumsum(np.concatenate(([h2[0] / 2], (h2[1:] + h2[:-1]) / 2)))
+        x1 = np.flipud(x1)
+        x = np.concatenate((-x1, x2))
+
+        def u_real(x, t):
+            return np.sin(x) + t
+
+        def u_bar(x_1_2, h, t):
+            return 1/h * (np.cos(x_1_2) - np.cos(x_1_2+h)) + t
+
+        def flux(x, t):
+            return D * np.cos(x)
+
+        def f_bar(x, h, t): # time derivative is... 1
+            return 1 - 1/h * D * (np.cos(x+h) - np.cos(x))
+
+        def u_seconde_space(x, t):
+            return -np.sin(x)
+
+        x_flux = np.concatenate((x-h/2,[1]))
+
+        
+        u1_0 = np.flipud(u_bar(-x1 - h1/2, h1, t_initial))
+        phi1_0 = [np.flipud(flux(x_flux[:M1+1], t_initial))]
+            
+        from progressbar import ProgressBar
+        progress = ProgressBar()
+        for t_n in progress(np.linspace(t_initial, t_final, N, endpoint=False)):
+            t_np1 = t_n + dt
+
+            dirichlet = u_real(-1, t_np1) + h**2/12 * u_seconde_space(-1, t_np1)
+            dirichlet_nm1_2 = u_real(-1, t_n + dt/2) + h**2/12 * u_seconde_space(-1, t_n+dt/2)
+            dirichlet_nm1 = u_real(-1, t_n) + h**2/12 * u_seconde_space(-1, t_n)
+
+            phi_int = flux(0, t_n + dt)
+            phi_int_nm1_2 = flux(0, t_n + dt/2)
+            phi_int_nm1 = flux(0, t_n)
+
+            u_int = u_real(0, t_n + dt) + h**2/12 * u_seconde_space(0, t_np1)
+            u_int_nm1_2 = u_real(0, t_n + dt/2) + h**2/12 * u_seconde_space(0, t_n+dt/2)
+            u_int_nm1 = u_real(0, t_n) + h**2/12 * u_seconde_space(0, t_n)
+
+            f1 = np.flipud(f_bar(x_flux[:M1], h, t_np1))
+            f1_nm1_2 = np.flipud(f_bar(x_flux[:M1], h, t_n + dt/2))
+            f1_nm1 = np.flipud(f_bar(x_flux[:M1], h, t_n))
+
+            u_np1, real_u_interface, real_phi_interface, *phi_np1 = integrate_one_step(M=M1,
+                                                                             h=h1,
+                                                                             D=D1,
+                                                                             a=0., c=0., dt=dt,
+                                                                             f=f1,
+                                                                             f_nm1_2=f1_nm1_2,
+                                                                             f_nm1=f1_nm1,
+                                                                             bd_cond=dirichlet,
+                                                                             bd_cond_nm1_2=dirichlet_nm1_2,
+                                                                             bd_cond_nm1=dirichlet_nm1,
+                                                                             Lambda=Lambda,
+                                                                             u_nm1=u1_0,
+                                                                             u_interface=u_int,
+                                                                             u_nm1_2_interface=u_int_nm1_2,
+                                                                             u_nm1_interface=u_int_nm1,
+                                                                             phi_interface=phi_int,
+                                                                             phi_nm1_2_interface=phi_int_nm1_2,
+                                                                             phi_nm1_interface=phi_int_nm1,
+                                                                             phi_for_FV=phi1_0,
+                                                                             upper_domain=False)
+            phi1_0 = phi_np1
+            u1_0 = u_np1
+            """
+            nb_plots = 4
+            if int(N * (t_n - t_initial) / T) % int(N/nb_plots) == 0:
+                import matplotlib.pyplot as plt
+                plt.plot(-x1, np.flipud(u1_0), "b")
+                plt.plot(-x1, u_bar(-x1-h1/2, h1, t_n+dt), "r")
+                plt.show()
+            """
+
+        ret += [np.linalg.norm(u_bar(-x1-h1/2, h1, t_n+dt) - np.flipud(u1_0))/np.linalg.norm(u_bar(-x1-h1/2, h1, t_n+dt))]
+    print(ret)
+    assert abs(4 - np.log(ret[0]/ret[1])/np.log(2)) < .1
     return "ok"
 

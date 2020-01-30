@@ -8,14 +8,14 @@ from cv_rate import *
 """
 
 
-def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1_DEFAULT,
-                                    Lambda_2=LAMBDA_2_DEFAULT,
-                                    a=A_DEFAULT,
-                                    c=C_DEFAULT,
-                                    time_window_len=TIME_WINDOW_LEN_DEFAULT,
-                                    dt=DT_DEFAULT,
-                                    M1=M1_DEFAULT,
-                                    M2=M2_DEFAULT):
+def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1,
+                                    Lambda_2=LAMBDA_2,
+                                    a=A,
+                                    c=C,
+                                    time_window_len=TIME_WINDOW_LEN,
+                                    dt=DT,
+                                    M1=M1,
+                                    M2=M2):
     # Our domain is [-1,1]
     # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
     # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
@@ -45,8 +45,8 @@ def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1_DEFAULT,
     x = np.concatenate((-x1, x2))
     two_if_not_constant = 0.
 
-    D1 = D1_DEFAULT + x1_1_2**two_if_not_constant
-    D2 = D2_DEFAULT + x2_1_2**two_if_not_constant
+    D1 = D1 + x1_1_2**two_if_not_constant
+    D2 = D2 + x2_1_2**two_if_not_constant
 
     ratio_D = D1[0] / D2[0]
 
@@ -184,14 +184,14 @@ def rate_finite_volumes_by_solution(Lambda_1=LAMBDA_1_DEFAULT,
 
 
 def rate_finite_differences_by_solution(
-        Lambda_1=LAMBDA_1_DEFAULT,
-        Lambda_2=LAMBDA_2_DEFAULT,
-        a=A_DEFAULT,
-        c=C_DEFAULT,
-        time_window_len=TIME_WINDOW_LEN_DEFAULT,
-        dt=DT_DEFAULT,
-        M1=M1_DEFAULT,
-        M2=M2_DEFAULT):
+        Lambda_1=LAMBDA_1,
+        Lambda_2=LAMBDA_2,
+        a=A,
+        c=C,
+        time_window_len=TIME_WINDOW_LEN,
+        dt=DT,
+        M1=M1,
+        M2=M2):
     # Our domain is [-1,1]
     # we define u as u(x, t) = sin(dx) + Tt in \Omega_1,
     # u(x, t) = D1 / D2 * sin(dx) + Tt      in \Omega_2
@@ -218,11 +218,11 @@ def rate_finite_differences_by_solution(
     x = np.concatenate((np.flipud(x1[:-1]), x2))
     two_if_not_constant = 0.
 
-    D1 = D1_DEFAULT + x1_1_2**two_if_not_constant
-    D2 = D2_DEFAULT + x2_1_2**two_if_not_constant
+    D1 = D1 + x1_1_2**two_if_not_constant
+    D2 = D2 + x2_1_2**two_if_not_constant
 
-    D1_x = D1_DEFAULT + x1**two_if_not_constant
-    D2_x = D2_DEFAULT + x2**two_if_not_constant
+    D1_x = D1 + x1**two_if_not_constant
+    D2_x = D2 + x2**two_if_not_constant
     D1_prime = two_if_not_constant * x1
     D2_prime = two_if_not_constant * x2
 

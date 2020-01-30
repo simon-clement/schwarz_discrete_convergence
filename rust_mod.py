@@ -80,19 +80,19 @@ def rate(discretization,
          function_D2=None):
     assert discretization.repr() in allowed_discretizations
     if M1 is None:
-        M1 = discretization.M1_DEFAULT
+        M1 = discretization.M1
     if M2 is None:
-        M2 = discretization.M2_DEFAULT
+        M2 = discretization.M2
     if Lambda_1 is None:
-        Lambda_1 = discretization.LAMBDA_1_DEFAULT
+        Lambda_1 = discretization.LAMBDA_1
     if Lambda_2 is None:
-        Lambda_2 = discretization.LAMBDA_2_DEFAULT
+        Lambda_2 = discretization.LAMBDA_2
     h1, h2 = discretization.get_h(M1=M1, M2=M2)
     D1, D2 = discretization.get_D(h1=h1,
                                   h2=h2,
                                   function_D1=function_D1,
                                   function_D2=function_D2)
-    a, c, dt = discretization.get_a_c_dt(a, c, dt)
+    a, c, dt = discretization.get_a_c_dt()
     time_window_len = _as_u64(N)
     Lambda_1arg = _as_f64(Lambda_1)
     Lambda_2arg = _as_f64(Lambda_2)
@@ -138,19 +138,19 @@ def errors(discretization,
            function_D2=None):
     assert discretization.repr() in allowed_discretizations
     if M1 is None:
-        M1 = discretization.M1_DEFAULT
+        M1 = discretization.M1
     if M2 is None:
-        M2 = discretization.M2_DEFAULT
+        M2 = discretization.M2
     if Lambda_1 is None:
-        Lambda_1 = discretization.LAMBDA_1_DEFAULT
+        Lambda_1 = discretization.LAMBDA_1
     if Lambda_2 is None:
-        Lambda_2 = discretization.LAMBDA_2_DEFAULT
+        Lambda_2 = discretization.LAMBDA_2
     h1, h2 = discretization.get_h(M1=M1, M2=M2)
     D1, D2 = discretization.get_D(h1=h1,
                                   h2=h2,
                                   function_D1=function_D1,
                                   function_D2=function_D2)
-    a, c, dt = discretization.get_a_c_dt(a, c, dt)
+    a, c, dt = discretization.get_a_c_dt()
     time_window_len = _as_u64(N)
     Lambda_1arg = _as_f64(Lambda_1)
     Lambda_2arg = _as_f64(Lambda_2)
@@ -189,19 +189,19 @@ def errors_raw(discretization,
                function_D2=None):
     assert discretization.repr() in allowed_discretizations
     if M1 is None:
-        M1 = discretization.M1_DEFAULT
+        M1 = discretization.M1
     if M2 is None:
-        M2 = discretization.M2_DEFAULT
+        M2 = discretization.M2
     if Lambda_1 is None:
-        Lambda_1 = discretization.LAMBDA_1_DEFAULT
+        Lambda_1 = discretization.LAMBDA_1
     if Lambda_2 is None:
-        Lambda_2 = discretization.LAMBDA_2_DEFAULT
+        Lambda_2 = discretization.LAMBDA_2
     h1, h2 = discretization.get_h(M1=M1, M2=M2)
     D1, D2 = discretization.get_D(h1=h1,
                                   h2=h2,
                                   function_D1=function_D1,
                                   function_D2=function_D2)
-    a, c, dt = discretization.get_a_c_dt(a, c, dt)
+    a, c, dt = discretization.get_a_c_dt()
     time_window_len = _as_u64(N)
     Lambda_1arg = _as_f64(Lambda_1)
     Lambda_2arg = _as_f64(Lambda_2)

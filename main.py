@@ -176,16 +176,16 @@ def main():
             from discretizations.finite_difference_naive_neumann \
                     import FiniteDifferencesNaiveNeumann
             from discretizations.finite_volumes import FiniteVolumes
-            LAMBDA_1_DEFAULT = 0.0
-            LAMBDA_2_DEFAULT = 0.0
+            LAMBDA_1 = 0.0
+            LAMBDA_2 = 0.0
 
-            A_DEFAULT = 0.0
-            C_DEFAULT = 1e-10
-            D1_DEFAULT = .54
-            D2_DEFAULT = .6
+            A = 0.0
+            C = 1e-10
+            D1 = .54
+            D2 = .6
 
-            M1_DEFAULT = 200
-            M2_DEFAULT = 200
+            M1 = 200
+            M2 = 200
 
             SIZE_DOMAIN_1 = 200
             SIZE_DOMAIN_2 = 200
@@ -193,36 +193,36 @@ def main():
             NUMBER_DDT_H2 = .1
             T = 10.
 
-            DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
+            DT = NUMBER_DDT_H2 * (M1 / SIZE_DOMAIN_1)**2 / D1
             # should not be too different from the value with M2, Size_domain2, and D2
-            TIME_WINDOW_LEN_DEFAULT = int(T / DT_DEFAULT)
+            TIME_WINDOW_LEN = int(T / DT)
 
 
-            finite_difference = FiniteDifferences(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
-                                                  D2_DEFAULT, M1_DEFAULT,
-                                                  M2_DEFAULT, SIZE_DOMAIN_1,
-                                                  SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
-                                                  LAMBDA_2_DEFAULT, DT_DEFAULT)
+            finite_difference = FiniteDifferences(A, C, D1,
+                                                  D2, M1,
+                                                  M2, SIZE_DOMAIN_1,
+                                                  SIZE_DOMAIN_2, LAMBDA_1,
+                                                  LAMBDA_2, DT)
 
             finite_difference_wout = \
-                    FiniteDifferencesNoCorrectiveTerm(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
-                                                      D2_DEFAULT, M1_DEFAULT,
-                                                      M2_DEFAULT, SIZE_DOMAIN_1,
-                                                      SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
-                                                      LAMBDA_2_DEFAULT, DT_DEFAULT)
+                    FiniteDifferencesNoCorrectiveTerm(A, C, D1,
+                                                      D2, M1,
+                                                      M2, SIZE_DOMAIN_1,
+                                                      SIZE_DOMAIN_2, LAMBDA_1,
+                                                      LAMBDA_2, DT)
 
             finite_difference_naive = \
-                    FiniteDifferencesNaiveNeumann(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
-                                                      D2_DEFAULT, M1_DEFAULT,
-                                                      M2_DEFAULT, SIZE_DOMAIN_1,
-                                                      SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
-                                                      LAMBDA_2_DEFAULT, DT_DEFAULT)
+                    FiniteDifferencesNaiveNeumann(A, C, D1,
+                                                      D2, M1,
+                                                      M2, SIZE_DOMAIN_1,
+                                                      SIZE_DOMAIN_2, LAMBDA_1,
+                                                      LAMBDA_2, DT)
 
-            finite_volumes = FiniteVolumes(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
-                                           D2_DEFAULT, M1_DEFAULT, M2_DEFAULT,
+            finite_volumes = FiniteVolumes(A, C, D1,
+                                           D2, M1, M2,
                                            SIZE_DOMAIN_1, SIZE_DOMAIN_2,
-                                           LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT,
-                                           DT_DEFAULT)
+                                           LAMBDA_1, LAMBDA_2,
+                                           DT)
 
             """ You can now test any function here, without impacting the program."""
             if len(sys.argv) > 2:

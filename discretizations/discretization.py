@@ -8,19 +8,7 @@ import numpy as np
 
 class Discretization:
 
-    def analytic_robin_robin_legacy(self, s, Lambda_1, Lambda_2, a, c, dt, M1, M2, D1,
-                             D2, verbose):
-        """
-            When D and h are constant, it is possible to find the convergence
-            rate in frequency domain. analytic_robin_robin computes this convergence rate.
-            s is 1/dt when considering the local-in-time case, otherwise it
-            should be iw (with w the desired frequency)
-            In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
-            for implicit euler discretisation.
-        """
-        raise NotImplementedError
-
-    def integrate_one_step(self, M, h, D, a, c, dt, f, bd_cond, Lambda, u_nm1,
+    def integrate_one_step(self, f, bd_cond, u_nm1,
                            u_interface, phi_interface, upper_domain, Y):
         """
             Entry point in the class.
@@ -52,8 +40,9 @@ class Discretization:
         raise NotImplementedError
 
 
-    def s_time_modif(self, w, dt, order):
+    def s_time_modif(self, w, order):
         """ By default, we are in the euler implicit time scheme"""
+        dt = self.DT
         s = w * 1j
         if order > 0:
             s += dt/2 * w**2
@@ -65,7 +54,7 @@ class Discretization:
             s += dt**4/(120) * 1j * w**5
         return s
 
-    def get_h(self, size_domain_1, size_domain_2, M1, M2):
+    def get_h(self):
         """
             Simple function to return h in each subdomains,
             in the framework of finite differences.
@@ -77,7 +66,7 @@ class Discretization:
 
         raise NotImplementedError
 
-    def get_D(self, h1, h2, function_D1, function_D2):
+    def get_D(self):
         """
             Simple function to return D in each subdomains,
             in the framework of finite differences.
@@ -87,8 +76,7 @@ class Discretization:
 
         raise NotImplementedError
 
-    def precompute_Y(self, M, h, D, a, c, dt, f, bd_cond, Lambda,
-                     upper_domain):
+    def precompute_Y(self, f, bd_cond, upper_domain):
         """
             Precompute Y for integrate_one_step. useful when integrating over a long time
             The arguments are exactly the arguments of @integrate_one_step,
@@ -106,18 +94,7 @@ class Discretization:
 
         return "unknown discretization"
 
-    def analytic_robin_robin(self,
-                             s=None,
-                             Lambda_1=None,
-                             Lambda_2=None,
-                             a=None,
-                             c=None,
-                             dt=None,
-                             M1=None,
-                             M2=None,
-                             D1=None,
-                             D2=None,
-                             verbose=False):
+    def analytic_robin_robin(self, s=None):
         """
             When D and h are constant, it is possible to find the convergence
             rate in frequency domain. analytic_robin_robin computes this convergence rate.
@@ -130,13 +107,13 @@ class Discretization:
             particularity of the discretization is specified
             through the method eta_dirneu
         """
-        eta1_dir, eta1_neu = self.eta_dirneu(1, s, a, c, dt, M1, D1)
-        eta2_dir, eta2_neu = self.eta_dirneu(2, s, a, c, dt, M2, D2)
-        rho_numerator = (Lambda_2*eta1_dir + eta1_neu) * (Lambda_1*eta2_dir + eta2_neu)
-        rho_denominator = (Lambda_2*eta2_dir + eta2_neu) * (Lambda_1*eta1_dir + eta1_neu)
+        eta1_dir, eta1_neu = self.eta_dirneu(1, s)
+        eta2_dir, eta2_neu = self.eta_dirneu(2, s)
+        rho_numerator = (self.LAMBDA_2*eta1_dir + eta1_neu) * (self.LAMBDA_1*eta2_dir + eta2_neu)
+        rho_denominator = (self.LAMBDA_2*eta2_dir + eta2_neu) * (self.LAMBDA_1*eta1_dir + eta1_neu)
         return np.abs(rho_numerator / rho_denominator)
 
-    def eta_dirneu(self, j, s=None, a=None, c=None, dt=None, M=None, D=None):
+    def eta_dirneu(self, j, s=None):
         """
             Gives the \\eta used to compute the analytic rate (see analytic_robin_robin)
             can be:
@@ -149,9 +126,9 @@ class Discretization:
     def sigma_modified(self, w, order_time, order_equations):
         # This code should not run and is here as an example
         raise NotImplementedError
-        s = self.s_time_modif(w, self.DT_DEFAULT, order_time) + self.C_DEFAULT
-        sig1 = np.sqrt(s/self.D1_DEFAULT)
-        sig2 = -np.sqrt(s/self.D2_DEFAULT)
+        s = self.s_time_modif(w, self.DT, order_time) + self.C
+        sig1 = np.sqrt(s/self.D1)
+        sig2 = -np.sqrt(s/self.D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, *kwargs, **dicargs):
@@ -159,14 +136,14 @@ class Discretization:
         raise NotImplementedError
         if j==1:
             eta_dir_modif = 1
-            eta_neu_modif = sigj * self.D1_DEFAULT
+            eta_neu_modif = sigj * self.D1
             return eta_dir_modif, eta_neu_modif
         else:
             eta_dir_modif = 1
-            eta_neu_modif = sigj * self.D2_DEFAULT
+            eta_neu_modif = sigj * self.D2
             return eta_dir_modif, eta_neu_modif
 
-    def analytic_robin_robin_modified(self, w, Lambda_1=None, Lambda_2=None, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
+    def analytic_robin_robin_modified(self, w, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
         """
             When D and h are constant, it is possible to find the convergence
             rate in frequency domain. analytic_robin_robin computes this convergence rate.
@@ -182,9 +159,32 @@ class Discretization:
         sig1, sig2 = self.sigma_modified(w, order_time, order_equations)
         eta1_dir, eta1_neu = self.eta_dirneu_modif(j=1, sigj=sig1, order_operators=order_operators, w=w)
         eta2_dir, eta2_neu = self.eta_dirneu_modif(j=2, sigj=sig2, order_operators=order_operators, w=w)
-        rho_numerator = (Lambda_2*eta1_dir + eta1_neu) * (Lambda_1*eta2_dir + eta2_neu)
-        rho_denominator = (Lambda_2*eta2_dir + eta2_neu) * (Lambda_1*eta1_dir + eta1_neu)
+        rho_numerator = (self.LAMBDA_2*eta1_dir + eta1_neu) * (self.LAMBDA_1*eta2_dir + eta2_neu)
+        rho_denominator = (self.LAMBDA_2*eta2_dir + eta2_neu) * (self.LAMBDA_1*eta1_dir + eta1_neu)
         return np.abs(rho_numerator / rho_denominator)
+
+    def M_h_D_Lambda(self, upper_domain):
+        """
+            returns M_j, h_j, D_j, Lambda_j with j = (2 if upper_domain else 1)
+        """
+        h1, h2 = self.get_h()
+        if upper_domain:
+            return self.M2, h2, self.D2, self.LAMBDA_2
+        else:
+            return self.M1, h1, self.D1, self.LAMBDA_1
+
+    def get_a_c_dt(self):
+        """
+            Returns default values of a, c, dt or parameters if given.
+        """
+        return self.A, self.C, self.DT
+
+    def clone(self):
+        ret = self.__class__()
+        ret.__dict__ = self.__dict__.copy()
+        return ret
+
+
     """
         __eq__ and __hash__ are implemented, so that a discretization
         can be stored as key in a dict

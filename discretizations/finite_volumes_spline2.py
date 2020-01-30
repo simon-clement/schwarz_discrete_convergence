@@ -17,37 +17,24 @@ class FiniteVolumesSpline2(Discretization):
     """
 
     def __init__(self,
-                 A_DEFAULT=None,
-                 C_DEFAULT=None,
-                 D1_DEFAULT=None,
-                 D2_DEFAULT=None,
-                 M1_DEFAULT=None,
-                 M2_DEFAULT=None,
+                 A=None,
+                 C=None,
+                 D1=None,
+                 D2=None,
+                 M1=None,
+                 M2=None,
                  SIZE_DOMAIN_1=None,
                  SIZE_DOMAIN_2=None,
-                 LAMBDA_1_DEFAULT=None,
-                 LAMBDA_2_DEFAULT=None,
-                 DT_DEFAULT=None):
-        self.A_DEFAULT, self.C_DEFAULT, self.D1_DEFAULT, self.D2_DEFAULT, \
-            self.M1_DEFAULT, self.M2_DEFAULT, self.SIZE_DOMAIN_1, \
-            self.SIZE_DOMAIN_2, self.LAMBDA_1_DEFAULT, \
-            self.LAMBDA_2_DEFAULT, self.DT_DEFAULT = A_DEFAULT, \
-            C_DEFAULT, D1_DEFAULT, D2_DEFAULT, \
-            M1_DEFAULT, M2_DEFAULT, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-            LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT, DT_DEFAULT
-
-    """
-        Returns default values of a, c, dt or parameters if given.
-    """
-
-    def get_a_c_dt(self, a=None, c=None, dt=None):
-        if a is None:
-            a = self.A_DEFAULT
-        if c is None:
-            c = self.C_DEFAULT
-        if dt is None:
-            dt = self.DT_DEFAULT
-        return a, c, dt
+                 LAMBDA_1=None,
+                 LAMBDA_2=None,
+                 DT=None):
+        self.A, self.C, self.D1, self.D2, \
+            self.M1, self.M2, self.SIZE_DOMAIN_1, \
+            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
+            self.LAMBDA_2, self.DT = A, \
+            C, D1, D2, \
+            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
+            LAMBDA_1, LAMBDA_2, DT
 
     """
         Entry point in the module.
@@ -78,15 +65,8 @@ class FiniteVolumesSpline2(Discretization):
     """
 
     def integrate_one_step(self,
-                           M,
-                           h,
-                           D,
-                           a,
-                           c,
-                           dt,
                            f,
                            bd_cond,
-                           Lambda,
                            u_nm1,
                            u_interface,
                            u_nm1_interface,
@@ -97,8 +77,9 @@ class FiniteVolumesSpline2(Discretization):
                            Y=None,
                            **kwargs):
         assert phi_for_FV != []
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
         phi_nm1 = phi_for_FV[0]
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
             float(u_interface), float(phi_interface)
@@ -118,14 +99,7 @@ class FiniteVolumesSpline2(Discretization):
             phi_nm1 = np.flipud(phi_nm1)
 
         if Y is None:
-            Y = self.get_Y(M=M,
-                           h=h,
-                           D=D,
-                           a=a,
-                           c=c,
-                           dt=dt,
-                           Lambda=Lambda,
-                           upper_domain=upper_domain)
+            Y = self.get_Y(upper_domain=upper_domain)
 
         # diffu_nm1 was before = u_nm1[1:] - u_nm1[:-1]
         diffu_nm1 = (phi_nm1[2:]/D[2:] * h[1:] +
@@ -200,9 +174,12 @@ class FiniteVolumesSpline2(Discretization):
 
     """
 
-    def integrate_one_step_star(self, M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
+    def integrate_one_step_star(self, f1, f2,
                                 neumann, dirichlet, u_nm1, phi_nm1, get_phi=False):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        M1, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
+        M2, h2, D2, _ = self.M_h_D_Lambda(upper_domain=True)
+
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
             float(neumann), float(dirichlet)
         assert dt > 0, "dt should be strictly positive"
@@ -236,15 +213,7 @@ class FiniteVolumesSpline2(Discretization):
         D1 = np.flipud(D1)
         h1 = np.flipud(h1)
         f1 = np.flipud(f1)
-        Y = self.get_Y_star(M1=M1,
-                            M2=M2,
-                            h1=h1,
-                            h2=h2,
-                            D1=D1,
-                            D2=D2,
-                            a=a,
-                            c=c,
-                            dt=dt)
+        Y = self.get_Y_star()
 
         f = np.concatenate((f1, f2))
         h = np.concatenate((h1, h2))
@@ -345,8 +314,9 @@ class FiniteVolumesSpline2(Discretization):
         c: reaction coefficient (should be positive) (float)
     """
 
-    def get_Y(self, M, h, D, a, c, dt, Lambda, upper_domain=True):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+    def get_Y(self, upper_domain=True):
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, Lambda = float(a), float(c), float(dt), float(Lambda)
         D = np.zeros(M + 1) + D
         h = np.zeros(M) + h
@@ -355,15 +325,7 @@ class FiniteVolumesSpline2(Discretization):
 
         # We first use our great function get_Y_star:
         if upper_domain:
-            Y_0, Y_1, Y_2 = self.get_Y_star(M1=1,
-                                            M2=M,
-                                            h1=1.0,
-                                            h2=h,
-                                            D1=D[0],
-                                            D2=D,
-                                            a=a,
-                                            c=c,
-                                            dt=dt)
+            Y_0, Y_1, Y_2 = self.get_Y_star(M1=1)
             Y_0 = Y_0[1:]
             Y_1 = Y_1[1:]
             Y_2 = Y_2[1:]
@@ -381,15 +343,7 @@ class FiniteVolumesSpline2(Discretization):
             Y_1[0] = Lambda * dirichlet_cond_extreme_point + 1
             Y_2[0] = Lambda * dirichlet_cond_interior_point
         else:
-            Y_0, Y_1, Y_2 = self.get_Y_star(M1=M,
-                                            M2=1,
-                                            h1=h,
-                                            h2=1.0,
-                                            D1=D,
-                                            D2=D[0],
-                                            a=a,
-                                            c=c,
-                                            dt=dt)
+            Y_0, Y_1, Y_2 = self.get_Y_star(M2=1)
             # Here Y_0 and Y_2 are inverted because we need to take the
             # symmetric
             Y_0 = Y_0[:-1]
@@ -410,40 +364,49 @@ class FiniteVolumesSpline2(Discretization):
             # We take the flipped, symmetric of the matrix:
         return (Y_0, Y_1, Y_2)
 
-    """
-        Returns the tridiagonal matrix Y* in the shape asked by solve_linear.
-        Y* is the matrix we need to inverse to solve the full domain.
-        This function is useful to compute u*, solution of Y*u*=f*
-        It is also used in get_Y, with one of the arguments M_{1 | 2} = 1
 
-        (Does not actually return a np matrix, it returns (Y_0, Y_1, Y_2).
-        For details, see the documentation of utils_numeric.solve_linear)
+    def get_Y_star(self, M1=-1, M2=-1):
+        """
+            Returns the tridiagonal matrix Y* in the shape asked by solve_linear.
+            Y* is the matrix we need to inverse to solve the full domain.
+            This function is useful to compute u*, solution of Y*u*=f*
+            It is also used in get_Y, with one of the arguments M_{1 | 2} = 1
 
-        The returned matrix is of dimension M_starxM_star
-        To compare with the coupled system and get:
-            u*[0:M] = u1[0:M] (i.e. for all m, u*[m] = u1[m]
-            u*[M-1:2M-1] = u2[0:M] (i.e. for all m, u*[M + m] = u2[m]
-        We should have:
-            - M_star = M1+M2 - 1
-            - D_star[0:M+1] = D1[0:M+1]
-            - h_star[0:M] = h1[0:M]
-            - D_star[M-1:2M-1] = D2[0:M]
-            - h_star[M-1:2M-1] = h2[0:M]
+            (Does not actually return a np matrix, it returns (Y_0, Y_1, Y_2).
+            For details, see the documentation of utils_numeric.solve_linear)
 
-        D1[-1] and D2[0] should both be the diffusivity at interface.
-        (2 values because it can be discontinuous, so D1[-1] is D(0^{-}) )
+            The returned matrix is of dimension M_starxM_star
+            To compare with the coupled system and get:
+                u*[0:M] = u1[0:M] (i.e. for all m, u*[m] = u1[m]
+                u*[M-1:2M-1] = u2[0:M] (i.e. for all m, u*[M + m] = u2[m]
+            We should have:
+                - M_star = M1+M2 - 1
+                - D_star[0:M+1] = D1[0:M+1]
+                - h_star[0:M] = h1[0:M]
+                - D_star[M-1:2M-1] = D2[0:M]
+                - h_star[M-1:2M-1] = h2[0:M]
 
-        h{1,2}: step size (always positive) (float or ndarray, size: M{1,2})
-        D{1,2}: diffusivity (always positive) (float or ndarray, size: M{1,2}+1)
-            Note: if D{1,2} is a np.ndarray, it should be given on the half-steps,
-                    i.e. D{1,2}[m] is D{1,2}_{m+1/2}
-        a{1,2}: advection coefficient (should be positive) (float)
-        c{1,2}: reaction coefficient (should be positive) (float)
+            D1[-1] and D2[0] should both be the diffusivity at interface.
+            (2 values because it can be discontinuous, so D1[-1] is D(0^{-}) )
 
-    """
+            h{1,2}: step size (always positive) (float or ndarray, size: M{1,2})
+            D{1,2}: diffusivity (always positive) (float or ndarray, size: M{1,2}+1)
+                Note: if D{1,2} is a np.ndarray, it should be given on the half-steps,
+                        i.e. D{1,2}[m] is D{1,2}_{m+1/2}
+            a{1,2}: advection coefficient (should be positive) (float)
+            c{1,2}: reaction coefficient (should be positive) (float)
 
-    def get_Y_star(self, M1, M2, h1, h2, D1, D2, a, c, dt):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        """
+        if M1 == -1:
+            M1, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
+        else:
+            M1, h1, D1 = 1, 1., self.D2
+        if M2 == -1:
+            M2, h2, D2, _ = self.M_h_D_Lambda(upper_domain=True)
+        else:
+            M2, h2, D2 = 1, 1., self.D1
+
+        a, c, dt = self.get_a_c_dt()
         a, c, dt = float(a), float(c), float(dt)
         if a < 0:
             print("Warning : a should probably not be negative")
@@ -524,18 +487,9 @@ class FiniteVolumesSpline2(Discretization):
         f is kept as an argument but is not used.
     """
 
-    def precompute_Y(self,
-                     M,
-                     h,
-                     D,
-                     a,
-                     c,
-                     dt,
-                     f,
-                     bd_cond,
-                     Lambda,
-                     upper_domain=True):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+    def precompute_Y(self, f, bd_cond, upper_domain=True):
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, bd_cond, Lambda, = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda)
 
@@ -548,17 +502,10 @@ class FiniteVolumesSpline2(Discretization):
         if not upper_domain:  # from now h, D, are 0 at bottom of the ocean.
             h, D = np.flipud(h), np.flipud(D)
 
-        return self.get_Y(M=M,
-                          h=h,
-                          D=D,
-                          a=a,
-                          c=c,
-                          dt=dt,
-                          Lambda=Lambda,
-                          upper_domain=upper_domain)
+        return self.get_Y(upper_domain=upper_domain)
 
 
-    def eta_dirneu(self, j, s=None, a=None, c=None, dt=None, M=None, D=None):
+    def eta_dirneu(self, j, s=None):
         """
             Gives the \\eta of the discretization:
             can be:
@@ -567,22 +514,23 @@ class FiniteVolumesSpline2(Discretization):
             returns tuple (etaj_dir, etaj_neu).
         """
         assert j == 1 or j == 2
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
 
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         if s is None:
             s = 1 / dt
 
         if j == 1:
             if M is None:
-                M = self.M1_DEFAULT
+                M = self.M1
             if D is None:
-                D = self.D1_DEFAULT
+                D = self.D1
             h = -self.SIZE_DOMAIN_1 / M
         elif j == 2: 
             if M is None:
-                M = self.M2_DEFAULT
+                M = self.M2
             if D is None:
-                D = self.D2_DEFAULT
+                D = self.D2
             h = self.SIZE_DOMAIN_2 / M
 
         Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (6 * D)
@@ -635,20 +583,20 @@ class FiniteVolumesSpline2(Discretization):
                              D1=None,
                              D2=None,
                              verbose=False):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
 
         if Lambda_1 is None:
-            Lambda_1 = self.LAMBDA_1_DEFAULT
+            Lambda_1 = self.LAMBDA_1
         if Lambda_2 is None:
-            Lambda_2 = self.LAMBDA_2_DEFAULT
+            Lambda_2 = self.LAMBDA_2
         if M1 is None:
-            M1 = self.M1_DEFAULT
+            M1 = self.M1
         if M2 is None:
-            M2 = self.M2_DEFAULT
+            M2 = self.M2
         if D1 is None:
-            D1 = self.D1_DEFAULT
+            D1 = self.D1
         if D2 is None:
-            D2 = self.D2_DEFAULT
+            D2 = self.D2
         if s is None:
             s = 1 / dt
 
@@ -680,12 +628,12 @@ class FiniteVolumesSpline2(Discretization):
     def sigma_modified(self, w, order_time, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
-        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
-        dt = self.DT_DEFAULT
+        D1, D2 = self.D1, self.D2
+        dt = self.DT
 
         # We need to change this
         raise NotImplementedError("sadly")
-        s = self.s_time_modif(w, dt, order_time) + self.C_DEFAULT
+        s = self.s_time_modif(w, dt, order_time) + self.C
         s1 = s
         if order_equations > 0:
             s1 += w**2 * dt/2
@@ -702,16 +650,16 @@ class FiniteVolumesSpline2(Discretization):
         if order_equations > 2:
             s2 -= dt**3 / 24 * w**4
 
-        sig1 = np.sqrt(s1/self.D1_DEFAULT)
-        sig2 = -np.sqrt(s2/self.D2_DEFAULT)
+        sig1 = np.sqrt(s1/self.D1)
+        sig2 = -np.sqrt(s2/self.D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
         # This code should not run and is here as an example
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
-        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
-        dt = self.DT_DEFAULT
+        D1, D2 = self.D1, self.D2
+        dt = self.DT
         if j==1:
             hj = h1
             Dj = D1
@@ -740,9 +688,9 @@ class FiniteVolumesSpline2(Discretization):
         if size_domain_2 is None:
             size_domain_2 = self.SIZE_DOMAIN_2
         if M1 is None:
-            M1 = self.M1_DEFAULT
+            M1 = self.M1
         if M2 is None:
-            M2 = self.M2_DEFAULT
+            M2 = self.M2
         h1 = size_domain_1 / M1 + np.zeros(M1)
         h2 = size_domain_2 / M2 + np.zeros(M2)
         # use the following line to use a functional:
@@ -759,9 +707,9 @@ class FiniteVolumesSpline2(Discretization):
 
     def get_D(self, h1, h2, function_D1=None, function_D2=None):
         if function_D1 is None:
-            def function_D1(x): return self.D1_DEFAULT + np.zeros_like(x)
+            def function_D1(x): return self.D1 + np.zeros_like(x)
         if function_D2 is None:
-            def function_D2(x): return self.D2_DEFAULT + np.zeros_like(x)
+            def function_D2(x): return self.D2 + np.zeros_like(x)
         # coordinates at half-points:
         x1_1_2 = np.cumsum(np.concatenate(([0], h1)))
         x2_1_2 = np.cumsum(np.concatenate(([0], h2)))

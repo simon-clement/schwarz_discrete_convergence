@@ -17,37 +17,24 @@ class Rk2FiniteDifferences(Discretization):
     """
 
     def __init__(self,
-                 A_DEFAULT=None,
-                 C_DEFAULT=None,
-                 D1_DEFAULT=None,
-                 D2_DEFAULT=None,
-                 M1_DEFAULT=None,
-                 M2_DEFAULT=None,
+                 A=None,
+                 C=None,
+                 D1=None,
+                 D2=None,
+                 M1=None,
+                 M2=None,
                  SIZE_DOMAIN_1=None,
                  SIZE_DOMAIN_2=None,
-                 LAMBDA_1_DEFAULT=None,
-                 LAMBDA_2_DEFAULT=None,
-                 DT_DEFAULT=None):
-        self.A_DEFAULT, self.C_DEFAULT, self.D1_DEFAULT, self.D2_DEFAULT, \
-            self.M1_DEFAULT, self.M2_DEFAULT, self.SIZE_DOMAIN_1, \
-            self.SIZE_DOMAIN_2, self.LAMBDA_1_DEFAULT, \
-            self.LAMBDA_2_DEFAULT, self.DT_DEFAULT = A_DEFAULT, \
-            C_DEFAULT, D1_DEFAULT, D2_DEFAULT, \
-            M1_DEFAULT, M2_DEFAULT, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-            LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT, DT_DEFAULT
-
-    """
-        Returns default values of a, c, dt or parameters if given.
-    """
-
-    def get_a_c_dt(self, a=None, c=None, dt=None):
-        if a is None:
-            a = self.A_DEFAULT
-        if c is None:
-            c = self.C_DEFAULT
-        if dt is None:
-            dt = self.DT_DEFAULT
-        return a, c, dt
+                 LAMBDA_1=None,
+                 LAMBDA_2=None,
+                 DT=None):
+        self.A, self.C, self.D1, self.D2, \
+            self.M1, self.M2, self.SIZE_DOMAIN_1, \
+            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
+            self.LAMBDA_2, self.DT = A, \
+            C, D1, D2, \
+            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
+            LAMBDA_1, LAMBDA_2, DT
 
     """
         Entry point in the class.
@@ -100,7 +87,7 @@ class Rk2FiniteDifferences(Discretization):
                            phi_nm1_interface,
                            upper_domain=True,
                            Y=None):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
             float(u_interface), float(phi_interface)
@@ -159,14 +146,14 @@ class Rk2FiniteDifferences(Discretization):
 
     def integrate_one_step_star(self, M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
                                 neumann, dirichlet, u_nm1):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
             float(neumann), float(dirichlet)
         # Theses assertions cannot be used because of the unit tests:
         # for arg, name in zip((a, c, neumann, dirichlet),
         #         ("a", "c", "neumann", "dirichlet")):
         #     assert arg >= 0, name + " should be positive !"
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         assert dt > 0, "dt should be strictly positive"
 
         assert isinstance(M2, int) and isinstance(M1, int)
@@ -205,7 +192,7 @@ class Rk2FiniteDifferences(Discretization):
         ], f2[1:]))
         M = M1 + M2 - 1
 
-        Y = self.get_Y_star(M_star=M, h_star=h, D_star=D, a=a, c=c)
+        Y = self.get_Y_star(M_star=M, h_star=h, D_star=D)
 
         rhs = np.concatenate(
             ([dirichlet], (h[1:] + h[:-1]) * (f[1:-1] + u_nm1[1:-1] / dt),
@@ -254,16 +241,9 @@ class Rk2FiniteDifferences(Discretization):
 
     """
 
-    def get_Y(self,
-              M,
-              Lambda,
-              h,
-              D,
-              a=None,
-              c=None,
-              dt=None,
-              upper_domain=True):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+    def get_Y(self, upper_domain=True):
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
+        a, c, dt = self.get_a_c_dt()
         assert isinstance(a, float) or isinstance(a, int)
         assert isinstance(c, float) or isinstance(c, int)
         if isinstance(h, int):
@@ -364,7 +344,7 @@ class Rk2FiniteDifferences(Discretization):
     """
 
     def get_Y_star(self, M_star, h_star, D_star, a=None, c=None):
-        a, c, _ = self.get_a_c_dt(a, c)
+        a, c, _ = self.get_a_c_dt()
         M = M_star
         h = h_star
         D = D_star
@@ -439,7 +419,7 @@ class Rk2FiniteDifferences(Discretization):
                      bd_cond,
                      Lambda,
                      upper_domain=True):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, bd_cond, Lambda = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda)
 
@@ -449,14 +429,7 @@ class Rk2FiniteDifferences(Discretization):
 
         assert upper_domain is True or upper_domain is False
 
-        Y = self.get_Y(M=M,
-                       h=h,
-                       D=D,
-                       a=a,
-                       c=c,
-                       dt=dt,
-                       Lambda=Lambda,
-                       upper_domain=upper_domain)
+        Y = self.get_Y(upper_domain=upper_domain)
         Y[1][1:-1] += (np.ones(M - 2) / dt) * (h[1:] + h[:-1])
         return Y
 
@@ -471,21 +444,21 @@ class Rk2FiniteDifferences(Discretization):
         """
         assert j == 1 or j == 2
 
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         if s is None:
             s = 1 / dt
 
         if j == 1:
             if M is None:
-                M = self.M1_DEFAULT
+                M = self.M1
             if D is None:
-                D = self.D1_DEFAULT
+                D = self.D1
             h = -self.SIZE_DOMAIN_1 / (M - 1)
         elif j == 2: 
             if M is None:
-                M = self.M2_DEFAULT
+                M = self.M2
             if D is None:
-                D = self.D2_DEFAULT
+                D = self.D2
             h = self.SIZE_DOMAIN_2 / (M - 1)
 
         Y_0 = -D / (h * h) - .5 * a / h
@@ -528,19 +501,19 @@ class Rk2FiniteDifferences(Discretization):
                              D1=None,
                              D2=None,
                              verbose=False):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         if Lambda_1 is None:
-            Lambda_1 = self.LAMBDA_1_DEFAULT
+            Lambda_1 = self.LAMBDA_1
         if Lambda_2 is None:
-            Lambda_2 = self.LAMBDA_2_DEFAULT
+            Lambda_2 = self.LAMBDA_2
         if M1 is None:
-            M1 = self.M1_DEFAULT
+            M1 = self.M1
         if M2 is None:
-            M2 = self.M2_DEFAULT
+            M2 = self.M2
         if D1 is None:
-            D1 = self.D1_DEFAULT
+            D1 = self.D1
         if D2 is None:
-            D2 = self.D2_DEFAULT
+            D2 = self.D2
         if s is None:
             s = 1 / dt
 
@@ -579,10 +552,10 @@ class Rk2FiniteDifferences(Discretization):
     def sigma_modified(self, w, order_time, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
-        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
-        dt = self.DT_DEFAULT
+        D1, D2 = self.D1, self.D2
+        dt = self.DT
 
-        s = self.s_time_modif(w, dt, order_time) + self.C_DEFAULT
+        s = self.s_time_modif(w, dt, order_time) + self.C
         s1 = s
         if order_equations > 0:
             s1 += w**2 * (h1**2/(12*D1))
@@ -595,15 +568,15 @@ class Rk2FiniteDifferences(Discretization):
         if order_equations > 1:
             s2 -= 1j * w**3 * ( - h2**4/(12*30*D2**2))
 
-        sig1 = np.sqrt(s1/self.D1_DEFAULT)
-        sig2 = -np.sqrt(s2/self.D2_DEFAULT)
+        sig1 = np.sqrt(s1/self.D1)
+        sig2 = -np.sqrt(s2/self.D2)
         return sig1, sig2
 
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
-        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
+        D1, D2 = self.D1, self.D2
         if j==1:
             hj = h1
             Dj = D1
@@ -639,9 +612,9 @@ class Rk2FiniteDifferences(Discretization):
         if size_domain_2 is None:
             size_domain_2 = self.SIZE_DOMAIN_2
         if M1 is None:
-            M1 = self.M1_DEFAULT
+            M1 = self.M1
         if M2 is None:
-            M2 = self.M2_DEFAULT
+            M2 = self.M2
         x1 = -np.linspace(0, size_domain_1, M1)**1
         x2 = np.linspace(0, size_domain_2, M2)**1
         return np.diff(x1), np.diff(x2)
@@ -656,9 +629,9 @@ class Rk2FiniteDifferences(Discretization):
 
     def get_D(self, h1, h2, function_D1=None, function_D2=None):
         if function_D1 is None:
-            def function_D1(x): return self.D1_DEFAULT + np.zeros_like(x)
+            def function_D1(x): return self.D1 + np.zeros_like(x)
         if function_D2 is None:
-            def function_D2(x): return self.D2_DEFAULT + np.zeros_like(x)
+            def function_D2(x): return self.D2 + np.zeros_like(x)
         x1 = np.cumsum(np.concatenate(([0], h1)))
         x2 = np.cumsum(np.concatenate(([0], h2)))
         # coordinates at half-points:

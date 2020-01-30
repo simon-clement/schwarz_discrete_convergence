@@ -17,37 +17,24 @@ class Rk2FiniteVolumes(Discretization):
     """
 
     def __init__(self,
-                 A_DEFAULT=None,
-                 C_DEFAULT=None,
-                 D1_DEFAULT=None,
-                 D2_DEFAULT=None,
-                 M1_DEFAULT=None,
-                 M2_DEFAULT=None,
+                 A=None,
+                 C=None,
+                 D1=None,
+                 D2=None,
+                 M1=None,
+                 M2=None,
                  SIZE_DOMAIN_1=None,
                  SIZE_DOMAIN_2=None,
-                 LAMBDA_1_DEFAULT=None,
-                 LAMBDA_2_DEFAULT=None,
-                 DT_DEFAULT=None):
-        self.A_DEFAULT, self.C_DEFAULT, self.D1_DEFAULT, self.D2_DEFAULT, \
-            self.M1_DEFAULT, self.M2_DEFAULT, self.SIZE_DOMAIN_1, \
-            self.SIZE_DOMAIN_2, self.LAMBDA_1_DEFAULT, \
-            self.LAMBDA_2_DEFAULT, self.DT_DEFAULT = A_DEFAULT, \
-            C_DEFAULT, D1_DEFAULT, D2_DEFAULT, \
-            M1_DEFAULT, M2_DEFAULT, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-            LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT, DT_DEFAULT
-
-    """
-        Returns default values of a, c, dt or parameters if given.
-    """
-
-    def get_a_c_dt(self, a=None, c=None, dt=None):
-        if a is None:
-            a = self.A_DEFAULT
-        if c is None:
-            c = self.C_DEFAULT
-        if dt is None:
-            dt = self.DT_DEFAULT
-        return a, c, dt
+                 LAMBDA_1=None,
+                 LAMBDA_2=None,
+                 DT=None):
+        self.A, self.C, self.D1, self.D2, \
+            self.M1, self.M2, self.SIZE_DOMAIN_1, \
+            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
+            self.LAMBDA_2, self.DT = A, \
+            C, D1, D2, \
+            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
+            LAMBDA_1, LAMBDA_2, DT
 
     """
         Entry point in the module.
@@ -78,19 +65,12 @@ class Rk2FiniteVolumes(Discretization):
     """
 
     def integrate_one_step(self,
-                           M,
-                           h,
-                           D,
-                           a,
-                           c,
-                           dt,
                            f,
                            f_nm1_2,
                            f_nm1,
                            bd_cond,
                            bd_cond_nm1_2,
                            bd_cond_nm1,
-                           Lambda,
                            u_nm1,
                            u_interface,
                            phi_interface,
@@ -102,8 +82,9 @@ class Rk2FiniteVolumes(Discretization):
                            upper_domain=True,
                            Y=None):
         assert phi_for_FV != []
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
         phi_nm1 = phi_for_FV[0] # c'est sale mais j'ai pas mieux
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
             float(u_interface), float(phi_interface)
@@ -123,14 +104,7 @@ class Rk2FiniteVolumes(Discretization):
             f_nm1_2, f_nm1= np.flipud(f_nm1_2), np.flipud(f_nm1)
 
         if Y is None:
-            Y = self.get_Y(M=M,
-                           h=h,
-                           D=D,
-                           a=a,
-                           c=c,
-                           dt=dt,
-                           Lambda=Lambda,
-                           upper_domain=upper_domain)
+            Y = self.get_Y(upper_domain=upper_domain)
         #actually Y is only here to get the size of the matrix xD
 
         # h and D consts !  (1/12phi + 10/12phi + 1/12phi = D[0]*np.diff(u)/h[0])
@@ -235,9 +209,12 @@ class Rk2FiniteVolumes(Discretization):
 
     """
 
-    def integrate_one_step_star(self, M1, M2, h1, h2, D1, D2, a, c, dt, f1, f2,
+    def integrate_one_step_star(self, f1, f2,
                                 neumann, dirichlet, u_nm1, get_phi=False):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        M1, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
+        M2, h2, D2, _ = self.M_h_D_Lambda(upper_domain=True)
+
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, neumann, dirichlet = float(a), float(c), float(dt), \
             float(neumann), float(dirichlet)
         assert dt > 0, "dt should be strictly positive"
@@ -271,15 +248,7 @@ class Rk2FiniteVolumes(Discretization):
         D1 = np.flipud(D1)
         h1 = np.flipud(h1)
         f1 = np.flipud(f1)
-        Y = self.get_Y_star(M1=M1,
-                            M2=M2,
-                            h1=h1,
-                            h2=h2,
-                            D1=D1,
-                            D2=D2,
-                            a=a,
-                            c=c,
-                            dt=dt)
+        Y = self.get_Y_star()
 
         f = np.concatenate((f1, f2))
 
@@ -365,8 +334,9 @@ class Rk2FiniteVolumes(Discretization):
         c: reaction coefficient (should be positive) (float)
     """
 
-    def get_Y(self, M, h, D, a, c, dt, Lambda, upper_domain=True):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+    def get_Y(self, upper_domain=True):
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, Lambda = float(a), float(c), float(dt), float(Lambda)
         D = np.zeros(M + 1) + D
         h = np.zeros(M) + h
@@ -375,15 +345,7 @@ class Rk2FiniteVolumes(Discretization):
 
         # We first use our great function get_Y_star:
         if upper_domain:
-            Y_0, Y_1, Y_2 = self.get_Y_star(M1=1,
-                                            M2=M,
-                                            h1=1.0,
-                                            h2=h,
-                                            D1=D[0],
-                                            D2=D,
-                                            a=a,
-                                            c=c,
-                                            dt=dt)
+            Y_0, Y_1, Y_2 = self.get_Y_star(M1=1)
             Y_0 = Y_0[1:]
             Y_1 = Y_1[1:]
             Y_2 = Y_2[1:]
@@ -404,15 +366,7 @@ class Rk2FiniteVolumes(Discretization):
             Y_1[0] = Lambda * dirichlet_cond_extreme_point + 1
             Y_2[0] = Lambda * dirichlet_cond_interior_point
         else:
-            Y_0, Y_1, Y_2 = self.get_Y_star(M1=M,
-                                            M2=1,
-                                            h1=h,
-                                            h2=1.0,
-                                            D1=D,
-                                            D2=D[0],
-                                            a=a,
-                                            c=c,
-                                            dt=dt)
+            Y_0, Y_1, Y_2 = self.get_Y_star(M2=1)
             # Here Y_0 and Y_2 are inverted because we need to take the
             # symmetric
             Y_0 = Y_0[:-1]
@@ -436,40 +390,20 @@ class Rk2FiniteVolumes(Discretization):
             # We take the flipped, symmetric of the matrix:
         return (Y_0, Y_1, Y_2)
 
-    """
-        Returns the tridiagonal matrix Y* in the shape asked by solve_linear.
-        Y* is the matrix we need to inverse to solve the full domain.
-        This function is useful to compute u*, solution of Y*u*=f*
-        It is also used in get_Y, with one of the arguments M_{1 | 2} = 1
+    def get_Y_star(self, M1=-1, M2=-1):
+        """
+            see @finite_volumes.py
+        """
+        if M1 == -1:
+            M1, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
+        else:
+            M1, h1, D1 = 1, 1., self.D2
+        if M2 == -1:
+            M2, h2, D2, _ = self.M_h_D_Lambda(upper_domain=True)
+        else:
+            M2, h2, D2 = 1, 1., self.D1
 
-        (Does not actually return a np matrix, it returns (Y_0, Y_1, Y_2).
-        For details, see the documentation of utils_numeric.solve_linear)
-
-        The returned matrix is of dimension M_starxM_star
-        To compare with the coupled system and get:
-            u*[0:M] = u1[0:M] (i.e. for all m, u*[m] = u1[m]
-            u*[M-1:2M-1] = u2[0:M] (i.e. for all m, u*[M + m] = u2[m]
-        We should have:
-            - M_star = M1+M2 - 1
-            - D_star[0:M+1] = D1[0:M+1]
-            - h_star[0:M] = h1[0:M]
-            - D_star[M-1:2M-1] = D2[0:M]
-            - h_star[M-1:2M-1] = h2[0:M]
-
-        D1[-1] and D2[0] should both be the diffusivity at interface.
-        (2 values because it can be discontinuous, so D1[-1] is D(0^{-}) )
-
-        h{1,2}: step size (always positive) (float or ndarray, size: M{1,2})
-        D{1,2}: diffusivity (always positive) (float or ndarray, size: M{1,2}+1)
-            Note: if D{1,2} is a np.ndarray, it should be given on the half-steps,
-                    i.e. D{1,2}[m] is D{1,2}_{m+1/2}
-        a{1,2}: advection coefficient (should be positive) (float)
-        c{1,2}: reaction coefficient (should be positive) (float)
-
-    """
-
-    def get_Y_star(self, M1, M2, h1, h2, D1, D2, a, c, dt):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt = float(a), float(c), float(dt)
         if a < 0:
             print("Warning : a should probably not be negative")
@@ -551,18 +485,9 @@ class Rk2FiniteVolumes(Discretization):
         f is kept as an argument but is not used.
     """
 
-    def precompute_Y(self,
-                     M,
-                     h,
-                     D,
-                     a,
-                     c,
-                     dt,
-                     f,
-                     bd_cond,
-                     Lambda,
-                     upper_domain=True):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+    def precompute_Y(self, f, bd_cond, upper_domain=True):
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
+        a, c, dt = self.get_a_c_dt()
         a, c, dt, bd_cond, Lambda, = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda)
 
@@ -585,7 +510,7 @@ class Rk2FiniteVolumes(Discretization):
                           upper_domain=upper_domain)
 
 
-    def eta_dirneu(self, j, s=None, a=None, c=None, dt=None, M=None, D=None):
+    def eta_dirneu(self, j, s=None):
         """
             Gives the \\eta of the discretization:
             can be:
@@ -594,22 +519,23 @@ class Rk2FiniteVolumes(Discretization):
             returns tuple (etaj_dir, etaj_neu).
         """
         assert j == 1 or j == 2
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
 
-        a, c, dt = self.get_a_c_dt(a, c, dt)
+        a, c, dt = self.get_a_c_dt()
         if s is None:
             s = 1 / dt
 
         if j == 1:
             if M is None:
-                M = self.M1_DEFAULT
+                M = self.M1
             if D is None:
-                D = self.D1_DEFAULT
+                D = self.D1
             h = -self.SIZE_DOMAIN_1 / M
         elif j == 2: 
             if M is None:
-                M = self.M2_DEFAULT
+                M = self.M2
             if D is None:
-                D = self.D2_DEFAULT
+                D = self.D2
             h = self.SIZE_DOMAIN_2 / M
 
         Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (12 * D)
@@ -639,77 +565,13 @@ class Rk2FiniteVolumes(Discretization):
             eta2_neu = 1 + (lambda_moins / lambda_plus) ** M
             return eta2_dir, eta2_neu
 
-
-    """
-        When D and h are constant, it is possible to find the convergence
-        rate in frequency domain. analytic_robin_robin computes this convergence rate.
-        s is 1/dt when considering the local-in-time case, otherwise it
-        should be iw (with w the desired frequency)
-        In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
-        for implicit euler discretisation.
-    """
-
-    def analytic_robin_robin_legacy(self,
-                             s=None,
-                             Lambda_1=None,
-                             Lambda_2=None,
-                             a=None,
-                             c=None,
-                             dt=None,
-                             M1=None,
-                             M2=None,
-                             D1=None,
-                             D2=None,
-                             verbose=False):
-        a, c, dt = self.get_a_c_dt(a, c, dt)
-
-        if Lambda_1 is None:
-            Lambda_1 = self.LAMBDA_1_DEFAULT
-        if Lambda_2 is None:
-            Lambda_2 = self.LAMBDA_2_DEFAULT
-        if M1 is None:
-            M1 = self.M1_DEFAULT
-        if M2 is None:
-            M2 = self.M2_DEFAULT
-        if D1 is None:
-            D1 = self.D1_DEFAULT
-        if D2 is None:
-            D2 = self.D2_DEFAULT
-        if s is None:
-            s = 1 / dt
-
-        h1 = self.SIZE_DOMAIN_1 / M1
-        h2 = self.SIZE_DOMAIN_2 / M2
-
-        Y1_0 = -1 / (s + c) * (1 / h1 - a / (2 * D1)) + h1 / (12 * D1)
-        Y1_1 = 1 / (s + c) * 2 / h1 + 5 * h1 / (12 * D1)
-        Y1_2 = -1 / (s + c) * (1 / h1 + a / (2 * D1)) + h1 / (12 * D1)
-
-        Y2_0 = -1 / (s + c) * (1 / h2 + a / (2 * D2)) + h2 / (12 * D2)
-        Y2_1 = 1 / (s + c) * 2 / h2 + 5 * h2 / (12 * D2)
-        Y2_2 = -1 / (s + c) * (1 / h2 - a / (2 * D2)) + h2 / (12 * D2)
-        lambda2_moins = (Y2_1 - np.sqrt(Y2_1**2 - 4 * Y2_0 * Y2_2)) \
-                                / (-2 * Y2_2)
-        lambda1_moins = (Y1_1 - np.sqrt(Y1_1**2 - 4 * Y1_0 * Y1_2)) \
-                                / (-2 * Y1_2)
-        raise BaseException("I have no idea what this part refers to")
-        eta2_0 = ((lambda2_moins - 1) / h2 - a * (lambda2_moins + 1) /
-                  (2 * D2)) / (s + c) - h2 * (lambda2_moins + 5) / (12 * D2) # was + 2 and 6 * D2
-        eta1_0 = ((1 - lambda1_moins) / h1 - a * (lambda1_moins + 1) /
-                  (2 * D1)) / (s + c) + h1 * (lambda1_moins + 5) / (12 * D1) # ..
-
-        rho_numerator = (Lambda_2 * eta1_0 + 1) * (Lambda_1 * eta2_0 + 1)
-        rho_denominator = (Lambda_2 * eta2_0 + 1) * (Lambda_1 * eta1_0 + 1)
-
-        return np.abs(rho_numerator / rho_denominator)
-
     def sigma_modified(self, w, order_time, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
-        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
-        dt = self.DT_DEFAULT
+        D1, D2 = self.D1, self.D2
+        dt = self.DT
 
-        s = self.s_time_modif(w, dt, order_time) + self.C_DEFAULT
+        s = self.s_time_modif(w, dt, order_time) + self.C
         s1 = s
         #if order_equations > 2: #warning, euler coefficients
         #    s1 -= dt**3 / 24 * w**4
@@ -718,16 +580,16 @@ class Rk2FiniteVolumes(Discretization):
         #if order_equations > 2: #warning, euler coefficients
         #    s2 -= dt**3 / 24 * w**4
 
-        sig1 = np.sqrt(s1/self.D1_DEFAULT)
-        sig2 = -np.sqrt(s2/self.D2_DEFAULT)
+        sig1 = np.sqrt(s1/self.D1)
+        sig2 = -np.sqrt(s2/self.D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
         # This code should not run and is here as an example
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
-        D1, D2 = self.D1_DEFAULT, self.D2_DEFAULT
-        dt = self.DT_DEFAULT
+        D1, D2 = self.D1, self.D2
+        dt = self.DT
         if j==1:
             hj = h1
             Dj = D1
@@ -742,8 +604,8 @@ class Rk2FiniteVolumes(Discretization):
             eta_dir_modif += - hj**4*sigj**3/180- dt**2/2*w**2/(sigj) # warning, time term comes from euler
         return eta_dir_modif, eta_neu_modif
 
-    def s_time_modif(self, w, dt, order):
-        s = w * 1j - w**3 * dt**2/6 * 1j
+    def s_time_modif(self, w, order):
+        s = w * 1j - w**3 * self.DT**2/6 * 1j
         return s
 
     """
@@ -755,33 +617,27 @@ class Rk2FiniteVolumes(Discretization):
     """
 
     def get_h(self, size_domain_1=None, size_domain_2=None, M1=None, M2=None):
-        if size_domain_1 is None:
-            size_domain_1 = self.SIZE_DOMAIN_1
-        if size_domain_2 is None:
-            size_domain_2 = self.SIZE_DOMAIN_2
-        if M1 is None:
-            M1 = self.M1_DEFAULT
-        if M2 is None:
-            M2 = self.M2_DEFAULT
-        h1 = size_domain_1 / M1 + np.zeros(M1)
-        h2 = size_domain_2 / M2 + np.zeros(M2)
-        # use the following line to use a functional:
-        #h1 = np.diff(np.cumsum(np.concatenate(([0],h1)))**1)
-        #h2 = np.diff(np.cumsum(np.concatenate(([0],h2)))**1)
+        size_domain_1 = self.SIZE_DOMAIN_1
+        size_domain_2 = self.SIZE_DOMAIN_2
+        M1 = self.M1
+        M2 = self.M2
+        h1 = self.SIZE_DOMAIN_1 / self.M1 + np.zeros(self.M1)
+        h2 = self.SIZE_DOMAIN_2 / self.M2 + np.zeros(self.M2)
         return h1, h2
 
-    """
-        Simple function to return D in each subdomains,
-        in the framework of finite differences.
-        provide continuous functions accepting ndarray
-        for D1 and D2, and returns the right coefficients.
-    """
-
-    def get_D(self, h1, h2, function_D1=None, function_D2=None):
+    def get_D(self, h1=None, h2=None, function_D1=None, function_D2=None):
+        """
+            Simple function to return D in each subdomains,
+            in the framework of finite differences.
+            provide continuous functions accepting ndarray
+            for D1 and D2, and returns the right coefficients.
+        """
+        if h1 is None or h2 is None:
+            h1, h2 = self.get_h()
         if function_D1 is None:
-            def function_D1(x): return self.D1_DEFAULT + np.zeros_like(x)
+            def function_D1(x): return self.D1 + np.zeros_like(x)
         if function_D2 is None:
-            def function_D2(x): return self.D2_DEFAULT + np.zeros_like(x)
+            def function_D2(x): return self.D2 + np.zeros_like(x)
         # coordinates at half-points:
         x1_1_2 = np.cumsum(np.concatenate(([0], h1)))
         x2_1_2 = np.cumsum(np.concatenate(([0], h2)))
