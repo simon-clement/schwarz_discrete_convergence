@@ -540,15 +540,14 @@ class FiniteVolumes(Discretization):
         D2 = self.D2
         s1, s2 = s, s
         if order_equations > 3:
-            s1 = s - 1j*w**3*D1*h1[0]**4/200
-            s2 = s - 1j*w**3*D2*h2[0]**4/200
+            s1 = s + s**3*h1[0]**4/200/(D1*D1)
+            s2 = s + s**3*h2[0]**4/200/(D2*D2)
 
         sig1 = np.sqrt(s1/D1)
         sig2 = -np.sqrt(s2/D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
-        # This code should not run and is here as an example
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2

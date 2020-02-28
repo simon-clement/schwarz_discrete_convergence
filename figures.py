@@ -8,8 +8,10 @@ import numpy as np
 from numpy import pi
 from discretizations.finite_difference import FiniteDifferences
 from discretizations.finite_volumes import FiniteVolumes
+from discretizations.finite_volumes_spline2 import FiniteVolumesSpline2
 from discretizations.rk4_finite_volumes import Rk4FiniteVolumes
 from discretizations.rk2_finite_volumes import Rk2FiniteVolumes
+from discretizations.rk2_finite_volumes_spline2 import Rk2FiniteVolumesSpline2
 from discretizations.rk4_finite_differences import Rk4FiniteDifferences
 from discretizations.rk2_finite_differences import Rk2FiniteDifferences
 from discretizations.rk2_finite_difference_extra import Rk2FiniteDifferencesExtra
@@ -401,6 +403,28 @@ def fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol():
                                                           bounds_h=(-2.5,1.))
     show_or_save("fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol")
 
+def fig_compare_continuous_discrete_rate_robin_robin_volspl2rk2():
+    """
+        see @fig_error_by_taking_continuous_rate_constant_number_dt_h2_vol
+        except it is in the Robin-Robin case instead of Robin-Neumann
+    """
+
+    T = 600.
+    finite_volumes = DEFAULT.new(Rk2FiniteVolumesSpline2)
+    #fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
+    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8], sharey=True)
+    axes.yaxis.set_tick_params(labelbottom=True)
+    #fig, axes = None, None
+    finite_volumes.COURANT_NUMBER = .1
+    finite_volumes.C = 0.1
+    compare_continuous_discrete_rate_robin_robin(fig, axes, finite_volumes,
+                                                          T=T, number_dt_h2=.1,
+                                                          number_samples=4,
+                                                          steps=26,
+                                                          bounds_h=(-4.,1.),
+                                                          plot_perfect_performances=False)
+    show_or_save("fig_compare_continuous_discrete_rate_robin_robin_volspl2rk2")
+
 
 def fig_compare_continuous_discrete_rate_robin_robin_vol():
     """
@@ -424,10 +448,11 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
                                                           bounds_h=(-1.5,0.))
     """
     finite_volumes.COURANT_NUMBER = 10
+    finite_volumes.C = .05
     compare_continuous_discrete_rate_robin_robin(fig, axes, finite_volumes,
                                                           T=T, number_dt_h2=10,
-                                                          number_samples=500,
-                                                          steps=80,
+                                                          number_samples=2000,
+                                                          steps=41,
                                                           bounds_h=(-2.,1.),
                                                           plot_perfect_performances=False)
     show_or_save("fig_compare_continuous_discrete_rate_robin_robin_vol")
@@ -851,7 +876,8 @@ def fig_compare_modif_approaches_naive_rk4():
     
 def fig_compare_modif_approaches_extra_rk2():
     dis = DEFAULT.new(Rk2FiniteDifferencesExtra)
-    fig, ax = compare_modif_approaches(dis)
+    setup_modified = [(0,0,0, "continuous"), (0,4,0,"op"),(4,4,0,"time"), (4,4,4,"space")]
+    fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified)
     ax.set_title("Finite Differences : modified convergence factor (extrapolated interface, rk2)")
     show_or_save("fig_compare_modif_approaches_extra_rk2")
 
@@ -873,6 +899,31 @@ def fig_compare_modif_approaches_vol():
     fig, ax = compare_modif_approaches(dis)
     ax.set_title("Finite Volumes : modified convergence factor")
     show_or_save("fig_compare_modif_approaches_vol")
+
+def fig_compare_modif_approaches_vol_spline2():
+    dis = DEFAULT.new(FiniteVolumesSpline2)
+    #setup_modified = [(0,0,0, "continuous"), (4,0,0,"time"), (4, 0, 4, "time+space"),(4, 1.5, 4, "time+space+op")]
+    dis.C = 0.01
+    setup_modified = [(0,0,0, "continuous"), (4,0,4,"space")]
+    fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified)
+    ax.set_title("Finite Volumes : modified convergence factor")
+    show_or_save("fig_compare_modif_approaches_vol")
+
+def fig_compare_modif_approaches_volspl2rk2():
+    dis = DEFAULT.new(Rk2FiniteVolumesSpline2)
+    dis.C = 0.01
+    setup_modified = [(0,0,0, "continuous"), (0,0,4,"space")]
+    fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified)
+    ax.set_title("RK2 : modified convergence factor")
+    show_or_save("fig_compare_modif_approaches_volspl2rk2")
+
+def fig_compare_modif_approaches_volspl2rk2_semidiscrete():
+    dis = DEFAULT.new(Rk2FiniteVolumesSpline2)
+    dis.C = 0.01
+    setup_modified = [(0,0,0, "continuous")]
+    fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified, semi_discrete=True)
+    ax.set_title("RK2 : modified convergence factor")
+    show_or_save("fig_compare_modif_approaches_volspl2rk2_semidiscrete")
 
 def fig_compare_modif_approaches_vol_rk2():
     dis = DEFAULT.new(Rk2FiniteVolumes)
@@ -954,7 +1005,7 @@ def fig_plzplotwhatIwant():
     fig.legend(loc="center right")
     plt.show()
 
-def compare_modif_approaches(dis, full_discrete=False, setup_modified=[(0,0,0, "continuous"), (4, 4, 4, "modified")]):
+def compare_modif_approaches(dis, full_discrete=False, setup_modified=[(0,0,0, "continuous"), (4, 4, 4, "modified")], semi_discrete=False):
     """
         Compare the approaches used with modified equations :
         plot cv rate :
@@ -967,8 +1018,10 @@ def compare_modif_approaches(dis, full_discrete=False, setup_modified=[(0,0,0, "
                                         label)
     """
     # 0.5; -0.5 is generally a good choice with our parameters
-    lambda_1 = .5
-    lambda_2 = -.5
+    lambda_1 = .2
+    lambda_2 = -.2
+    dis.LAMBDA_1 = lambda_1
+    dis.LAMBDA_2 = lambda_2
     N = DEFAULT.N * 20
 
     # we take a little more points
@@ -995,31 +1048,41 @@ def compare_modif_approaches(dis, full_discrete=False, setup_modified=[(0,0,0, "
     simulated_freq = memoised(frequency_simulation,
                            dis,
                            N,
-                           Lambda_1=lambda_1,
-                           Lambda_2=lambda_2,
-                           number_samples=10000)
+                           number_samples=100)
     simulated_cv = simulated_freq[2] / simulated_freq[1]
     #ax.plot(axis_freq*dt, simulated_cv, label="simulation")
 
+    if semi_discrete:
+        semidiscrete = [analytic_robin_robin(dis, w=w, modified_time=0,
+                semi_discrete=True, N=N) for w in axis_freq]
+        ax.semilogx(axis_freq*dt, np.abs(np.array(semidiscrete)-simulated_cv), label="semi-discrete")
+
+        semidiscrete = [analytic_robin_robin(dis, w=w, modified_time=2,
+                semi_discrete=True, N=N) for w in axis_freq]
+        ax.plot(axis_freq*dt, np.abs(np.array(semidiscrete)-simulated_cv), label="semi-discrete modified")
+
     if full_discrete:
-        discrete = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
-                                                 w=w, semi_discrete=not full_discrete, N=N)
+        discrete = [analytic_robin_robin(dis, w=w,
+            semi_discrete=not full_discrete, N=N)
                                             for w in axis_freq]
         #ax.plot(axis_freq*dt, semi_discrete_modif_time, "k--", label="discrete in space and time")
-        ax.semilogy(axis_freq*dt, np.abs(simulated_cv - np.array(discrete))/simulated_cv, label="discrete")
+        #ax.semilogy(axis_freq*dt, np.abs(simulated_cv - np.array(discrete))/simulated_cv, label="discrete")
+        ax.plot(axis_freq*dt, np.array(discrete), label="discrete")
 
     for (modified_time, modified_op, modified_space, label) in setup_modified:
-        continuous_modified = [dis.analytic_robin_robin_modified(w=w, Lambda_1=lambda_1, Lambda_2=lambda_2,
+        continuous_modified = [dis.analytic_robin_robin_modified(w=w,
                                                                  order_time=modified_time,
                                                                  order_equations=modified_space,
                                                                  order_operators=modified_op)
                                             for w in axis_freq]
 
-        ax.semilogy(axis_freq*dt, np.abs(simulated_cv - np.array(continuous_modified))/simulated_cv, label=label)
+        #ax.semilogy(axis_freq*dt, np.abs(simulated_cv - np.array(continuous_modified))/simulated_cv, label=label)
+        ax.semilogx(axis_freq*dt, np.abs(np.array(continuous_modified) - np.array(simulated_cv)), label=label)
 
 
     ax.set_xlabel("$\\omega*\\delta t$")
-    ax.set_ylabel("$\\frac{\\hat{\\rho}-(\\hat{\\rho}_{{simulation}})}{\\hat{\\rho}_{{simulation}}}$")
+    #ax.set_ylabel("$\\frac{\\hat{\\rho}-(\\hat{\\rho}_{{simulation}})}{\\hat{\\rho}_{{simulation}}}$")
+    ax.set_ylabel("Convergence factor error: $|\\hat{\\rho} - \\hat{\\rho}_{{sim}}|$")
     ax.set_xlim(left=-5*np.pi/dt/N, right=axis_freq[-1]*dt)
     ax.set_ylim(bottom=0, top=1)
     ax.grid()
@@ -1039,9 +1102,6 @@ def visualize_modif_simu(dis, N, T, number_samples):
                                         label)
     """
     # 0.5; -0.5 is generally a good choice with our parameters
-    lambda_1 = dis.LAMBDA_1
-    lambda_2 = dis.LAMBDA_2
-
     dt = dis.DT
 
     #axis_freq = np.linspace(-pi / dt, pi / dt, N)
@@ -1056,32 +1116,22 @@ def visualize_modif_simu(dis, N, T, number_samples):
     simulated_freq = memoised(frequency_simulation,
                            dis,
                            N,
-                           Lambda_1=lambda_1,
-                           Lambda_2=lambda_2,
                            number_samples=number_samples)
     simulated_cv = simulated_freq[2] / simulated_freq[1]
     fig, ax = plt.subplots()
     print(simulated_freq.shape)
     ax.plot(axis_freq*dt, simulated_cv, label="simulation")
 
-    discrete = [analytic_robin_robin(dis, Lambda_1=lambda_1, Lambda_2=lambda_2,
-                                             w=w, semi_discrete=False, N=N)
+    discrete = [analytic_robin_robin(dis, w=w, semi_discrete=False, N=N)
                                         for w in axis_freq]
     ax.plot(axis_freq*dt, discrete, label="discrete")
 
     h1, h2 = dis.get_h()
     h = h2[0]
-    dt_other, N_other = get_dt_N(h, 10, T, dis.D1)
-    modif = functools.partial(
-        dis.analytic_robin_robin_modified,
-        Lambda_1=lambda_1, Lambda_2=lambda_2)
-    print("dts:", dt_other, dt)
-    print("Ns:", N_other, N)
-    print("LAMBDA1, 2:", lambda_1, lambda_2)
+    dt_other, N_other = get_dt_N(h, dis.COURANT_NUMBER, T, dis.D1)
 
-
-    axis_freq = pi/np.linspace(3*dt, T, N)
-    all_factors = [modif(w) for w in axis_freq]
+    axis_freq = np.flipud(pi/np.linspace(3*dt, T, N))
+    all_factors = [dis.analytic_robin_robin_modified(w) for w in axis_freq]
     """
     continuous_modified = [dis.analytic_robin_robin_modified(w=w, Lambda_1=lambda_1, Lambda_2=lambda_2,
                                                              order_time=float('inf'),
@@ -1711,15 +1761,6 @@ def to_minimize_continuous_analytic_rate_robin_robin_fullmodif(l, discretization
     dis = discretization.clone()
     dt, N = dis.DT, T/dis.DT
     dis.LAMBDA_1, dis.LAMBDA_2 = l
-    """
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[N//2] = 1
-    # between .2 < w_max dt < .3
-    axis_freq_simu = 2 * pi*all_k / N / dt
-    """
 
     axis_freq = pi/np.linspace(3*dt, T, N)
     all_factors = [dis.analytic_robin_robin_modified(w) for w in axis_freq]
@@ -1741,6 +1782,27 @@ def to_minimize_analytic_robin_robin_modified_eq(l, discretization, T):
     f = functools.partial(cv_rate.analytic_robin_robin, dis,
                           semi_discrete=True,
                           modified_time=3,
+                          N=N)
+    return max([f(pi / t) for t in np.linspace(dt, T, N)])
+
+def to_minimize_analytic_robin_robin_semidiscrete_modif(l, discretization, T):
+    dis = discretization.clone()
+    dt, N = dis.DT, min(T/dis.DT, 1000)
+    dis.LAMBDA_1 = l[0]
+    dis.LAMBDA_2 = l[1]
+    f = functools.partial(cv_rate.analytic_robin_robin, dis,
+                          modified_time=4,
+                          semi_discrete=True,
+                          N=N)
+    return max([f(pi / t) for t in np.linspace(3*dt, T, N)])
+
+def to_minimize_analytic_robin_robin_semidiscrete(l, discretization, T):
+    dis = discretization.clone()
+    dt, N = dis.DT, min(T/dis.DT, 1000)
+    dis.LAMBDA_1 = l[0]
+    dis.LAMBDA_2 = l[1]
+    f = functools.partial(cv_rate.analytic_robin_robin, dis,
+                          semi_discrete=True,
                           N=N)
     return max([f(pi / t) for t in np.linspace(dt, T, N)])
 
@@ -1774,6 +1836,8 @@ def to_minimize_robin_robin_perfect(l, discretization, T, number_samples):
 # The function can be passed in parameters of memoised:
 to_minimize_analytic_robin_robin2 = FunMem(to_minimize_analytic_robin_robin)
 to_minimize_analytic_robin_robin2_fulldiscrete = FunMem(to_minimize_analytic_robin_robin_fulldiscrete)
+to_minimize_analytic_robin_robin2_semidiscrete = FunMem(to_minimize_analytic_robin_robin_semidiscrete)
+to_minimize_analytic_robin_robin2_semidiscrete_modif = FunMem(to_minimize_analytic_robin_robin_semidiscrete_modif)
 to_minimize_analytic_robin_robin2_modified = FunMem(to_minimize_analytic_robin_robin_modified_eq)
 to_minimize_analytic_robin_robin2_fullmodified = FunMem(to_minimize_continuous_analytic_rate_robin_robin_fullmodif)
 to_minimize_continuous_analytic_rate_robin_robin2 = \
@@ -1814,14 +1878,18 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
 
     from itertools import repeat
     print("Computing lambdas in discrete framework.")
+    """
     ret_fullmodif = list(map(func_to_map, all_h,
         repeat(to_minimize_analytic_robin_robin2_fullmodified), repeat((2., -.3)), repeat("Nelder-Mead")))
-    ret_discrete = list(map(func_to_map, all_h,
-        repeat(to_minimize_analytic_robin_robin2), repeat((2., -.3)), repeat("Nelder-Mead")))
+
     ret_fulldiscrete = list(map(func_to_map, all_h,
         repeat(to_minimize_analytic_robin_robin2_fulldiscrete), repeat((2., -.3)), repeat("Nelder-Mead")))
+    """
+
+    ret_discrete = list(map(func_to_map, all_h,
+        repeat(to_minimize_analytic_robin_robin2_semidiscrete), repeat((2., -.3)), repeat("Nelder-Mead")))
     ret_discrete_modif = list(map(func_to_map, all_h,
-        repeat(to_minimize_analytic_robin_robin2_modified), repeat((2., -.3)), repeat("Nelder-Mead")))
+        repeat(to_minimize_analytic_robin_robin2_semidiscrete_modif), repeat((2., -.3)), repeat("Nelder-Mead")))
 
 
     if plot_perfect_performances:
@@ -1829,20 +1897,24 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
             repeat(to_minimize_robin_robin2_perfect), repeat((2., -.3)), repeat("Nelder-Mead"), repeat(number_samples*4)))
         theorical_rate_perfect = [ret.fun for ret in perfect_performances]
 
+    """
     optimal_fullmodif = [ret.x for ret in ret_fullmodif]
     theorical_rate_full_modif = [ret.fun for ret in ret_fullmodif]
-    optimal_discrete = [ret.x for ret in ret_discrete]
     optimal_fulldiscrete = [ret.x for ret in ret_fulldiscrete]
+    """
+    optimal_discrete = [ret.x for ret in ret_discrete]
     optimal_discrete_modif = [ret.x for ret in ret_discrete_modif]
     theorical_rate_discrete = [ret.fun for ret in ret_discrete]
     theorical_rate_discrete_modif = [ret.fun for ret in ret_discrete_modif]
 
+    """
     print("Computing lambdas in continuous framework.")
     ret_continuous = list(map(func_to_map, all_h,
         repeat(to_minimize_continuous_analytic_rate_robin_robin2), repeat((2., -.3)), repeat("Nelder-Mead")))
 
     optimal_continuous = [ret.x for ret in ret_continuous]
     theorical_cont_rate = [ret.fun for ret in ret_continuous]
+    """
 
     rate_with_continuous_lambda = []
     rate_with_discrete_lambda = []
@@ -1859,42 +1931,42 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
             discretization.DT = dt
             print("h number:", i)
             print("N :", N)
+            """
             discretization.LAMBDA_1, discretization.LAMBDA_2 = optimal_continuous[i]
             rate_with_continuous_lambda += [
                     memoised(frequency_simulation, discretization, N,
                              number_samples=number_samples)]
+
+
+            discretization.LAMBDA_1, discretization.LAMBDA_2 = optimal_fulldiscrete[i]
+            rate_with_fulldiscrete_lambda += [
+                memoised(frequency_simulation, discretization, N,
+                         number_samples=number_samples) ]
+
             """
             discretization.LAMBDA_1, discretization.LAMBDA_2 = optimal_discrete[i]
             rate_with_discrete_lambda += [
                 memoised(frequency_simulation, discretization, N,
                          number_samples=number_samples)
             ]
-            """
 
-            discretization.LAMBDA_1, discretization.LAMBDA_2 = optimal_fulldiscrete[i]
-            rate_with_fulldiscrete_lambda += [
-                memoised(frequency_simulation, discretization, N,
-                         number_samples=number_samples) ]
-            """
             discretization.LAMBDA_1, discretization.LAMBDA_2 = optimal_discrete_modif[i]
             rate_with_discrete_modif_lambda += [
                 memoised(frequency_simulation, discretization,
                          N,
                          number_samples=number_samples) ]
+
             """
             discretization.LAMBDA_1, discretization.LAMBDA_2 = optimal_fullmodif[i]
             rate_with_fullmodif_lambda += [
                 memoised(frequency_simulation, discretization, N,
                          number_samples=number_samples) ]
+            """
 
             try:
                 pass
-                """
-                print("optimal modif:", optimal_fullmodif[i])
-                print("theorical rate:", theorical_rate_full_modif[i])
-                print("continuous opti:", optimal_continuous[i])
-                print("optimal-discrete:", optimal_discrete[i])
                 #visualize_modif_simu(discretization, N, T, 50)
+                """
                 fonction = functools.partial(to_minimize_analytic_robin_robin2_fullmodified,
                         h=all_h[i], discretization=discretization, number_dt_h2=number_dt_h2, T=T)
                     
@@ -1908,50 +1980,48 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
                 raise
 
     except:
-        raise
+        pass
 
     rate_with_continuous_lambda = [max(w[2] / w[1])
             for w in rate_with_continuous_lambda]
-    rate_with_discrete_lambda = [max(w[2] / w[1])
-            for w in rate_with_discrete_lambda]
     rate_with_fulldiscrete_lambda = [max(w[2] / w[1])
             for w in rate_with_fulldiscrete_lambda]
+    rate_with_discrete_lambda = [max(w[2] / w[1])
+            for w in rate_with_discrete_lambda]
     rate_with_discrete_modif_lambda = [max(w[2] / w[1])
             for w in rate_with_discrete_modif_lambda]
     rate_with_fullmodif_lambda = [max(w[2] / w[1])
         for w in rate_with_fullmodif_lambda]
 
-    linefdo, = ax.semilogx(all_h[:len(rate_with_fulldiscrete_lambda)],
-                 rate_with_fulldiscrete_lambda,
-                 "y")
+    #linefdo, = ax.semilogx(all_h[:len(rate_with_fulldiscrete_lambda)],
+    #             rate_with_fulldiscrete_lambda,
+    #             "y")
     lineco, = ax.semilogx(all_h[:len(rate_with_continuous_lambda)],
                  rate_with_continuous_lambda,
                  "r")
-    linect, = ax.semilogx(all_h[:len(theorical_cont_rate)],
-                 theorical_cont_rate,
-                 "r--")
+    # linect, = ax.semilogx(all_h[:len(theorical_cont_rate)],
+    #              theorical_cont_rate,
+    #              "r--")
 
     linefmo, = ax.semilogx(all_h[:len(rate_with_fullmodif_lambda)],
                  rate_with_fullmodif_lambda,
                  "m")
-    linefmt, = ax.semilogx(all_h[:len(theorical_rate_full_modif)],
-                 theorical_rate_full_modif,
-                 "m--")
-    """
+    # linefmt, = ax.semilogx(all_h[:len(theorical_rate_full_modif)],
+    #              theorical_rate_full_modif,
+    #              "m--")
     linemdo, = ax.semilogx(all_h[:len(rate_with_discrete_modif_lambda)],
                  rate_with_discrete_modif_lambda,
                  "b")
     linemdt, = ax.semilogx(all_h[:len(theorical_rate_discrete_modif)],
-                 theorical_rate_discrete_modif,
-                 "b--")
+                  theorical_rate_discrete_modif,
+                  "b--")
 
     linedo, = ax.semilogx(all_h[:len(rate_with_discrete_lambda)],
                  rate_with_discrete_lambda,
                  "g")
     linedt, = ax.semilogx(all_h[:len(theorical_rate_discrete)],
-                 theorical_rate_discrete,
-                 "g--")
-     """
+                  theorical_rate_discrete,
+                  "g--")
 
     if plot_perfect_performances:
         linept, = ax.semilogx(all_h,
@@ -1962,17 +2032,19 @@ def compare_continuous_discrete_rate_robin_robin(fig, ax,
 
     if legend:
         linefmo.set_label("Taux observé avec optimisation sur les équations modifiées")
-        linefmt.set_label("Taux théorique avec optimisation sur les équations modifiées")
-        linefdo.set_label("Taux observé avec $\\Lambda$ optimal discret")
-        #linemdo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret, modifié en temps")
-        #linedo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret")
+        #linefmt.set_label("Taux théorique avec optimisation sur les équations modifiées")
+        #linefdo.set_label("Taux observé avec $\\Lambda$ optimal discret")
+        linemdo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret, modifié en temps")
+        linedo.set_label("Taux observé avec $\\Lambda$ optimal semi-discret")
         #linedt.set_label("Taux théorique avec $\\Lambda$ optimal semi-discret")
         lineco.set_label("Taux observé avec $\\Lambda$ optimal continu")
-        linect.set_label("Taux théorique avec $\\Lambda$ optimal continu")
-        fig.legend(loc="center left")
+        #linect.set_label("Taux théorique avec $\\Lambda$ optimal continu")
+        ax.legend(loc="upper right")
+        ax.grid()
 
     ax.set_xlabel("h")
     ax.set_ylabel("$\\hat{\\rho}$")
+    ax.set_ylim(ymin=0., ymax=1.)
     fig.suptitle('Comparaison des analyses continues, discrètes et modifiées' +
             ' ' )
     ax.set_title('Nombre de Courant : $D_1\\frac{dt}{h^2}$ = ' + str(number_dt_h2))

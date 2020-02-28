@@ -78,7 +78,8 @@ class Rk2FiniteDifferencesExtra(Discretization):
                            u_nm1_interface,
                            phi_nm1_interface,
                            upper_domain=True,
-                           Y=None):
+                           Y=None,
+                           **kwargs):
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
         a, c, dt = self.get_a_c_dt()
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
@@ -501,7 +502,7 @@ class Rk2FiniteDifferencesExtra(Discretization):
         D1, D2 = self.D1, self.D2
         dt = self.DT
 
-        s = self.s_time_modif(w, dt, order_time) + self.C
+        s = self.s_time_modif(w, order_time) + self.C
         s1 = s
         if order_equations > 0:
             s1 += w**2 * (h1**2/(12*D1))

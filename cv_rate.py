@@ -568,7 +568,8 @@ def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         errors = []
-        for result in progressbar(executor.map(to_map, range(number_samples))):
+        #TODO remettre executor.map
+        for result in progressbar(map(to_map, range(number_samples))):
             errors += [result]
     freq_err = fftshift(fft(np.array(errors), axis=-1), axes=(-1, ))
     return np.std(freq_err, axis=0)
@@ -621,7 +622,7 @@ def interface_errors(discretization,
     for k in range(NUMBER_IT):
         all_u2_interface = [0]
         all_phi2_interface = [0]
-        all_u2 = [u2_0]
+        last_u2 = u2_0
         phi_for_FV = [phi2_0_fvol]
         # Time iteration:
         interpolator_u1 = interp1d(x=np.array(range(time_window_len+1)), y=all_u1_interface, kind='cubic')
@@ -643,7 +644,7 @@ def interface_errors(discretization,
                 bd_cond=neumann,
                 bd_cond_nm1_2=neumann,
                 bd_cond_nm1=neumann,
-                u_nm1=all_u2[-1],
+                u_nm1=last_u2,
                 u_interface=u_interface,
                 phi_interface=phi_interface,
                 u_nm1_2_interface=u_nm1_2_interface,
@@ -653,13 +654,13 @@ def interface_errors(discretization,
                 phi_for_FV=phi_for_FV,
                 upper_domain=True,
                 Y=precomputed_Y2)
-            all_u2 += [u2_ret]
+            last_u2 = u2_ret
             all_u2_interface += [u_interface]
             all_phi2_interface += [phi_interface]
 
         all_u1_interface = [0]
         all_phi1_interface = [0]
-        all_u1 = [u1_0]
+        last_u1 = u1_0
         phi_for_FV = [phi1_0_fvol]
 
         interpolator_u2 = interp1d(x=np.array(range(time_window_len+1)), y=all_u2_interface, kind='cubic')
@@ -681,7 +682,7 @@ def interface_errors(discretization,
                 bd_cond=dirichlet,
                 bd_cond_nm1_2=dirichlet,
                 bd_cond_nm1=dirichlet,
-                u_nm1=all_u1[-1],
+                u_nm1=last_u1,
                 u_interface=u_interface,
                 phi_interface=phi_interface,
                 u_nm1_interface=u_nm1_interface,
@@ -691,7 +692,7 @@ def interface_errors(discretization,
                 phi_for_FV=phi_for_FV,
                 upper_domain=False,
                 Y=precomputed_Y1)
-            all_u1 += [u1_ret]
+            last_u1 = u1_ret
             all_u1_interface += [u_interface]
             all_phi1_interface += [phi_interface]
 

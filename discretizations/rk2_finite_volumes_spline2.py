@@ -11,7 +11,7 @@ from discretizations.discretization import Discretization
 import cv_rate
 
 
-class FiniteVolumesSpline2(Discretization):
+class Rk2FiniteVolumesSpline2(Discretization):
     """
         give default values of all variables.
     """
@@ -66,19 +66,22 @@ class FiniteVolumesSpline2(Discretization):
 
     def integrate_one_step(self,
                            f,
+                           f_nm1_2,
+                           f_nm1,
                            bd_cond,
+                           bd_cond_nm1_2,
+                           bd_cond_nm1,
                            u_nm1,
                            u_interface,
-                           u_nm1_interface,
                            phi_interface,
+                           u_nm1_2_interface,
+                           phi_nm1_2_interface,
+                           u_nm1_interface,
                            phi_nm1_interface,
                            phi_for_FV,
                            upper_domain=True,
-                           Y=None,
-                           **kwargs):
-        assert phi_for_FV != []
+                           Y=None):
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain)
-        phi_nm1 = phi_for_FV[0]
         a, c, dt = self.get_a_c_dt()
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
             float(c), float(dt), float(bd_cond), float(Lambda), \
@@ -96,41 +99,72 @@ class FiniteVolumesSpline2(Discretization):
         if not upper_domain:  # from now h, D, f, u_nm1 are 0 at bottom of the ocean.
             h, D, f, u_nm1 = np.flipud(h), np.flipud(D), np.flipud(f), \
                 np.flipud(u_nm1)
-            phi_nm1 = np.flipud(phi_nm1)
+            f_nm1_2, f_nm1= np.flipud(f_nm1_2), np.flipud(f_nm1)
 
         if Y is None:
             Y = self.get_Y(upper_domain=upper_domain)
+        #actually Y is only here to get the size of the matrix xD
 
-        # diffu_nm1 was before = u_nm1[1:] - u_nm1[:-1]
-        diffu_nm1 = (phi_nm1[2:]/D[2:] * h[1:] +
-                2*phi_nm1[1:-1]/D[1:-1] * (h[1:] + h[:-1]) +
-                    phi_nm1[:-2]/D[:-2] * h[:-1])/6
-        rhs = dt / (1 + dt * c) * (f[1:] - f[:-1] +
-                                   diffu_nm1 / dt)
-        if upper_domain:  # Neumann condition: user give derivative but I need flux
-            cond_robin = Lambda * u_interface + phi_interface \
-                - Lambda * dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
+        # h and D consts !  (1/12phi + 10/12phi + 1/12phi = D[0]*np.diff(u)/h[0])
+        assert np.linalg.norm(h-h[0]) < 1e-15
+        assert np.linalg.norm(D-D[0]) < 1e-15
 
-            cond_M = bd_cond * D[-1]
-            rhs = np.concatenate(([cond_robin], rhs, [cond_M]))
-        else:  # Dirichlet condition: user gives value, rhs is more complicated
-            cond_robin = Lambda * u_interface + phi_interface \
-                - Lambda * dt / (1 + dt * c) * (f[-1] + u_nm1[-1] / dt)
+        Y_0, Y_1, Y_2 = Y
+        Y_0[:-1] = 1/6
+        Y_1[0:-1] = 2/3
+        Y_2[0:] = 1/6
 
-            cond_M = bd_cond - dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt)
-            rhs = np.concatenate(([cond_M], rhs, [cond_robin]))
+        if upper_domain:
+            # Neumann :
+            Y_0[-1] = 0
+            Y_1[-1] = 1
 
-        phi_ret = solve_linear(Y, rhs)
+            # Robin :
+            Y_1[0] = -h[0]*Lambda * 1/(3*D[0]) + 1
+            Y_2[0] = -h[0]*Lambda * 1/(6*D[0])
+
+            def get_phi(u, u_interface, phi_interface, bd_cond):
+                robin_cond = Lambda * (u_interface-u[0]) + phi_interface
+                return solve_linear((Y_0, Y_1, Y_2),
+                                  np.concatenate(([robin_cond],
+                                                  D[0]*np.diff(u)/h[0],
+                                                  [bd_cond*D[-1]])))
+
+            def compute_k(f, u, bd_cond, u_interface, phi_interface):
+                phi = get_phi(u, u_interface, phi_interface, bd_cond)
+                return f + np.diff(phi)/h[0] - a*(phi[1:]/D[1:] + phi[:-1]/D[:-1])/2 - c*u
+        else: # on est dans le domaine du bas
+            # Dirichlet :
+            Y_1[0] = -h[0] * 1/(3*D[0])
+            Y_2[0] = -h[0] * 1/(6*D[0])
+
+            # Robin :
+            Y_1[-1] = h[0]*Lambda * 1/(3*D[0]) + 1
+            Y_0[-1] = h[0]*Lambda * 1/(6*D[0])
+
+
+            def get_phi(u, u_interface, phi_interface, bd_cond):
+                robin_cond = Lambda * (u_interface-u[-1]) + phi_interface
+                return solve_linear((Y_0, Y_1, Y_2),
+                                  np.concatenate(([bd_cond - u[0]],
+                                                  D[0]*np.diff(u)/h[0],
+                                                  [robin_cond])))
+
+            def compute_k(f, u, bd_cond, u_interface, phi_interface):
+                phi = get_phi(u, u_interface, phi_interface, bd_cond)
+                return f + np.diff(phi)/h - a*(phi[1:]/D[1:] + phi[:-1]/D[:-1])/2 - c*u
+
+        k1 = compute_k(f_nm1, u_nm1, bd_cond_nm1,
+                u_nm1_interface, phi_nm1_interface)
+
+        k2 = compute_k(f_nm1_2, u_nm1 + dt/2 * k1, bd_cond_nm1_2,
+                u_nm1_2_interface, phi_nm1_2_interface)
+
+        u_n = u_nm1 + dt * k2
+
+        phi_ret = get_phi(u_n, u_interface, phi_interface, bd_cond)
+
         d = phi_ret / D  # We take the derivative of u
-
-        d_kp1 = d[1:]
-        d_km1 = d[:-1]
-        D_mp1_2 = D[1:]
-        D_mm1_2 = D[:-1]
-
-        u_n = dt / (1 + dt * c) * (f + u_nm1 / dt
-                                   + (D_mp1_2 * d_kp1 - D_mm1_2 * d_km1) / h
-                                   - a * (d_kp1 + d_km1) / 2)
 
         assert u_n.shape[0] == M
         if upper_domain:
@@ -140,9 +174,8 @@ class FiniteVolumesSpline2(Discretization):
             u_interface = u_n[-1] + h[-1] * d[-2] / 6 + h[-1] * d[-1] * 1 / 3
             phi_interface = phi_ret[-1]
             u_n = np.flipud(u_n)
-            phi_ret = np.flipud(phi_ret)
 
-        return u_n, u_interface, phi_interface, phi_ret
+        return u_n, u_interface, phi_interface
 
     """
         Same as integrate_one_step, but with full domain. The parameters are
@@ -175,7 +208,7 @@ class FiniteVolumesSpline2(Discretization):
     """
 
     def integrate_one_step_star(self, f1, f2,
-                                neumann, dirichlet, u_nm1, phi_nm1, get_phi=False):
+                                neumann, dirichlet, u_nm1, get_phi=False):
         M1, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
         M2, h2, D2, _ = self.M_h_D_Lambda(upper_domain=True)
 
@@ -216,23 +249,9 @@ class FiniteVolumesSpline2(Discretization):
         Y = self.get_Y_star()
 
         f = np.concatenate((f1, f2))
-        h = np.concatenate((h1, h2))
-
-        D_minus = np.concatenate((D1[1:], D2[1:-1]))
-        # D_plus means we take the value of D1 for the interface
-        D_plus = np.concatenate((D1[1:-1], D2[:-1]))
-        # D_mm1_2 is a D_plus means we take the value of D1 for the interface
-        D_mm1_2 = np.concatenate((D1[:-1], D2[:-2]))
-        # D_mm1_2 is a D_minus means we take the value of D1 for the interface
-        D_mp3_2 = np.concatenate((D1[2:], D2[1:]))
-
-        diff_u = u_nm1[1:] - u_nm1[:-1]
-        diff_u = phi_nm1[:-2]/D_mm1_2 * h[:-1] / 6 + \
-                phi_nm1[1:-1] * (h[:-1]/D_minus + h[1:]/D_plus) / 3 + \
-                phi_nm1[2:]/D_mp3_2 * h[1:] / 6
 
         rhs = dt / (1 + dt * c) * (f[1:] - f[:-1] +
-                                   (diff_u) / dt)
+                                   (u_nm1[1:] - u_nm1[:-1]) / dt)
         dirichlet = dirichlet - dt / (1 + dt * c) * (f[0] + u_nm1[0] / dt) #val = bar(u) + phi * ..
         # and bar(u)^n+1 = bar(u)^n + dt/h (phi_3_2 - phi_1_2) (for heat equation)
         neumann = neumann * D2[-1]
@@ -251,7 +270,6 @@ class FiniteVolumesSpline2(Discretization):
         D2_kp1_2 = D2[1:]
         D2_km1_2 = D2[:-1]
 
-
         u1_n = dt / (1 + dt * c) * (f[:M1] + u_nm1[:M1] / dt
                                     + (D1_kp1_2 * d1_kp1 - D1_km1_2 * d1_km1) / h1
                                     - a * (d1_kp1 + d1_km1) / 2)
@@ -263,9 +281,9 @@ class FiniteVolumesSpline2(Discretization):
         assert u1_n.shape[0] == M1
         assert u2_n.shape[0] == M2
 
-        u2_interface = u2_n[0] - h2[0] * d2[1] / 6 - h2[0] * d2[0] / 3
-        u1_interface = u1_n[-1] + h1[-1] * d1[-2] / 6 + h1[-1] * d1[-1] / 3
-        u1_bottom = u1_n[0] - h1[0] * d1[1] / 6 - h1[0] * d1[0] / 3
+        u2_interface = u2_n[0] - h2[0] * d2[1] / 6 - h2[0] * d2[0] * 1 / 3
+        u1_interface = u1_n[-1] + h1[-1] * d1[-2] / 6 + h1[-1] * d1[-1] * 1 / 3
+        u1_bottom = u1_n[0] - h1[0] * d1[1] / 6 - h1[0] * d1[0] * 1 / 3
 
         #print(u1_interface, u2_interface)
         #print(h2[0], h1[-1])
@@ -329,6 +347,9 @@ class FiniteVolumesSpline2(Discretization):
             Y_0 = Y_0[1:]
             Y_1 = Y_1[1:]
             Y_2 = Y_2[1:]
+            Y_0[:-1] = 1/6
+            Y_1[:-1] = 4/6
+            Y_2[:] = 1/6
 
             # Now we have the tridiagonal matrices, except for the Robin bd
             # condition
@@ -349,10 +370,13 @@ class FiniteVolumesSpline2(Discretization):
             Y_0 = Y_0[:-1]
             Y_1 = Y_1[:-1]
             Y_2 = Y_2[:-1]
+            Y_0[:] = 1/6
+            Y_1[1:] = 2/3
+            Y_2[1:] = 1/6
             # Now we have the tridiagonal matrices, except for the Robin bd
             # condition
             dirichlet_cond_extreme_point = dt / (1 + dt * c) * (
-                1 / h[-1] - a / (2 * D[-1])) + h[-1] / (3 * D[-1])
+                1 / h[-1] - a / (2 * D[-1])) + h[-1] * 1 / (3 * D[-1])
             dirichlet_cond_interior_point = dt / (1 + dt * c) * (
                 -1 / h[-1] - a / (2 * D[-2])) + h[-1] / (6 * D[-2])
             # Robin bd condition are Lambda * Dirichlet + Neumann:
@@ -364,38 +388,9 @@ class FiniteVolumesSpline2(Discretization):
             # We take the flipped, symmetric of the matrix:
         return (Y_0, Y_1, Y_2)
 
-
     def get_Y_star(self, M1=-1, M2=-1):
         """
-            Returns the tridiagonal matrix Y* in the shape asked by solve_linear.
-            Y* is the matrix we need to inverse to solve the full domain.
-            This function is useful to compute u*, solution of Y*u*=f*
-            It is also used in get_Y, with one of the arguments M_{1 | 2} = 1
-
-            (Does not actually return a np matrix, it returns (Y_0, Y_1, Y_2).
-            For details, see the documentation of utils_numeric.solve_linear)
-
-            The returned matrix is of dimension M_starxM_star
-            To compare with the coupled system and get:
-                u*[0:M] = u1[0:M] (i.e. for all m, u*[m] = u1[m]
-                u*[M-1:2M-1] = u2[0:M] (i.e. for all m, u*[M + m] = u2[m]
-            We should have:
-                - M_star = M1+M2 - 1
-                - D_star[0:M+1] = D1[0:M+1]
-                - h_star[0:M] = h1[0:M]
-                - D_star[M-1:2M-1] = D2[0:M]
-                - h_star[M-1:2M-1] = h2[0:M]
-
-            D1[-1] and D2[0] should both be the diffusivity at interface.
-            (2 values because it can be discontinuous, so D1[-1] is D(0^{-}) )
-
-            h{1,2}: step size (always positive) (float or ndarray, size: M{1,2})
-            D{1,2}: diffusivity (always positive) (float or ndarray, size: M{1,2}+1)
-                Note: if D{1,2} is a np.ndarray, it should be given on the half-steps,
-                        i.e. D{1,2}[m] is D{1,2}_{m+1/2}
-            a{1,2}: advection coefficient (should be positive) (float)
-            c{1,2}: reaction coefficient (should be positive) (float)
-
+            see @finite_volumes.py
         """
         if M1 == -1:
             M1, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
@@ -472,7 +467,7 @@ class FiniteVolumesSpline2(Discretization):
                                                                   D_plus - 1 / D_minus)) \
                 + (h_m / D_minus + h_mp1 / D_plus) / 3
         Y_1_bd = -dt / (1 + dt * c) * (1 / h[0] + a /
-                                       (2 * D1[0])) - h[0] / (3 * D1[0])
+                                       (2 * D1[0])) - h[0] * 1 / (3 * D1[0])
         Y_1 = np.concatenate(([Y_1_bd], Y_1, [1]))
 
         assert Y_1.shape[0] == M1 + M2 + 1
@@ -561,26 +556,25 @@ class FiniteVolumesSpline2(Discretization):
             eta2_neu = 1 + (lambda_moins / lambda_plus) ** M
             return eta2_dir, eta2_neu
 
-
     def sigma_modified(self, w, order_time, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2
         dt = self.DT
 
-        # We need to change this
         s = self.s_time_modif(w, order_time) + self.C
-        s1, s2 = s, s
+        s1 = s
+        s2 = s
         if order_equations > 0:
-            s1 = s - s**2*h1**2/12/D1 # I found 12 and Florian 8
-            s2 = s - s**2*h2**2/12/D2 # it is 12 when starting from discrete.
-            # problem of sign tho
+            s1 -= s**2*h1**2/12/D1
+            s2 -= s**2*h2**2/12/D2
 
         sig1 = np.sqrt(s1/self.D1)
         sig2 = -np.sqrt(s2/self.D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
+        # This code should not run and is here as an example
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2
@@ -596,8 +590,16 @@ class FiniteVolumesSpline2(Discretization):
         if order_operators > 1:
             eta_dir_modif += hj**3*sigj**2/24 
         if order_operators >= 2:
-            eta_dir_modif += - 7*hj**4*sigj**3/360- dt**2/2*w**2/(sigj)
+            eta_dir_modif += - 7*hj**4*sigj**3/360
+        if order_operators >= 3:
+            eta_dir_modif += - dt**2/2*w**2/(sigj)
         return eta_dir_modif, eta_neu_modif
+
+    def s_time_modif(self, w, order):
+        s = w * 1j
+        if order > 1:
+            s -= w**3 * self.DT**2/6 * 1j
+        return s
 
     """
         Simple function to return h in each subdomains,
@@ -612,18 +614,17 @@ class FiniteVolumesSpline2(Discretization):
         size_domain_2 = self.SIZE_DOMAIN_2
         M1 = self.M1
         M2 = self.M2
-        h1 = size_domain_1 / M1 + np.zeros(M1)
-        h2 = size_domain_2 / M2 + np.zeros(M2)
+        h1 = self.SIZE_DOMAIN_1 / self.M1 + np.zeros(self.M1)
+        h2 = self.SIZE_DOMAIN_2 / self.M2 + np.zeros(self.M2)
         return h1, h2
 
-    """
-        Simple function to return D in each subdomains,
-        in the framework of finite differences.
-        provide continuous functions accepting ndarray
-        for D1 and D2, and returns the right coefficients.
-    """
-
     def get_D(self, h1=None, h2=None, function_D1=None, function_D2=None):
+        """
+            Simple function to return D in each subdomains,
+            in the framework of finite differences.
+            provide continuous functions accepting ndarray
+            for D1 and D2, and returns the right coefficients.
+        """
         if h1 is None or h2 is None:
             h1, h2 = self.get_h()
         if function_D1 is None:
@@ -638,14 +639,13 @@ class FiniteVolumesSpline2(Discretization):
         return D1, D2
 
     def name(self):
-        return "Volumes finis (splines quadratiques)"
+        return "Volumes finis, Spline quadratiques, RK2"
 
     def repr(self):
-        return "finite volumes (spl2)"
+        return "finite volumes spl2rk2"
     
     def modified_equations_fun(self):
-        raise NotImplementedError("use discretization methods instead")
-        return cv_rate.continuous_analytic_rate_robin_robin_modified_vol
+        return cv_rate.continuous_analytic_rate_robin_robin_modified_vol_rk4
 
 
 if __name__ == "__main__":
