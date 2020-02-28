@@ -904,7 +904,7 @@ def fig_compare_modif_approaches_vol_spline2():
     dis = DEFAULT.new(FiniteVolumesSpline2)
     #setup_modified = [(0,0,0, "continuous"), (4,0,0,"time"), (4, 0, 4, "time+space"),(4, 1.5, 4, "time+space+op")]
     dis.C = 0.01
-    setup_modified = [(0,0,0, "continuous"), (4,0,4,"space")]
+    setup_modified = [(0,0,0, "continuous"), (0,1,4,"space")]
     fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified)
     ax.set_title("Finite Volumes : modified convergence factor")
     show_or_save("fig_compare_modif_approaches_vol")
@@ -912,7 +912,7 @@ def fig_compare_modif_approaches_vol_spline2():
 def fig_compare_modif_approaches_volspl2rk2():
     dis = DEFAULT.new(Rk2FiniteVolumesSpline2)
     dis.C = 0.01
-    setup_modified = [(0,0,0, "continuous"), (0,0,4,"space")]
+    setup_modified = [(0,0,0, "continuous"), (0,1,4,"space")]
     fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified)
     ax.set_title("RK2 : modified convergence factor")
     show_or_save("fig_compare_modif_approaches_volspl2rk2")

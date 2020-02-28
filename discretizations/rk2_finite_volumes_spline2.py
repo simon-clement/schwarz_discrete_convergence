@@ -566,8 +566,8 @@ class Rk2FiniteVolumesSpline2(Discretization):
         s1 = s
         s2 = s
         if order_equations > 0:
-            s1 -= s**2*h1**2/12/D1
-            s2 -= s**2*h2**2/12/D2
+            s1 += s**2*h1**2/12/D1
+            s2 += s**2*h2**2/12/D2
 
         sig1 = np.sqrt(s1/self.D1)
         sig2 = -np.sqrt(s2/self.D2)
@@ -587,6 +587,8 @@ class Rk2FiniteVolumesSpline2(Discretization):
             Dj = D2
         eta_neu_modif = Dj
         eta_dir_modif = 1/sigj
+        if order_operators >= 1:
+            eta_dir_modif += (1j*w+self.C)*hj**2/(12*Dj) / sigj
         if order_operators > 1:
             eta_dir_modif += hj**3*sigj**2/24 
         if order_operators >= 2:

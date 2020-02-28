@@ -572,8 +572,8 @@ class FiniteVolumesSpline2(Discretization):
         s = self.s_time_modif(w, order_time) + self.C
         s1, s2 = s, s
         if order_equations > 0:
-            s1 = s - s**2*h1**2/12/D1 # I found 12 and Florian 8
-            s2 = s - s**2*h2**2/12/D2 # it is 12 when starting from discrete.
+            s1 += s**2*h1**2/12/D1 # I found 12 and Florian 8
+            s2 += s**2*h2**2/12/D2 # it is 12 when starting from discrete.
             # problem of sign tho
 
         sig1 = np.sqrt(s1/self.D1)
@@ -593,6 +593,8 @@ class FiniteVolumesSpline2(Discretization):
             Dj = D2
         eta_neu_modif = Dj
         eta_dir_modif = 1/sigj
+        if order_operators >= 1:
+            eta_dir_modif += (1j*w+self.C)*hj**2/(12*Dj) / sigj
         if order_operators > 1:
             eta_dir_modif += hj**3*sigj**2/24 
         if order_operators >= 2:
