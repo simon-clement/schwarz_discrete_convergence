@@ -131,6 +131,7 @@ class Rk4FiniteVolumes(Discretization):
                                                   [bd_cond*D[-1]])))
 
             def compute_k(f, u, bd_cond, u_interface, phi_interface):
+                #print(u, u_interface, phi_interface, bd_cond)
                 phi = get_phi(u, u_interface, phi_interface, bd_cond)
                 return f + np.diff(phi)/h[0] - a*(phi[1:]/D[1:] + phi[:-1]/D[:-1])/2 - c*u
         else: # on est dans le domaine du bas
@@ -562,7 +563,7 @@ class Rk4FiniteVolumes(Discretization):
         D1, D2 = self.D1, self.D2
         dt = self.DT
 
-        s = self.s_time_modif(w, dt, order_time) + self.C
+        s = self.s_time_modif(w, order_time) + self.C
         sig1 = np.sqrt(s/self.D1)
         sig2 = -np.sqrt(s/self.D2)
         return sig1, sig2

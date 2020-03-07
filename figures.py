@@ -27,7 +27,7 @@ from cv_rate import continuous_analytic_rate_robin_robin
 from cv_rate import analytic_robin_robin
 from cv_rate import rate_fast
 from cv_rate import raw_simulation
-from cv_rate import frequency_simulation, frequency_simulation_slow
+from cv_rate import frequency_simulation
 from memoisation import memoised, FunMem
 import matplotlib.pyplot as plt
 
@@ -1004,6 +1004,468 @@ def fig_plzplotwhatIwant():
     ax.grid()
     fig.legend(loc="center right")
     plt.show()
+
+def fig_compare_full_discrete_fv_robin():
+    dis = DEFAULT.new(FiniteVolumes)
+    lambda_1 = .1
+    lambda_2 = -.5
+    dis.LAMBDA_1 = lambda_1
+    dis.LAMBDA_2 = lambda_2
+    dis.D1 = .9
+    dis.D2 = 1.
+    #dis.DT *= 1e3
+    fig, ax = compare_full_discrete(dis)
+    ax.set_title("Finite Volumes, RK4 : discrete validation")
+    show_or_save("fig_compare_full_discrete_fv")
+
+def fig_compare_full_discrete_fv_dirichlet_neumann():
+    dis = DEFAULT.new(FiniteVolumes)
+    lambda_1 = 1e9
+    lambda_2 = -.0
+    dis.LAMBDA_1 = lambda_1
+    dis.LAMBDA_2 = lambda_2
+    dis.D1 = .2
+    dis.D2 = 1.
+    fig, ax = compare_full_discrete(dis)
+    ax.set_title("Finite Volumes : discrete validation")
+    show_or_save("fig_compare_full_discrete_fv")
+
+def fig_compare_full_discrete_fd_dirichlet_neumann():
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    lambda_1 = 1e9
+    lambda_2 = -.0
+    dis.LAMBDA_1 = lambda_1
+    dis.LAMBDA_2 = lambda_2
+    dis.D1 = .9
+    dis.D2 = 1.
+    #dis.DT *= 100
+    fig, ax = compare_full_discrete(dis)
+    ax.set_title("Finite Diff (naive neumann) : discrete validation")
+    show_or_save("fig_compare_full_discrete_fd")
+
+def compare_full_discrete(dis):
+    """
+        Compare the approaches used with modified equations :
+        plot cv rate :
+        - simulated
+        - with discrete in space time if full_discrete == True
+        - with continuous approach if continuous==True
+        - with all the modified setups (modified in time,
+                                        modified interface operators,
+                                        modified space equations,
+                                        label)
+    """
+    # 0.5; -0.5 is generally a good choice with our parameters
+    N = DEFAULT.N * 5
+
+    # we take a little more points
+    facteur = 3
+    dis.SIZE_DOMAIN_1 *= facteur
+    dis.SIZE_DOMAIN_2 *= facteur
+    dis.M1 = int(dis.M1*facteur)
+    dis.M2 = int(dis.M2*facteur)
+
+    facteur_precision = 10
+    dis.M1 = int(dis.M1*facteur_precision)
+    dis.M2 = int(dis.M2*facteur_precision)
+
+    dt = dis.DT# / 80
+    dis.DT = dt
+    h = dis.SIZE_DOMAIN_1 / dis.M1
+    # print("Courant Parabolic number:", dis.D1 * dt/(h*h))
+
+    #axis_freq = np.linspace(-pi / dt, pi / dt, N)
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[N//2] = 1/2
+    # w = 2 pi k / (N)
+    axis_freq = 2 * pi*all_k / N / dt
+
+
+    fig, ax = plt.subplots()
+
+
+    def func_std(arr):
+        return np.std(arr, axis=0)
+    def func_esp(arr):
+        return np.mean(np.abs(arr), axis=0)
+    def func_first(arr):
+        return np.abs(arr[0])#second elmeent
+
+    def simu_and_plot(func_array, func_random=None, name="simulation", number_samples=2, fmt=""):
+        simulated_freq = frequency_simulation(dis, N,
+                number_samples=number_samples, func_on_array=func_array,
+                random_initializer=func_random, NUMBER_IT=4, debug=True)
+        simulated_cv = simulated_freq[2] / simulated_freq[1]
+        ax.plot(axis_freq*dt, simulated_cv, fmt, label=name)
+
+
+    #simu_and_plot(func_std, name="std")
+    #simu_and_plot(func_esp, name="esperance")
+    #simu_and_plot(func_first, name="first element")
+
+    def determinist_1_everywhere(N):
+        return np.ones(N)
+
+    def determinist_1_then_0_everywhere(N):
+        ret = np.zeros(N)
+        ret[0] = 1
+        return ret
+
+    """
+    simu_and_plot(func_first, func_random=None,
+            name="white noise", number_samples=1)
+    simu_and_plot(func_first, func_random=determinist_1_everywhere,
+            name="1 everywhere", number_samples=1)
+    simu_and_plot(func_first, func_random=determinist_1_then_0_everywhere,
+            name="1 then 0 everywhere", number_samples=1)
+    """
+
+    simu_and_plot(func_esp, func_random=sample_gaussian_process,
+            name="gaussian process", number_samples=1)
+    simu_and_plot(func_esp, func_random=None,
+            name="white signal", number_samples=1)
+    simu_and_plot(func_first, func_random=determinist_1_then_0_everywhere,
+            name="1 then 0 everywhere", number_samples=1)
+
+
+    discrete = [analytic_robin_robin(dis, w=w,
+        semi_discrete=False, N=N) for w in axis_freq]
+
+    continuous = [continuous_analytic_rate_robin_robin(dis, w=w) for w in axis_freq]
+    #ax.plot(axis_freq*dt, semi_discrete_modif_time, "k--", label="discrete in space and time")
+    #ax.semilogy(axis_freq*dt, np.abs(simulated_cv - np.array(discrete))/simulated_cv, label="discrete")
+    ax.plot(axis_freq*dt, np.array(discrete), "k--", label="discrete")
+    ax.plot(axis_freq*dt, np.array(continuous), "r--", label="continuous")
+
+
+    ax.set_xlabel("$\\omega*\\delta t$")
+    #ax.set_ylabel("$\\frac{\\hat{\\rho}-(\\hat{\\rho}_{{simulation}})}{\\hat{\\rho}_{{simulation}}}$")
+    ax.set_ylabel("Convergence factor $|\\hat{\\rho}}|$")
+    #ax.set_xlim(left=-5*np.pi/dt/N, right=axis_freq[-1]*dt)
+    #ax.set_ylim(bottom=0, top=1)
+    ax.grid()
+    fig.legend(loc="center right")
+    return fig, ax
+
+def sample_weighted_gaussian_process(N, s=1):
+    weight = np.exp(-10 * np.linspace(0,1, N))
+    ret = sample_gaussian_process(N, s)
+    if s > 1:
+        for i in range(s):
+            ret[:,i] *= weight
+    else:
+        ret *= weight
+    return ret
+
+def sample_gaussian_process(N, s=1):
+    from scipy.stats import multivariate_normal
+    m = N
+    xs = np.linspace(0,5*m/30,m) # Test input vector
+    x=np.array([0]) # Observed inputs:  only u(t=0) is known
+    f=np.array([0]) # Observed function values
+    l = 1.5  # hyperparameters
+    sf2 = 1
+
+    def k(x, xp, l):
+        return sf2*np.exp(-1/(2*l**2)*np.abs(x[:,np.newaxis]-xp[:,np.newaxis].T)**2)
+    Kss =  k(xs, xs, l)
+    Ks =  k(x, xs, l)
+    K = k(x, x, l)
+    mu_post = (Ks.T@np.linalg.inv(K))@f
+    K_post = Kss - Ks.T@np.linalg.inv(K)@Ks
+    return multivariate_normal(mean=mu_post,cov=K_post,allow_singular=True).rvs(s).T
+
+def fig_all_random_init():
+    np.random.seed(10)
+    plt.plot(2*np.random.random(100)-1, label="whitenoise")
+    plt.plot(sample_gaussian_process(100, s=3), label="Gaussian process", color="grey") # Plot the samples
+    plt.plot(np.concatenate(([0], [1], np.zeros(98))), label="Dirac: Constant Fourier Transform")
+    plt.title('Different initializations')
+    plt.legend()
+    plt.show()
+def fig_all_random_init_Fourier_domain():
+    np.random.seed(10)
+    w = np.linspace(-np.pi, np.pi, 100)
+    plt.plot(w, np.fft.fftshift(np.fft.fft(2*np.random.random(100)-1)), label="whitenoise")
+    plt.plot(w[1:], np.fft.fftshift(np.fft.fft(sample_gaussian_process(100, s=2)[1:])), label="Gaussian process", color="grey") # Plot the samples
+    plt.plot(w, np.fft.fftshift(np.fft.fft(np.concatenate(([1], np.zeros(99))))), label="Dirac: Constant Fourier Transform")
+    plt.title('Different initializations')
+    plt.xlim(0,np.pi)
+    plt.grid()
+    plt.legend()
+    plt.show()
+
+def fig_gaussian_process0init():
+    np.random.seed(10)
+    plt.plot(sample_gaussian_process(100, s=6),'gray') # Plot the samples
+    plt.title('gaussian processes')
+    plt.show()
+
+def fig_weighted_gaussian_process0init():
+    np.random.seed(10)
+    plt.plot(sample_weighted_gaussian_process(100, s=6),'gray') # Plot the samples
+    plt.title('gaussian processes')
+    plt.show()
+
+def visualize_modif_simu(dis, N, T, number_samples):
+    """
+        Compare the approaches used with modified equations :
+        plot cv rate :
+        - simulated
+        - with discrete in space time if full_discrete == True
+        - with continuous approach if continuous==True
+        - with all the modified setups (modified in time,
+                                        modified interface operators,
+                                        modified space equations,
+                                        label)
+    """
+    # 0.5; -0.5 is generally a good choice with our parameters
+    dt = dis.DT
+
+    #axis_freq = np.linspace(-pi / dt, pi / dt, N)
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[N//2] = 1/2
+    # w = 2 pi k / (N)
+    axis_freq = 2 * pi*all_k / N / dt
+
+    simulated_freq = memoised(frequency_simulation,
+                           dis,
+                           N,
+                           number_samples=number_samples)
+    simulated_cv = simulated_freq[2] / simulated_freq[1]
+    fig, ax = plt.subplots()
+    print(simulated_freq.shape)
+    ax.plot(axis_freq*dt, simulated_cv, label="simulation")
+
+    discrete = [analytic_robin_robin(dis, w=w, semi_discrete=False, N=N)
+                                        for w in axis_freq]
+    ax.plot(axis_freq*dt, discrete, label="discrete")
+
+    h1, h2 = dis.get_h()
+    h = h2[0]
+    dt_other, N_other = get_dt_N(h, dis.COURANT_NUMBER, T, dis.D1)
+
+    axis_freq = np.flipud(pi/np.linspace(3*dt, T, N))
+    all_factors = [dis.analytic_robin_robin_modified(w) for w in axis_freq]
+    """
+    continuous_modified = [dis.analytic_robin_robin_modified(w=w, Lambda_1=lambda_1, Lambda_2=lambda_2,
+                                                             order_time=float('inf'),
+                                                             order_equations=float('inf'),
+                                                             order_operators=float('inf'))
+                                        for w in axis_freq]
+    """
+
+    ax.plot(axis_freq*dt, all_factors, label="modified")
+
+    """
+    continuous_modified_std = [dis.analytic_robin_robin_modified(w=w, Lambda_1=.5, Lambda_2=-.5,
+                                                             order_time=float('inf'),
+                                                             order_equations=float('inf'),
+                                                             order_operators=float('inf'))
+                                        for w in axis_freq]
+
+    ax.plot(axis_freq*dt, continuous_modified_std, label="modified with l=+-.5")
+    """
+
+    ax.set_xlabel("$\\omega*\\delta t$")
+    ax.set_ylabel("$\\frac{\\hat{\\rho}-(\\hat{\\rho}_{{simulation}})}{\\hat{\\rho}_{{simulation}}}$")
+    ax.set_xlim(left=-5*np.pi/dt/N, right=axis_freq[-1]*dt)
+    ax.set_ylim(bottom=0, top=1)
+    ax.grid()
+    fig.legend(loc="center right")
+    plt.show()
+    return
+
+
+def fig_validate_analysis_modif_approach():
+    """
+        Compare the equations used with modified equations :
+        plot cv rate :
+        - simulated
+        - with continuous approach
+        - with semi-discrete in space, modif in time
+        - with modified equations, modified operators
+        - with interface operator
+    """
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    dis.D1 = dis.D2
+    dis.C = 0
+    dis.DT *= 1
+    # 0.5; -0.5 is generally a good choice with our parameters
+    lambda_1 = 0.1
+    lambda_2 = -0.5
+    N = DEFAULT.N * 10
+
+    # we take a little more points
+    facteur = 1
+    dis.M1 = int(dis.M1*facteur)
+    dis.M2 = int(dis.M2*facteur)
+
+    dt = dis.DT
+
+    axis_freq = np.linspace(-pi / dt, pi / dt, N)
+
+    fig, ax = plt.subplots()
+
+    simulated_freq = memoised(frequency_simulation,
+                           dis,
+                           N,
+                           Lambda_1=lambda_1,
+                           Lambda_2=lambda_2,
+                           number_samples=5)
+    simulated_cv = simulated_freq[2] / simulated_freq[1]
+    nomodif_approach = [continuous_analytic_rate_robin_robin(dis, w=w,
+                                                               Lambda_1=lambda_1,
+                                                               Lambda_2=lambda_2)
+                                        for w in axis_freq]
+    continuous_modified_basic = [cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+    continuous_modified_simpler = [cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq_simple_formula(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+
+
+    ax.plot(axis_freq, simulated_cv, label="simulation")
+    ax.plot(axis_freq, nomodif_approach, label="continuous, not modified")
+    ax.plot(axis_freq, continuous_modified_basic, label="continuous modified equations, initial formula")
+    ax.plot(axis_freq, continuous_modified_simpler, label="continuous modified equations, simpler (but false) formula")
+
+    ax.set_xlabel("$\\omega$")
+    ax.set_ylabel("$\\hat{\\rho}$")
+
+    fig.legend()
+    show_or_save("fig_validate_analysis_modif_approach")
+
+def fig_validate_analysis_modif_approach():
+    """
+        Compare the equations used with modified equations :
+        plot cv rate :
+        - simulated
+        - with continuous approach
+        - with semi-discrete in space, modif in time
+        - with modified equations, modified operators
+        - with interface operator
+    """
+    dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
+    dis.D1 = dis.D2
+    dis.C = 0
+    dis.DT *= 1
+    # 0.5; -0.5 is generally a good choice with our parameters
+    lambda_1 = 0.1
+    lambda_2 = -0.5
+    N = DEFAULT.N * 10
+
+    # we take a little more points
+    facteur = 1
+    dis.M1 = int(dis.M1*facteur)
+    dis.M2 = int(dis.M2*facteur)
+
+    dt = dis.DT
+
+    axis_freq = np.linspace(-pi / dt, pi / dt, N)
+
+    fig, ax = plt.subplots()
+
+    simulated_freq = memoised(frequency_simulation,
+                           dis,
+                           N,
+                           Lambda_1=lambda_1,
+                           Lambda_2=lambda_2,
+                           number_samples=5)
+    simulated_cv = simulated_freq[2] / simulated_freq[1]
+    nomodif_approach = [continuous_analytic_rate_robin_robin(dis, w=w,
+                                                               Lambda_1=lambda_1,
+                                                               Lambda_2=lambda_2)
+                                        for w in axis_freq]
+    continuous_modified_basic = [cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+    continuous_modified_simpler = [cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq_simple_formula(dis,
+                                        Lambda_1=lambda_1, Lambda_2=lambda_2, w=w)
+                                        for w in axis_freq]
+
+
+    ax.plot(axis_freq, simulated_cv, label="simulation")
+    ax.plot(axis_freq, nomodif_approach, label="continuous, not modified")
+    ax.plot(axis_freq, continuous_modified_basic, label="continuous modified equations, initial formula")
+    ax.plot(axis_freq, continuous_modified_simpler, label="continuous modified equations, simpler (but false) formula")
+
+    ax.set_xlabel("$\\omega$")
+    ax.set_ylabel("$\\hat{\\rho}$")
+
+    fig.legend()
+    show_or_save("fig_validate_analysis_modif_approach")
+
+
+
+def analysis_frequency_error(discretization, N, iteration=1, lambda_1=0.6139250052109033, fig=None, ax=None, legend=True):
+    if fig is None:
+        fig, ax = plt.subplots()
+    def continuous_analytic_error_neumann(discretization, w):
+        D1 = discretization.D1
+        D2 = discretization.D2
+        # sig1 is \sigma^1_{+}
+        sig1 = np.sqrt(np.abs(w) / (2 * D1)) * (1 + np.abs(w) / w * 1j)
+        # sig2 is \sigma^2_{-}
+        sig2 = -np.sqrt(np.abs(w) / (2 * D2)) * (1 + np.abs(w) / w * 1j)
+        return D1 * sig1 / (D2 * sig2)
+
+    colors = ['r', 'g', 'y', 'm']
+    for dis, col, col2 in zip(discretization, colors, colors[::-1]):
+        # first: find a correct lambda : we take the optimal yielded by
+        # continuous analysis : 0.6 (dirichlet neumann case : just put 1e13 in lambda_1)
+
+        dt = dis.DT
+        axis_freq = np.linspace(-pi / dt, pi / dt, N)
+
+        frequencies = memoised(frequency_simulation,
+                               dis,
+                               N,
+                               Lambda_1=lambda_1,
+                               number_samples=135)
+        linebe4, = ax.semilogy(axis_freq,
+                 frequencies[iteration],
+                 col + ':')
+        lineafter, = ax.semilogy(axis_freq,
+                 frequencies[iteration+1],
+                 col2 + '-')
+
+        real_freq_discrete = np.fft.fftshift(np.array([
+            analytic_robin_robin(dis,
+                                 w=w,
+                                 Lambda_1=lambda_1,
+                                 semi_discrete=False,
+                                 N=N) for w in axis_freq
+        ]))
+
+        real_freq_continuous = np.array([
+            continuous_analytic_rate_robin_neumann(dis, w=w, Lambda_1=lambda_1)
+            for w in axis_freq
+        ])
+
+        linethebe4, = ax.semilogy(axis_freq,
+                 real_freq_continuous * frequencies[iteration],
+                 'b-.')
+        linetheafter, = ax.semilogy(axis_freq,
+                 real_freq_discrete * frequencies[iteration],
+                 'k',
+                 linestyle='dashed')
+
+    if legend:
+        linebe4.set_label("Observé avant l'itération")
+        lineafter.set_label("Observé après l'itération")
+        linethebe4.set_label("Théorique après l'itération (continu)")
+        linetheafter.set_label("Théorique après l'itération (discret)")
+        fig.legend(loc="lower center")
+    ax.set_xlabel("$\\omega$")
+    ax.set_ylabel("Erreur $\\hat{e}$")
 
 def compare_modif_approaches(dis, full_discrete=False, setup_modified=[(0,0,0, "continuous"), (4, 4, 4, "modified")], semi_discrete=False):
     """

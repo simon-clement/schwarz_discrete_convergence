@@ -526,36 +526,13 @@ def raw_simulation(discretization, N, number_samples=1000, **kwargs):
         return np.mean(np.abs(errors), axis=0)
 
 
-def frequency_simulation(discretization, N, number_samples=100, **kwargs):
-    """
-        Simulate and returns directly errors in frequencial domain.
-        number_samples simulations are done to have
-        an average on all possible first guess.
-        Every argument should be given in discretization.
-        N is the number of time steps.
-        kwargs can contain any argument of interface_errors:
-        Lambda_1, Lambda_2, a, c, dt, M1, M2,
-    """
-    try:
-        raise
-        import rust_mod
-        errors = rust_mod.errors_raw(discretization,
-                                     N,
-                                     number_seeds=number_samples,
-                                     **kwargs)
-        freq_err = np.fft.fftshift(np.fft.fft(errors, axis=-1), axes=(-1, ))
-        return np.mean(np.real(freq_err), axis=0)
-    except:
-        print( "Cannot make a fast frequency simulation..." +
-               "Going to pure python (but it will take some time)")
-        return frequency_simulation_slow(discretization, N, number_samples, **kwargs)
-
-def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
+def frequency_simulation(discretization, N, number_samples=100, func_on_array=None,**kwargs):
     """
         See @frequency_simulation.
         This function can be used if you are not sure of the results of the rust module.
         kwargs can contain any argument of interface_errors:
         Lambda_1, Lambda_2, a, c, dt, M1, M2,
+        if func_on_array is none, The first 
     """
     import concurrent.futures
     from numpy.fft import fft, fftshift
@@ -568,16 +545,19 @@ def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
 
     with concurrent.futures.ProcessPoolExecutor() as executor:
         errors = []
-        #TODO remettre executor.map
         for result in progressbar(map(to_map, range(number_samples))):
             errors += [result]
     freq_err = fftshift(fft(np.array(errors), axis=-1), axes=(-1, ))
-    return np.std(freq_err, axis=0)
+    def func_std_default(arr):
+        return np.std(arr, axis=0)
+    if func_on_array is None:
+        func_on_array = func_std_default
+    return func_on_array(freq_err)
 
 
 def interface_errors(discretization,
                      time_window_len,
-                     seed=9380,
+                     seed=9380, random_initializer=None, debug=False,
                      NUMBER_IT=2):
     """
         returns errors at interface from beginning (first guess) until the end.
@@ -612,10 +592,14 @@ def interface_errors(discretization,
     phi2_0_fvol = np.zeros(M2 + 1)
     # random false initialization:
     np.random.seed(seed)
-    all_u1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
-    all_phi1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
-    #all_u1_interface[-1] /= 1000
-    #all_phi1_interface[-1] /= 1000
+    def random_white(N):
+        return  2 * (np.random.rand(time_window_len) - 0.5)
+    if random_initializer == None:
+        random_initializer = random_white
+
+    all_u1_interface = np.concatenate(([0],random_initializer(time_window_len)))
+    all_phi1_interface = np.concatenate(([0],random_initializer(time_window_len)))
+    # all_phi1_interface[-1] /= 1000
     ret = [all_u1_interface[1:]]
     # Beginning of schwarz iterations:
     from scipy.interpolate import interp1d
@@ -697,6 +681,47 @@ def interface_errors(discretization,
             all_phi1_interface += [phi_interface]
 
         ret += [all_u1_interface[1:]]
+        """
+    if debug:
+        # This part computes a posteriori the integrals given by Sophie
+        # (pages ~71-72)
+        N = time_window_len
+        dt = discretization.DT
+        T = N*dt
+        #axis_freq = np.linspace(-pi / dt, pi / dt, N)
+        if N % 2 == 0: # even
+            all_k = np.linspace(-N/2, N/2 - 1, N)
+        else: #odd
+            all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+        all_k[N//2] = 1/2
+        # w = 2 pi k / (N)
+        w = 2 * pi*all_k / N / dt
+
+        from numpy.fft import fft, fftshift
+        Uw = fftshift(fft(np.array([ret]), axis=-1), axes=(-1, ))[0][1]
+        uT = last_u1
+        # ce qui doit etre petit c'est int(int(UwuTe^{-iwT}) / DUw^2)
+        first_int = np.zeros_like(w) + 0*1j
+        second_int = np.zeros_like(w) + 0*1j
+        xj = 0
+        for j in range(M1):
+            xi = 0
+            for i in range(j):
+                first_int += (uT[i]*Uw*np.exp(np.sqrt(1j*w)*xi)*np.exp(1j*w*T))
+                xi += h1[i]
+            second_int += first_int/Uw*np.exp(np.sqrt(1j*w)*xi)**2
+            xj += h1[j]
+
+        print(np.abs(second_int))
+    if debug:
+        from numpy.fft import fft, fftshift
+        Uw = fftshift(fft(np.array([ret]), axis=-1), axes=(-1, ))[0][1]
+        uT = last_u1
+        print("uT:", uT)
+        print("uw:", Uw)
+
+        """
+
 
     return ret
 
