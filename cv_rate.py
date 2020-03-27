@@ -569,7 +569,7 @@ def frequency_simulation_slow(discretization, N, number_samples=100, **kwargs):
     with concurrent.futures.ProcessPoolExecutor() as executor:
         errors = []
         #TODO remettre executor.map
-        for result in progressbar(map(to_map, range(number_samples))):
+        for result in progressbar(executor.map(to_map, range(number_samples))):
             errors += [result]
     freq_err = fftshift(fft(np.array(errors), axis=-1), axes=(-1, ))
     return np.std(freq_err, axis=0)

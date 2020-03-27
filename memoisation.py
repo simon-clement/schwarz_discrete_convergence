@@ -5,6 +5,10 @@
     The only possible parameters are litterals...
     If you want to use an other parameter,
     just implement its __hash__ and __eq__ function.
+    This module is exactly "percache", except it is less efficient
+    and does not uses decoratos. I prefer having something I know
+    to be able to delete only small parts of the cache.
+    In a futur version of the code I may use the cache.
 """
 import numpy as np
 
@@ -42,12 +46,14 @@ def clean():
                       MEMOISATION_FOLDER_NAME)
 
 
-def memoised(func_to_memoise, *args_mem, **kwargs_mem):
+def memoised(func_to_memoise, *args_mem, ignore_cached=False, **kwargs_mem):
     """
         memoise function "fun" with arguments given.
         just replace your call:
         fun(my_arg1, my_arg2, my_kwarg1=my_val1)
         by: memoised(fun, my_arg1, my_arg2, my_kwarg1=my_val1)
+        if ignore_cached is True, fun will be called even if it is in the cache.
+        The cache content is replaced by the new value.
     """
     fun = func_to_memoise
     import os
@@ -62,7 +68,7 @@ def memoised(func_to_memoise, *args_mem, **kwargs_mem):
     key_dic = (*args_mem, tuple((key, val)
                                 for key, val in sorted(kwargs_mem.items())))
 
-    if key_dic in dic:
+    if key_dic in dic and not ignore_cached:
         # dic[key_dic] is the name of the file we're interested in.
         try:
             res = np.load(dic[key_dic], allow_pickle=True)[()][KEY_FOR_UNIQUE_ITEM]
@@ -81,7 +87,7 @@ def memoised(func_to_memoise, *args_mem, **kwargs_mem):
     # Store the filename in the dictionnary...
     while filename_res in dic.values():
         print("warning: collision in hashes or bug; very rare event")
-        filename_res += str(int(np.random.rand()*10))
+        filename_res += str(int(np.random.rand()*1000))
 
     try:
         dic = np.load(filename_dict, allow_pickle=True)[()]
@@ -106,7 +112,7 @@ class FunMem():
         memoised: for example,
         memoised(minimize_scalar, foo)
 
-        Have a unsafe __repr__, which is the
+        Has a unsafe __repr__, which is the
         name of the function.
     """
 

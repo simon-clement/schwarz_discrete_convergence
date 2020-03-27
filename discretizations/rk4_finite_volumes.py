@@ -562,7 +562,7 @@ class Rk4FiniteVolumes(Discretization):
         D1, D2 = self.D1, self.D2
         dt = self.DT
 
-        s = self.s_time_modif(w, dt, order_time) + self.C
+        s = self.s_time_modif(w, order_time) + self.C
         sig1 = np.sqrt(s/self.D1)
         sig2 = -np.sqrt(s/self.D2)
         return sig1, sig2
