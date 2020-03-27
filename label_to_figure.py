@@ -6,7 +6,7 @@ You can then look for this function name in the file figures.py """
 FIGURE = {}
 FIGURE["1"] = "fig_compare_continuous_discrete_rate_robin_robin_vol"
 FIGURE["2"] = "fig_compare_continuous_discrete_rate_robin_robin_vol_spline2"
-FIGURE["3"] = "figDNContinuousDiscrete"
+FIGURE["3"] = "fig_compareSettingsDirichletNeumann"
 FIGURE["3.2"] = "fig_schwarz_method_converging_to_full_domain_solution_global"
 FIGURE["4.1"] = "fig_contour_advection"
 FIGURE["4.2"] = "fig_plot3D_function_to_minimize"

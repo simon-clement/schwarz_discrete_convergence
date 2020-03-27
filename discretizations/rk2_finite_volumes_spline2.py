@@ -16,25 +16,8 @@ class Rk2FiniteVolumesSpline2(Discretization):
         give default values of all variables.
     """
 
-    def __init__(self,
-                 A=None,
-                 C=None,
-                 D1=None,
-                 D2=None,
-                 M1=None,
-                 M2=None,
-                 SIZE_DOMAIN_1=None,
-                 SIZE_DOMAIN_2=None,
-                 LAMBDA_1=None,
-                 LAMBDA_2=None,
-                 DT=None):
-        self.A, self.C, self.D1, self.D2, \
-            self.M1, self.M2, self.SIZE_DOMAIN_1, \
-            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
-            self.LAMBDA_2, self.DT = A, \
-            C, D1, D2, \
-            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-            LAMBDA_1, LAMBDA_2, DT
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     """
         Entry point in the module.
@@ -499,6 +482,38 @@ class Rk2FiniteVolumesSpline2(Discretization):
 
         return self.get_Y(upper_domain=upper_domain)
 
+    def lambda_1_2_pm(self, s):
+        # The convention here is: \\lambda_- is the main root,
+        # and \\lambda_+ is the secondary root.
+        """
+            Gives the \\lambda_\\pm:
+            returns \\lambda_{-, j=1}, \\lambda_{-, j=2}, \\lambda_{+, j=1}, \\lambda_{+, j=2}.
+        """
+        assert s is not None
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=False)
+        a, c, dt = self.get_a_c_dt()
+        h = -h[0]
+        Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (6 * D)
+        Y_1 = 1 / (s + c) * 2 / h + 2 * h / (3 * D)
+        Y_2 = -1 / (s + c) * (1 / h - a / (2 * D)) + h / (6 * D)
+
+        lam1_m = (Y_1 - np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        lam1_p = (Y_1 + np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=True)
+        h = h[0]
+        Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (6 * D)
+        Y_1 = 1 / (s + c) * 2 / h + 2 * h / (3 * D)
+        Y_2 = -1 / (s + c) * (1 / h - a / (2 * D)) + h / (6 * D)
+
+        lam2_m = (Y_1 - np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        lam2_p = (Y_1 + np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+
+        return lam1_m, lam2_m, lam1_p, lam2_p
 
     def eta_dirneu(self, j, s=None):
         """
@@ -508,34 +523,15 @@ class Rk2FiniteVolumesSpline2(Discretization):
                 -eta(2, ..);
             returns tuple (etaj_dir, etaj_neu).
         """
-        assert j == 1 or j == 2
+        assert j == 1 or j == 2 and s is not None
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
-
         a, c, dt = self.get_a_c_dt()
-        if s is None:
-            s = 1 / dt
-
+        h = h[0]
         if j == 1:
-            if M is None:
-                M = self.M1
-            if D is None:
-                D = self.D1
-            h = -self.SIZE_DOMAIN_1 / M
-        elif j == 2: 
-            if M is None:
-                M = self.M2
-            if D is None:
-                D = self.D2
-            h = self.SIZE_DOMAIN_2 / M
+            h = -h
 
-        Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (6 * D)
-        Y_1 = 1 / (s + c) * 2 / h + 2 * h / (3 * D)
-        Y_2 = -1 / (s + c) * (1 / h - a / (2 * D)) + h / (6 * D)
-
-        lambda_moins = (Y_1 - np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
-                                / (-2 * Y_2)
-        lambda_plus = (Y_1 + np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
-                                / (-2 * Y_2)
+        lambda_moins = lam_m
+        lambda_plus = lam_p
 
         # The computation is then different because the boundary condition is different (and we are in the finite domain case)
         if j == 1:

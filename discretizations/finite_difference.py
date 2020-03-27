@@ -15,25 +15,8 @@ class FiniteDifferences(Discretization):
         give default values of all variables.
     """
 
-    def __init__(self,
-                 A=None,
-                 C=None,
-                 D1=None,
-                 D2=None,
-                 M1=None,
-                 M2=None,
-                 SIZE_DOMAIN_1=None,
-                 SIZE_DOMAIN_2=None,
-                 LAMBDA_1=None,
-                 LAMBDA_2=None,
-                 DT=None):
-        self.A, self.C, self.D1, self.D2, \
-            self.M1, self.M2, self.SIZE_DOMAIN_1, \
-            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
-            self.LAMBDA_2, self.DT = A, \
-            C, D1, D2, \
-            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-            LAMBDA_1, LAMBDA_2, DT
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     """
         Entry point in the class.
@@ -76,11 +59,10 @@ class FiniteDifferences(Discretization):
         a, c, dt = self.get_a_c_dt()
         Lambda = self.LAMBDA_2 if upper_domain else self.LAMBDA_1
         a, c, dt, bd_cond, Lambda, u_interface, phi_interface = float(a), \
-            float(c), float(dt), float(bd_cond), \
+            float(c), float(dt), float(bd_cond), float(Lambda), \
             float(u_interface), float(phi_interface)
 
         # Broadcasting / verification of type:
-        D, h = self.D2, self.h2 if upper_domain else self.D1, self.H1
         D = np.zeros(M - 1) + D
         h = np.zeros(M - 1) + h
         f = np.zeros(M) + f
@@ -395,8 +377,11 @@ class FiniteDifferences(Discretization):
         return Y
 
 
-    def eta_dirneu(self, j, s=None):
+    def eta_dirneu(self, j, lam_m, lam_p, s=None):
         """
+            note that lam_m is by convention the main lambda
+            whereas lam_p is the secondary lambda
+            
             Gives the \\eta of the discretization:
             can be:
                 -eta(1, ..);
@@ -410,26 +395,12 @@ class FiniteDifferences(Discretization):
             s = 1 / dt
 
         if j == 1:
-            if M is None:
-                M = self.M1
-            if D is None:
-                D = self.D1
             h = -self.SIZE_DOMAIN_1 / (M - 1)
         elif j == 2: 
-            if M is None:
-                M = self.M2
-            if D is None:
-                D = self.D2
             h = self.SIZE_DOMAIN_2 / (M - 1)
 
-        Y_0 = -D / (h * h) - .5 * a / h
-        Y_1 = 2 * D / (h * h) + c
-        Y_2 = -D / (h * h) + .5 * a / h
-
-        lambda_moins = (Y_1 + s - np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
-                                / (-2 * Y_2)
-        lambda_plus = (Y_1 + s + np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
-                                / (-2 * Y_2)
+        lambda_moins = lam_m
+        lambda_plus = lam_p
 
         # The computation is then different because the boundary condition is different
         if j == 1:
@@ -441,14 +412,43 @@ class FiniteDifferences(Discretization):
             eta2_neu = (D/h - a/2) * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1)) - h/2 * (s+c)
             return eta2_dir, eta2_neu
 
+    def lambda_1_2_pm(self, s):
+        """
+            Gives the \\lambda_\\pm:
+            returns \\lambda_{-, j=1}, \\lambda_{-, j=2}, \\lambda_{+, j=1}, \\lambda_{+, j=2}.
+        """
+        assert s is not None
+        a, c, dt = self.get_a_c_dt()
+        M1, h1, D1, Lambda_1 = self.M_h_D_Lambda(upper_domain=False)
+        M2, h2, D2, Lambda_2 = self.M_h_D_Lambda(upper_domain=True)
+        h1 = h1[0]
+        h2 = h2[0]
 
-    def sigma_modified(self, w, order_time, order_equations):
+        Y_0 = -D1 / (h1 * h1) - .5 * a / h1
+        Y_1 = 2 * D1 / (h1 * h1) + c
+        Y_2 = -D1 / (h1 * h1) + .5 * a / h1
+
+        lambda1_moins = (Y_1 + s - np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        lambda1_plus = (Y_1 + s + np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+
+        Y_0 = -D2 / (h2 * h2) - .5 * a / h2
+        Y_1 = 2 * D2 / (h2 * h2) + c
+        Y_2 = -D2 / (h2 * h2) + .5 * a / h2
+
+        lambda2_moins = (Y_1 + s - np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        lambda2_plus = (Y_1 + s + np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        return lambda1_moins, lambda2_moins, lambda1_plus, lambda2_plus, 
+
+    def sigma_modified(self, s, w, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2
         dt = self.DT
 
-        s = self.s_time_modif(w, dt, order_time) + self.C
         s1 = s
         if order_equations > 0:
             s1 += w**2 * (h1**2/(12*D1))
@@ -483,7 +483,7 @@ class FiniteDifferences(Discretization):
         else:
             eta_dir_modif = 1
             if  order_operators == 0:
-                eta_neu_modif = D1*sigj
+                eta_neu_modif = D2*sigj
             if order_operators > 0:
                 eta_neu_modif = D2*sigj*np.exp(h2*sigj/2) - h2/2*(1j*w)
             if order_operators > 1:

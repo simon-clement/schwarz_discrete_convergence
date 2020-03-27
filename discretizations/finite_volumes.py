@@ -16,25 +16,9 @@ class FiniteVolumes(Discretization):
         give default values of all variables.
     """
 
-    def __init__(self,
-                 A=None,
-                 C=None,
-                 D1=None,
-                 D2=None,
-                 M1=None,
-                 M2=None,
-                 SIZE_DOMAIN_1=None,
-                 SIZE_DOMAIN_2=None,
-                 LAMBDA_1=None,
-                 LAMBDA_2=None,
-                 DT=None):
-        self.A, self.C, self.D1, self.D2, \
-            self.M1, self.M2, self.SIZE_DOMAIN_1, \
-            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
-            self.LAMBDA_2, self.DT = A, \
-            C, D1, D2, \
-            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-            LAMBDA_1, LAMBDA_2, DT
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     """
         Entry point in the module.

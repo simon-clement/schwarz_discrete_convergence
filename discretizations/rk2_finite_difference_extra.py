@@ -15,25 +15,8 @@ class Rk2FiniteDifferencesExtra(Discretization):
         give default values of all variables.
     """
 
-    def __init__(self,
-                 A=None,
-                 C=None,
-                 D1=None,
-                 D2=None,
-                 M1=None,
-                 M2=None,
-                 SIZE_DOMAIN_1=None,
-                 SIZE_DOMAIN_2=None,
-                 LAMBDA_1=None,
-                 LAMBDA_2=None,
-                 DT=None):
-        self.A, self.C, self.D1, self.D2, \
-            self.M1, self.M2, self.SIZE_DOMAIN_1, \
-            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
-            self.LAMBDA_2, self.DT = A, \
-            C, D1, D2, \
-            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-            LAMBDA_1, LAMBDA_2, DT
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     """
         Entry point in the class.
@@ -496,13 +479,12 @@ class Rk2FiniteDifferencesExtra(Discretization):
             return eta2_dir, eta2_neu
 
 
-    def sigma_modified(self, w, order_time, order_equations):
+    def sigma_modified(self, s, w, order_time, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2
         dt = self.DT
 
-        s = self.s_time_modif(w, order_time) + self.C
         s1 = s
         if order_equations > 0:
             s1 += w**2 * (h1**2/(12*D1))

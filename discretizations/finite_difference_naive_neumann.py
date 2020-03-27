@@ -16,25 +16,8 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         give default values of all variables.
     """
 
-    def __init__(self,
-                 A=None,
-                 C=None,
-                 D1=None,
-                 D2=None,
-                 M1=None,
-                 M2=None,
-                 SIZE_DOMAIN_1=None,
-                 SIZE_DOMAIN_2=None,
-                 LAMBDA_1=None,
-                 LAMBDA_2=None,
-                 DT=None):
-        self.A, self.C, self.D1, self.D2, \
-            self.M1, self.M2, self.SIZE_DOMAIN_1, \
-            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
-            self.LAMBDA_2, self.DT = A, \
-            C, D1, D2, \
-            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
-            LAMBDA_1, LAMBDA_2, DT
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     """
         Entry point in the class.
@@ -398,8 +381,39 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         Y[1][1:-1] += (np.ones(M - 2) / dt) * (h[1:] + h[:-1])
         return Y
 
+    def lambda_1_2_pm(self, s):
+        """
+            Gives the \\lambda_\\pm:
+            returns \\lambda_{-, j=1}, \\lambda_{-, j=2}, \\lambda_{+, j=1}, \\lambda_{+, j=2}.
+        """
+        assert s is not None
+        a, c, dt = self.get_a_c_dt()
+        M1, h1, D1, Lambda_1 = self.M_h_D_Lambda(upper_domain=False)
+        M2, h2, D2, Lambda_2 = self.M_h_D_Lambda(upper_domain=True)
+        h1 = h1[0]
+        h2 = h2[0]
 
-    def eta_dirneu(self, j, s=None):
+        Y_0 = -D1 / (h1 * h1) - .5 * a / h1
+        Y_1 = 2 * D1 / (h1 * h1) + c
+        Y_2 = -D1 / (h1 * h1) + .5 * a / h1
+
+        lambda1_moins = (Y_1 + s - np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        lambda1_plus = (Y_1 + s + np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+
+        Y_0 = -D2 / (h2 * h2) - .5 * a / h2
+        Y_1 = 2 * D2 / (h2 * h2) + c
+        Y_2 = -D2 / (h2 * h2) + .5 * a / h2
+
+        lambda2_moins = (Y_1 + s - np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        lambda2_plus = (Y_1 + s + np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
+                                / (-2 * Y_2)
+        return lambda1_moins, lambda2_moins, lambda1_plus, lambda2_plus, 
+
+
+    def eta_dirneu(self, j, lam_m, lam_p, s=None):
         """
             Gives the \\eta of the discretization:
             can be:
@@ -418,14 +432,8 @@ class FiniteDifferencesNaiveNeumann(Discretization):
         elif j == 2: 
             h = self.SIZE_DOMAIN_2 / (M - 1)
 
-        Y_0 = -D / (h * h) - .5 * a / h
-        Y_1 = 2 * D / (h * h) + c
-        Y_2 = -D / (h * h) + .5 * a / h
-
-        lambda_moins = (Y_1 + s - np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
-                                / (-2 * Y_2)
-        lambda_plus = (Y_1 + s + np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
-                                / (-2 * Y_2)
+        lambda_moins = lam_m
+        lambda_plus = lam_p
 
         # The computation is then different because the boundary condition is different
         if j == 1:
@@ -438,13 +446,12 @@ class FiniteDifferencesNaiveNeumann(Discretization):
             return eta2_dir, eta2_neu
 
 
-    def sigma_modified(self, w, order_time, order_equations):
+    def sigma_modified(self, s, w, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2
         dt = self.DT
 
-        s = self.s_time_modif(w, dt, order_time) + self.C
         s1 = s
         if order_equations > 0:
             s1 += w**2 * (h1**2/(12*D1))

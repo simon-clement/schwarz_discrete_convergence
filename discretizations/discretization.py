@@ -8,6 +8,26 @@ import numpy as np
 
 class Discretization:
 
+    def __init__(self,
+                 A=None,
+                 C=None,
+                 D1=None,
+                 D2=None,
+                 M1=None,
+                 M2=None,
+                 SIZE_DOMAIN_1=None,
+                 SIZE_DOMAIN_2=None,
+                 LAMBDA_1=None,
+                 LAMBDA_2=None,
+                 DT=None):
+        self.A, self.C, self.D1, self.D2, \
+            self.M1, self.M2, self.SIZE_DOMAIN_1, \
+            self.SIZE_DOMAIN_2, self.LAMBDA_1, \
+            self.LAMBDA_2, self.DT = A, \
+            C, D1, D2, \
+            M1, M2, SIZE_DOMAIN_1, SIZE_DOMAIN_2, \
+            LAMBDA_1, LAMBDA_2, DT
+
     def integrate_one_step(self, f, bd_cond, u_nm1,
                            u_interface, phi_interface, upper_domain, Y):
         """
@@ -39,9 +59,96 @@ class Discretization:
 
         raise NotImplementedError
 
+    def analytic_robin_robin_modified(self, w, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
+        """
+            When D and h are constant, it is possible to find the convergence
+            rate in frequency domain. analytic_robin_robin computes this convergence rate.
+
+            This method should *not* be overriden, the
+            particularity of the discretization is specified
+            through the method eta_dirneu
+
+            An infinite order means the discrete analysis is done
+            An order=0 means the continuous analysis is done.
+            Between them, the modified analysis is used.
+        """
+        assert "LAMBDA_2" in self.__dict__
+        assert "LAMBDA_1" in self.__dict__
+        ########################################################
+        # Computing s_d, s_c or s_m depending on order_time:
+        ########################################################
+        if order_time == float('inf'):
+            s = self.s_time_discrete(w) + self.C
+        else:
+            s = self.s_time_modif(w, order_time) + self.C
+
+        ###################################################################
+        # Computing \\sigma_j or \\lambda_j depending on order_equations: #
+        ###################################################################
+        # The convention here is: \\lambda_- is the main root,
+        # and \\lambda_+ is the secondary root.
+        if order_equations == float('inf'):
+            lam1, lam2, lam1_p, lam2_p = self.lambda_1_2_pm(s)
+            sig1, sig2, sig1_p, sig2_p = np.log(lam1), np.log(lam2), np.log(lam1_p), np.log(lam2_p)
+        else:
+            sig1, sig2 = self.sigma_modified(s, w, order_equations)
+            sig1_p = -sig1
+            sig2_p = -sig2
+
+        #########################################################
+        # Computing \\eta_{j, op} depending on order_operators: #
+        #########################################################
+
+        if order_operators == float('inf'):
+            eta1_dir, eta1_neu = self.eta_dirneu(j=1, lam_m=np.exp(sig1), lam_p=np.exp(sig1_p), s=s)
+            eta2_dir, eta2_neu = self.eta_dirneu(j=2, lam_m=np.exp(sig2), lam_p=np.exp(sig2_p), s=s)
+        else:
+            eta1_dir, eta1_neu = self.eta_dirneu_modif(j=1, sigj=sig1, order_operators=order_operators, w=w)
+            eta2_dir, eta2_neu = self.eta_dirneu_modif(j=2, sigj=sig2, order_operators=order_operators, w=w)
+
+        #########################################################
+        # Computing \\rho with the results:
+        #########################################################
+        rho_numerator = (self.LAMBDA_2*eta1_dir + eta1_neu) * (self.LAMBDA_1*eta2_dir + eta2_neu)
+        rho_denominator = (self.LAMBDA_2*eta2_dir + eta2_neu) * (self.LAMBDA_1*eta1_dir + eta1_neu)
+        return np.abs(rho_numerator / rho_denominator)
+
+    def eta_dirneu(self, j, lam_m, lam_p, s=None):
+        """
+            lam_m, lam_p should be computed by @self.lambda1_2_pm or np.exp(@self.sigma_modified).
+            lam_m is the *main* root, where lam_p is the secondary.
+            Gives the \\eta used to compute the analytic rate (see analytic_robin_robin)
+            can be:
+                -eta(1, ..);      <- for domain \\Omega_1
+                -eta(2, ..);      <- for domain \\Omega_2
+            returns tuple (etaj_dir, etaj_neu).
+        """
+        raise NotImplementedError
+
+    def s_time_discrete(self, w):
+        """ By default, we are in the Backward Euler time scheme"""
+        assert w is not None # verifying the setting is not local in time
+        assert "DT" in self.__dict__ # verifying we are in a valid time discretization
+        z = np.exp(w * 1j * self.DT)
+        return 1. / self.DT * (z - 1) / z
+
+    def eta_dirneu_modif(self, j, sigj, order_operators, *kwargs, **dicargs):
+        """ Returns the modified eta variable of the time scheme, with specified order"""
+        raise NotImplementedError
+        # if j==1:
+        #     eta_dir_modif = 1
+        #     eta_neu_modif = sigj * self.D1
+        #     return eta_dir_modif, eta_neu_modif
+        # else:
+        #     eta_dir_modif = 1
+        #     eta_neu_modif = sigj * self.D2
+        #     return eta_dir_modif, eta_neu_modif
 
     def s_time_modif(self, w, order):
-        """ By default, we are in the euler implicit time scheme"""
+        """ Returns the modified s variable of the time scheme, with specified order"""
+        assert order < float('inf')
+        """ By default, we are in the Backward Euler time scheme"""
+        assert "DT" in self.__dict__ # verifying we are in a valid time discretization
         dt = self.DT
         s = w * 1j
         if order > 0:
@@ -66,7 +173,7 @@ class Discretization:
 
         raise NotImplementedError
 
-    def get_D(self):
+    def get_D(self, **kwargs):
         """
             Simple function to return D in each subdomains,
             in the framework of finite differences.
@@ -94,79 +201,35 @@ class Discretization:
 
         return "unknown discretization"
 
-    def analytic_robin_robin(self, s=None):
+    def lambda_1_2_pm(self, s):
+        # The convention here is: \\lambda_- is the main root,
+        # and \\lambda_+ is the secondary root.
         """
-            When D and h are constant, it is possible to find the convergence
-            rate in frequency domain. analytic_robin_robin computes this convergence rate.
-            s is 1/dt when considering the local-in-time case, otherwise it
-            should be iw (with w the desired frequency)
-            In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
-            for implicit euler discretisation.
-
-            This method should *not* be overriden, the
-            particularity of the discretization is specified
-            through the method eta_dirneu
-        """
-        eta1_dir, eta1_neu = self.eta_dirneu(1, s)
-        eta2_dir, eta2_neu = self.eta_dirneu(2, s)
-        rho_numerator = (self.LAMBDA_2*eta1_dir + eta1_neu) * (self.LAMBDA_1*eta2_dir + eta2_neu)
-        rho_denominator = (self.LAMBDA_2*eta2_dir + eta2_neu) * (self.LAMBDA_1*eta1_dir + eta1_neu)
-        return np.abs(rho_numerator / rho_denominator)
-
-    def eta_dirneu(self, j, s=None):
-        """
-            Gives the \\eta used to compute the analytic rate (see analytic_robin_robin)
-            can be:
-                -eta(1, ..);      <- for domain \\Omega_1
-                -eta(2, ..);      <- for domain \\Omega_2
-            returns tuple (etaj_dir, etaj_neu).
+            Gives the \\lambda_\\pm:
+            returns \\lambda_{-, j=1}, \\lambda_{-, j=2}, \\lambda_{+, j=1}, \\lambda_{+, j=2}.
         """
         raise NotImplementedError
 
-    def sigma_modified(self, w, order_time, order_equations):
-        # This code should not run and is here as an example
-        raise NotImplementedError
-        s = self.s_time_modif(w, self.DT, order_time) + self.C
-        sig1 = np.sqrt(s/self.D1)
-        sig2 = -np.sqrt(s/self.D2)
-        return sig1, sig2
-
-    def eta_dirneu_modif(self, j, sigj, order_operators, *kwargs, **dicargs):
-        # This code should not run and is here as an example
-        raise NotImplementedError
-        if j==1:
-            eta_dir_modif = 1
-            eta_neu_modif = sigj * self.D1
-            return eta_dir_modif, eta_neu_modif
+    def sigma_modified(self, s, w, order_equations):
+        # The convention here is: \\sigma_- is the main root,
+        # and \\sigma_+ is the secondary root.
+        if order_equations == 0: # no need for space discretization in this case
+            sig1 = np.sqrt(s/self.D1)
+            sig2 = -np.sqrt(s/self.D2)
+            return sig1, sig2
         else:
-            eta_dir_modif = 1
-            eta_neu_modif = sigj * self.D2
-            return eta_dir_modif, eta_neu_modif
-
-    def analytic_robin_robin_modified(self, w, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
-        """
-            When D and h are constant, it is possible to find the convergence
-            rate in frequency domain. analytic_robin_robin computes this convergence rate.
-            s is 1/dt when considering the local-in-time case, otherwise it
-            should be iw (with w the desired frequency)
-            In the discrete time setting, the Z transform gives s = 1. / dt * (z - 1) / z
-            for implicit euler discretisation.
-
-            This method should *not* be overriden, the
-            particularity of the discretization is specified
-            through the method eta_dirneu
-        """
-        sig1, sig2 = self.sigma_modified(w, order_time, order_equations)
-        eta1_dir, eta1_neu = self.eta_dirneu_modif(j=1, sigj=sig1, order_operators=order_operators, w=w)
-        eta2_dir, eta2_neu = self.eta_dirneu_modif(j=2, sigj=sig2, order_operators=order_operators, w=w)
-        rho_numerator = (self.LAMBDA_2*eta1_dir + eta1_neu) * (self.LAMBDA_1*eta2_dir + eta2_neu)
-        rho_denominator = (self.LAMBDA_2*eta2_dir + eta2_neu) * (self.LAMBDA_1*eta1_dir + eta1_neu)
-        return np.abs(rho_numerator / rho_denominator)
+            raise NotImplementedError
 
     def M_h_D_Lambda(self, upper_domain):
         """
             returns M_j, h_j, D_j, Lambda_j with j = (2 if upper_domain else 1)
         """
+        assert "M2" in self.__dict__
+        assert "M1" in self.__dict__
+        assert "D2" in self.__dict__
+        assert "D1" in self.__dict__
+        assert "LAMBDA_2" in self.__dict__
+        assert "LAMBDA_1" in self.__dict__
         h1, h2 = self.get_h()
         if upper_domain:
             return self.M2, h2, self.D2, self.LAMBDA_2
@@ -177,6 +240,9 @@ class Discretization:
         """
             Returns default values of a, c, dt or parameters if given.
         """
+        assert "A" in self.__dict__
+        assert "C" in self.__dict__
+        assert "DT" in self.__dict__
         return self.A, self.C, self.DT
 
     def clone(self):
