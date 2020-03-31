@@ -26,23 +26,23 @@ from simulator import frequency_simulation
 """
 all_figures = {}
 
-class Default():
+class Builder():
     """
         AVOID AT ALL COST CHANGING DEFAULT : it will change all figures and invalidate all cache.
         Remember to keep the synchronisation between this class and the PDF.
     """
     def __init__(self):
-        self.COURANT_NUMBER = .1
+        self.COURANT_NUMBER = .05
         self.T = 100.
-        self.M1 = 200
-        self.M2 = 200
-        self.SIZE_DOMAIN_1 = 200
-        self.SIZE_DOMAIN_2 = 200
+        self.M1 = 20
+        self.M2 = 20
+        self.SIZE_DOMAIN_1 = 20
+        self.SIZE_DOMAIN_2 = 20
         self.D1 = .54
         self.D2 = .6
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
         self.A = 0.
-        self.C = 1e-10
+        self.C = 0.
         self.LAMBDA_1 = 0.
         self.LAMBDA_2 = 0.
         self.N = int(self.T/self.DT)
@@ -56,30 +56,75 @@ class Default():
                               LAMBDA_1=self.LAMBDA_1,
                               LAMBDA_2=self.LAMBDA_2,
                               DT=self.DT)
+    def build(self, time_discretization, space_discretization):
+        """
+            Given two abstract classes of a time and space discretization,
+            build a scheme.
+        """
+        class AnonymousScheme(time_discretization, space_discretization):
+            def __init__(self, *args, **kwargs):
+                space_discretization.__init__(self, *args, **kwargs)
+                time_discretization.__init__(self, *args, **kwargs)
+        return self.new(AnonymousScheme)
 
-DEFAULT = Default()
+    def frequency_cv_factor(self, time_discretization, space_discretization, *args, **kwargs):
+        discretization = self.build(time_discretization, space_discretization)
+        return frequency_simulation(discretization, *args, **kwargs)
+
+    def robin_robin_theorical_cv_factor(self, time_discretization, space_discretization, *args, **kwargs):
+        discretization = self.build(time_discretization, space_discretization)
+        return discretization.analytic_robin_robin_modified(*args, **kwargs)
+
+    """
+        __eq__ and __hash__ are implemented, so that a discretization
+        can be stored as key in a dict
+        (it is useful for memoisation)
+    """
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __hash__(self):
+        return hash(repr(sorted(self.__dict__.items())))
+
+    def __repr__(self):
+        return repr(sorted(self.__dict__.items()))
+
+DEFAULT = Builder()
 
 def fig_compareSettingsDirichletNeumann():
-    from discretizations.finite_volumes_spline2 import FiniteVolumesSpline2
-    from discretizations.rk2_finite_volumes_spline2 import Rk2FiniteVolumesSpline2
-    from discretizations.finite_difference_naive_neumann import FiniteDifferencesNaiveNeumann
-    from discretizations.finite_difference import FiniteDifferences
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.theta_method import ThetaMethod
+    from discretizations.time.RK2 import RK2
+    from discretizations.time.RK4 import RK4
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = 1.  # extremely high lambda is a Dirichlet condition
+    builder.LAMBDA_2 = -.5 # lambda=0 is a Neumann condition
+    builder.D1 = 1.2
+    builder.D2 = 1.
+        
 
 
     discretizations = {}
-    # discretizations["$\\eta^\\text{FV}, s_d^\\text{Euler}$"] = DEFAULT.new(FiniteVolumesSpline2)
-    # discretizations["$\\eta^\\text{FV}, s_d^\\text{RK2}$"] = DEFAULT.new(Rk2FiniteVolumesSpline2)
-    # discretizations["$\\eta^\\text{FD}, s_d^\\text{Euler}, Corr=0$"] = DEFAULT.new(FiniteDifferences)
-    # discretizations["$\\eta^\\text{FD}, s_d^\\text{Euler}, Corr=1$"] = DEFAULT.new(FiniteDifferencesNaiveNeumann)
 
-    discretizations["FV, Euler"] = DEFAULT.new(FiniteVolumesSpline2)
-    #discretizations["FV, RK2"] = DEFAULT.new(Rk2FiniteVolumesSpline2)
-    discretizations["FD, Euler, Corr=0"] = DEFAULT.new(FiniteDifferencesNaiveNeumann)
-    discretizations["FD, Euler, Corr=1"] = DEFAULT.new(FiniteDifferences)
+    discretizations["FV4, ThetaMethod"] = (RK4, QuadSplinesFV)
+    discretizations["FV, ThetaMethod"] = (RK4, FourthOrderFV)
+    discretizations["FD, ThetaMethod, corr=0"] = (RK4, FiniteDifferencesNaive)
+    discretizations["FD, ThetaMethod, corr=1"] = (RK4, FiniteDifferencesCorr)
+    discretizations["FD, ThetaMethod, extra"] = (RK4, FiniteDifferencesExtra)
+    # discretizations["FD, Euler, Corr=1"] = (ThetaMethod, FiniteDifferencesCorr)
+    # discretizations["FD, Euler, Corr=0"] = (ThetaMethod, FiniteDifferencesNaive)
+    # discretizations["FD, Euler, Extra"] = (ThetaMethod, FiniteDifferencesExtra)
     convergence_factors = {}
     theorical_convergence_factors = {}
 
-    N = 1000
+    N = 100
     dt = DEFAULT.DT
     ###########
     # Computation of the frequency axis
@@ -88,6 +133,7 @@ def fig_compareSettingsDirichletNeumann():
         all_k = np.linspace(-N/2, N/2 - 1, N)
     else: #odd
         all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[int(N//2)] = .5
     # w = 2 pi k T / (N)
     axis_freq = 2 * pi*all_k / N / dt
 
@@ -95,23 +141,29 @@ def fig_compareSettingsDirichletNeumann():
     # for each discretization, a simulation
     ###########
     for name in discretizations:
-        discretizations[name].LAMBDA_2 = 0. # lambda=0 is a Neumann condition
-        discretizations[name].LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
-        
-        alpha_w = memoised(frequency_simulation, discretizations[name], N, number_samples=1000)
+        time_dis, space_dis = discretizations[name]
+        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=10)
         k = 1
         convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
+
+        dis = builder.build(time_dis, space_dis)
         theorical_convergence_factors[name] = \
-                discretizations[name].analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
+                dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=0, order_operators=float('inf'),
                         order_equations=float('inf'))
-        plt.semilogx(axis_freq * dt, convergence_factors[name], label=name)
-        plt.semilogx(axis_freq * dt, theorical_convergence_factors[name], "--", label="Theorical " + name)
+        # continuous = dis.analytic_robin_robin_modified(w=axis_freq,
+        #                 order_time=0, order_operators=float('inf'),
+        #                 order_equations=float('inf'))
+        # plt.plot(axis_freq * dt, continuous, "--", label="Continuous Theorical " + name)
+        plt.plot(axis_freq * dt, convergence_factors[name], label=name)
+        plt.plot(axis_freq * dt, theorical_convergence_factors[name], "--", label="Theorical " + name)
 
     plt.legend()
     show_or_save("fig_compareSettingsDirichletNeumann")
 
-
+#############################################
+# Utilities for saving, visualizing, calling functions
+#############################################
 
 
 def set_save_to_png():

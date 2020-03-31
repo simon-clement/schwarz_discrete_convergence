@@ -59,6 +59,135 @@ class Discretization:
 
         raise NotImplementedError
 
+    
+    #####################
+    # INTEGRATION FUNCTIONS:
+    #####################
+    def A_interior(self, upper_domain):
+        """
+            gives A, such as inside the domain, A \\partial_t u = Bu
+            For finite differences, A is identity.
+        """
+        raise NotImplementedError
+
+    def B_interior(self, upper_domain):
+        """
+            gives f, such as inside the domain, A \\partial_t u = Bu
+            This function supposes there is no forcing. this forcing should be added
+            in the time integration.
+            For finite differences, A is identity.
+        """
+        raise NotImplementedError
+
+    def add_boundaries(self, to_inverse, rhs, interface_cond, bd_cond, upper_domain,
+                    coef_implicit, coef_explicit, dt, f, sol_for_explicit, sol_unm1, additional):
+        """
+            Take the matrix to_inverse and vector rhs:
+            concatenate bd and interface conditions with rhs, and add the
+            lines to "to_inverse" to be able to compute the boundaries of solution.
+            The discretization must implement the functions "@self.discretization_bd_cond"
+            and "@self.discretization_interface"
+            Returns to_inverse and rhs: warning, the input must be tridiagonal but the output
+            may not be.
+        """
+        assert len(to_inverse) == 3
+        assert len(rhs.shape) == 1
+        new_rhs = np.concatenate(([interface_cond], rhs, [bd_cond]))
+        list_bd_cond = self.discretization_bd_cond(upper_domain=upper_domain)
+        list_interface = self.discretization_interface(upper_domain=upper_domain)
+        if list_bd_cond is None:
+            list_bd_cond, new_rhs[-1] = self.hardcoded_bd_cond(upper_domain=upper_domain,
+                    bd_cond=bd_cond, dt=dt, f=f, sol_for_explicit=sol_for_explicit,
+                    sol_unm1=sol_unm1, additional=additional,
+                    coef_explicit=coef_explicit, coef_implicit=coef_implicit)
+        if list_interface is None:
+            list_interface, new_rhs[0] = self.hardcoded_interface(upper_domain=upper_domain,
+                    robin_cond=interface_cond, dt=dt, f=f, sol_for_explicit=sol_for_explicit,
+                    sol_unm1=sol_unm1,
+                    additional=additional, coef_explicit=coef_explicit, coef_implicit=coef_implicit)
+        # let's begin with the boundary condition:
+        new_Y = []
+        assert len(list_bd_cond) == 1 or len(list_bd_cond) == 2
+        assert len(list_interface) >= 1
+        Y_0, Y_1, Y_2 = to_inverse
+        Y_1 = np.concatenate(([list_interface[0]], Y_1, [list_bd_cond[0]]))
+        Y_0 = np.concatenate((Y_0,
+            [0 if len(list_bd_cond) == 1 else list_bd_cond[1]]))
+
+        Y_2 = np.concatenate(([0 if len(list_interface) == 1 else list_interface[1]] , Y_2))
+
+        ret = [Y_0, Y_1, Y_2]
+        for additional_coeff_interface in list_interface[2:]:
+            ret += [np.zeros(ret[-1].shape[0] - 1)] # new diagonal above the last one
+            ret[-1][0] = additional_coeff_interface
+        return tuple(ret), new_rhs
+
+    def discretization_bd_cond(self, upper_domain):
+        """
+        Gives the coefficients in front of u to compute the bd condition,
+        either at the top of the atmosphere (Dirichlet)
+        or at the bottom of the Ocean (Neumann).
+        Returns a list, for which the index 0 is the value
+        to set at the diagonal, and the index 1 (if it exists) is
+        the subdiagonal.
+        """
+        raise NotImplementedError
+
+    def discretization_interface(self, upper_domain):
+        """
+        Gives the coefficients in front of u to compute the bd condition,
+        at the interface between the ocean and atmosphere.
+        Returns a list, representing the vector which will make a
+        scalar product with u. The vector should be of size 1, 2 or 3.
+        The other numbers in the vector are assumed to be zeros.
+        """
+        raise NotImplementedError
+
+    def update_additional(self, result, additional, dt, upper_domain, f, coef_reaction_implicit, reaction_explicit):
+        # reaction_explicit is either 0 or a multiple of additional ! the idea is that
+        # coef_reaction_implicit is 0 or 1 and reaction_explicit = coef_reaction_explicit * additional
+        pass
+
+    def create_additional(self, upper_domain):
+        return None
+
+    def projection_result(self, result, upper_domain, partial_t_result0, f, additional):
+        """
+            given the result of the inversion, returns (u_np1, u_interface, phi_interface)
+        """
+        raise NotImplementedError
+
+    def hardcoded_bd_cond(self, upper_domain, bd_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, sol_unm1, additional):
+        """
+            For schemes that use corrective terms or any mechanism of time derivative inside bd cond,
+            this method allows the time scheme to correct the boundary condition.
+            Called when discretization_bd_cond returns None. if it is never the case, no need
+            to implement this method.
+        """
+        raise NotImplementedError
+
+    def hardcoded_interface(self, upper_domain, robin_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, sol_unm1, additional):
+        """
+            For schemes that use corrective terms or any mechanism of time derivative
+            inside interface condition,
+            this method allows the time scheme to correct the boundary condition.
+            Called when discretization_interface returns None. if it is never the case, no need
+            to implement this method.
+        """
+        raise NotImplementedError
+
+    def size_f(self, upper_domain):
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
+        return M
+
+    def size_prognostic(self, upper_domain):
+        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
+        return M
+
+    #####################
+    # ANALYSIS FUNCTIONS:
+    #####################
+
     def analytic_robin_robin_modified(self, w, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
         """
             When D and h are constant, it is possible to find the convergence
@@ -126,40 +255,15 @@ class Discretization:
         raise NotImplementedError
 
     def s_time_discrete(self, w):
-        """ By default, we are in the Backward Euler time scheme"""
-        assert w is not None # verifying the setting is not local in time
-        assert "DT" in self.__dict__ # verifying we are in a valid time discretization
-        z = np.exp(w * 1j * self.DT)
-        return 1. / self.DT * (z - 1) / z
+        raise NotImplementedError
 
     def eta_dirneu_modif(self, j, sigj, order_operators, *kwargs, **dicargs):
         """ Returns the modified eta variable of the time scheme, with specified order"""
         raise NotImplementedError
-        # if j==1:
-        #     eta_dir_modif = 1
-        #     eta_neu_modif = sigj * self.D1
-        #     return eta_dir_modif, eta_neu_modif
-        # else:
-        #     eta_dir_modif = 1
-        #     eta_neu_modif = sigj * self.D2
-        #     return eta_dir_modif, eta_neu_modif
 
     def s_time_modif(self, w, order):
         """ Returns the modified s variable of the time scheme, with specified order"""
-        assert order < float('inf')
-        """ By default, we are in the Backward Euler time scheme"""
-        assert "DT" in self.__dict__ # verifying we are in a valid time discretization
-        dt = self.DT
-        s = w * 1j
-        if order > 0:
-            s += dt/2 * w**2
-        if order > 1:
-            s -= dt**2/6 * 1j * w**3
-        if order > 2:
-            s -= dt**3 / 24 * w**4
-        if order > 3:
-            s += dt**4/(120) * 1j * w**5
-        return s
+        raise NotImplementedError
 
     def get_h(self):
         """
@@ -231,10 +335,11 @@ class Discretization:
         assert "LAMBDA_2" in self.__dict__
         assert "LAMBDA_1" in self.__dict__
         h1, h2 = self.get_h()
+        D1, D2 = self.get_D(h1=h1, h2=h2)
         if upper_domain:
-            return self.M2, h2, self.D2, self.LAMBDA_2
+            return self.M2, h2, D2, self.LAMBDA_2
         else:
-            return self.M1, h1, self.D1, self.LAMBDA_1
+            return self.M1, h1, D1, self.LAMBDA_1
 
     def get_a_c_dt(self):
         """

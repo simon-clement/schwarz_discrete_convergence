@@ -6,10 +6,11 @@ from numpy import cos, sin, pi
 from numpy.random import random
 from tests.utils_numeric import solve_linear
 from discretizations.finite_volumes_spline2 import FiniteVolumesSpline2
-finite_volumes = FiniteVolumesSpline2()
-get_Y_star = finite_volumes.get_Y_star
+from figures import DEFAULT
+finite_volumes = DEFAULT.new(FiniteVolumesSpline2)
+#get_Y_star = finite_volumes.get_Y_star
 integrate_one_step = finite_volumes.integrate_one_step
-integrate_one_step_star = finite_volumes.integrate_one_step_star
+#integrate_one_step_star = finite_volumes.integrate_one_step_star
 """
     Test function of the module.
     If you don't want to print anything, use test_integrate_one_step.
@@ -37,10 +38,11 @@ def test_integrate_one_step():
     assert "ok" == not_constant_test_schwarz()
     assert "ok" == simplest_matrix()
     assert "ok" == order_error_term_with_adv_reac()
+    #assert "ok" == order_space_error_term_star()
+    assert "ok" == order_error_term_star()
     """
+    assert "ok" == order_error_term_linear_time_domain2()
     assert "ok" == order_error_term_linear_time()
-    assert "ok" == order_space_error_term()
-    assert "ok" == order_error_term()
     #assert "ok" == order_error_term_exp()
     """
     assert "ok" == complete_test_schwarz()
@@ -1107,6 +1109,139 @@ def test_integrate_one_step_simplest():
     assert np.linalg.norm(np.diff(u2) - pi * h2) < 1e-6
     return "ok"
 
+def order_error_term_linear_time_domain2():
+    """
+    Simple Case : a=c=0
+    on se place en (-1, 0)
+    Dirichlet en -1
+    Notre fonction est sin(x) + t
+    Donc le schéma en temps résout exactement sa partie,
+    l'erreur en h**2 vient seulement de l'espace :)
+    On compense l'erreur au bord en h**2 par une condition
+    de "Dirichlet" : u + h**2/12*u''
+    It is an order 2 method but the solution in time is linear:
+    the only error can come frombd conditions. for Neumann bd there is no error
+    for Dirichlet bd, it is order 3
+    """
+    T = 40.
+    Lambda = -1.
+    Courant = 10.
+    D = 3.
+    finite_volumes.LAMBDA_2 = Lambda
+    finite_volumes.COURANT_NUMBER = Courant
+    finite_volumes.D1 = D
+    finite_volumes.D2 = D
+    finite_volumes.A = 0.
+    finite_volumes.C = 0.
+    finite_volumes.SIZE_DOMAIN_1 = 1.
+    finite_volumes.SIZE_DOMAIN_2 = 1.
+
+    # on peut affirmer la chose suivante : l'erreur est en h**2, et pas en dt.
+    ret = []
+    for M in (16, 32):
+        dt = 1/M**2*Courant/D # en essayant avec dt = Courant/M/D, only 10 steps to go faast
+        finite_volumes.DT = dt
+
+        print("M:", M, "dt:", dt)
+        N = int(T/dt)
+
+        M1, M2 = M,M
+        finite_volumes.M1 = M
+        finite_volumes.M2 = M
+        h1 = 1 / M1 + np.zeros(M1)
+        h2 = 1 / M2 + np.zeros(M2)
+        h = h2[0]
+        
+        t_initial = 2.
+        t_final = t_initial + T
+
+        D1, D2 = D, D
+
+        x1 = np.cumsum(np.concatenate(([h1[0] / 2], (h1[1:] + h1[:-1]) / 2)))
+        x2 = np.cumsum(np.concatenate(([h2[0] / 2], (h2[1:] + h2[:-1]) / 2)))
+        x1 = np.flipud(x1)
+        x = np.concatenate((-x1, x2))
+
+        def u_real(x, t):
+            return np.sin(x) + t
+
+        def u_prime(x, t):
+            return np.cos(x)
+
+        def u_bar(x_1_2, h, t):
+            return 1/h * (np.cos(x_1_2) - np.cos(x_1_2+h)) + t
+
+        def flux(x, t):
+            return D * np.cos(x)
+
+        def f_bar(x, h, t): # time derivative is... 1
+            return 1 - 1/h * D * (np.cos(x+h) - np.cos(x))
+
+        def u_seconde_space(x, t):
+            return -np.sin(x)
+
+        x_flux = np.concatenate((x-h/2,[1]))
+
+        u2_0 = u_bar(x2 - h2/2, h2, t_initial)
+        phi2_0 = flux(x_flux[M1:], t_initial)
+        additional = [u2_0]
+
+        from progressbar import ProgressBar
+        progress = ProgressBar()
+        for t_n in progress(np.linspace(t_initial, t_final, N, endpoint=False)):
+            t_np1 = t_n + dt
+
+            neumann = flux(1, t_np1)
+
+            phi_int = flux(0, t_n + dt)
+            phi_int_nm1_2 = flux(0, t_n + dt/2)
+            phi_int_nm1 = flux(0, t_n)
+
+            u_int = u_real(0, t_n + dt) #+ h**2/12 * u_seconde_space(0, t_np1)
+            u_int_nm1_2 = u_real(0, t_n + dt/2) #+ h**2/12 * u_seconde_space(0, t_n+dt/2)
+            u_int_nm1 = u_real(0, t_n) #+ h**2/12 * u_seconde_space(0, t_n)
+
+            f2 = (f_bar(x_flux[M1:-1], h, t_np1))
+            f2_nm1_2 = (f_bar(x_flux[M1:-1], h, t_n + dt/2))
+            f2_nm1 = (f_bar(x_flux[M1:-1], h, t_n))
+            f2 = np.concatenate(([f2[0]], np.diff(f2), [f2[-1]]))
+
+            phi_np1, real_u_interface, real_phi_interface, *additional = integrate_one_step(f=f2,
+                                                                             f_nm1_2=f2_nm1_2,
+                                                                             f_nm1=f2_nm1,
+                                                                             bd_cond=neumann,
+                                                                             bd_cond_nm1_2=neumann,
+                                                                             bd_cond_nm1=neumann,
+                                                                             Lambda=Lambda,
+                                                                             u_nm1=phi2_0,
+                                                                             u_interface=u_int,
+                                                                             u_nm1_2_interface=u_int_nm1_2,
+                                                                             u_nm1_interface=u_int_nm1,
+                                                                             phi_interface=phi_int,
+                                                                             phi_nm1_2_interface=phi_int_nm1_2,
+                                                                             phi_nm1_interface=phi_int_nm1,
+                                                                             additional=additional,
+                                                                             upper_domain=True)
+            phi2_0 = phi_np1
+            u2_0 = additional[0]
+
+            nb_plots = 4
+            if int(N * (t_n - t_initial) / T) % int(N/nb_plots) == 0:
+                import matplotlib.pyplot as plt
+                plt.plot(x2, u2_0, "b")
+                plt.plot(x2, u_bar(x2-h2/2, h2, t_n+dt), "r")
+                # plt.plot(x_flux[M1:], phi2_0, "b", label="approximation")
+                # plt.plot(x_flux[M1:], flux(x_flux[M1:], t_initial), "r", label="solution")
+                plt.show()
+                print("enter to continue, or ctrl-C to stop")
+                input()
+
+        ret += [np.linalg.norm(u_bar(x2-h2/2, h2, t_n+dt) - u2_0)/np.linalg.norm(u_bar(x2-h2/2, h2, t_n+dt))]
+    print(ret)
+    print(np.log(ret[0]/ret[1])/np.log(2))
+    assert abs(3 - np.log(ret[0]/ret[1])/np.log(2)) < .1
+    return "ok"
+
 def order_error_term_linear_time():
     """
     Simple Case : a=c=0
@@ -1117,20 +1252,34 @@ def order_error_term_linear_time():
     l'erreur en h**2 vient seulement de l'espace :)
     On compense l'erreur au bord en h**2 par une condition
     de "Dirichlet" : u + h**2/12*u''
+    It is an order 2 method but the solution in time is linear:
+    the only error can come frombd conditions. for Neumann bd there is no error
+    for Dirichlet bd, it is order 3
     """
-    T = 8.
-    Lambda = -1
-    Courant = .2
-    D = 5
+    T = 40.
+    Lambda = 1.
+    Courant = 10.
+    D = 10.
+    finite_volumes.LAMBDA_1 = Lambda
+    finite_volumes.D1 = D
+    finite_volumes.D2 = D
+    finite_volumes.A = 0.
+    finite_volumes.C = 0.
+    finite_volumes.SIZE_DOMAIN_1 = 1.
+    finite_volumes.SIZE_DOMAIN_2 = 1.
 
     # on peut affirmer la chose suivante : l'erreur est en h**2, et pas en dt.
     ret = []
     for M in (8, 16):
         dt = 1/M**2*Courant/D # en essayant avec dt = Courant/M/D, only 10 steps to go faast
+        finite_volumes.DT = dt
+
         print("M:", M, "dt:", dt)
         N = int(T/dt)
 
         M1, M2 = M,M
+        finite_volumes.M1 = M
+        finite_volumes.M2 = M
         h1 = 1 / M1 + np.zeros(M1)
         h2 = 1 / M2 + np.zeros(M2)
         h = h1[0]
@@ -1162,64 +1311,64 @@ def order_error_term_linear_time():
 
         x_flux = np.concatenate((x-h/2,[1]))
 
-        
         u1_0 = np.flipud(u_bar(-x1 - h1/2, h1, t_initial))
-        phi1_0 = [np.flipud(flux(x_flux[:M1+1], t_initial))]
-            
+        phi1_0 = np.flipud(flux(x_flux[:M1+1], t_initial))
+        additional = [u1_0]
+
         from progressbar import ProgressBar
         progress = ProgressBar()
         for t_n in progress(np.linspace(t_initial, t_final, N, endpoint=False)):
             t_np1 = t_n + dt
 
-            dirichlet = u_real(-1, t_np1) + h**2/12 * u_seconde_space(-1, t_np1)
-            dirichlet_nm1_2 = u_real(-1, t_n + dt/2) + h**2/12 * u_seconde_space(-1, t_n+dt/2)
-            dirichlet_nm1 = u_real(-1, t_n) + h**2/12 * u_seconde_space(-1, t_n)
+            dirichlet = u_real(-1, t_np1) #+ h**2/12 * u_seconde_space(-1, t_np1)
+            dirichlet_nm1_2 = u_real(-1, t_n + dt/2)# + h**2/12 * u_seconde_space(-1, t_n+dt/2)
+            dirichlet_nm1 = u_real(-1, t_n) #+ h**2/12 * u_seconde_space(-1, t_n)
 
             phi_int = flux(0, t_n + dt)
             phi_int_nm1_2 = flux(0, t_n + dt/2)
             phi_int_nm1 = flux(0, t_n)
 
-            u_int = u_real(0, t_n + dt) + h**2/12 * u_seconde_space(0, t_np1)
-            u_int_nm1_2 = u_real(0, t_n + dt/2) + h**2/12 * u_seconde_space(0, t_n+dt/2)
-            u_int_nm1 = u_real(0, t_n) + h**2/12 * u_seconde_space(0, t_n)
+            u_int = u_real(0, t_n + dt) #+ h**2/12 * u_seconde_space(0, t_np1)
+            u_int_nm1_2 = u_real(0, t_n + dt/2) #+ h**2/12 * u_seconde_space(0, t_n+dt/2)
+            u_int_nm1 = u_real(0, t_n) #+ h**2/12 * u_seconde_space(0, t_n)
 
             f1 = np.flipud(f_bar(x_flux[:M1], h, t_np1))
             f1_nm1_2 = np.flipud(f_bar(x_flux[:M1], h, t_n + dt/2))
             f1_nm1 = np.flipud(f_bar(x_flux[:M1], h, t_n))
+            f1 = np.concatenate(([f1[0]], np.diff(f1), [f1[-1]]))
 
-            u_np1, real_u_interface, real_phi_interface, *phi_np1 = integrate_one_step(M=M1,
-                                                                             h=h1,
-                                                                             D=D1,
-                                                                             a=0., c=0., dt=dt,
-                                                                             f=f1,
+            phi_np1, real_u_interface, real_phi_interface, *additional = integrate_one_step(f=f1,
                                                                              f_nm1_2=f1_nm1_2,
                                                                              f_nm1=f1_nm1,
                                                                              bd_cond=dirichlet,
                                                                              bd_cond_nm1_2=dirichlet_nm1_2,
                                                                              bd_cond_nm1=dirichlet_nm1,
                                                                              Lambda=Lambda,
-                                                                             u_nm1=u1_0,
+                                                                             u_nm1=phi1_0,
                                                                              u_interface=u_int,
                                                                              u_nm1_2_interface=u_int_nm1_2,
                                                                              u_nm1_interface=u_int_nm1,
                                                                              phi_interface=phi_int,
                                                                              phi_nm1_2_interface=phi_int_nm1_2,
                                                                              phi_nm1_interface=phi_int_nm1,
-                                                                             phi_for_FV=phi1_0,
+                                                                             additional=additional,
                                                                              upper_domain=False)
             phi1_0 = phi_np1
-            u1_0 = u_np1
-            """
-            nb_plots = 4
-            if int(N * (t_n - t_initial) / T) % int(N/nb_plots) == 0:
-                import matplotlib.pyplot as plt
-                plt.plot(-x1, np.flipud(u1_0), "b")
-                plt.plot(-x1, u_bar(-x1-h1/2, h1, t_n+dt), "r")
-                plt.show()
-            """
+            u1_0 = additional[0]
+
+            # nb_plots = 4
+            # if int(N * (t_n - t_initial) / T) % int(N/nb_plots) == 0:
+            #     import matplotlib.pyplot as plt
+            #     #plt.plot(-x1, np.flipud(u1_0), "b")
+            #     #plt.plot(-x1, u_bar(-x1-h1/2, h1, t_n+dt), "r")
+            #     plt.plot(x_flux[:M1+1], np.flipud(phi1_0), "b", label="approximation")
+            #     plt.plot(x_flux[:M1+1], flux(x_flux[:M1+1], t_initial), "r", label="solution")
+            #     plt.show()
+            #     print("enter to continue, or ctrl-C to stop")
+            #     input()
 
         ret += [np.linalg.norm(u_bar(-x1-h1/2, h1, t_n+dt) - np.flipud(u1_0))/np.linalg.norm(u_bar(-x1-h1/2, h1, t_n+dt))]
-    print(ret)
-    assert abs(2 - np.log(ret[0]/ret[1])/np.log(2)) < .1
+    print(np.log(ret[0]/ret[1])/np.log(2))
+    assert abs(3 - np.log(ret[0]/ret[1])/np.log(2)) < .1
     return "ok"
 

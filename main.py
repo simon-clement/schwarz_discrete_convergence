@@ -168,6 +168,10 @@ def main():
         # It is here to tests things with default parameters,
         # not to export figures
         elif sys.argv[1] == "debug":
+
+            from tests.test_finite_volumes_spline2 import launch_all_tests
+            launch_all_tests()
+
             # defining discretizations:
 
             from discretizations.finite_difference import FiniteDifferences
