@@ -32,10 +32,7 @@ class FiniteDifferences(Discretization):
 
     def B_interior(self, upper_domain):
         """
-            gives f, such as inside the domain, A \\partial_t u = Bu
-            This function supposes there is no forcing. this forcing should be added
-            in the time integration.
-            For finite differences, A is identity.
+            gives B, such as inside the domain, A \\partial_t u = Bu
         """
         a, c, dt = self.get_a_c_dt()
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)

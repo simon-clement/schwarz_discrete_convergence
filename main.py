@@ -21,8 +21,8 @@ def main():
     import sys
 
     if len(sys.argv) == 1:
-        print("to launch tests, use \"python3 cv_rate.py test\"")
-        print("Usage: cv_rate {test, graph, optimize, debug, analytic}")
+        print("to launch tests, use \"python3 main.py test\"")
+        print("Usage: main.py {test, graph, optimize, debug, analytic}")
     else:
         #  example of use : ./main.py figure 17
         if sys.argv[1] == "figure":
@@ -230,9 +230,9 @@ def main():
 
             """ You can now test any function here, without impacting the program."""
             if len(sys.argv) > 2:
-                if sys.argv[2] == "1":  # ./cv_rate debug 1
+                if sys.argv[2] == "1":  # ./main.py debug 1
                     pass
-                elif sys.argv[2] == "2":  # ./cv_rate debug 2
+                elif sys.argv[2] == "2":  # ./main.py debug 2
                     pass
 
 def global_launch_figsave(number_fig):

@@ -102,29 +102,32 @@ def fig_compareSettingsDirichletNeumann():
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.RK2 import RK2
     from discretizations.time.RK4 import RK4
+    from discretizations.time.PadeTime import PadeTime
     # parameters of the schemes are given to the builder:
     builder = Builder()
-    builder.LAMBDA_1 = 1.  # extremely high lambda is a Dirichlet condition
-    builder.LAMBDA_2 = -.5 # lambda=0 is a Neumann condition
-    builder.D1 = 1.2
-    builder.D2 = 1.
+    builder.LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
+    builder.LAMBDA_2 = 0. # lambda=0 is a Neumann condition
+    builder.D1 = 1.
+    builder.D2 = 1.2
+    builder.C = 0.
         
 
 
     discretizations = {}
+    time_scheme = BackwardEuler
 
-    discretizations["FV4, ThetaMethod"] = (RK4, QuadSplinesFV)
-    discretizations["FV, ThetaMethod"] = (RK4, FourthOrderFV)
-    discretizations["FD, ThetaMethod, corr=0"] = (RK4, FiniteDifferencesNaive)
-    discretizations["FD, ThetaMethod, corr=1"] = (RK4, FiniteDifferencesCorr)
-    discretizations["FD, ThetaMethod, extra"] = (RK4, FiniteDifferencesExtra)
-    # discretizations["FD, Euler, Corr=1"] = (ThetaMethod, FiniteDifferencesCorr)
-    # discretizations["FD, Euler, Corr=0"] = (ThetaMethod, FiniteDifferencesNaive)
-    # discretizations["FD, Euler, Extra"] = (ThetaMethod, FiniteDifferencesExtra)
+    """
+    discretizations["FV2"] = (time_scheme, QuadSplinesFV)
+    discretizations["FV4"] = (time_scheme, FourthOrderFV)
+    discretizations["FD, extra"] = (time_scheme, FiniteDifferencesExtra)
+    """
+    discretizations["FD, corr=0"] = (time_scheme, FiniteDifferencesNaive)
+    discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
+
     convergence_factors = {}
     theorical_convergence_factors = {}
 
-    N = 100
+    N = 8000
     dt = DEFAULT.DT
     ###########
     # Computation of the frequency axis
@@ -137,12 +140,53 @@ def fig_compareSettingsDirichletNeumann():
     # w = 2 pi k T / (N)
     axis_freq = 2 * pi*all_k / N / dt
 
+    kwargs_label_simu = {'label':"Validation by simulation"}
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
     ###########
     # for each discretization, a simulation
     ###########
     for name in discretizations:
         time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=10)
+        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=100)
+        k = 1
+        convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
+
+        dis = builder.build(time_dis, space_dis)
+        theorical_convergence_factors[name] = \
+                dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=float('inf'), order_operators=float('inf'),
+                        order_equations=float('inf'))
+        # continuous = dis.analytic_robin_robin_modified(w=axis_freq,
+        #                 order_time=0, order_operators=float('inf'),
+        #                 order_equations=float('inf'))
+        # plt.plot(axis_freq * dt, continuous, "--", label="Continuous Theorical " + name)
+        axes[0].semilogx(axis_freq * dt, convergence_factors[name], "k--", **kwargs_label_simu)
+        if kwargs_label_simu: # We only want the legend to be present once
+            kwargs_label_simu = {}
+        axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name)
+
+    axes[0].set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes[0].set_ylabel("Convergence factor $\\rho$")
+    axes[0].set_title("Various space discretizations with Euler Backward")
+
+    axes[1].set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes[1].set_ylabel("Convergence factor $\\rho$")
+    axes[1].set_title("Various time discretizations with Finite Differences, Corr=0")
+
+    space_scheme = FiniteDifferencesNaive
+    discretizations = {}
+
+    discretizations["BackwardEuler"] = (BackwardEuler, space_scheme)
+    discretizations["ThetaMethod"] = (ThetaMethod, space_scheme)
+    discretizations["RK2"] = (RK2, space_scheme)
+    discretizations["RK4"] = (RK4, space_scheme)
+    discretizations["Padé"] = (PadeTime, space_scheme)
+    kwargs_label_simu = {'label':"Validation by simulation"}
+
+    discretizations = {}
+    for name in discretizations:
+        time_dis, space_dis = discretizations[name]
+        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=50)
         k = 1
         convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
 
@@ -155,10 +199,10 @@ def fig_compareSettingsDirichletNeumann():
         #                 order_time=0, order_operators=float('inf'),
         #                 order_equations=float('inf'))
         # plt.plot(axis_freq * dt, continuous, "--", label="Continuous Theorical " + name)
-        plt.plot(axis_freq * dt, convergence_factors[name], label=name)
-        plt.plot(axis_freq * dt, theorical_convergence_factors[name], "--", label="Theorical " + name)
+        axes[1].semilogx(axis_freq * dt, convergence_factors[name], label=name)
 
-    plt.legend()
+    axes[0].legend()
+    axes[1].legend()
     show_or_save("fig_compareSettingsDirichletNeumann")
 
 #############################################

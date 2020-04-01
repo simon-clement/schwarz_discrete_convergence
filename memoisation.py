@@ -24,7 +24,7 @@ def clean():
         Clean the cache. you can also just use:
         rm -rf <MEMOISATION_FOLDER_NAME>
         Don't forget to call this function if you change
-        the computation (e.g. if you touch to cv_rate.py) !
+        the computation (e.g. if you touch to simulator.py or a discretization) !
     """
     import os
     import glob

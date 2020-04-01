@@ -8,6 +8,7 @@ def scal_multiply(Y, s):
     """
         Returns "Y * s", Y being a tuple of np arrays
     """
+    s = float(s)
     assert type(s) == float
     ret_list = []
     for element in Y:

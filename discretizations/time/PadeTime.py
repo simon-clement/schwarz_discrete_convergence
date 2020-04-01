@@ -15,7 +15,7 @@ from utils_linalg import multiply
 from utils_linalg import add_banded
 
 
-class RK2(Discretization):
+class PadeTime(Discretization):
 
     def __init__(self, *args, **kwargs):
         """
@@ -25,19 +25,15 @@ class RK2(Discretization):
 
     def integrate_one_step(self, f, bd_cond, u_nm1, u_interface,
             phi_interface, upper_domain=True, Y=None, additional=[], **kwargs):
-
         f_nm1 = f(0)
-        f_nm1_2 = f(.5)
         f = f(1)
         bd_cond_nm1 = bd_cond(0)
-        bd_cond_nm1_2 = bd_cond(0.5)
         bd_cond = bd_cond(1)
         u_nm1_interface = u_interface(0)
-        u_nm1_2_interface = u_interface(0.5)
         u_interface = u_interface(1)
         phi_nm1_interface = phi_interface(0)
-        phi_nm1_2_interface = phi_interface(0.5)
         phi_interface = phi_interface(1)
+
         if len(additional) == 0:
             additional = self.create_additional(upper_domain=upper_domain)
         else:
@@ -53,58 +49,65 @@ class RK2(Discretization):
         assert len(A) == 3 # tridiagonal matrix
         assert len(B) == 3 # tridiagonal matrix
 
+        alpha = 1. + np.sqrt(2)
+        beta = 1. + 1/np.sqrt(2)
+
+        time_star = beta - alpha # beta - alpha = -1/sqrt(2)
+        u_star_interface = - alpha*u_nm1_interface + beta * u_interface
+        phi_star_interface = - alpha*phi_nm1_interface + beta * phi_interface
+        f_star = - alpha * f_nm1 + beta * f
+        bd_cond_star = -alpha * bd_cond_nm1 + beta * bd_cond
         ###################
-        # FIRST STEP : find the time derivative at middle step
+        # FIRST STEP : find the time derivative at star time
         ###################
-        to_inverse = scal_multiply(A, 2/self.DT)
-        rhs = multiply_interior(A, u_nm1) * 2 / self.DT +\
-                multiply_interior(B, u_nm1) + f_nm1[1:-1]
+        to_inverse = add_banded(scal_multiply(A, 1./self.DT), scal_multiply(B, -beta))
+        rhs = multiply_interior(A, u_nm1) / self.DT - alpha * multiply_interior(B, u_nm1) + f_star[1:-1]
         # Here f is cropped, but its extremal
         # values can serve in some space schemes in the interface conditions
 
-        # extrapolation ? no! it is inside phi_interface
-        cond_robin_nm1_2 = Lambda * u_nm1_2_interface + phi_nm1_2_interface
+        cond_robin_star = Lambda * u_star_interface + phi_star_interface
 
-        Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin_nm1_2,
-                                     coef_explicit=1., coef_implicit=0.,
-                                     dt=self.DT/2, f=f_nm1, sol_for_explicit=u_nm1, sol_unm1=u_nm1,
-                                     bd_cond=bd_cond_nm1_2, upper_domain=upper_domain,
+        Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin_star,
+                                     coef_explicit=-alpha, coef_implicit=beta,
+                                     dt=self.DT, f=f_star, sol_for_explicit=u_nm1, sol_unm1=u_nm1,
+                                     bd_cond=bd_cond_star, upper_domain=upper_domain,
                                      additional=additional)
-        result_nm1_2 = solve_linear(Y, rhs)
+        result_star = solve_linear(Y, rhs)
+
+        additional_star = self.update_additional(result=-alpha*u_nm1 + beta*result_star,
+                additional=additional, dt=self.DT,
+                upper_domain=upper_domain, f=f_star,
+                reaction_explicit=None if additional is None else -alpha*additional,
+                coef_reaction_implicit=beta)
 
         ###################
-        # SECOND STEP : time derivative at middle step is A^{-1} (B u_nm1_2 + f), let's use it
+        # SECOND STEP : We need to inverse the same tridiagonal matrix, except the boundaries
         ###################
 
-        to_inverse = scal_multiply(A, 1/self.DT)
-        rhs = multiply_interior(A, u_nm1) / self.DT +\
-                multiply_interior(B, result_nm1_2) + f_nm1_2[1:-1]
+        to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -beta))
+        rhs = multiply_interior(A, result_star) / self.DT + f[1:-1]
 
         cond_robin = Lambda * u_interface + phi_interface
     
         Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin,
-                                     coef_explicit=1., coef_implicit=0.,
-                                     dt=self.DT, f=f, sol_for_explicit=result_nm1_2,
-                                     sol_unm1=u_nm1,
+                                     coef_explicit=0., coef_implicit=beta,
+                                     dt=self.DT, f=f, sol_for_explicit=result_star,
+                                     sol_unm1=result_star,
                                      bd_cond=bd_cond, upper_domain=upper_domain,
-                                     additional=additional)
+                                     additional=additional_star)
         result = solve_linear(Y, rhs)
 
-        #Because of the reaction term, the RK scheme needs to be also developped on additional
-        additional_nm1_2 = self.update_additional(result=u_nm1, additional=additional, dt=self.DT/2,
-                upper_domain=upper_domain, f=f_nm1, reaction_explicit=additional, coef_reaction_implicit=0) # Now additional_nm1_2 is in time n-1/2
-
-        additional = self.update_additional(result=result_nm1_2, additional=additional, dt=self.DT,
-                upper_domain=upper_domain, f=f_nm1_2, reaction_explicit=additional_nm1_2, coef_reaction_implicit=0) # Now additional is in time n
+        additional = self.update_additional(result=result, additional=additional_star, dt=self.DT,
+                upper_domain=upper_domain, f=f, reaction_explicit=0, coef_reaction_implicit=beta) # Now additional is in time n
 
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
         return self.projection_result(result=result, upper_domain=upper_domain,
-                additional=additional, partial_t_result0=partial_t_result0, f=f, result_explicit=result_nm1_2)
+                additional=additional, partial_t_result0=partial_t_result0, f=f, result_explicit=result)
 
-    # s_time_discrete is not a variable but an operator for RK2
+    # s_time_discrete is not a variable but an operator for Pade scheme
     def s_time_modif(self, w, order):
         s = w * 1j
         if order > 1:
-            s -= w**3 * self.DT**2/6 * 1j
+            s -= 4+3*np.sqrt(2)* w**3 * self.DT**2/6 * 1j
         return s
 

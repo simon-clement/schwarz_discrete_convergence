@@ -23,13 +23,19 @@ class ThetaMethod(Discretization):
             It fails in high frequencies for theta \\in [~1/2, 1[
             and for theta= 0 the algorithm seems not to converge
         """
-        self.THETA = 2/5 # this can be changed anytime :)
+        self.THETA = 1/2 # this can be changed anytime :)
 
 
-    def integrate_one_step(self, f, f_nm1, bd_cond, bd_cond_nm1, u_nm1, u_interface,
-            u_nm1_interface, phi_interface, phi_nm1_interface,
-                           upper_domain=True,
-                           Y=None, additional=[], **kwargs):
+    def integrate_one_step(self, f, bd_cond, u_nm1, u_interface,
+            phi_interface, upper_domain=True, Y=None, additional=[], **kwargs):
+        f_nm1 = f(0)
+        f = f(1)
+        bd_cond_nm1 = bd_cond(0)
+        bd_cond = bd_cond(1)
+        u_nm1_interface = u_interface(0)
+        u_interface = u_interface(1)
+        phi_nm1_interface = phi_interface(0)
+        phi_interface = phi_interface(1)
 
         th = self.THETA
         f = th * f + (1-th) * f_nm1
@@ -64,12 +70,13 @@ class ThetaMethod(Discretization):
                                      dt=self.DT, f=f, sol_unm1=u_nm1, sol_for_explicit=u_nm1,
                                      bd_cond=bd_cond, upper_domain=upper_domain, additional=additional)
         result = solve_linear(Y, rhs)
-        self.update_additional(result=th*result + (1-th)*u_nm1, additional=additional, dt=self.DT,
+        additional = self.update_additional(result=th*result + (1-th)*u_nm1, additional=additional, dt=self.DT,
                 upper_domain=upper_domain, f=f,
                 reaction_explicit=None if additional is None else (1-th)*additional, coef_reaction_implicit=th)
 
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
-        return self.projection_result(result=result, upper_domain=upper_domain,
+        result_explicit = th*result + (1-th) * u_nm1
+        return self.projection_result(result=result, upper_domain=upper_domain, result_explicit=result_explicit,
                 additional=additional, partial_t_result0=partial_t_result0, f=f)
 
     def s_time_discrete(self, w):
@@ -83,9 +90,9 @@ class ThetaMethod(Discretization):
         assert order < float('inf')
         assert "DT" in self.__dict__ # verifying we are in a valid time discretization
         dt = self.DT
-        raise NotImplementedError
         s = w * 1j
         if order > 0:
+            raise NotImplementedError
             s += dt/2 * w**2
         if order > 1:
             s -= dt**2/6 * 1j * w**3

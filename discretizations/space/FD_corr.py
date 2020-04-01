@@ -1,8 +1,9 @@
 """
-    Finite differences for diffusion advection reaction equation.
-    The functions to use are integrate_one_step and integrate_one_step_star.
-    Theses function make a single step in time. It is not efficient
-    (need to compute the matrix each time) but it is simple.
+    Warning: the scheme analysis is only correct with Backward Euler time scheme.
+    the other schemes fail to recover the full solution.
+    For instance, ThetaMethod should consider the boundary conditions given
+    to be at time (n+theta), which is not compatible to the system solved,
+    where we need the boundary conditions at n+1.
 """
 
 import numpy as np
@@ -28,19 +29,19 @@ class FiniteDifferencesCorr(FiniteDifferences):
         """
         return None
 
-    def projection_result(self, result, upper_domain, partial_t_result0, f, **kwargs):
+    def projection_result(self, result, upper_domain, partial_t_result0, f, result_explicit, **kwargs):
         """
             given the result of the inversion, returns (u_np1, u_interface, phi_interface)
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
         a, c, dt = self.get_a_c_dt()
         h, D = h[0], D[0]
-        phi = D*(result[1] - result[0])/h
+        phi = D*(result_explicit[1] - result_explicit[0])/h
         phi -= h/2 * (partial_t_result0 \
-                + a * (result[1] - result[0]) / h
-                + c * result[0] - f[0])
+                + a * (result_explicit[1] - result_explicit[0]) / h
+                + c * result_explicit[0] - f[0])
 
-        return result, result[0], phi
+        return result, result_explicit[0], phi
 
     def hardcoded_interface(self, upper_domain, robin_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, sol_unm1, additional, **kwargs):
         """
@@ -56,10 +57,18 @@ class FiniteDifferencesCorr(FiniteDifferences):
         a, c, _ = self.get_a_c_dt()
         h, D = h[0], D[0]
 
-        return np.array([Lambda - D/h, D/h]) - \
-               h/2 * np.array([(1/dt + coef_implicit* (c - a/h) ), coef_implicit*a/h]), \
-               robin_cond + h/2 * (-sol_for_explicit[0] / dt - f[0] +\
-                       coef_explicit*(a*(sol_for_explicit[1] - sol_for_explicit[0])/h + c*sol_for_explicit[0]))
+        if coef_implicit == 0: # special case : problem
+            print("Warning: using FD corr with an explicit scheme, it was not coded for this")
+            return np.array([Lambda - D/h, D/h]) - \
+                   h/2 * np.array([(1/dt + coef_implicit* (c - a/h) ), coef_implicit*a/h]), \
+                   robin_cond + h/2 * (-sol_unm1[0] / dt - f[0] +\
+                           coef_explicit*(a*(sol_for_explicit[1] - sol_for_explicit[0])/h + c*sol_for_explicit[0]))
+        else:
+            return coef_implicit * np.array([Lambda - D/h, D/h]) - \
+                   h/2 * np.array([(1/dt + coef_implicit* (c - a/h) ), coef_implicit*a/h]), \
+                   robin_cond - coef_explicit * np.dot(np.array([Lambda - D/h, D/h]), sol_for_explicit[:2]) \
+                   + h/2 * (-sol_unm1[0] / dt - f[0] +\
+                           coef_explicit*(a*(sol_for_explicit[1] - sol_for_explicit[0])/h + c*sol_for_explicit[0]))
 
 
     def eta_dirneu(self, j, lam_m, lam_p, s=None):
@@ -91,11 +100,11 @@ class FiniteDifferencesCorr(FiniteDifferences):
         # The computation is then different because the boundary condition is different
         if j == 1:
             eta1_dir = 1 + (lambda_moins / lambda_plus) ** M
-            eta1_neu = (D/h - a/2) * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins / lambda_plus)**M) - h/2 * (s + c)
+            eta1_neu = (D/h - a/2) * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins / lambda_plus)**M) - h/2 * (s + c) * (1 + (lambda_moins / lambda_plus)**M)
             return eta1_dir, eta1_neu
         elif j == 2:
             eta2_dir = 1 + (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1)
-            eta2_neu = (D/h - a/2) * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1)) - h/2 * (s+c)
+            eta2_neu = (D/h - a/2) * (lambda_moins - 1 + (lambda_plus - 1) * (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1)) - h/2 * (s+c) * (1 + (lambda_moins-1) / (lambda_plus - 1) *(lambda_moins / lambda_plus) ** (M - 1))
             return eta2_dir, eta2_neu
 
 

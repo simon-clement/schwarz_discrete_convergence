@@ -125,8 +125,8 @@ class FourthOrderFV(Discretization):
         # an implicit/explicit thing
         a, c, _ = self.get_a_c_dt()
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        additional += dt / (1 + dt * c * coef_reaction_implicit) * \
-                (np.diff(result) / h - a * (result[1:] + result[:-1]) / 2 \
+        return dt / (1 + dt * c * coef_reaction_implicit) * \
+                (additional/dt + np.diff(result) / h - a * (result[1:] + result[:-1]) / 2 \
                 - c * reaction_explicit + np.cumsum(f[:-1]))
 
     def projection_result(self, result, upper_domain, additional, **kwargs):
