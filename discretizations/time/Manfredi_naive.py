@@ -38,7 +38,6 @@ class Manfredi(Discretization):
         bd_cond_star = bd_cond(bma)
 
         f_nm1 = f(0)
-        f_nm1_2 = f(1/2)
         f = f(1)
         bd_cond_nm1 = bd_cond(0)
         bd_cond = bd_cond(1)
@@ -57,62 +56,64 @@ class Manfredi(Discretization):
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
 
         # L'idée c'est qu'en semi-discret en espace, on a: A\partial_t u = B u
-        reaction = self.C
-        self.C = 0
-        A = self.A_interior(upper_domain=upper_domain) # without reaction
-        B = self.B_interior(upper_domain=upper_domain) # without reaction
+        A = self.A_interior(upper_domain=upper_domain)
+        B = self.B_interior(upper_domain=upper_domain)
+        assert len(A) == 3 # tridiagonal matrix
+        assert len(B) == 3 # tridiagonal matrix
+
+        t_n_coef = -alpha
+        t_star_coef = beta
+    
+        #u_star_interface = t_n_coef*u_nm1_interface + t_star_coef * u_star_interface
+        #phi_star_interface = t_n_coef*phi_nm1_interface + t_star_coef * phi_star_interface
+        #f_star = (t_n_coef * f_nm1 + t_star_coef * f_star) / (t_n_coef + t_star_coef)
+        #bd_cond_star = t_n_coef * bd_cond_nm1 + t_star_coef * bd_cond_star
 
         ###################
         # FIRST STEP : find the time derivative at star time
-        # The equation is A(u*-u_nm1)/dt - (beta*Bu* - alpha*Bu_nm1) + reaction*Au_nm1 = f(1/2)
+        # The equation is (u*-u_n)/dt - (beta*Bu* - alpha*Bu_n) = (beta-alpha)*f*
         ###################
         to_inverse = add_banded(scal_multiply(A, 1./self.DT), scal_multiply(B, -beta))
-        rhs = multiply_interior(A, u_nm1) * (1 / self.DT - reaction) \
-                - alpha * multiply_interior(B, u_nm1) + f_nm1_2[1:-1]
+        rhs = multiply_interior(A, u_nm1) / self.DT - alpha * multiply_interior(B, u_nm1) + bma*f_star[1:-1]
+        # Here f is cropped, but its extremal
+        # values can serve in some space schemes in the interface conditions
 
         cond_robin_star = Lambda * u_star_interface + phi_star_interface
 
-        # instead of giving additional = \Bar{u}, we give \Bar{u} * (1-c*DT). Since our problem comes
-        # From Finite volumes, we can thus solve only for finite volumes.
         Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin_star,
-                                     coef_explicit=-alpha, coef_implicit=beta,
-                                     dt=self.DT, f=f_nm1_2, sol_for_explicit=u_nm1, sol_unm1=u_nm1,
+                                     coef_explicit=-alpha/bma, coef_implicit=beta/bma,
+                                     dt=self.DT*bma, f=f_star, sol_for_explicit=u_nm1, sol_unm1=u_nm1,
                                      bd_cond=bd_cond_star, upper_domain=upper_domain,
-                                     additional=None if additional is None else additional * (1-reaction*self.DT))
+                                     additional=additional)
         result_star = solve_linear(Y, rhs)
-
-        self.C = reaction
 
         additional_star = self.update_additional(result=-alpha*u_nm1 + beta*result_star,
                 additional=additional, dt=self.DT,
-                upper_domain=upper_domain, f=f_nm1_2,
-                reaction_explicit=None if additional is None else additional,
-                coef_reaction_implicit=0)
+                upper_domain=upper_domain, f=bma*f_star,
+                reaction_explicit=None if additional is None else -alpha*additional,
+                coef_reaction_implicit=beta)
 
         ###################
         # SECOND STEP : We need to inverse the same tridiagonal matrix, except the boundaries
-        # The equation is (u_np1-u*)/dt - beta*Bu_np1 = 0, WITHOUT REACTION AND FORCING TERM
+        # The equation is (u_np1-u*)/dt - beta*Bu_np1 = beta*f_np1
         ###################
-        # keeping the same matrix to inverse
-        # to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -beta))
-        # This time the rhs does not take into account the forcing term
-        rhs = multiply_interior(A, result_star) / self.DT
+
+        to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -beta))
+        rhs = multiply_interior(A, result_star) / self.DT + beta*f[1:-1]
 
         cond_robin = Lambda * u_interface + phi_interface
     
-        self.C = 0 # We need to avoid reaction and forcing term in the second step
         Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin,
                                      coef_explicit=0., coef_implicit=1.,
-                                     dt=beta*self.DT, f=np.zeros_like(f), sol_for_explicit=result_star,
+                                     dt=beta*self.DT, f=f, sol_for_explicit=result_star,
                                      sol_unm1=result_star,
                                      bd_cond=bd_cond, upper_domain=upper_domain,
                                      additional=additional_star)
         result = solve_linear(Y, rhs)
 
         additional = self.update_additional(result=result, additional=additional_star, dt=beta*self.DT,
-                upper_domain=upper_domain, f=np.zeros_like(f), reaction_explicit=0, coef_reaction_implicit=0) # Now additional is in time n
+                upper_domain=upper_domain, f=f, reaction_explicit=0, coef_reaction_implicit=1.) # Now additional is in time n
 
-        self.C = reaction # set back reaction coefficient
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
         return self.projection_result(result=result, upper_domain=upper_domain,
                 additional=additional, partial_t_result0=partial_t_result0, f=f, result_explicit=result)

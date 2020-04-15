@@ -4,7 +4,7 @@
 import numpy as np
 from numpy import cos, sin, pi
 from numpy.random import random
-from tests.utils_numeric import solve_linear
+from tests.test_cases import intricated_spacetime, linear_time, cosinus_time, exp_space_quad_time
 """
     Test function of the module.
     Tests the finite volumes space scheme, with all the time schemes.
@@ -12,8 +12,7 @@ from tests.utils_numeric import solve_linear
 
 
 def launch_all_tests():
-    print("Test of Finite volumes schemes.")
-
+    print("Test of Finite volumes scheme based on quadratic splines.")
     print("Test integration with finite volumes, spline 2:", test_integrate_one_step())
 
 
@@ -29,63 +28,66 @@ def test_integrate_one_step():
     from discretizations.time.RK4 import RK4
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.Manfredi import Manfredi
-    u_ubar_flux_fbar = intricated_spacetime
-    test_all_time_schemes_domain1(BackwardEuler, u_ubar_flux_fbar)
-    test_all_time_schemes_domain1(Manfredi, u_ubar_flux_fbar)
-    test_all_time_schemes_domain1(ThetaMethod, u_ubar_flux_fbar)
+    def verify_order(time_scheme, function, order, **kwargs): # /!\ give order in space !
+        try:
+            experimental_order = test_any_time_scheme_domain1(time_scheme, function,  **kwargs)
+            if abs(experimental_order - order) < .4:
+                return
+            else:
+                print("Error for ", time_scheme.__name__, function.__name__,
+                        ": should be space order", order, "but is:", experimental_order)
+        except(KeyboardInterrupt):
+            print("Interrupted test", time_scheme.__name__, function.__name__, "by user interruption.")
 
-    # test_all_time_schemes_domain1(RK2, u_ubar_flux_fbar)
-    # test_all_time_schemes_domain1(RK4, u_ubar_flux_fbar)
+    print("MANFREDI SCHEME:")
+    # Manfredi is a particular scheme. It makes an order 1 error when using a rhs
+    verify_order(Manfredi, intricated_spacetime, 2)
+    verify_order(Manfredi, linear_time, 2)
+    verify_order(Manfredi, cosinus_time, 2)
+    verify_order(Manfredi, exp_space_quad_time, 2)
+
+    print("BACKWARD EULER SCHEME:")
+    # Backward Euler is order 1 in time, so 2 in space (constant Courant parabolic number)
+    verify_order(BackwardEuler, intricated_spacetime, 2)
+    verify_order(BackwardEuler, linear_time, 3) # 3 bcause perfect in timeare bad ?
+    verify_order(BackwardEuler, cosinus_time, 2)
+    verify_order(BackwardEuler, exp_space_quad_time, 2)
+
+    # the 2nd order time schemes gives 4rth order in space error.
+
+    print("THETA SCHEME:")
+    verify_order(ThetaMethod, intricated_spacetime, 2) # isn't it strange to have 2?
+    verify_order(ThetaMethod, linear_time, 3)
+    verify_order(ThetaMethod, cosinus_time, 3)
+    verify_order(ThetaMethod, exp_space_quad_time, 2)
+
+    print("RK2 SCHEME:")
+    verify_order(RK2, intricated_spacetime, 2)
+    verify_order(RK2, linear_time, 3)
+    verify_order(RK2, cosinus_time, 3)
+    verify_order(RK2, exp_space_quad_time, 2)
+
+    # 4th orders time scheme are limited by space error:
+    print("RK4 SCHEME:")
+    verify_order(RK4, intricated_spacetime, 2)
+    verify_order(RK4, linear_time, 3)
+    verify_order(RK4, cosinus_time, 3)
+    verify_order(RK4, exp_space_quad_time, 2)
 
     return "ok"
-
-def linear_time(a, c, D):
-    def u_real(x, t): return np.sin(x) + t
-    def u_bar(x_1_2, h, t): return 1/h * (np.cos(x_1_2) - np.cos(x_1_2+h)) + t
-    def flux(x, t): return D * np.cos(x)
-    def f_bar(x, h, t): return 1 - 1/h * D * (np.cos(x+h) - np.cos(x))
-    return u_real, u_bar, flux, f_bar
-
-def cosinus_time(a, c, D):
-    def u_real(x, t): return np.sin(x) + np.cos(t)
-    def u_bar(x_1_2, h, t): return 1/h * (np.cos(x_1_2) - np.cos(x_1_2+h)) + np.cos(t)
-    def flux(x, t): return D * np.cos(x)
-    def f_bar(x, h, t): return -np.sin(t) - 1/h * D * (np.cos(x+h) - np.cos(x))
-    return u_real, u_bar, flux, f_bar
-
-def intricated_spacetime(a, c, D):
-    def u_real(x, t): return np.sin(x + t)
-    def u_bar(x_1_2, h, t): return 1/h * (np.cos(x_1_2 + t) - np.cos(x_1_2+h + t))
-    def flux(x, t): return D * np.cos(x + t)
-    def f_bar(x, h, t): return 1/h*(np.sin(x+h+t) - np.sin(x+t)) - 1/h * D * (np.cos(x+h+t) - np.cos(x+t))
-    return u_real, u_bar, flux, f_bar
-
-def exp_spacetime(a, c, D):
-    def u_real(x, t): return np.exp(x + t)
-    def u_bar(x_1_2, h, t): return 1/h * (np.exp(x_1_2+h + t) - np.exp(x_1_2 + t))
-    def flux(x, t): return D * np.exp(x + t)
-    def f_bar(x, h, t): return 1/h*(np.exp(x+h+t) - np.exp(x+t)) - 1/h * D * (np.exp(x+h+t) - np.exp(x+t))
-    return u_real, u_bar, flux, f_bar
-
-def exp_space_quad_time(a, c, D):
-    def u_real(x, t): return np.exp(x) * t**2
-    def u_bar(x_1_2, h, t): return t**2/h * (np.exp(x_1_2+h) - np.exp(x_1_2))
-    def flux(x, t): return D * np.exp(x) * t**2
-    def f_bar(x, h, t): return 2*t/h*(np.exp(x+h) - np.exp(x)) - 1/h * D * (np.exp(x+h) - np.exp(x))*t**2
-    return u_real, u_bar, flux, f_bar
 
 def exp_space_cubic_time(a, c, D):
     def u_real(x, t): return np.exp(x) * t**3
     def u_bar(x_1_2, h, t): return t**3/h * (np.exp(x_1_2+h) - np.exp(x_1_2))
     def flux(x, t): return D * np.exp(x) * t**3
     def f_bar(x, h, t): return 3*t**2/h*(np.exp(x+h) - np.exp(x)) - 1/h * D * (np.exp(x+h) - np.exp(x))*t**3
-    return u_real, u_bar, flux, f_bar
+    return {'u':u_real, 'Bar{u}':u_bar, 'Ddu/dx':flux, 'Bar{f}':f_bar}
 
 
-# This is not the same function as test_finite_differences.test_all_time_schemes_domain1
+# This is not the same function as test_finite_differences.test_any_time_scheme_domain1
 # because the right hand side is not the same, the comparison is not the same,
 # we integrate in time the fluxes and not u
-def test_all_time_schemes_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
+def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
     """
     Simplest Case : a=c=0
     on se place en (-1, 0)
@@ -109,8 +111,8 @@ def test_all_time_schemes_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
     ###########################################
     T = 4.
     Lambda = 1.
-    Courant = 10. # RK2 experimental CFL condition
-    D = 1.
+    Courant = .1 # RK2 experimental CFL condition
+    D = 2.
 
     builder.COURANT_NUMBER = Courant
     builder.LAMBDA_1 = Lambda
@@ -129,7 +131,6 @@ def test_all_time_schemes_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
     # Loop to compare different settings:
     for M in (8, 16):
         dt = 1/M**2*Courant/D
-        M=4096
 
         scheme.DT = dt
 
@@ -155,7 +156,8 @@ def test_all_time_schemes_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
         ######################
         # EQUATION DEFINITION: WHICH U ? WHICH F ?
         ######################
-        u_real, u_bar, flux, f_bar = u_ubar_flux_fbar
+        keys = ('u', 'Bar{u}', 'Ddu/dx', 'Bar{f}')
+        u_real, u_bar, flux, f_bar = (u_ubar_flux_fbar[i] for i in keys)
 
         ###########################
         # TIME INTEGRATION:
@@ -201,11 +203,7 @@ def test_all_time_schemes_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
             #     input()
 
         ret += [np.linalg.norm(u_bar(x1-h1/2, h1, t_n+dt) - np.flipud(u1_0))/np.linalg.norm(u_bar(x1-h1/2, h1, t_n+dt))]
-        print("errors: ", ret)
-    print("Order in time (careful: Courant constant) for", time_scheme.__name__, np.log(ret[0]/ret[1])/np.log(2)/2)
-    if abs(3 - np.log(ret[0]/ret[1])/np.log(2)) < .1:
-        return "ok"
-    else:
-        return "Order : " + str(np.log(ret[0]/ret[1])/np.log(2))
+        # print("errors: ", ret)
+    return np.log(ret[0]/ret[1])/np.log(2)
 
 

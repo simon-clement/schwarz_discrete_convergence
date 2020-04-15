@@ -1,16 +1,21 @@
 import numpy as np
 from numpy import cos, sin
 from numpy.random import random
+import tests.test_cases
+from tests.test_cases import intricated_spacetime, linear_time, cosinus_time, exp_space_quad_time
 
 
 def launch_all_tests():
     from discretizations.space.FD_naive import FiniteDifferencesNaive as FD_naive
     from discretizations.space.FD_corr import FiniteDifferencesCorr as FD_corr
     from discretizations.space.FD_extra import FiniteDifferencesExtra as FD_extra
+    print("Test of Finite Differences schemes.")
+    print("Testing Naive Neumann interface.")
     print("Test integration finite differences corr=0:", test_integrate_one_step(FD_naive))
-    #print("Test integration finite differences corr=1:", test_integrate_one_step(FD_corr))
-    #print("Test integration finite differences extra:", test_integrate_one_step(FD_extra))
-    #print("Test complete finite differences:", complete_test_schwarz())
+    print("Testing Neumann interface with a corrective term.")
+    print("Test integration finite differences corr=1:", test_integrate_one_step(FD_corr, CORRECTIVE_TERM=True))
+    print("Testing Neumann interface with an extrapolation of the flux.")
+    print("Test integration finite differences extra:", test_integrate_one_step(FD_extra))
     return "ok"
 
 def complete_test_schwarz():
@@ -20,67 +25,65 @@ def complete_test_schwarz():
 
     return "ok"
 
-def test_integrate_one_step(space_scheme_FD):
+def test_integrate_one_step(space_scheme_FD, CORRECTIVE_TERM=False):
     from discretizations.time.backward_euler import BackwardEuler
     from discretizations.time.RK2 import RK2
     from discretizations.time.RK4 import RK4
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.Manfredi import Manfredi
-    u_flux_f = const_space_quad_time
-    print(test_all_time_schemes_domain1(ThetaMethod, space_scheme_FD, u_flux_f))
-    print(test_all_time_schemes_domain1(BackwardEuler, space_scheme_FD, u_flux_f))
-    print(test_all_time_schemes_domain1(Manfredi, space_scheme_FD, u_flux_f))
-    #print(test_all_time_schemes_domain1(RK2, space_scheme_FD, u_flux_f))
-    #print(test_all_time_schemes_domain1(RK4, space_scheme_FD, u_flux_f))
+    def verify_order(time_scheme, function, order, **kwargs): # /!\ give order in space !
+        try:
+            experimental_order = test_any_time_scheme_domain1(time_scheme, space_scheme_FD, function,  **kwargs)
+            if abs(experimental_order - order) < .4:
+                return
+            else:
+                print("Error for ", time_scheme.__name__, function.__name__,
+                        ": should be space order", order, "but is:", experimental_order)
+        except(KeyboardInterrupt):
+            print("Interrupted test", time_scheme.__name__, function.__name__, "by user interruption.")
+
+    print("MANFREDI SCHEME:")
+    # Manfredi is a particular scheme. It makes an order 1 error when using a rhs
+    verify_order(Manfredi, intricated_spacetime, 2)
+    verify_order(Manfredi, linear_time, 2)
+    verify_order(Manfredi, cosinus_time, 2)
+    verify_order(Manfredi, exp_space_quad_time, 2)
+
+    print("BACKWARD EULER SCHEME:")
+    # Backward Euler is order 1 in time, so 2 in space (constant Courant parabolic number)
+    verify_order(BackwardEuler, intricated_spacetime, 2) #Naive : =2.8
+    verify_order(BackwardEuler, linear_time, 2) # exact in time so the only error is space
+    verify_order(BackwardEuler, cosinus_time, 2) # Naive: =1.28
+    verify_order(BackwardEuler, exp_space_quad_time, 2)
+
+    # the 2nd order time schemes gives 4rth order in space error.
+
+    print("THETA SCHEME:")
+    verify_order(ThetaMethod, intricated_spacetime, 2)
+    verify_order(ThetaMethod, linear_time, 2)
+    verify_order(ThetaMethod, cosinus_time, 2)
+    verify_order(ThetaMethod, exp_space_quad_time, 2)
+
+    if not CORRECTIVE_TERM:
+        print("RK2 SCHEME:")
+        verify_order(RK2, intricated_spacetime, 2)
+        verify_order(RK2, linear_time, 2)
+        verify_order(RK2, cosinus_time, 2)
+        verify_order(RK2, exp_space_quad_time, 2)
+
+        # 4th orders time scheme are limited by space error:
+        print("RK4 SCHEME:")
+        verify_order(RK4, intricated_spacetime, 2)
+        verify_order(RK4, linear_time, 2)
+        verify_order(RK4, cosinus_time, 2)
+        verify_order(RK4, exp_space_quad_time, 2)
 
     return "ok"
 
-def linear_time(a, c, D):
-    def u_real(x, t): return np.sin(x) + t
-    def flux(x, t): return D * np.cos(x)
-    def f(x, t): return 1 - (- D * np.sin(x))
-    return u_real, flux, f
-
-def cosinus_time(a, c, D):
-    def u_real(x, t): return np.sin(x) + np.cos(t)
-    def flux(x, t): return D * np.cos(x)
-    def f(x, t): return -np.sin(t) - (- D * np.sin(x))
-    return u_real, flux, f
-
-def intricated_spacetime(a, c, D):
-    def u_real(x, t): return np.sin(x + t)
-    def flux(x, t): return D * np.cos(x + t)
-    def f(x, t): return np.cos(x+t) - ( - D * np.sin(x+t))
-    return u_real, flux, f
-
-def exp_spacetime(a, c, D):
-    def u_real(x, t): return np.exp(x + t)
-    def flux(x, t): return D * np.exp(x + t)
-    def f(x, t): return np.exp(x+t) - D * np.exp(x+t)
-    return u_real, flux, f
-
-def exp_space_quad_time(a, c, D):
-    def u_real(x, t): return np.exp(x)*t**2
-    def flux(x, t): return D * np.exp(x)*t**2
-    def f(x, t): return 2*t*np.exp(x) - D * np.exp(x)*t**2
-    return u_real, flux, f
-
-def const_space_quad_time(a, c, D):
-    def u_real(x, t): return t**2 + np.zeros_like(x)
-    def flux(x, t): return 0 + np.zeros_like(x)
-    def f(x, t): return 2*t + np.zeros_like(x)
-    return u_real, flux, f
-
-def solution_no_forcing(a, c, D):
-    def u_real(x, t): return np.exp(x/np.sqrt(D) + t)
-    def flux(x, t): return np.sqrt(D)*np.exp(x/np.sqrt(D) + t)
-    def f(x, t): return np.zeros_like(t) + np.zeros_like(x)
-    return u_real, flux, f
-
-# This is not the same function as test_finite_differences.test_all_time_schemes_domain1
+# This is not the same function as test_finite_volumes*.test_any_time_scheme_domain1
 # because the right hand side is not the same, the comparison is not the same,
 # we integrate in time u and not the fluxes
-def test_all_time_schemes_domain1(time_scheme, space_scheme, u_flux_f=linear_time):
+def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time):
     """
     Simplest Case : a=c=0
     on se place en (-1, 0)
@@ -100,7 +103,7 @@ def test_all_time_schemes_domain1(time_scheme, space_scheme, u_flux_f=linear_tim
     ###########################################
     T = 4.
     Lambda = 1e9
-    Courant = 10 # 0.16 is RK2 experimental CFL condition
+    Courant = 0.16 # 0.16 is RK2 experimental CFL condition
     D = 1.
 
     builder.COURANT_NUMBER = Courant
@@ -119,12 +122,10 @@ def test_all_time_schemes_domain1(time_scheme, space_scheme, u_flux_f=linear_tim
     # Loop to compare different settings:
     for M in (8, 16):
         dt = 1/M**2*Courant/D
-        M = 3
         scheme.DT = dt
 
         N = int(T/dt)
         T = N * dt
-        print(T)
 
         scheme.M1 = M
         scheme.M2 = M
@@ -146,7 +147,8 @@ def test_all_time_schemes_domain1(time_scheme, space_scheme, u_flux_f=linear_tim
         # EQUATION DEFINITION: WHICH U ? WHICH F ?
         ######################
 
-        u_real, flux, f = u_flux_f
+        keys = ('u', 'Ddu/dx', 'f')
+        u_real, flux, f = (u_flux_f[i] for i in keys)
 
         ###########################
         # TIME INTEGRATION:
@@ -185,8 +187,7 @@ def test_all_time_schemes_domain1(time_scheme, space_scheme, u_flux_f=linear_tim
             u1_0 = u_np1
 
         ret += [np.linalg.norm(u_real(x_u, t_n+dt) - u1_0)/np.linalg.norm(u_real(x_u, t_n+dt))]
-        print(ret)
+        #print(ret)
     # print(np.log(ret[0]/ret[1])/np.log(2)) # <- space order. Time order is same but divided by 2
-    else:
-        return time_scheme.__name__ + " time order is: " + str(np.log(ret[0]/ret[1])/np.log(2) / 2)
+    return np.log(ret[0]/ret[1])/np.log(2)
 
