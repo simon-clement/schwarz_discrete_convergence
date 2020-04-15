@@ -27,17 +27,12 @@ from simulator import frequency_simulation
 all_figures = {}
 
 class Builder():
-    """
-        AVOID AT ALL COST CHANGING DEFAULT : it will change all figures and invalidate all cache.
-        Remember to keep the synchronisation between this class and the PDF.
-    """
-    def __init__(self):
-        self.COURANT_NUMBER = .05
-        self.T = 100.
-        self.M1 = 20
-        self.M2 = 20
-        self.SIZE_DOMAIN_1 = 20
-        self.SIZE_DOMAIN_2 = 20
+    def __init__(self): # changing defaults will result in needing to recompute all cache
+        self.COURANT_NUMBER = .15 # the cache exists for Co = .15. need to try with 1. and 10.
+        self.M1 = 200
+        self.M2 = 200
+        self.SIZE_DOMAIN_1 = 200
+        self.SIZE_DOMAIN_2 = 200
         self.D1 = .54
         self.D2 = .6
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
@@ -45,7 +40,6 @@ class Builder():
         self.C = 0.
         self.LAMBDA_1 = 0.
         self.LAMBDA_2 = 0.
-        self.N = int(self.T/self.DT)
 
     def new(self, Discretisation):
         return Discretisation(A=self.A, C=self.C,
@@ -102,7 +96,7 @@ def fig_compareSettingsDirichletNeumann():
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.RK2 import RK2
     from discretizations.time.RK4 import RK4
-    from discretizations.time.PadeTime import PadeTime
+    from discretizations.time.Manfredi import Manfredi
     # parameters of the schemes are given to the builder:
     builder = Builder()
     builder.LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
@@ -114,20 +108,18 @@ def fig_compareSettingsDirichletNeumann():
 
 
     discretizations = {}
-    time_scheme = BackwardEuler
+    time_scheme = Manfredi
 
-    """
     discretizations["FV2"] = (time_scheme, QuadSplinesFV)
     discretizations["FV4"] = (time_scheme, FourthOrderFV)
     discretizations["FD, extra"] = (time_scheme, FiniteDifferencesExtra)
-    """
     discretizations["FD, corr=0"] = (time_scheme, FiniteDifferencesNaive)
-    discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
+    #discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
 
     convergence_factors = {}
     theorical_convergence_factors = {}
 
-    N = 8000
+    N = 300
     dt = DEFAULT.DT
     ###########
     # Computation of the frequency axis
@@ -141,33 +133,34 @@ def fig_compareSettingsDirichletNeumann():
     axis_freq = 2 * pi*all_k / N / dt
 
     kwargs_label_simu = {'label':"Validation by simulation"}
-    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
     ###########
     # for each discretization, a simulation
     ###########
     for name in discretizations:
         time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=100)
+        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=50)
         k = 1
         convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
 
         dis = builder.build(time_dis, space_dis)
         theorical_convergence_factors[name] = \
                 dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
+                        order_time=0, order_operators=float('inf'),
                         order_equations=float('inf'))
         # continuous = dis.analytic_robin_robin_modified(w=axis_freq,
         #                 order_time=0, order_operators=float('inf'),
         #                 order_equations=float('inf'))
         # plt.plot(axis_freq * dt, continuous, "--", label="Continuous Theorical " + name)
-        axes[0].semilogx(axis_freq * dt, convergence_factors[name], "k--", **kwargs_label_simu)
+        #axes[0].semilogx(axis_freq * dt, convergence_factors[name], "k--", **kwargs_label_simu)
+        axes[0].semilogx(axis_freq * dt, convergence_factors[name], label=name)
         if kwargs_label_simu: # We only want the legend to be present once
             kwargs_label_simu = {}
-        axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name)
+        #axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name+ " theorical")
 
     axes[0].set_xlabel("Frequency variable $\\omega \\delta t$")
     axes[0].set_ylabel("Convergence factor $\\rho$")
-    axes[0].set_title("Various space discretizations with Euler Backward")
+    axes[0].set_title("Various space discretizations with " + time_scheme.__name__)
 
     axes[1].set_xlabel("Frequency variable $\\omega \\delta t$")
     axes[1].set_ylabel("Convergence factor $\\rho$")
@@ -180,10 +173,10 @@ def fig_compareSettingsDirichletNeumann():
     discretizations["ThetaMethod"] = (ThetaMethod, space_scheme)
     discretizations["RK2"] = (RK2, space_scheme)
     discretizations["RK4"] = (RK4, space_scheme)
-    discretizations["Padé"] = (PadeTime, space_scheme)
+    discretizations["Manfredi"] = (Manfredi, space_scheme)
+
     kwargs_label_simu = {'label':"Validation by simulation"}
 
-    discretizations = {}
     for name in discretizations:
         time_dis, space_dis = discretizations[name]
         alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=50)

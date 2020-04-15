@@ -32,7 +32,7 @@ class FourthOrderFV(Discretization):
             For finite differences, A is identity.
         """
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
-        diag = (h[:-1]/D[1:-1] + h[1:]/D[1:-1])*2/5
+        diag = 5*(h[:-1]/D[1:-1] + h[1:]/D[1:-1])/12
         lower_diag = h[:-1]/D[:-2]/12
         upper_diag = h[1:]/D[2:]/12
         return lower_diag, diag, upper_diag
@@ -49,7 +49,7 @@ class FourthOrderFV(Discretization):
         #left diagonal: applies to u[:-2]
         Y_0 = - (1/h[:-1] + a / (2*D[2:])) + c * h[:-1] / D[:-2] /12
         # diagonal: applies to u[1:-1]
-        Y_1 = 1/h[:-1] + 1/h[1:] + c * (h[1:] + h[:-1]) / D[1:-1] *2/5
+        Y_1 = 1/h[:-1] + 1/h[1:] + c * (h[1:] + h[:-1]) / D[1:-1] *5/12
         # right diagonal: applies to u[2:]
         Y_2 = - (1/h[1:] - a / (2*D[:-2])) + c * h[1:] / D[2:] /12
         Y_0, Y_1, Y_2 = -Y_0, -Y_1, -Y_2 # Bu is at the rhs of the equation
@@ -88,7 +88,7 @@ class FourthOrderFV(Discretization):
             assert additional is not None
             phi_m_phi = np.array([(1/h[-1] - a/(2*D[-1])), (-1/h[-1] - a/(2*D[-2]))])
             coeffs_phi = dt/(1+dt*c*coef_implicit) * phi_m_phi
-            return (np.array([h[-1]/(5*D[-1]), h[-1]/(12*D[-2])]) + coef_implicit * coeffs_phi,
+            return (np.array([5*h[-1]/(12*D[-1]), h[-1]/(12*D[-2])]) + coef_implicit * coeffs_phi,
                     bd_cond - dt/(1+dt*c*coef_implicit) * (additional[-1]*(1/dt - c*coef_explicit) + f[-1])
                     - coef_explicit * np.dot(coeffs_phi, sol_for_explicit[-1:-3:-1]))
 
@@ -107,7 +107,7 @@ class FourthOrderFV(Discretization):
         phi_m_phi = np.array([(- 1/h[0] - a/(2*D[0])), (1/h[0] - a/(2*D[1]))])
         coeffs_phi = dt/(1+dt*c*coef_implicit) * phi_m_phi
         return (np.array([1, 0]) + Lambda * (\
-                np.array([-h[0]/(5*D[0]), -h[0]/(12*D[1])]) + coef_implicit * coeffs_phi),
+                np.array([-5*h[0]/(12*D[0]), -h[0]/(12*D[1])]) + coef_implicit * coeffs_phi),
                 robin_cond - Lambda * ( dt/(1+dt*c*coef_implicit) * (additional[0]*(1/dt - c*coef_explicit) + f[0])
                     + coef_explicit * np.dot(coeffs_phi, sol_for_explicit[:2]))) # This last line seems better with a - but the formulaes give +
 
@@ -134,7 +134,7 @@ class FourthOrderFV(Discretization):
             given the result of the inversion, returns (u_np1, u_interface, phi_interface)
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        u = additional[0] - result[0] * h[0]/(5*D[0]) - result[1] * h[0]/(12*D[1])
+        u = additional[0] - result[0] * 5*h[0]/(12*D[0]) - result[1] * h[0]/(12*D[1])
         return result, u, result[0], additional
 
     def size_f(self, upper_domain):
@@ -162,7 +162,7 @@ class FourthOrderFV(Discretization):
         a, c, _ = self.get_a_c_dt()
         h, D = h[0], D[0]
         Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (12 * D)
-        Y_1 = 1 / (s + c) * 2 / h + 4 * h / (5 * D)
+        Y_1 = 1 / (s + c) * 2 / h + 10 * h / (12 * D)
         Y_2 = -1 / (s + c) * (1 / h - a / (2 * D)) + h / (12 * D)
 
         lam1_m = (Y_1 - np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
@@ -173,7 +173,7 @@ class FourthOrderFV(Discretization):
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=True)
         h, D = h[0], D[0]
         Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (12 * D)
-        Y_1 = 1 / (s + c) * 2 / h + 4 * h / (5 * D)
+        Y_1 = 1 / (s + c) * 2 / h + 10 * h / (12 * D)
         Y_2 = -1 / (s + c) * (1 / h - a / (2 * D)) + h / (12 * D)
 
         lam2_m = (Y_1 - np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
@@ -203,15 +203,15 @@ class FourthOrderFV(Discretization):
         if j == 1:
             lambda_moins, lambda_plus = lambda_plus, lambda_moins # we invert the l- and l+ to have |l-|<1
             # We added a minus in front of h/12D ?
-            xi = (-h/(12*D) * (s+c) + 1/h + a/(2*D)) / (h/(5*D) * (s+c) + 1/h - a/(2*D))
-            eta1_dir = (-(1/h + a/(2*D))/(s+c) - h/(5*D)) \
+            xi = (-h/(12*D) * (s+c) + 1/h + a/(2*D)) / (5*h/(12*D) * (s+c) + 1/h - a/(2*D))
+            eta1_dir = (-(1/h + a/(2*D))/(s+c) - 5*h/(12*D)) \
                     * (1 - (lambda_moins - xi) / (lambda_plus - xi) * (lambda_moins / lambda_plus)**(M-1)) \
                     + ((1/h - a/(2*D))/(s+c) - h/(12*D)) \
                     * (lambda_moins - lambda_plus* (lambda_moins - xi) / (lambda_plus - xi) *(lambda_moins / lambda_plus)**M)
             eta1_neu = 1 + (lambda_moins-xi) / (lambda_plus - xi) *(lambda_moins / lambda_plus) ** (M - 1)
             return eta1_dir, eta1_neu
         elif j == 2:
-            eta2_dir = (-(1/h + a/(2*D))/(s+c) - h/(5*D)) \
+            eta2_dir = (-(1/h + a/(2*D))/(s+c) - 5*h/(12*D)) \
                     * (1 - (lambda_moins / lambda_plus)**M) \
                     + ((1/h - a/(2*D))/(s+c) - h/(12*D)) \
                     * (lambda_moins - lambda_plus*(lambda_moins / lambda_plus)**M)

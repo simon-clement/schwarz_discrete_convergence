@@ -168,72 +168,19 @@ def main():
         # It is here to tests things with default parameters,
         # not to export figures
         elif sys.argv[1] == "debug":
-
-            from tests.test_finite_volumes_spline2 import launch_all_tests
-            launch_all_tests()
-
-            # defining discretizations:
-
-            from discretizations.finite_difference import FiniteDifferences
-            from discretizations.finite_difference_no_corrective_term \
-                    import FiniteDifferencesNoCorrectiveTerm
-            from discretizations.finite_difference_naive_neumann \
-                    import FiniteDifferencesNaiveNeumann
-            from discretizations.finite_volumes import FiniteVolumes
-            LAMBDA_1 = 0.0
-            LAMBDA_2 = 0.0
-
-            A = 0.0
-            C = 1e-10
-            D1 = .54
-            D2 = .6
-
-            M1 = 200
-            M2 = 200
-
-            SIZE_DOMAIN_1 = 200
-            SIZE_DOMAIN_2 = 200
-
-            NUMBER_DDT_H2 = .1
-            T = 10.
-
-            DT = NUMBER_DDT_H2 * (M1 / SIZE_DOMAIN_1)**2 / D1
-            # should not be too different from the value with M2, Size_domain2, and D2
-            TIME_WINDOW_LEN = int(T / DT)
-
-
-            finite_difference = FiniteDifferences(A, C, D1,
-                                                  D2, M1,
-                                                  M2, SIZE_DOMAIN_1,
-                                                  SIZE_DOMAIN_2, LAMBDA_1,
-                                                  LAMBDA_2, DT)
-
-            finite_difference_wout = \
-                    FiniteDifferencesNoCorrectiveTerm(A, C, D1,
-                                                      D2, M1,
-                                                      M2, SIZE_DOMAIN_1,
-                                                      SIZE_DOMAIN_2, LAMBDA_1,
-                                                      LAMBDA_2, DT)
-
-            finite_difference_naive = \
-                    FiniteDifferencesNaiveNeumann(A, C, D1,
-                                                      D2, M1,
-                                                      M2, SIZE_DOMAIN_1,
-                                                      SIZE_DOMAIN_2, LAMBDA_1,
-                                                      LAMBDA_2, DT)
-
-            finite_volumes = FiniteVolumes(A, C, D1,
-                                           D2, M1, M2,
-                                           SIZE_DOMAIN_1, SIZE_DOMAIN_2,
-                                           LAMBDA_1, LAMBDA_2,
-                                           DT)
-
             """ You can now test any function here, without impacting the program."""
             if len(sys.argv) > 2:
-                if sys.argv[2] == "1":  # ./main.py debug 1
-                    pass
-                elif sys.argv[2] == "2":  # ./main.py debug 2
-                    pass
+                if sys.argv[2] == "FV2":  # ./main.py debug 1
+                    from tests.test_finite_volumes_spline2 import launch_all_tests
+                    launch_all_tests()
+
+                if sys.argv[2] == "FV4":  # ./main.py debug 1
+                    from tests.test_finite_volumes import launch_all_tests
+                    launch_all_tests()
+
+                elif sys.argv[2] == "FD":  # ./main.py debug 2
+                    from tests.test_finite_differences import launch_all_tests
+                    launch_all_tests()
 
 def global_launch_figsave(number_fig):
     """

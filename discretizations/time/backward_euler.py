@@ -74,7 +74,7 @@ class BackwardEuler(Discretization):
         if Y is None:
             Y = self.precompute_Y(upper_domain=upper_domain)
 
-        result = solve_linear(Y, rhs)
+        result = solve_linear(Y,rhs)
         additional = self.update_additional(result=result, additional=additional, dt=self.DT,
                 upper_domain=upper_domain, f=f, reaction_explicit=0, coef_reaction_implicit=1.)
 
@@ -90,6 +90,9 @@ class BackwardEuler(Discretization):
         to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -1.))
         Y = self.add_boundaries_to_Y(to_inverse=to_inverse, upper_domain=upper_domain,
                 coef_explicit=0., coef_implicit=1., dt=self.DT)
+        # Y_full_matrix = np.diag(Y_inv[0], k=-1)
+        # for k in range(len(Y_inv)-1):
+        #     Y_full_matrix += np.diag(Y_inv[k+1], k=k)
         return Y
 
     def s_time_discrete(self, w):
