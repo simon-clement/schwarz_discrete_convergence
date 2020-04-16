@@ -243,6 +243,9 @@ class Discretization:
         """
         return None
 
+    def new_additional(self, **kwargs):
+        return None
+
     def update_additional(self, result, additional, dt, upper_domain, f, coef_reaction_implicit, reaction_explicit):
         """
             additional[m] is, in the case of finite volumes, the average of u in a cell m.

@@ -41,7 +41,7 @@ def test_integrate_one_step():
     print("MANFREDI SCHEME:")
     # Manfredi is a particular scheme. It makes an order 1 error when using a rhs
     verify_order(Manfredi, intricated_spacetime, 2)
-    verify_order(Manfredi, linear_time, 4) # It should be 4 but it is 2 because of bad reaction handling
+    verify_order(Manfredi, linear_time, 4) # It should be 4 but it is 2, probably because of error in forcing
     verify_order(Manfredi, cosinus_time, 2)
     verify_order(Manfredi, exp_space_quad_time, 2)
 

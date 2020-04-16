@@ -114,6 +114,8 @@ class Manfredi(Discretization):
         additional = self.update_additional(result=result, additional=additional_star, dt=beta*self.DT,
                 upper_domain=upper_domain, f=f, reaction_explicit=0, coef_reaction_implicit=1.) # Now additional is in time n
 
+        additional = self.new_additional(result=result, upper_domain=upper_domain,
+                cond=cond_robin if upper_domain else bd_cond)
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
         return self.projection_result(result=result, upper_domain=upper_domain,
                 additional=additional, partial_t_result0=partial_t_result0, f=f, result_explicit=result)

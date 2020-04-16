@@ -33,6 +33,7 @@ def test_like_Manfredi_paper_FV():
     """
     from discretizations.time.Manfredi import Manfredi
     from discretizations.time.theta_method import ThetaMethod
+    from discretizations.time.RK4 import RK4
 
     from figures import Builder
     from progressbar import ProgressBar
@@ -43,10 +44,10 @@ def test_like_Manfredi_paper_FV():
     ###########################################
     # DEFINITION OF THE SETTING:
     ###########################################
-    T = 2.
+    T = .1
     Lambda = 1e9
     Courant=80.
-    D = .01
+    D = .3
     plot_initial = True
 
     builder.COURANT_NUMBER = Courant
@@ -58,7 +59,7 @@ def test_like_Manfredi_paper_FV():
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 
-    high_freq = 300
+    high_freq = 500
     ######################
     # EQUATION DEFINITION: WHICH U ? WHICH F ?
     ######################
@@ -67,12 +68,12 @@ def test_like_Manfredi_paper_FV():
     def flux_initial(x, t): return D*(3*7*np.cos(7*x) + high_freq*np.cos(high_freq*x))
     def f_bar(x, h, t): return np.zeros_like(x)
 
-    M = 228
+    M = 220
 
     ret = []
     # Loop to compare different settings:
     for scheme, name in zip((builder.build(ThetaMethod, space_scheme),
-        builder.build(Manfredi, space_scheme)), ("C-N", "Manfredi")):
+        builder.build(Manfredi, space_scheme)), ("ThetaMethod", "Manfredi")):
         dt = 1/M**2*Courant/D
 
         scheme.DT = dt
@@ -108,9 +109,8 @@ def test_like_Manfredi_paper_FV():
         additional = [u1_0]
         progress = ProgressBar()
         if plot_initial:
-            print(x1)
-            #plt.plot(x_accurate, u_real(x_accurate, t_initial), label="initial, real")
-            plt.plot(x_accurate, [scheme.reconstruction_spline(phi1_0, u1_0, upper_domain=False, x=x) for x in x_accurate], "k--", label="initial")
+            plt.plot(x_accurate, u_real(x_accurate, t_initial), label="initial, real")
+            plt.plot(x_accurate, [scheme.reconstruction_spline(phi1_0, u1_0, upper_domain=False, x=x) for x in x_accurate], "k--", label="initial, reconstruction")
 
             plot_initial = False
         for t_n in progress(np.linspace(t_initial, t_final, N, endpoint=False)):
@@ -171,10 +171,10 @@ def test_like_Manfredi_paper_FD():
     ###########################################
     # DEFINITION OF THE SETTING:
     ###########################################
-    T = .01
+    T = .4
     Lambda = 1e9
-    Courant=10.
-    D = .1
+    Courant=100.
+    D = .05
     plot_initial = True
 
     builder.COURANT_NUMBER = Courant
@@ -186,12 +186,12 @@ def test_like_Manfredi_paper_FD():
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 
-    high_freq = 530
+    high_freq = 130
     ######################
     # EQUATION DEFINITION: WHICH U ? WHICH F ?
     ######################
-    def u_real(x, t): return np.sin(6*x) + np.sin(high_freq*x)
-    def flux_initial(x, t): return (6*np.cos(6*x) + high_freq*np.cos(high_freq*x))
+    def u_real(x, t): return 3*np.sin(6*x) + np.sin(high_freq*x)
+    def flux_initial(x, t): return (3*6*np.cos(6*x) + high_freq*np.cos(high_freq*x))
     def f_bar(x, h, t): return np.zeros_like(x)
 
     M = 228

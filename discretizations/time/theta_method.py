@@ -73,6 +73,8 @@ class ThetaMethod(Discretization):
         additional = self.update_additional(result=th*result + (1-th)*u_nm1, additional=additional, dt=self.DT,
                 upper_domain=upper_domain, f=f,
                 reaction_explicit=None if additional is None else (1-th)*additional, coef_reaction_implicit=th)
+        additional = self.new_additional(result=result, upper_domain=upper_domain,
+                cond=cond_robin if upper_domain else bd_cond)
 
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
         result_explicit = th*result + (1-th) * u_nm1

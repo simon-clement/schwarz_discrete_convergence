@@ -129,6 +129,40 @@ class FourthOrderFV(Discretization):
                 (additional/dt + np.diff(result) / h - a * (result[1:] + result[:-1]) / 2 \
                 - c * reaction_explicit + np.cumsum(f[:-1]))
 
+    def new_additional(self, result, upper_domain, cond):
+        if upper_domain is False: # cond is a Dirichlet condition
+            h1, _ = self.get_h()
+            D, _ = self.get_D()
+            rhs = h1[1:]*result[2:]/(12*D[2:]) + \
+                    5*(h1[1:] + h1[:-1])*result[1:-1]/(12*D[1:-1]) + \
+                    h1[:-1]*result[:-2]/(12*D[:-2])
+            u_bar_size = h1.shape[0]
+            upper_diag = np.ones(u_bar_size-1)
+            diag = np.concatenate((-np.ones(u_bar_size-1), [1]))
+            rhs = np.concatenate((rhs, [cond - 5*result[-1]*h1[-1]/(12*D[-1]) - result[-2] * h1[-1]/(12*D[-2])]))
+            import scipy.linalg
+            return scipy.linalg.solve_banded(l_and_u=(0,1),
+                    ab=np.vstack((np.concatenate(([0], upper_diag)), diag)),
+                    b=rhs)
+        else: # cond is the Robin condition
+            _, h2 = self.get_h()
+            _, D = self.get_D()
+            Lambda = self.LAMBDA_2
+            rhs = h2[1:]*result[2:]/(12*D[2:]) + \
+                    5*(h2[1:] + h2[:-1])*result[1:-1]/(12*D[1:-1]) + \
+                    h2[:-1]*result[:-2]/(12*D[:-2])
+
+            u_bar_size = h2.shape[0]
+            lower_diag = -np.ones(u_bar_size-1)
+            diag = np.ones(u_bar_size)
+
+            diag[0] *= Lambda
+            rhs = np.concatenate(([cond - result[0] + Lambda*(5*result[0]*h2[0]/(12*D[0]) + result[1] * h2[0]/(12*D[1]))], rhs))
+            import scipy.linalg
+            return scipy.linalg.solve_banded(l_and_u=(1,0),
+                    ab=np.vstack((diag, np.concatenate((lower_diag, [0])))),
+                    b=rhs)
+
     def projection_result(self, result, upper_domain, additional, **kwargs):
         """
             given the result of the inversion, returns (u_np1, u_interface, phi_interface)
