@@ -147,6 +147,56 @@ class QuadSplinesFV(Discretization):
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
         return M+1
 
+    def reconstruction_spline(self, phi, u_bar, upper_domain, x): # for a single x !
+        if upper_domain:
+            _, h = self.get_h()
+            D = self.D2
+            x_1_2 = np.cumsum(np.concatenate(([0], h)))
+
+            # First : find WHERE IS X
+            from bisect import bisect_right
+            index = bisect_right(x_1_2, x) - 1
+
+            if index >= x_1_2.shape[0]:
+                index = x_1_2.shape[0] - 2
+            assert x >= x_1_2[index]
+            assert x <= x_1_2[index+1]
+
+            # useful variables:
+            xi = x - (x_1_2[index+1] + x_1_2[index])/2
+            h = x_1_2[index+1] - x_1_2[index]
+
+            d_mp1 = phi[index+1] / D
+            d_m = phi[index] / D
+            u_bar_m = u_bar[index]
+            # returning result
+            return u_bar_m + xi*(d_mp1 + d_m)/2 + (xi**2 - h**2/12)*(d_mp1-d_m)/(2*h)
+        else:
+            # First : find WHERE IS X
+            h, _ = self.get_h()
+            D = self.D1
+
+            x_1_2 = np.cumsum(np.concatenate(([0], h)))
+
+            # First : find WHERE IS X
+            from bisect import bisect_right
+            index = bisect_right(-x_1_2, -x)
+
+            if index >= x_1_2.shape[0]-1:
+                index = x_1_2.shape[0] - 1
+            assert x >= x_1_2[index]
+            assert x <= x_1_2[index-1]
+
+            # useful variables:
+            xi = x - (x_1_2[index-1] + x_1_2[index])/2
+            h = x_1_2[index-1] - x_1_2[index] 
+
+            d_mp1 = phi[index] / D
+            d_m = phi[index-1] / D
+            u_bar_m = u_bar[index-1]
+            # returning result
+            return u_bar_m + xi*(d_mp1 + d_m)/2 + (xi**2 - h**2/12)*(d_m-d_mp1)/(2*h)
+
     #####################
     # ANALYSIS FUNCTIONS:
     #####################

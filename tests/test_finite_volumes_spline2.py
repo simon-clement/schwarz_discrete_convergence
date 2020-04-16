@@ -14,6 +14,7 @@ from tests.test_cases import intricated_spacetime, linear_time, cosinus_time, ex
 def launch_all_tests():
     print("Test of Finite volumes scheme based on quadratic splines.")
     print("Test integration with finite volumes, spline 2:", test_integrate_one_step())
+    # print("Test of reconstruction:", test_reconstruction())
 
 
 """
@@ -205,5 +206,118 @@ def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
         ret += [np.linalg.norm(u_bar(x1-h1/2, h1, t_n+dt) - np.flipud(u1_0))/np.linalg.norm(u_bar(x1-h1/2, h1, t_n+dt))]
         # print("errors: ", ret)
     return np.log(ret[0]/ret[1])/np.log(2)
+
+
+def test_reconstruction():
+    """
+    Simplest Case : a=c=0
+    on se place en (-1, 0)
+    Dirichlet en -1
+    Notre fonction est sin(x) + t
+    Donc le schéma en temps résout exactement sa partie,
+    l'erreur en h**2 vient seulement de l'espace :)
+    On compense l'erreur au bord en h**2 par une condition
+    de "Dirichlet" : u + h**2/12*u''
+    It is an order 2 method but the solution in time is linear:
+    the only error can come frombd conditions. for Neumann bd there is no error
+    for Dirichlet bd, it is order 3
+
+    returns the order in space (i.e. order in time / 2 because courant parabolic is fixed)
+    """
+    from discretizations.time.Manfredi import Manfredi
+    from discretizations.time.theta_method import ThetaMethod
+
+    from figures import Builder
+    from progressbar import ProgressBar
+    builder = Builder()
+    from discretizations.space.quad_splines_fv import QuadSplinesFV as space_scheme
+    import matplotlib.pyplot as plt
+
+    ###########################################
+    # DEFINITION OF THE SETTING:
+    ###########################################
+    T = 1.
+    Lambda = 1e9
+    Courant=10.
+    D = 1.
+    plot_initial = True
+
+    builder.COURANT_NUMBER = Courant
+    builder.LAMBDA_1 = Lambda
+    builder.LAMBDA_2 = Lambda
+    builder.D1 = D
+    builder.D2 = D
+    builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
+    builder.C = .0
+    builder.SIZE_DOMAIN_1 = 1.
+    builder.SIZE_DOMAIN_2 = 1.
+
+    high_freq = 5
+    ######################
+    # EQUATION DEFINITION: WHICH U ? WHICH F ?
+    ######################
+    def u_real(x, t): return np.sin(6*x) + np.sin(high_freq*x)
+    def u_bar(x, h, t): return (np.cos(6*x)/6 - np.cos(6*x+6*h)/6 + (np.cos(high_freq*x) - np.cos(high_freq*(x+h)))/high_freq)/h
+    def flux_initial(x, t): return D*(6*np.cos(6*x) + high_freq*np.cos(high_freq*x))
+    def f_bar(x, h, t): return np.zeros_like(x)
+
+    M = 7
+
+    scheme = builder.build(Manfredi, space_scheme)
+    ret = []
+    # Loop to compare different settings:
+    dt = 1/M**2*Courant/D
+
+    scheme.DT = dt
+
+    N = int(T/dt)
+
+    scheme.M1 = M
+    scheme.M2 = M
+    h1 = 1 / M + np.zeros(M)
+    h2 = 1 / M + np.zeros(M)
+    
+    t_initial = 0.
+    t_final = t_initial + T
+
+    x1 = np.cumsum(np.concatenate(([h1[0] / 2], (h1[1:] + h1[:-1]) / 2)))
+    x2 = np.cumsum(np.concatenate(([h2[0] / 2], (h2[1:] + h2[:-1]) / 2)))
+
+    x1_flipped = -x1
+    x1 = np.flipud(-x1)
+    x1_flux = np.concatenate((x1-h1[0]/2,[0]))
+
+    x2_flux = np.concatenate((x2-h2[0]/2, [scheme.SIZE_DOMAIN_2]))
+
+    x1_accurate = np.linspace(0, -scheme.SIZE_DOMAIN_1, 1000, endpoint=False)
+    x2_accurate = np.linspace(0, scheme.SIZE_DOMAIN_2, 1000, endpoint=False)
+    ######################
+    # END OF THE SETTING DESCRIPTION.
+    ######################
+
+    # The following loop is valid independently of the u chosen.
+    u1_0 = np.flipud(u_bar(x1 - h1/2, h1, t_initial))
+    phi1_0 = np.flipud(flux_initial(x1_flux, t_initial))
+    additional = [u1_0]
+    progress = ProgressBar()
+    if plot_initial:
+        print(x1)
+        plt.plot(x1_accurate, u_real(x1_accurate, t_initial), label="initial accurate: domain 1")
+        plt.plot(x1_flipped, u1_0, label="u_bar domain 1")
+        plt.plot(x1_accurate, [scheme.reconstruction_spline(phi1_0, u1_0, upper_domain=False, x=x) for x in x1_accurate], "k--", label="reconstruction_spline domain 1")
+
+    # The following loop is valid independently of the u chosen.
+    u2_0 = u_bar(x2 - h2/2, h2, t_initial)
+    phi2_0 = flux_initial(x2_flux, t_initial)
+    progress = ProgressBar()
+    if plot_initial:
+        plt.plot(x2_accurate, u_real(x2_accurate, t_initial), label="initial accurate domain 2")
+        plt.plot(x2, u2_0, label="u_bar domain 2")
+        plt.plot(x2_accurate, [scheme.reconstruction_spline(phi2_0, u2_0, upper_domain=True, x=x) for x in x2_accurate], "k--", label="reconstruction_spline domain 2")
+        plt.legend()
+
+        plt.show()
+
+    return
 
 
