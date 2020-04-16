@@ -295,7 +295,7 @@ def test_any_time_scheme_domain2(time_scheme, u_ubar_flux_fbar=linear_time):
         progress = ProgressBar()
         for t_n in progress(np.linspace(t_initial, t_final, N, endpoint=False)):
 
-            def neumann(time): return flux(1, t_n + dt*time)
+            def neumann(time): return flux(1, t_n + dt*time)/D
 
             def phi_int(time): return flux(0, t_n + dt*time)
 

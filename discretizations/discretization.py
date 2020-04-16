@@ -89,9 +89,10 @@ class Discretization:
             necessary to compute Robin conditions.
 
             If upper_domain is True, the considered domain is Omega_2 (atmosphere)
-            bd_cond is then the Neumann condition of the top of the atmosphere.
+                bd_cond is then the Neumann (/!\ not the flux, just du/dx)
+                condition of the top of the atmosphere.
             If upper_domain is False, the considered domain is Omega_1 (ocean)
-            bd_cond is then the Dirichlet condition of the bottom of the ocean.
+                bd_cond is then the Dirichlet condition of the bottom of the ocean.
             f and u_nm1 have their first values ([0,1,..]) at the interface
             and their last values ([..,M-2, M-1]) at
             the top of the atmosphere (Omega_2) or bottom of the ocean (Omega_1)

@@ -63,7 +63,8 @@ class FourthOrderFV(Discretization):
         """
         # starting from index -1
         if upper_domain: # Neumann :
-            return [1]
+            M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
+            return [1/D[-1]]
         else: # Dirichlet :
             M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
             return None
