@@ -72,14 +72,67 @@ def exp_space_quad_time(a, c, D):
             'Bar{f}^(2)':f_bar_sec}
     return dico_ret
 
-
 def const_space_quad_time(a, c, D):
     def u_real(x, t): return t**2 + np.zeros_like(x)
     def u_sec(x, t): return np.zeros_like(x)
     def u_bar(x_1_2, h, t): return t**2 +np.zeros_like(x_1_2)
     def flux(x, t): return 0 + np.zeros_like(x)
-    def f(x, t): return 2*t + np.zeros_like(x)
-    def f_bar(x, h, t): return 2*t + np.zeros_like(x)
+    def f(x, t): return 2*t + c*t**2 + np.zeros_like(x)
+    def f_bar(x, h, t): return 2*t + c*t**2 + np.zeros_like(x)
+    def f_bar_sec(x, h, t): return np.zeros_like(x)
+
+    dico_ret = {'u':u_real,
+            'u^(2)':u_sec,
+            'Bar{u}':u_bar,
+            'Ddu/dx':flux,
+            'f':f,
+            'Bar{f}':f_bar,
+            'Bar{f}^(2)':f_bar_sec}
+    return dico_ret
+
+def const_space_cubic_time(a, c, D):
+    def u_real(x, t): return t**3 + np.zeros_like(x)
+    def u_sec(x, t): return np.zeros_like(x)
+    def u_bar(x_1_2, h, t): return t**3 +np.zeros_like(x_1_2)
+    def flux(x, t): return 0 + np.zeros_like(x)
+    def f(x, t): return 3*t**2 + c*t**3 + np.zeros_like(x)
+    def f_bar(x, h, t): return 3*t**2 + c*t**3 + np.zeros_like(x)
+    def f_bar_sec(x, h, t): return np.zeros_like(x)
+
+    dico_ret = {'u':u_real,
+            'u^(2)':u_sec,
+            'Bar{u}':u_bar,
+            'Ddu/dx':flux,
+            'f':f,
+            'Bar{f}':f_bar,
+            'Bar{f}^(2)':f_bar_sec}
+    return dico_ret
+
+def const_space_cos_time(a, c, D):
+    def u_real(x, t): return np.cos(t) + np.zeros_like(x)
+    def u_sec(x, t): return np.zeros_like(x)
+    def u_bar(x_1_2, h, t): return np.cos(t) +np.zeros_like(x_1_2)
+    def flux(x, t): return 0 + np.zeros_like(x)
+    def f(x, t): return -np.sin(t) + c*np.cos(t) + np.zeros_like(x)
+    def f_bar(x, h, t): return -np.sin(t) + c*np.cos(t) + np.zeros_like(x)
+    def f_bar_sec(x, h, t): return np.zeros_like(x)
+
+    dico_ret = {'u':u_real,
+            'u^(2)':u_sec,
+            'Bar{u}':u_bar,
+            'Ddu/dx':flux,
+            'f':f,
+            'Bar{f}':f_bar,
+            'Bar{f}^(2)':f_bar_sec}
+    return dico_ret
+
+def zero_f(a, c, D):
+    def u_real(x, t): return np.exp((1-c)*t + x/np.sqrt(D))
+    def u_sec(x, t): return np.exp((1-c)*t + x/np.sqrt(D))/D
+    def u_bar(x_1_2, h, t): return np.sqrt(D)*(np.exp((1-c)*t + (x_1_2+h)/np.sqrt(D)) - np.exp((1-c)*t + x_1_2/np.sqrt(D)))/h
+    def flux(x, t): return np.sqrt(D)*np.exp((1-c)*t + x/np.sqrt(D))
+    def f(x, t): return np.zeros_like(x)
+    def f_bar(x, h, t): return np.zeros_like(x)
     def f_bar_sec(x, h, t): return np.zeros_like(x)
 
     dico_ret = {'u':u_real,

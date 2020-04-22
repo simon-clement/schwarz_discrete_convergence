@@ -41,6 +41,8 @@ def test_integrate_one_step(space_scheme_FD, CORRECTIVE_TERM=False):
                         ": should be space order", order, "but is:", experimental_order)
         except(KeyboardInterrupt):
             print("Interrupted test", time_scheme.__name__, function.__name__, "by user interruption.")
+        except:
+            raise
 
     print("MANFREDI SCHEME:")
     # Manfredi is a particular scheme. It makes an order 1 error when using a rhs
@@ -83,7 +85,7 @@ def test_integrate_one_step(space_scheme_FD, CORRECTIVE_TERM=False):
 # This is not the same function as test_finite_volumes*.test_any_time_scheme_domain1
 # because the right hand side is not the same, the comparison is not the same,
 # we integrate in time u and not the fluxes
-def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time):
+def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time, first_M=8):
     """
     Simplest Case : a=c=0
     on se place en (-1, 0)
@@ -103,11 +105,11 @@ def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time
     ###########################################
     T = 4.
     Lambda = 1e9
-    Courant = 0.16 # 0.16 is RK2 experimental CFL condition
+    Courant = .2 # 0.16 is RK2 experimental CFL condition
     D = 1.
 
     builder.COURANT_NUMBER = Courant
-    builder.LAMBDA_1 = Lambda
+    builder.LAMBDA_2 = Lambda
     builder.D1 = D
     builder.D2 = D
     builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
@@ -120,8 +122,8 @@ def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time
 
     ret = []
     # Loop to compare different settings:
-    for M in (8, 16):
-        dt = 1/M**2*Courant/D
+    for M in (first_M, first_M*2):
+        dt = 1/(M*M)*Courant/D
         scheme.DT = dt
 
         N = int(T/dt)
@@ -161,18 +163,20 @@ def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time
 
             def dirichlet(time): return u_real(-1, t_n + dt*time)
 
+            def neumann(time): return flux(-1, t_n + dt*time)/D
+
             def phi_int(time): return flux(0, t_n + dt*time)
 
             def u_int(time): return u_real(0, t_n + dt*time)
 
             def f1(time): return f(x_u, t_n + dt*time)
 
-            u_np1, real_u_interface, real_phi_interface = scheme.integrate_one_step(f=f1,
-                                                                             bd_cond=dirichlet,
-                                                                             u_nm1=u1_0,
-                                                                             u_interface=u_int,
-                                                                             phi_interface=phi_int,
-                                                                             upper_domain=False)
+            u_np1, _, _ = scheme.integrate_one_step(f=f1,
+                                                 bd_cond=neumann,
+                                                 u_nm1=u1_0,
+                                                 u_interface=u_int,
+                                                 phi_interface=phi_int,
+                                                 upper_domain=False)
 
             # nb_plots = 4
             # if int(4 * N * (t_n - t_initial) / T) % int(4*N/nb_plots) == 0:
@@ -187,7 +191,8 @@ def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time
             u1_0 = u_np1
 
         ret += [np.linalg.norm(u_real(x_u, t_n+dt) - u1_0)/np.linalg.norm(u_real(x_u, t_n+dt))]
-        #print(ret)
+
+    print(ret)
     # print(np.log(ret[0]/ret[1])/np.log(2)) # <- space order. Time order is same but divided by 2
     return np.log(ret[0]/ret[1])/np.log(2)
 

@@ -39,13 +39,6 @@ def test_integrate_one_step():
         except(KeyboardInterrupt):
             print("Interrupted test", time_scheme.__name__, function.__name__, "by user interruption.")
 
-    print("MANFREDI SCHEME:")
-    # Manfredi is a particular scheme. It makes an order 1 error when using a rhs
-    verify_order(Manfredi, intricated_spacetime, 2)
-    verify_order(Manfredi, linear_time, 2)
-    verify_order(Manfredi, cosinus_time, 2)
-    verify_order(Manfredi, exp_space_quad_time, 2)
-
     print("BACKWARD EULER SCHEME:")
     # Backward Euler is order 1 in time, so 2 in space (constant Courant parabolic number)
     verify_order(BackwardEuler, intricated_spacetime, 2)
@@ -53,6 +46,12 @@ def test_integrate_one_step():
     verify_order(BackwardEuler, cosinus_time, 2)
     verify_order(BackwardEuler, exp_space_quad_time, 2)
 
+    print("MANFREDI SCHEME:")
+    # Manfredi is a particular scheme. It makes an order 1 error when using a rhs
+    verify_order(Manfredi, intricated_spacetime, 2)
+    verify_order(Manfredi, linear_time, 2)
+    verify_order(Manfredi, cosinus_time, 2)
+    verify_order(Manfredi, exp_space_quad_time, 2)
     # the 2nd order time schemes gives 4rth order in space error.
 
     print("THETA SCHEME:")
@@ -87,7 +86,7 @@ def exp_space_cubic_time(a, c, D):
 # This is not the same function as test_finite_differences.test_any_time_scheme_domain1
 # because the right hand side is not the same, the comparison is not the same,
 # we integrate in time the fluxes and not u
-def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
+def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time, first_M=8):
     """
     Simplest Case : a=c=0
     on se place en (-1, 0)
@@ -110,7 +109,7 @@ def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
     # DEFINITION OF THE SETTING:
     ###########################################
     T = 4.
-    Lambda = 0.
+    Lambda = 1e9
     Courant = .1 # RK2 experimental CFL condition
     D = .2
 
@@ -129,7 +128,7 @@ def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
 
     ret = []
     # Loop to compare different settings:
-    for M in (8, 16):
+    for M in (first_M, 2*first_M):
         dt = 1/M**2*Courant/D
 
         scheme.DT = dt
@@ -170,7 +169,7 @@ def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
         progress = ProgressBar()
         for t_n in progress(np.linspace(t_initial, t_final, N, endpoint=False)):
 
-            def dirichlet(time): return u_real(-1, t_n + dt*time)
+            def neumann(time): return flux(-1, t_n + dt*time)/D
 
             def phi_int(time): return flux(0, t_n + dt*time)
 
@@ -181,7 +180,7 @@ def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
                 return np.concatenate(([ret[0]], np.diff(ret), [ret[-1]]))
 
             phi_np1, real_u_interface, real_phi_interface, *additional = scheme.integrate_one_step(f=f1,
-                                                                             bd_cond=dirichlet,
+                                                                             bd_cond=neumann,
                                                                              u_nm1=phi1_0,
                                                                              u_interface=u_int,
                                                                              phi_interface=phi_int,
@@ -207,7 +206,7 @@ def test_any_time_scheme_domain1(time_scheme, u_ubar_flux_fbar=linear_time):
             #     input()
 
         ret += [np.linalg.norm(u_bar(x1-h1/2, h1, t_n+dt) - np.flipud(u1_0))/np.linalg.norm(u_bar(x1-h1/2, h1, t_n+dt))]
-        # print("errors: ", ret)
+    print("errors: ", ret)
     return np.log(ret[0]/ret[1])/np.log(2)
 
 # This is not the same function as test_finite_differences.test_any_time_scheme_domain1
@@ -236,7 +235,7 @@ def test_any_time_scheme_domain2(time_scheme, u_ubar_flux_fbar=linear_time):
     # DEFINITION OF THE SETTING:
     ###########################################
     T = 2.
-    Lambda = 1e9
+    Lambda = 0.
     Courant = .1 # RK2 experimental CFL condition
     D = .2
 
@@ -295,7 +294,7 @@ def test_any_time_scheme_domain2(time_scheme, u_ubar_flux_fbar=linear_time):
         progress = ProgressBar()
         for t_n in progress(np.linspace(t_initial, t_final, N, endpoint=False)):
 
-            def neumann(time): return flux(1, t_n + dt*time)/D
+            def dirichlet(time): return u_real(1, t_n + dt*time)
 
             def phi_int(time): return flux(0, t_n + dt*time)
 
@@ -306,7 +305,7 @@ def test_any_time_scheme_domain2(time_scheme, u_ubar_flux_fbar=linear_time):
                 return np.concatenate(([ret[0]], np.diff(ret), [ret[-1]]))
 
             phi_np1, real_u_interface, real_phi_interface, *additional = scheme.integrate_one_step(f=f2,
-                                                                             bd_cond=neumann,
+                                                                             bd_cond=dirichlet,
                                                                              u_nm1=phi2_0,
                                                                              u_interface=u_int,
                                                                              phi_interface=phi_int,

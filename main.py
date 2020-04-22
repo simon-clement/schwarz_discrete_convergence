@@ -132,6 +132,10 @@ def main():
                     from tests.test_Manfredi import launch_all_tests
                     launch_all_tests()
 
+                if sys.argv[2] == "Manfredi_rhs": # ./main.py debug Manfredi
+                    from tests.test_Manfredi_rhs_c import launch_all_tests
+                    launch_all_tests()
+
                 if sys.argv[2] == "FV2":  # ./main.py debug 1
                     from tests.test_finite_volumes_spline2 import launch_all_tests
                     launch_all_tests()

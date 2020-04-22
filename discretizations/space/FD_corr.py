@@ -43,7 +43,7 @@ class FiniteDifferencesCorr(FiniteDifferences):
 
         return result, result_explicit[0], phi
 
-    def hardcoded_interface(self, upper_domain, robin_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, sol_unm1, additional, **kwargs):
+    def hardcoded_interface(self, upper_domain, robin_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, sol_unm1, additional, override_r=None, **kwargs):
         """
             For schemes that use corrective terms or any mechanism of time derivative inside interface condition,
             this method allows the time scheme to correct the boundary condition.
@@ -55,6 +55,9 @@ class FiniteDifferencesCorr(FiniteDifferences):
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
         a, c, _ = self.get_a_c_dt()
+        if override_r is not None:
+            c = override_r
+
         h, D = h[0], D[0]
 
         if coef_implicit == 0: # special case : problem

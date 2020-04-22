@@ -62,14 +62,14 @@ class QuadSplinesFV(Discretization):
         or at the bottom of the Ocean (Neumann)
         """
         # starting from index -1
-        if upper_domain: # Neumann :
+        if not upper_domain: # Neumann :
             M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
             return [1/D[-1]]
         else: # Dirichlet :
             M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
             return None
 
-    def hardcoded_bd_cond(self, upper_domain, bd_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, additional, **kwargs):
+    def hardcoded_bd_cond(self, upper_domain, bd_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, additional, override_r=None, **kwargs):
         """
             For schemes that use corrective terms or any mechanism of time derivative inside bd cond,
             this method allows the time scheme to correct the boundary condition.
@@ -80,12 +80,17 @@ class QuadSplinesFV(Discretization):
             (u^{n+1} - u^n)/dt = coef_implicit * dx^2 u^{n+1} + coef_explicit * dx^2 u^n
             don't forget to interpolate f in time before calling function
         """
-        if upper_domain: # Neumann :
-            return ([1], bd_cond)
+        if not upper_domain: # Neumann :
+            M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
+            return ([1/D[-1]], bd_cond)
         else: # Dirichlet :
             M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
             a, c, _ = self.get_a_c_dt()
-            assert h[-1] < 0
+
+            if override_r is not None:
+                c = override_r
+
+            assert h[-1] > 0
             assert sol_for_explicit is not None
             assert additional is not None
             phi_m_phi = np.array([(1/h[-1] - a/(2*D[-1])), (-1/h[-1] - a/(2*D[-2]))])
@@ -94,7 +99,7 @@ class QuadSplinesFV(Discretization):
                     bd_cond - dt/(1+dt*c*coef_implicit) * (additional[-1]*(1/dt - c*coef_explicit) + f[-1])
                     - coef_explicit * np.dot(coeffs_phi, sol_for_explicit[-1:-3:-1]))
 
-    def hardcoded_interface(self, upper_domain, robin_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, additional, **kwargs):
+    def hardcoded_interface(self, upper_domain, robin_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, additional, override_r=None, **kwargs):
         """
             For schemes that use corrective terms or any mechanism of time derivative inside interface condition,
             this method allows the time scheme to correct the boundary condition.
@@ -106,6 +111,9 @@ class QuadSplinesFV(Discretization):
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
         a, c, _ = self.get_a_c_dt()
+        if override_r is not None:
+            c = override_r
+
         phi_m_phi = np.array([(- 1/h[0] - a/(2*D[0])), (1/h[0] - a/(2*D[1]))])
         coeffs_phi = dt/(1+dt*c*coef_implicit) * phi_m_phi
         return (np.array([1, 0]) + Lambda * (\
@@ -132,34 +140,35 @@ class QuadSplinesFV(Discretization):
                 - c * reaction_explicit + np.cumsum(f[:-1]))
 
     def new_additional(self, result, upper_domain, cond):
-        if upper_domain is False: # cond is a Dirichlet condition
-            h1, _ = self.get_h()
-            D, _ = self.get_D()
-            rhs = h1[1:]*result[2:]/(6*D[2:]) + \
-                    2*(h1[1:] + h1[:-1])*result[1:-1]/(6*D[1:-1]) + \
-                    h1[:-1]*result[:-2]/(6*D[:-2])
-            u_bar_size = h1.shape[0]
+        if upper_domain: # cond is a Dirichlet condition
+            _, h2 = self.get_h()
+            _, D = self.get_D()
+            rhs = h2[1:]*result[2:]/(6*D[2:]) + \
+                    2*(h2[1:] + h2[:-1])*result[1:-1]/(6*D[1:-1]) + \
+                    h2[:-1]*result[:-2]/(6*D[:-2])
+            u_bar_size = h2.shape[0]
             upper_diag = np.ones(u_bar_size-1)
             diag = np.concatenate((-np.ones(u_bar_size-1), [1]))
-            rhs = np.concatenate((rhs, [cond - result[-1]*h1[-1]/(3*D[-1]) - result[-2] * h1[-1]/(6*D[-2])]))
+            rhs = np.concatenate((rhs, [cond - result[-1]*h2[-1]/(3*D[-1]) - result[-2] * h2[-1]/(6*D[-2])]))
             import scipy.linalg
             return scipy.linalg.solve_banded(l_and_u=(0,1),
                     ab=np.vstack((np.concatenate(([0], upper_diag)), diag)),
                     b=rhs)
         else: # cond is the Robin condition
-            _, h2 = self.get_h()
-            _, D = self.get_D()
-            Lambda = self.LAMBDA_2
-            rhs = h2[1:]*result[2:]/(6*D[2:]) + \
-                    2*(h2[1:] + h2[:-1])*result[1:-1]/(6*D[1:-1]) + \
-                    h2[:-1]*result[:-2]/(6*D[:-2])
+            h1, _ = self.get_h()
+            D, _ = self.get_D()
+            Lambda = self.LAMBDA_1
+            assert Lambda != 0.
+            rhs = h1[1:]*result[2:]/(6*D[2:]) + \
+                    2*(h1[1:] + h1[:-1])*result[1:-1]/(6*D[1:-1]) + \
+                    h1[:-1]*result[:-2]/(6*D[:-2])
 
-            u_bar_size = h2.shape[0]
+            u_bar_size = h1.shape[0]
             lower_diag = -np.ones(u_bar_size-1)
             diag = np.ones(u_bar_size)
 
             diag[0] *= Lambda
-            rhs = np.concatenate(([cond - result[0] + Lambda*(result[0]*h2[0]/(3*D[0]) + result[1] * h2[0]/(6*D[1]))], rhs))
+            rhs = np.concatenate(([cond - result[0] + Lambda*(result[0]*h1[0]/(3*D[0]) + result[1] * h1[0]/(6*D[1]))], rhs))
             import scipy.linalg
             return scipy.linalg.solve_banded(l_and_u=(1,0),
                     ab=np.vstack((diag, np.concatenate((lower_diag, [0])))),

@@ -51,11 +51,11 @@ class FiniteDifferences(Discretization):
         or at the bottom of the Ocean (Neumann)
         """
         # starting from index -1
-        if upper_domain: # Neumann :
+        if upper_domain: # Dirichlet:
+            return [1]
+        else: # Neumann:
             M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
             return [1/h[-1], -1/h[-1]]
-        else: # Dirichlet :
-            return [1]
 
     def discretization_interface(self, upper_domain):
         _, _, _, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)

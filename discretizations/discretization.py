@@ -314,7 +314,7 @@ class Discretization:
 
 
     def add_boundaries(self, to_inverse, rhs, interface_cond, bd_cond, upper_domain,
-                    coef_implicit, coef_explicit, dt, f, sol_for_explicit, sol_unm1, additional):
+                    coef_implicit, coef_explicit, dt, f, sol_for_explicit, sol_unm1, additional, **kwargs):
         """
             Take the matrix to_inverse and vector rhs:
             interface_cond is of the form Lambda * u_interface + phi_interface.
@@ -342,12 +342,12 @@ class Discretization:
             list_bd_cond, new_rhs[-1] = self.hardcoded_bd_cond(upper_domain=upper_domain,
                     bd_cond=bd_cond, dt=dt, f=f, sol_for_explicit=sol_for_explicit,
                     sol_unm1=sol_unm1, additional=additional,
-                    coef_explicit=coef_explicit, coef_implicit=coef_implicit)
+                    coef_explicit=coef_explicit, coef_implicit=coef_implicit, **kwargs)
         if list_interface is None:
             list_interface, new_rhs[0] = self.hardcoded_interface(upper_domain=upper_domain,
                     robin_cond=interface_cond, dt=dt, f=f, sol_for_explicit=sol_for_explicit,
                     sol_unm1=sol_unm1,
-                    additional=additional, coef_explicit=coef_explicit, coef_implicit=coef_implicit)
+                    additional=additional, coef_explicit=coef_explicit, coef_implicit=coef_implicit, **kwargs)
         # let's begin with the boundary condition:
         new_Y = []
         assert len(list_bd_cond) == 1 or len(list_bd_cond) == 2

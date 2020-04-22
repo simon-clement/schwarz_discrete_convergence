@@ -149,7 +149,7 @@ class RK4(Discretization):
                         coef_reaction_implicit=0) # Now additional is in time n
 
         additional = self.new_additional(result=result, upper_domain=upper_domain,
-                cond=cond_robin if upper_domain else bd_cond)
+                cond=bd_cond if upper_domain else cond_robin)
 
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
         return self.projection_result(result=result, upper_domain=upper_domain,
