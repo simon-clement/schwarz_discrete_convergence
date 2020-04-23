@@ -61,7 +61,7 @@ class Manfredi(Discretization):
 
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
 
-        # The idea is that in semi-discrete in espace, we have: A\partial_t u = B u
+        # The idea is that in semi-discrete in space, we have: A\partial_t u = B u
         A = self.A_interior(upper_domain=upper_domain)
         B = self.B_interior(upper_domain=upper_domain)
         B = add_banded(B,  scal_multiply(A, self.C)) # removing reaction term from B
@@ -112,7 +112,6 @@ class Manfredi(Discretization):
 
         cond_robin = Lambda * u_interface + phi_interface
     
-        # self.C = 0 # We need to avoid reaction and forcing term in the second step
         Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin,
                                      coef_explicit=0., coef_implicit=1.,
                                      dt=beta*self.DT, f=f_bd, sol_for_explicit=result_star,
@@ -124,11 +123,9 @@ class Manfredi(Discretization):
         additional = self.update_additional(result=result, additional=additional_star, dt=beta*self.DT,
                 upper_domain=upper_domain, f=f_second_step/beta, reaction_explicit=0, coef_reaction_implicit=0) # Now additional is in time n
 
-        # additional = additional_star#  NO DONT DO THAT
-        # result = result_star
-
         additional = self.new_additional(result=result, upper_domain=upper_domain,
                 cond=bd_cond if upper_domain else cond_robin)
+        result = result_star
 
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
         return self.projection_result(result=result, upper_domain=upper_domain,

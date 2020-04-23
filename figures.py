@@ -28,7 +28,7 @@ all_figures = {}
 
 class Builder():
     def __init__(self): # changing defaults will result in needing to recompute all cache
-        self.COURANT_NUMBER = 100. # the cache exists for Co = .15. need to try with 1. and 10.
+        self.COURANT_NUMBER = 100.
         self.M1 = 2000
         self.M2 = 2000
         self.SIZE_DOMAIN_1 = 200
@@ -38,7 +38,7 @@ class Builder():
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
         self.A = 0.
         self.C = 0.
-        self.LAMBDA_1 = 0.
+        self.LAMBDA_1 = 1e9
         self.LAMBDA_2 = 0.
 
     def new(self, Discretisation):
@@ -86,7 +86,7 @@ class Builder():
 
 DEFAULT = Builder()
 
-def fig_validatePadeAnalysis():
+def fig_validatePadeAnalysisRR():
     from discretizations.space.FD_naive import FiniteDifferencesNaive
     from discretizations.space.FD_corr import FiniteDifferencesCorr
     from discretizations.space.FD_extra import FiniteDifferencesExtra
@@ -99,22 +99,20 @@ def fig_validatePadeAnalysis():
     from discretizations.time.Manfredi import Manfredi
     # parameters of the schemes are given to the builder:
     builder = Builder()
-    builder.LAMBDA_1 = 1e9
-    builder.LAMBDA_2 = 0.
+    builder.LAMBDA_1 = .5
+    builder.LAMBDA_2 = -.4
     builder.D1 = 1.
     builder.D2 = 2.
-    builder.C = 0.4
+    builder.C = 0.5
     assert builder.C * builder.DT < 1
         
-
-
     discretizations = {}
     time_scheme = Manfredi
 
     discretizations["FV2"] = (time_scheme, QuadSplinesFV)
     discretizations["FV4"] = (time_scheme, FourthOrderFV)
-    discretizations["FD, extra"] = (time_scheme, FiniteDifferencesExtra)
     discretizations["FD, corr=0"] = (time_scheme, FiniteDifferencesNaive)
+    discretizations["FD, extra"] = (time_scheme, FiniteDifferencesExtra)
     #discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
 
     convergence_factors = {}
@@ -134,6 +132,7 @@ def fig_validatePadeAnalysis():
     axis_freq = 2 * pi*all_k / N / dt
 
     kwargs_label_simu = {'label':"Validation by simulation"}
+    kwargs_label_cont = {'label':"Continuous"}
     fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
     ###########
     # for each discretization, a simulation
@@ -146,27 +145,32 @@ def fig_validatePadeAnalysis():
         convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
 
         dis = builder.build(time_dis, space_dis)
-        theorical_convergence_factors[name] = \
-                dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=0, order_operators=float('inf'),
-                        order_equations=float('inf'))
-        # continuous = dis.analytic_robin_robin_modified(w=axis_freq,
-        #                 order_time=0, order_operators=float('inf'),
-        #                 order_equations=float('inf'))
-        # plt.semilogx(axis_freq * dt, continuous, "--", label="Continuous Theorical " + name)
-        #axes[0].semilogx(axis_freq * dt, convergence_factors[name], "k--", **kwargs_label_simu)
+        try:
+            theorical_convergence_factors[name] = \
+                    dis.analytic_robin_robin_modified(w=axis_freq,
+                            order_time=float('inf'), order_operators=float('inf'),
+                            order_equations=float('inf'))
+            axes.semilogx(axis_freq * dt, theorical_convergence_factors[name], "--", **kwargs_label_simu)
+        except:
+            pass
+        continuous = dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=0, order_operators=0,
+                        order_equations=0)
         axes.semilogx(axis_freq * dt, convergence_factors[name], label=name)
         if kwargs_label_simu: # We only want the legend to be present once
+            axes.semilogx(axis_freq * dt, continuous, "--", **kwargs_label_cont)
             kwargs_label_simu = {}
+            kwargs_label_cont = {}
+
         #axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name+ " theorical")
-    w, rho_theoric = wAndRhoPade(builder)
+    w, rho_theoric = wAndRhoPadeRR(builder)
     axes.semilogx(w*DEFAULT.DT, rho_theoric, "k--", label="theoric")
 
     axes.set_xlabel("Frequency variable $\\omega \\delta t$")
     axes.set_ylabel("Convergence factor $\\rho$")
     axes.set_title("Various space discretizations with " + time_scheme.__name__)
     axes.legend()
-    show_or_save("fig_validatePadeAnalysis")
+    show_or_save("fig_validatePadeAnalysisRR")
 
 def fig_compareSettingsDirichletNeumann():
     from discretizations.space.FD_naive import FiniteDifferencesNaive
@@ -240,7 +244,7 @@ def fig_compareSettingsDirichletNeumann():
         if kwargs_label_simu: # We only want the legend to be present once
             kwargs_label_simu = {}
         #axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name+ " theorical")
-    w, rho_theoric = wAndRhoPade(builder)
+    w, rho_theoric = wAndRhoPadeRR(builder)
     axes[0].plot(w*DEFAULT.DT, rho_theoric, "k--", label="theoric")
 
     axes[0].set_xlabel("Frequency variable $\\omega \\delta t$")
@@ -283,13 +287,155 @@ def fig_compareSettingsDirichletNeumann():
     axes[1].legend()
     show_or_save("fig_compareSettingsDirichletNeumann")
 
-def wAndRhoPade(builder=DEFAULT):
+def fig_rootsManfrediFD():
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(1, 2, figsize=[9.6, 2.])
+    plt.subplots_adjust(left=.07, bottom=.28, right=.97, top=.85)
+    builder = DEFAULT
+
+    r = .1
+    a = 1+np.sqrt(2)
+    b = 1+1/np.sqrt(2)
+    dt= builder.DT
+    nu_1 = builder.D1
+    nu_2 = builder.D2
+    L1 = builder.LAMBDA_1
+    L2 = builder.LAMBDA_2
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+
+    def get_z(w):
+        return np.exp(-1j*w*dt)
+
+    def Gamma(ab, nu):
+        return ab*dt*nu/h**2
+
+    def get_f_g(w, nu):
+        z = get_z(w)
+        Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
+        return (z - 1 + r*dt) / (2*Gamma_b**2), (Gamma_a - 2*z*Gamma_b) / (2*Gamma_b**2)
+
+    def square_root_interior(f, g):
+        return 1j*np.sqrt(-1*(-(4*(g-4)*(f-2*g+6) - (g-4)**3 - 8*(g-4))/(2*np.sqrt(g**2 - 4*f)) \
+                - f + (g-4)**2/2 + 2*g - 8))/2
+
+    def lambda_pp(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 + np.sqrt(g**2 - 4*f)/4 + square_root_interior(f, g)
+
+    def lambda_pm(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 + np.sqrt(g**2 - 4*f)/4 - square_root_interior(f, g)
+
+    def lambda_mp(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 - (np.sqrt(g**2 - 4*f)/4 + square_root_interior(f, g))
+
+    def lambda_mm(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 - (np.sqrt(g**2 - 4*f)/4 - square_root_interior(f, g))
+
+    w = np.exp(np.linspace(-6, np.log(pi), 1000))[:-1]
+
+    sigma_1 = np.log(lambda_pm(w, nu_1)) / h
+    sigma_2 = np.log(lambda_mp(w, nu_1)) / h
+    sigma_3 = np.log(lambda_pp(w, nu_1)) / h
+    sigma_4 = np.log(lambda_mm(w, nu_1)) / h
+
+    axes[0].semilogx(w, np.real(sigma_1), label="$\\sigma_1$")
+
+    axes[0].semilogx(w, np.real(sigma_2), label="$\\sigma_2$")
+    axes[0].semilogx(w, np.real(sigma_3), label="$\\sigma_3$")
+    axes[0].semilogx(w, np.real(sigma_4), label="$\\sigma_4$")
+
+    axes[0].semilogx(w, np.abs(np.real(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
+    axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w)/nu_1))), "k--")
+    axes[0].set_xlabel("$\\Delta t\\omega$")
+    axes[0].set_ylabel("$\\mathfrak{R}(\\sigma)$")
+    axes[0].set_title("Real part $\\mathfrak{R}(\\sigma)$")
+    axes[0].grid()
+
+    axes[1].semilogx(w, np.imag(sigma_1), label="$\\sigma_1$")
+
+    axes[1].semilogx(w, np.imag(sigma_2), label="$\\sigma_2$")
+    axes[1].semilogx(w, np.imag(sigma_3), label="$\\sigma_3$")
+    axes[1].semilogx(w, np.imag(sigma_4), label="$\\sigma_4$")
+
+    axes[1].semilogx(w, np.imag(np.sqrt((r+1j*w)/nu_1)), "k--", label="$\\sigma_j$ continuous")
+    axes[1].semilogx(w, np.imag(-np.sqrt((r+1j*w)/nu_1)), "k--")
+    axes[1].set_xlabel("$\\Delta t\\omega$")
+    axes[1].set_ylabel("$Im(\\sigma)$")
+    axes[1].set_title("Imaginary part $Im(\\sigma)$")
+    axes[1].grid()
+
+    plt.legend()
+    show_or_save("fig_rootsManfrediFD")
+
+def wAndRhoPadeFDRR(builder=DEFAULT):
+    ###########################
+    # equation: (\Gamma_{a,j} = a*dt*nu/h^2, \Gamma_{b,j} = b*dt*nu/h^2)
+    #        (z-1+r\Delta t)\lambda_i^2 + 
+    #        \left(\Gamma_a - 2z\Gamma_b\right) \lambda \left(\lambda-1\right)^2 + 
+    #        2\Gamma_b^2 \left(\lambda-1\right)^4 = 0
+    # rewrite it for wolframAlpha: f* x^2 + g*x(x-1)^2 + (x-1)^4 = 0
+    # where x = \lambda
+    # where f = (z-1+r\Delta t) / (2\Gamma_b^2)
+    # and g = (\Gamma_a - 2z\Gamma_b) / (2\Gamma_b^2)
+    ##########################"
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
     r = builder.C
     nu_1 = builder.D1
     nu_2 = builder.D2
+    L1 = builder.LAMBDA_1
+    L2 = builder.LAMBDA_2
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+
+    def get_z(w):
+        return np.exp(-1j*w*dt)
+
+    def Gamma(ab, nu):
+        return ab*dt*nu/h**2
+
+    def get_f_g(w, nu):
+        z = get_z(w)
+        Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
+        return (z - 1 + r*dt) / (2*Gamma_b**2), (Gamma_a - 2*z*Gamma_b) / (2*Gamma_b**2)
+
+    def square_root_interior(f, g):
+        return np.sqrt(-(4*(g-4)*(f-2*g+6) - (g-4)**3 - 8*(g-4))/(2*sqrt(g**2 - 4*f)) \
+                - f + (g-4)**2/2 + 2*g - 8)/2
+
+    def lambda_pp(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 + np.sqrt(g**2 - 4*f)/4 + square_root_interior(f, g)
+
+    def lambda_pm(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 + np.sqrt(g**2 - 4*f)/4 - square_root_interior(f, g)
+
+    def lambda_mp(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 - (np.sqrt(g**2 - 4*f)/4 + square_root_interior(f, g))
+
+    def lambda_mm(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 - (np.sqrt(g**2 - 4*f)/4 - square_root_interior(f, g))
+    sigma_1 = np.log(lambda_pm) / h
+    sigma_2 = np.log(lambda_mp) / h
+    sigma_3 = np.log(lambda_pp) / h
+    sigma_4 = np.log(lambda_mm) / h
+
+
+def wAndRhoPadeRR(builder=DEFAULT):
+    a = 1+np.sqrt(2)
+    b = 1+1/np.sqrt(2)
+    dt= builder.DT
+    r = builder.C
+    nu_1 = builder.D1
+    nu_2 = builder.D2
+    L1 = builder.LAMBDA_1
+    L2 = builder.LAMBDA_2
 
     def get_z_s(w):
         z = np.exp(-1j*w*dt)
@@ -324,23 +470,30 @@ def wAndRhoPade(builder=DEFAULT):
     sigma_2 = - sigma_minus(w, nu_2)
     sigma_3 = sigma_plus(w, nu_1)
     sigma_4 = -sigma_plus(w, nu_2)
+    assert (np.real(sigma_1) > 0).all()
+    assert (np.real(sigma_2) < 0).all()
+    assert (np.real(sigma_3) > 0).all()
+    assert (np.real(sigma_4) < 0).all()
 
     z, s = get_z_s(w)
     mu_1 = z*(1 - b*dt*nu_1*sigma_1**2)
     mu_2 = z*(1 - b*dt*nu_2*sigma_2**2)
     mu_3 = z*(1 - b*dt*nu_1*sigma_3**2)
     mu_4 = z*(1 - b*dt*nu_2*sigma_4**2)
-    assert (np.linalg.norm(mu_1 - mu_2) < 1e-10)
-    assert (np.linalg.norm(mu_3 - mu_4) < 1e-10)
+    assert (np.linalg.norm(mu_1 - mu_2) < 1e-10) # mu_1 == mu_2
+    assert (np.linalg.norm(mu_3 - mu_4) < 1e-10) # mu_3 == mu_4
     gamma_t = (mu_1 - gamma(w))/(mu_1 - mu_3)
 
-    varrho = nu_1/nu_2 * (sigma_1 * (1 - gamma_t) + sigma_3 * gamma_t) \
-            * ((1 - gamma_t) / sigma_2 + gamma_t / sigma_4)
+    varrho = ((L1 + nu_2*sigma_2)/(L2 + nu_2*sigma_2) * (1 - gamma_t) + \
+             (L1 + nu_2*sigma_4)/(L2 + nu_2*sigma_4) * gamma_t) * \
+             ((L2 + nu_1*sigma_1)/(L1 + nu_1*sigma_1) * (1 - gamma_t) + \
+             (L2 + nu_1*sigma_3)/(L1 + nu_1*sigma_3) * gamma_t)
+
     return w, np.abs(varrho)
 
 def fig_rhoDNPade():
     import matplotlib.pyplot as plt
-    w, varrho = wAndRhoPade()
+    w, varrho = wAndRhoPadeRR()
     plt.semilogx(w*DEFAULT.DT, np.abs(varrho), label="$\\rho_{DN}^{Pade, c}$")
     plt.title("Convergence rate of Pade scheme") 
     plt.grid()
@@ -384,9 +537,9 @@ def fig_rootsManfredi():
 
     dt=1.
     a = 1+np.sqrt(2)
-    r=.0
+    r=.5
     nu_1 = 1.
-    nu_2 = 10.
+    nu_2 = 2.
     def get_z_s(w):
         z = np.exp(-1j*w*dt)
         return z, (z - 1)/(z*dt)
@@ -405,14 +558,14 @@ def fig_rootsManfredi():
 
     w = np.exp(np.linspace(-3, np.log(pi), 1000))[:-1]
 
-    axes[0].semilogx(w, np.abs(np.real(sigma_minus(w, nu_1))), label="$\\sigma_1$")
+    axes[0].semilogx(w, (np.real(sigma_minus(w, nu_1))), label="$\\sigma_1$")
 
-    axes[0].semilogx(w, np.abs(np.real(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
-    axes[0].semilogx(w, np.abs(np.real(sigma_plus(w, nu_1))), label="$\\sigma_3$")
-    axes[0].semilogx(w, np.abs(np.real(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
+    #axes[0].semilogx(w, np.abs(np.real(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
+    axes[0].semilogx(w, (np.real(sigma_plus(w, nu_1))), label="$\\sigma_3$")
+    #axes[0].semilogx(w, np.abs(np.real(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
 
     axes[0].semilogx(w, np.abs(np.real(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
-    axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w)/nu_2))), "k--")
+    #axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w)/nu_2))), "k--")
     axes[0].set_xlabel("$\\Delta t\\omega$")
     axes[0].set_ylabel("$\\mathfrak{R}(\\sigma)$")
     axes[0].set_title("Real part $\\mathfrak{R}(\\sigma)$")
@@ -420,12 +573,12 @@ def fig_rootsManfredi():
 
     axes[1].loglog(w, np.abs(np.imag(sigma_minus(w, nu_1))), label="$\\sigma_1$")
 
-    axes[1].loglog(w, np.abs(np.imag(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
+    #axes[1].loglog(w, np.abs(np.imag(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
     axes[1].loglog(w, np.abs(np.imag(sigma_plus(w, nu_1))), label="$\\sigma_3$")
-    axes[1].loglog(w, np.abs(np.imag(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
+    #axes[1].loglog(w, np.abs(np.imag(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
 
     axes[1].loglog(w, np.abs(np.imag(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
-    axes[1].loglog(w, np.abs(np.imag(-np.sqrt((r+1j*w)/nu_2))), "k--")
+    #axes[1].loglog(w, np.abs(np.imag(-np.sqrt((r+1j*w)/nu_2))), "k--")
     axes[1].set_xlabel("$\\Delta t\\omega$")
     axes[1].set_ylabel("$Im(\\sigma)$")
     axes[1].set_title("Imaginary part $Im(\\sigma)$")
