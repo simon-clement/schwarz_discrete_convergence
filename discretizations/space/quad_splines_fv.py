@@ -326,8 +326,8 @@ class QuadSplinesFV(Discretization):
             s2 += s**2*h2**2/12/D2 # it is 12 when starting from discrete.
             # problem of sign ?
 
-        sig1 = np.sqrt(s1/self.D1)
-        sig2 = -np.sqrt(s2/self.D2)
+        sig1 = np.sqrt((s1+self.C)/self.D1)
+        sig2 = -np.sqrt((s2+self.C)/self.D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):

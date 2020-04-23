@@ -469,7 +469,7 @@ class Discretization:
             lam1, lam2, lam1_p, lam2_p = self.lambda_1_2_pm(s)
             sig1, sig2, sig1_p, sig2_p = np.log(lam1), np.log(lam2), np.log(lam1_p), np.log(lam2_p)
         else:
-            sig1, sig2 = self.sigma_modified(s, w, order_equations)
+            sig1, sig2 = self.sigma_modified(w, s, order_equations)
             sig1_p = -sig1
             sig2_p = -sig2
 
@@ -545,7 +545,7 @@ class Discretization:
         """
         raise NotImplementedError
 
-    def sigma_modified(self, s, w, order_equations):
+    def sigma_modified(self, w, s, order_equations):
         # The convention here is: \\sigma_- is the main root,
         # and \\sigma_+ is the secondary root.
         if order_equations == 0: # no need for space discretization in this case

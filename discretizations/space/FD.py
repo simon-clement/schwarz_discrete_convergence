@@ -113,7 +113,7 @@ class FiniteDifferences(Discretization):
                                 / (-2 * Y_2)
         return lambda1_moins, lambda2_moins, lambda1_plus, lambda2_plus, 
 
-    def sigma_modified(self, s, w, order_equations):
+    def sigma_modified(self, w, s, order_equations):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2
@@ -131,8 +131,8 @@ class FiniteDifferences(Discretization):
         if order_equations > 1:
             s2 -= 1j * w**3 * (h2**2/(12*D2) * dt/2 - h2**4/(12*30*D2**2))
 
-        sig1 = np.sqrt(s1/self.D1)
-        sig2 = -np.sqrt(s2/self.D2)
+        sig1 = np.sqrt((s1+self.C)/self.D1)
+        sig2 = -np.sqrt((s2+self.C)/self.D2)
         return sig1, sig2
 
 
