@@ -64,7 +64,6 @@ class Manfredi(Discretization):
         # The idea is that in semi-discrete in space, we have: A\partial_t u = B u
         A = self.A_interior(upper_domain=upper_domain)
         B = self.B_interior(upper_domain=upper_domain)
-        B = add_banded(B,  scal_multiply(A, self.C)) # removing reaction term from B
 
         # naive method for rhs: f_first_step = (beta*f_star - alpha*f_nm1)
         f_first_step = beta*f_star - alpha*f_nm1
@@ -76,25 +75,23 @@ class Manfredi(Discretization):
         # The equation is A(u*-u_nm1)/dt - (beta*Bu* - alpha*Bu_nm1) + reaction*Au_nm1 = f(1/2)
         ###################
         to_inverse = add_banded(scal_multiply(A, 1./self.DT), scal_multiply(B, -beta))
-        rhs = multiply_interior(A, u_nm1) * (1 / self.DT - self.C) \
+        rhs = multiply_interior(A, u_nm1) * (1 / self.DT) \
                 - alpha * multiply_interior(B, u_nm1) + f_first_step[1:-1]
 
         cond_robin_star = Lambda * u_star_interface + phi_star_interface
 
-        # instead of giving additional = \Bar{u}, we give \Bar{u} * (1-c*DT). Since our problem comes
-        # From Finite volumes, we can thus solve only for finite volumes.
         Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin_star,
                                      coef_explicit=-alpha, coef_implicit=beta,
                                      dt=self.DT, f=f_bd, sol_for_explicit=u_nm1, sol_unm1=u_nm1,
                                      bd_cond=bd_cond_star, upper_domain=upper_domain,
-                                     additional=None if additional is None else additional * (1-self.C*self.DT), override_r=0.)
+                                     additional=additional)
         result_star = solve_linear(Y, rhs)
 
         additional_star = self.update_additional(result=-alpha*u_nm1 + beta*result_star,
                 additional=additional, dt=self.DT,
                 upper_domain=upper_domain, f=f_first_step,
-                reaction_explicit=None if additional is None else additional,
-                coef_reaction_implicit=0)
+                reaction_explicit=None if additional is None else -alpha*additional, # anti-diffusive explicit step of size alpha
+                coef_reaction_implicit=beta) #diffusive implicit beta step
 
         ###################
         # SECOND STEP : We need to inverse the same tridiagonal matrix, except the boundaries
@@ -117,15 +114,14 @@ class Manfredi(Discretization):
                                      dt=beta*self.DT, f=f_bd, sol_for_explicit=result_star,
                                      sol_unm1=result_star,
                                      bd_cond=bd_cond, upper_domain=upper_domain,
-                                     additional=additional_star, override_r=0.)
+                                     additional=additional_star)
         result = solve_linear(Y, rhs)
 
         additional = self.update_additional(result=result, additional=additional_star, dt=beta*self.DT,
-                upper_domain=upper_domain, f=f_second_step/beta, reaction_explicit=0, coef_reaction_implicit=0) # Now additional is in time n
+                upper_domain=upper_domain, f=f_second_step/beta, reaction_explicit=0, coef_reaction_implicit=1.) # Now additional is in time n
 
         additional = self.new_additional(result=result, upper_domain=upper_domain,
                 cond=bd_cond if upper_domain else cond_robin)
-        result = result_star
 
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
         return self.projection_result(result=result, upper_domain=upper_domain,

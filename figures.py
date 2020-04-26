@@ -99,12 +99,11 @@ def fig_validatePadeAnalysisRR():
     from discretizations.time.Manfredi import Manfredi
     # parameters of the schemes are given to the builder:
     builder = Builder()
-    builder.LAMBDA_1 = .5
+    builder.LAMBDA_1 = 0.5
     builder.LAMBDA_2 = -.4
     builder.D1 = 1.
     builder.D2 = 2.
-    builder.C = 0.5
-    assert builder.C * builder.DT < 1
+    builder.C = .5
         
     discretizations = {}
     time_scheme = Manfredi
@@ -171,6 +170,105 @@ def fig_validatePadeAnalysisRR():
     axes.set_title("Various space discretizations with " + time_scheme.__name__)
     axes.legend()
     show_or_save("fig_validatePadeAnalysisRR")
+
+
+def fig_validatePadeAnalysisFDRR():
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.theta_method import ThetaMethod
+    from discretizations.time.RK2 import RK2
+    from discretizations.time.RK4 import RK4
+    from discretizations.time.Manfredi import Manfredi
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = 1e9
+    builder.LAMBDA_2 = 0.
+    builder.M1 = 2000
+    builder.M2 = 2000
+    builder.D1 = 1.
+    builder.D2 = 2.
+    builder.C = 0.4
+    dt = builder.DT
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    print("Courant parabolic number :", dt/h**2)
+        
+    discretizations = {}
+    time_scheme = Manfredi
+
+    discretizations["FV2"] = (time_scheme, QuadSplinesFV)
+    #discretizations["FV4"] = (time_scheme, FourthOrderFV)
+    discretizations["FD, corr=0"] = (time_scheme, FiniteDifferencesNaive)
+    discretizations["FD, extra"] = (time_scheme, FiniteDifferencesExtra)
+    #discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
+
+    convergence_factors = {}
+    theorical_convergence_factors = {}
+
+    N = 300
+    ###########
+    # Computation of the frequency axis
+    ###########
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[int(N//2)] = .5
+    # w = 2 pi k T / (N)
+    axis_freq = 2 * pi*all_k / N / dt
+
+    kwargs_label_simu = {'label':"Validation by simulation"}
+    kwargs_label_cont = {'label':"Continuous"}
+    fig, axes = plt.subplots(1, 2, figsize=[6.4*1.7, 4.8])
+    ###########
+    # for each discretization, a simulation
+    ###########
+    for name in discretizations:
+        time_dis, space_dis = discretizations[name]
+        alpha_w = memoised(Builder.frequency_cv_factor, builder,
+                time_dis, space_dis, N=N, number_samples=5)
+        k = 1
+        convergence_factors[name] = np.abs(alpha_w[k+1] / alpha_w[k])
+
+        dis = builder.build(time_dis, space_dis)
+        try:
+            theorical_convergence_factors[name] = \
+                    dis.analytic_robin_robin_modified(w=axis_freq,
+                            order_time=float('inf'), order_operators=float('inf'),
+                            order_equations=float('inf'))
+            axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], "--", **kwargs_label_simu)
+        except:
+            pass
+        continuous = dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=0, order_operators=0,
+                        order_equations=0)
+        axes[0].semilogx(axis_freq * dt, convergence_factors[name], label=name)
+        if kwargs_label_simu: # We only want the legend to be present once
+            axes[0].semilogx(axis_freq * dt, continuous, "--", **kwargs_label_cont)
+            kwargs_label_simu = {}
+            kwargs_label_cont = {}
+
+    #w, rho_theoric = wAndRhoPadeFDRR(builder)
+    #axes[0].semilogx(w*builder.DT, rho_theoric, "k--", label="theoric")
+    compare_rho_discrete_semidiscrete(axes[1], builder, N=N)
+    compare_rho_discrete_semidiscrete(axes[0], builder, N=N)
+    """
+    w, rho_theoric = wAndRhoPadeRR(builder)
+    axes[0].semilogx(w*builder.DT, rho_theoric, label="theoric continuous")
+    builder.DT /= 1e4
+    w, rho_theoric = wAndRhoPadeRR(builder)
+    axes[0].semilogx(w*builder.DT, rho_theoric, "--", label="theoric continuous, dt / 1e4")
+    """
+
+    axes[0].set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes[0].set_ylabel("Convergence factor $\\rho$")
+    axes[0].set_title("Validation of finite differences discrete analysis")
+    axes[0].legend()
+    show_or_save("fig_validatePadeAnalysisFDRR")
+
 
 def fig_compareSettingsDirichletNeumann():
     from discretizations.space.FD_naive import FiniteDifferencesNaive
@@ -293,10 +391,20 @@ def fig_rootsManfrediFD():
     plt.subplots_adjust(left=.07, bottom=.28, right=.97, top=.85)
     builder = DEFAULT
 
-    r = .1
+    ###########################
+    # equation: (\Gamma_{a,j} = a*dt*nu/h^2, \Gamma_{b,j} = b*dt*nu/h^2)
+    #        (z-1+r\Delta t + z r^2 \Delta t b)\lambda_i^2 + 
+    #        \left(\Gamma_a - 2z\Gamma_b(1+r\Delta t b)\right) \lambda \left(\lambda-1\right)^2 + 
+    #        2\Gamma_b^2 \left(\lambda-1\right)^4 = 0
+    # rewrite it for wolframAlpha: f* x^2 + g*x(x-1)^2 + (x-1)^4 = 0
+    # where x = \lambda
+    # where f = (z-1+r\Delta t + z*r^2 \Delta t b) / (2\Gamma_b^2)
+    # and g = (\Gamma_a - 2z\Gamma_b) / (2\Gamma_b^2)
+    ##########################"
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
+    r = builder.C
     nu_1 = builder.D1
     nu_2 = builder.D2
     L1 = builder.LAMBDA_1
@@ -312,29 +420,37 @@ def fig_rootsManfrediFD():
     def get_f_g(w, nu):
         z = get_z(w)
         Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
-        return (z - 1 + r*dt) / (2*Gamma_b**2), (Gamma_a - 2*z*Gamma_b) / (2*Gamma_b**2)
+        return (z - 1 + r*dt + z*r**2*dt*b) / (2*Gamma_b**2), \
+                (Gamma_a - 2*z*Gamma_b*(1 + r*dt*b)) / (2*Gamma_b**2)
 
     def square_root_interior(f, g):
-        return 1j*np.sqrt(-1*(-(4*(g-4)*(f-2*g+6) - (g-4)**3 - 8*(g-4))/(2*np.sqrt(g**2 - 4*f)) \
-                - f + (g-4)**2/2 + 2*g - 8))/2
+        return np.sqrt(-(4*(g-4)*(f-2*g+6) - (g-4)**3 - 8*(g-4))/(2*np.sqrt(g**2 - 4*f)) \
+                - f + (g-4)**2/2 + 2*g - 8)/2
 
     def lambda_pp(w, nu):
         f, g = get_f_g(w, nu)
-        return (4 -g)/4 + np.sqrt(g**2 - 4*f)/4 + square_root_interior(f, g)
+        return 1 - g/4 + 1j*np.sqrt(4*f - g**2)/4 + square_root_interior(f, g)
 
     def lambda_pm(w, nu):
         f, g = get_f_g(w, nu)
-        return (4 -g)/4 + np.sqrt(g**2 - 4*f)/4 - square_root_interior(f, g)
+        return 1 - g/4 + 1j* np.sqrt(4*f - g**2)/4 - square_root_interior(f, g)
 
     def lambda_mp(w, nu):
         f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (np.sqrt(g**2 - 4*f)/4 + square_root_interior(f, g))
+        return 1 - g/4 - 1j* (np.sqrt(4*f - g**2)/4 + square_root_interior(f, g))
 
     def lambda_mm(w, nu):
         f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (np.sqrt(g**2 - 4*f)/4 - square_root_interior(f, g))
+        return 1 - g/4 - 1j* (np.sqrt(4*f - g**2)/4 - square_root_interior(f, g))
 
-    w = np.exp(np.linspace(-6, np.log(pi), 1000))[:-1]
+    N = 30000
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[int(N//2)] = .5
+    # w = 2 pi k T / (N)
+    w = 2 * pi*all_k / N / dt
 
     sigma_1 = np.log(lambda_pm(w, nu_1)) / h
     sigma_2 = np.log(lambda_mp(w, nu_1)) / h
@@ -373,13 +489,13 @@ def fig_rootsManfrediFD():
 def wAndRhoPadeFDRR(builder=DEFAULT):
     ###########################
     # equation: (\Gamma_{a,j} = a*dt*nu/h^2, \Gamma_{b,j} = b*dt*nu/h^2)
-    #        (z-1+r\Delta t)\lambda_i^2 + 
-    #        \left(\Gamma_a - 2z\Gamma_b\right) \lambda \left(\lambda-1\right)^2 + 
+    #        (z-1+r\Delta t + z r^2 \Delta t b)\lambda_i^2 + 
+    #        \left(\Gamma_a - 2z\Gamma_b(1+r\Delta t b)\right) \lambda \left(\lambda-1\right)^2 + 
     #        2\Gamma_b^2 \left(\lambda-1\right)^4 = 0
     # rewrite it for wolframAlpha: f* x^2 + g*x(x-1)^2 + (x-1)^4 = 0
     # where x = \lambda
-    # where f = (z-1+r\Delta t) / (2\Gamma_b^2)
-    # and g = (\Gamma_a - 2z\Gamma_b) / (2\Gamma_b^2)
+    # where f = (z-1+r\Delta t + z*r^2 \Delta t b) / (z\Gamma_b^2)
+    # and g = (\Gamma_a - 2z\Gamma_b(1 + r*dt*b)) / (z\Gamma_b^2)
     ##########################"
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
@@ -390,41 +506,129 @@ def wAndRhoPadeFDRR(builder=DEFAULT):
     L1 = builder.LAMBDA_1
     L2 = builder.LAMBDA_2
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    print(builder)
 
     def get_z(w):
         return np.exp(-1j*w*dt)
 
+    def gamma(w):
+        z = get_z(w)
+        return b + z*(b-a)
+
     def Gamma(ab, nu):
         return ab*dt*nu/h**2
+
+    def sqrt_g2_4f(w, nu):
+        # f is (q + d / z)/gamma^2
+        # g is (v / z - c)/gamma
+        # now we have g^2-4f = (pol_a /z^2 + pol_b / z + pol_c)/gamma^2
+        # in wolfram alpha we enter : (c + v / z)^2/gamma - 4*(q + d / z)
+        z = get_z(w)
+        q = 1 + r**2 * dt * b
+        d = r * dt - 1
+        v = a / b
+        c = 2*(1+r*dt*b)
+        gamma = Gamma(b, nu)
+
+        pol_a = v**2
+        pol_b = - (4*d + 2*c*v)
+        pol_c = c**2 - 4*q
+
+        first_term = np.sqrt((1/z - (-pol_b + np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
+        second_term = np.sqrt((1/z - (-pol_b - np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
+
+        return np.sqrt(pol_a) * first_term * second_term / gamma
 
     def get_f_g(w, nu):
         z = get_z(w)
         Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
-        return (z - 1 + r*dt) / (2*Gamma_b**2), (Gamma_a - 2*z*Gamma_b) / (2*Gamma_b**2)
-
-    def square_root_interior(f, g):
-        return np.sqrt(-(4*(g-4)*(f-2*g+6) - (g-4)**3 - 8*(g-4))/(2*sqrt(g**2 - 4*f)) \
-                - f + (g-4)**2/2 + 2*g - 8)/2
+        return (z - 1 + r*dt + z*r**2*dt*b) / (z*Gamma_b**2), \
+                (Gamma_a - 2*z*Gamma_b*(1 + r*dt*b)) / (z*Gamma_b**2)
 
     def lambda_pp(w, nu):
         f, g = get_f_g(w, nu)
-        return (4 -g)/4 + np.sqrt(g**2 - 4*f)/4 + square_root_interior(f, g)
+        return (4 -g)/4 + sqrt_g2_4f(w, nu) + np.sqrt(((g-4)*(-sqrt_g2_4f(w, nu)/2 +(g-4)/2 + 2) - f))/2
 
     def lambda_pm(w, nu):
         f, g = get_f_g(w, nu)
-        return (4 -g)/4 + np.sqrt(g**2 - 4*f)/4 - square_root_interior(f, g)
+        return (4 -g)/4 + sqrt_g2_4f(w, nu) - np.sqrt(((g-4)*(-sqrt_g2_4f(w, nu)/2 +(g-4)/2 + 2) - f))/2
 
     def lambda_mp(w, nu):
         f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (np.sqrt(g**2 - 4*f)/4 + square_root_interior(f, g))
-
+        return (4 -g)/4 - (sqrt_g2_4f(w, nu) + np.sqrt(((g-4)*(sqrt_g2_4f(w, nu)/2 +(g-4)/2 + 2) - f))/2)
     def lambda_mm(w, nu):
         f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (np.sqrt(g**2 - 4*f)/4 - square_root_interior(f, g))
-    sigma_1 = np.log(lambda_pm) / h
-    sigma_2 = np.log(lambda_mp) / h
-    sigma_3 = np.log(lambda_pp) / h
-    sigma_4 = np.log(lambda_mm) / h
+        return (4 -g)/4 - (sqrt_g2_4f(w, nu) - np.sqrt(((g-4)*(sqrt_g2_4f(w, nu)/2 +(g-4)/2 + 2) - f))/2)
+
+    N = 3000
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[int(N//2)] = .5
+    # w dt = 2 pi k T / (N)
+    w = 2 * pi*all_k / N / dt
+
+    lambda_2 = lambda_mp(w, nu_2)
+    lambda_4 = lambda_pm(w, nu_2)
+
+    lambda_1 = lambda_mm(w, nu_1)
+    lambda_3 = lambda_pp(w, nu_1)
+
+    sigma_1 = np.log(lambda_1) / h
+    sigma_2 = np.log(lambda_2) / h
+    sigma_3 = np.log(lambda_3) / h
+    sigma_4 = np.log(lambda_4) / h
+
+    eta_22 = nu_2 * (lambda_2 - 1) / h
+    eta_24 = nu_2 * (lambda_4 - 1) / h
+    eta_11 = nu_1 * (lambda_1 - 1) / h
+    eta_13 = nu_1 * (lambda_3 - 1) / h
+
+    def mu(w, nu_i, lambda_i):
+        z = get_z(w)
+        return z*(1 + r*dt*b - b*dt*nu_i/h**2*(lambda_i - 2 + 1/lambda_i))
+
+    """
+    ########################################
+    # CONTINUOUS APPROX
+    # Now we're trying to use the continuous parts to be able to understand the error
+    # TODO remove this part, it brings an error
+    ######################################
+    # perfect interface operators:
+    eta_22 = nu_2 * sigma_2
+    eta_24 = nu_2 * sigma_4
+    eta_11 = nu_1 * sigma_1
+    eta_13 = nu_1 * sigma_3
+
+    # continuous operator mu:
+    def mu(w, nu_i, lambda_i):
+        z = get_z(w)
+        return z*(1 + r*dt*b - b*nu_i*(np.log(lambda_i) / h)**2)
+    ###################################
+    # End of continuous approx
+    #####################################
+    """
+
+    mu_1 = mu(w, nu_1, lambda_1)
+    mu_2 = mu(w, nu_2, lambda_2)
+    mu_3 = mu(w, nu_1, lambda_3)
+    mu_4 = mu(w, nu_2, lambda_4)
+
+    gamma_t1 = (mu_1 - gamma(w))/(mu_1 - mu_3)
+    gamma_t2 = (mu_2 - gamma(w))/(mu_2 - mu_4)
+    plt.plot(w*dt, np.imag(gamma_t1), label="in code: gamma_t1")
+    plt.plot(w*dt, np.imag(gamma_t2), label="in code: gamma_t2")
+
+    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
+             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
+             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
+             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
+
+    print("difference with DN cv factor:", \
+             np.linalg.norm(varrho - ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)))
+
+    return w, np.abs(varrho)
 
 
 def wAndRhoPadeRR(builder=DEFAULT):
@@ -447,15 +651,15 @@ def wAndRhoPadeRR(builder=DEFAULT):
 
     def square_root_interior(w):
         z, s = get_z_s(w)
-        return 1j*np.sqrt(-1*(1+(a*dt*s)**2 - 2*dt*a**2*r/z - (a**2+1)*dt*s))
+        return 1j*np.sqrt(-1*(1+(a*dt*s)**2 - (a**2+1)*dt*s))
 
     def sigma_plus(w, nu):
         z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s + square_root_interior(w))/(a*np.sqrt(dt*nu))
+        return np.sqrt(1+a*dt*s +a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
 
     def sigma_minus(w, nu):
         z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s - square_root_interior(w))/(a*np.sqrt(dt*nu))
+        return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
 
     N = 300
     if N % 2 == 0: # even
@@ -476,10 +680,10 @@ def wAndRhoPadeRR(builder=DEFAULT):
     assert (np.real(sigma_4) < 0).all()
 
     z, s = get_z_s(w)
-    mu_1 = z*(1 - b*dt*nu_1*sigma_1**2)
-    mu_2 = z*(1 - b*dt*nu_2*sigma_2**2)
-    mu_3 = z*(1 - b*dt*nu_1*sigma_3**2)
-    mu_4 = z*(1 - b*dt*nu_2*sigma_4**2)
+    mu_1 = z*(1 + r*dt*b - b*dt*nu_1*sigma_1**2)
+    mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2)
+    mu_3 = z*(1 + r*dt*b - b*dt*nu_1*sigma_3**2)
+    mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
     assert (np.linalg.norm(mu_1 - mu_2) < 1e-10) # mu_1 == mu_2
     assert (np.linalg.norm(mu_3 - mu_4) < 1e-10) # mu_3 == mu_4
     gamma_t = (mu_1 - gamma(w))/(mu_1 - mu_3)
@@ -506,6 +710,7 @@ def fig_gammaTilde():
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     r=.0
+    assert r == 0.
     def mu_plus(w):
         z = np.exp(-1j*w*dt)
         s = (z - 1)/z
@@ -540,21 +745,22 @@ def fig_rootsManfredi():
     r=.5
     nu_1 = 1.
     nu_2 = 2.
+    assert r == 0.
     def get_z_s(w):
         z = np.exp(-1j*w*dt)
         return z, (z - 1)/(z*dt)
 
     def square_root_interior(w):
         z, s = get_z_s(w)
-        return 1j*np.sqrt(-1*(1+(a*dt*s)**2 - 2*dt*a**2*r/z - (a**2+1)*dt*s))
+        return 1j*np.sqrt(-1*(1+(a*dt*s)**2 - (a**2+1)*dt*s))
 
     def sigma_plus(w, nu):
         z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s + square_root_interior(w))/(a*np.sqrt(dt*nu))
+        return np.sqrt(1+a*dt*s + a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
 
     def sigma_minus(w, nu):
         z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s - square_root_interior(w))/(a*np.sqrt(dt*nu))
+        return np.sqrt(1+a*dt*s + a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
 
     w = np.exp(np.linspace(-3, np.log(pi), 1000))[:-1]
 
@@ -586,6 +792,238 @@ def fig_rootsManfredi():
 
     plt.legend()
     show_or_save("fig_rootsManfredi")
+
+def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
+    ##################################
+    # CONTINUOUS CASE, discrete in time ofc
+    ##################################
+    a = 1+np.sqrt(2)
+    b = 1+1/np.sqrt(2)
+    dt= builder.DT
+    r = builder.C
+    nu_1 = builder.D1
+    nu_2 = builder.D2
+    L1 = builder.LAMBDA_1
+    L2 = builder.LAMBDA_2
+
+    def get_z(w):
+        return np.exp(-1j*w*dt)
+
+    def get_z_s(w):
+        z = get_z(w)
+        return z, (z - 1)/(z*dt)
+
+    def gamma(w):
+        z, _ = get_z_s(w)
+        return b + z*(b-a)
+
+    def square_root_interior(w):
+        z, s = get_z_s(w)
+        return np.sqrt(1 - dt*s) * np.sqrt(1 - a**2*dt*s)
+
+    def sigma_plus(w, nu):
+        z, s = get_z_s(w)
+        return np.sqrt(1+a*dt*s +a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
+
+    def sigma_minus(w, nu):
+        z, s = get_z_s(w)
+        return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
+
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[int(N//2)] = .5
+    # w = 2 pi k T / (N)
+    w = 2 * pi*all_k / N / dt
+    #w = np.exp(np.linspace(-4, np.log(np.pi/dt), 1000))
+    #w = np.linspace(-4, np.pi/dt, 1000)
+
+    sigma_1 = sigma_minus(w, nu_1)
+    sigma_2 = - sigma_minus(w, nu_2)
+    sigma_3 = sigma_plus(w, nu_1)
+    sigma_4 = -sigma_plus(w, nu_2)
+    assert (np.real(sigma_1) > 0).all()
+    assert (np.real(sigma_2) < 0).all()
+    assert (np.real(sigma_3) > 0).all()
+    assert (np.real(sigma_4) < 0).all()
+    ##################################
+    # DISCRETE CASE, discrete in time ofc
+    ##################################
+
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+
+    def sqrt_g2_4f(w, nu):
+        # f is (q + d / z)/gamma^2
+        # g is (v / z - c)/gamma
+        # now we have g^2-4f = (pol_a /z^2 + pol_b / z + pol_c)/gamma^2
+        # in wolfram alpha we enter : (c + v / z)^2/gamma - 4*(q + d / z)
+        z = get_z(w)
+        q = 1 + r**2 * dt * b
+        d = r * dt - 1
+        v = a / b
+        c = 2*(1+r*dt*b)
+        gamma = Gamma(b, nu)
+
+        pol_a = v**2
+        pol_b = - (4*d + 2*c*v)
+        pol_c = c**2 - 4*q
+
+        first_term = np.sqrt((1/z - (-pol_b + np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
+        second_term = np.sqrt((1/z - (-pol_b - np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
+
+        return np.sqrt(pol_a) * first_term * second_term / gamma
+
+    def gamma(w):
+        z = get_z(w)
+        return b + z*(b-a)
+
+    def Gamma(ab, nu):
+        return ab*dt*nu/h**2
+
+    def get_f_g(w, nu):
+        z = get_z(w)
+        Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
+        return (z - 1 + r*dt + z*r**2*dt*b) / (z*Gamma_b**2), \
+                (Gamma_a - 2*z*Gamma_b*(1 + r*dt*b)) / (z*Gamma_b**2)
+
+    def lambda_pp(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 + sqrt_g2_4f(w, nu)/4 + np.sqrt((-(g-4)*(sqrt_g2_4f(w, nu) -g)/2 - f))/2
+
+    def lambda_pm(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 + sqrt_g2_4f(w, nu)/4 - np.sqrt((-(g-4)*(sqrt_g2_4f(w, nu) -g)/2 - f))/2
+
+    def lambda_mp(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 - (sqrt_g2_4f(w, nu)/4 + np.sqrt(((g-4)*(sqrt_g2_4f(w, nu) +g)/2 - f))/2)
+
+    def lambda_mm(w, nu):
+        f, g = get_f_g(w, nu)
+        return (4 -g)/4 - (sqrt_g2_4f(w, nu)/4 - np.sqrt(((g-4)*(sqrt_g2_4f(w, nu) +g)/2 - f))/2)
+
+    lambda_1 = lambda_mp(w, nu_1) # TODO comprendre pourquoi c'est toujours mp, pm qui sont utilisés
+    lambda_2 = lambda_mp(w, nu_2) # bon en fait normalement on pourrait utiliser pp et mm
+    lambda_3 = lambda_pm(w, nu_1) # mais faudrait changer le reste... On fera ça un autre jour^^
+    lambda_4 = lambda_pm(w, nu_2)
+
+    sigma_1FD = np.log(lambda_1) / h
+    sigma_2FD = np.log(lambda_2) / h
+    sigma_3FD = np.log(lambda_3) / h
+    sigma_4FD = np.log(lambda_4) / h
+
+    chi_1 = h**2 * (r+1j*w)/nu_1
+    chi_2 = h**2 * (r+1j*w)/nu_2
+    lambda1_c = 1+chi_1/2 - np.sqrt(chi_1*(chi_1+4))/2 # Je comprends pas pourquoi c'est pas un +
+    lambda2_c = 1+chi_2/2 - np.sqrt(chi_2*(chi_2+4))/2
+
+    axes.semilogx(w*dt, -sigma_1FD, label="$\\sigma_1$ FD")
+    #axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
+    axes.semilogx(w*dt, sigma_1, "--", label="$\\sigma_1$ sd time")
+
+    #axes.semilogx(w*dt, sigma_2, "--", label="$\\sigma_2$ sd time")
+    axes.semilogx(w*dt, -np.log(lambda1_c)/h, label="$\\sigma_1$ sd space")
+    axes.semilogx(w*dt, np.sqrt((1j*w + r)/nu_1), label="$\\sigma_1$ continuous")
+    #axes.semilogx(w*dt, np.log(lambda2_c)/h, label="$\\sigma_2$ time continuous")
+
+    """
+    axes.semilogx(w*dt, sigma_1FD, label="$\\sigma_1$ FD")
+    axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
+
+    axes.semilogx(w*dt, sigma_3, "--", label="$\\sigma_3$ continuous")
+    axes.semilogx(w*dt, sigma_4, "--", label="$\\sigma_4$ continuous")
+    """
+    #axes.semilogx(w*dt, sigma_1FD, label="$\\sigma_1$ FD")
+    #axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
+    # axes.semilogx(w*dt, sigma_3FD, label="$\\sigma_3$ FD")
+    # axes.semilogx(w*dt, sigma_4FD, label="$\\sigma_4$ FD")
+    #axes.semilogx(w*dt, sigma_1, "k--", label="$\\sigma_1$ continuous")
+    #axes.semilogx(w*dt, sigma_2, "k--", label="$\\sigma_1$ continuous")
+    # axes.semilogx(w*dt, sigma_3, "k--", label="$\\sigma_3$ continuous")
+    # axes.semilogx(w*dt, sigma_4, "k--", label="$\\sigma_3$ continuous")
+
+    z = get_z(w)
+    mu_1 = z*(1 + r*dt*b - b*dt*nu_1*sigma_1**2)
+    mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2)
+    #z = get_z(-w)
+    mu_3 = z*(1 + r*dt*b - b*dt*nu_1*sigma_3**2)
+    mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
+
+    def mu_FD(w, nu_i, lambda_i):
+        z = get_z(w)
+        return z*(1 + r*dt*b - Gamma(b, nu_i)*(lambda_i - 2 + 1/lambda_i))
+
+    # Comparing mu in continuous and discrete cases:
+    # axes.plot(w*dt, mu_1, label="mu_1")
+    # #axes.plot(w*dt, mu_2, "k--", label="mu_2")
+    # axes.plot(w*dt, mu_3, label="mu_3")
+    # #axes.plot(w*dt, mu_4, "k--", label="mu_4")
+
+    # axes.plot(w*dt, mu_FD(w, nu_1, lambda_1), "k--", label="mu_1 FD")
+    # axes.plot(w*dt, mu_FD(w, nu_2, lambda_2), "k-.", label="mu_2 FD")
+
+    # axes.plot(w*dt, mu_FD(w, nu_1, lambda_3), label="mu_3 FD")
+    # axes.plot(w*dt, mu_FD(w, nu_2, lambda_4), label="mu_4 FD")
+
+    mu_1FD = mu_FD(w, nu_1, lambda_1)
+    mu_2FD = mu_FD(w, nu_2, lambda_2)
+    mu_3FD = mu_FD(w, nu_1, lambda_3)
+    mu_4FD = mu_FD(w, nu_2, lambda_4)
+
+    gamma_t1 = (mu_1FD - gamma(w))/(mu_1FD - mu_3FD)
+    gamma_t2 = (mu_2FD - gamma(w))/(mu_2FD - mu_4FD)
+    gamma_t = (mu_1 - gamma(w))/(mu_1 - mu_3)
+
+    # comparing \\Tilde{gamma} to gamma_t1, gamma_t2
+    # axes.loglog(w*dt, np.abs(np.imag(gamma_t1)), "k--", label="gammat1")
+    # axes.loglog(w*dt, np.abs(np.imag(gamma_t2)), "k-.", label="gammat2")
+    # axes.loglog(w*dt, np.abs(np.imag((mu_1 - gamma(w))/(mu_1 - mu_3))), label="gamma")
+    # axes.loglog(w*dt, np.abs(np.real(gamma_t1)), "k--", label="gammat1r")
+    # axes.loglog(w*dt, np.abs(np.real(gamma_t2)), "k-.", label="gammat2r")
+    # axes.loglog(w*dt, (np.real((mu_1 - gamma(w))/(mu_1 - mu_3))), label="gammar")
+
+    eta_22 = nu_2 * sigma_2
+    eta_24 = nu_2 * sigma_4
+    eta_11 = -nu_1 * sigma_1
+    eta_13 = -nu_1 * sigma_3
+
+    varrho_cont = ((1 - gamma_t) * eta_11 + gamma_t * eta_13) * ((1 - gamma_t) / eta_22 + gamma_t / eta_24)
+
+    # naive interface:
+    eta_22 = nu_2 * (lambda_2-1)/h
+    eta_24 = nu_2 * (lambda_4-1)/h
+    eta_11 = nu_1 * (1-lambda_1)/h
+    eta_13 = nu_1 * (1-lambda_3)/h
+
+    # perfect operators:
+    # eta_11 = -nu_1 * sigma_1FD
+    # eta_22 = nu_2 * sigma_2FD
+    # eta_13 = -nu_1 * sigma_3FD
+    # eta_24 = nu_2 * sigma_4FD
+
+    # axes.semilogx(w*dt, nu_2 * sigma_2, label="eta_cont")
+    # axes.semilogx(w*dt, nu_2 * sigma_4, label="eta_cont")
+    #problematic part:
+    #varrho = eta_22
+    varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
+
+    axes.semilogx(w*dt, np.abs((varrho_cont)), label="rho_sd_time")
+    axes.semilogx(w*dt, np.abs(nu_1/nu_2*(lambda1_c - 1)/(lambda2_c - 1)), "--", label="rho_sd_space")
+    axes.semilogx(w*dt, np.abs((varrho)), "-.", label="rho_discrete, naive")
+
+
+    # extrapolation:
+    eta_11 = -nu_1/h * (lambda_1 - 1) * (3/2 - lambda_1/2)
+    eta_13 = -nu_1/h * (lambda_3 - 1) * (3/2 - lambda_3/2)
+    eta_22 = nu_2/h * (lambda_2 - 1) * (3/2 - lambda_2/2)
+    eta_24 = nu_2/h * (lambda_4 - 1) * (3/2 - lambda_4/2)
+    varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
+
+    axes.semilogx(w*dt, np.abs((varrho)), "-.", label="rho_discrete, extra")
+
+    axes.set_xlim(left=0)
+    axes.legend()
 
 
 #############################################

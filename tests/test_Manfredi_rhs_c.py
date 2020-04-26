@@ -12,7 +12,7 @@ from discretizations.time.Manfredi import Manfredi
 """
 
 def launch_all_tests():
-    #test_FD()
+    test_FD()
     test_FV2()
     test_FV4()
 
@@ -37,9 +37,9 @@ def test_FV4():
         #             first_M=first_M, u_ubar_flux_fbar=test_case, first_dt=first_dt, c=c))
 
 def test_FV2():
-    first_M=800
+    first_M=80000
     first_dt = 1e-2
-    c = 20.
+    c = 2.
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.backward_euler import BackwardEuler
     from discretizations.space.FD_extra import FiniteDifferencesExtra
@@ -57,21 +57,21 @@ def test_FV2():
         #             first_M=first_M, u_ubar_flux_fbar=test_case, first_dt=first_dt, c=c))
 
 def test_FD():
-    first_M=40000
-    first_dt = 1e-2
-    c = 0.3
+    first_M=800
+    first_dt = 1e-1
+    c = 0.1
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.backward_euler import BackwardEuler
     from discretizations.space.FD_extra import FiniteDifferencesExtra
     from discretizations.space.FD_naive import FiniteDifferencesNaive
     from tests.test_cases import zero_f, const_space_cubic_time, intricated_spacetime, const_space_quad_time, cosinus_time, const_space_cos_time
-    for test_case in (intricated_spacetime, zero_f, const_space_cos_time, ):
+    for test_case in (const_space_cos_time, ):#intricated_spacetime, zero_f, const_space_cos_time, ):
         print("the Padé scheme is supposed to be of order 2 in time (thus 4 in space)")
 
         print("testing", test_case.__name__)
         print("Time order with Manfredi:", \
         test_any_time_scheme_domain1_FD(time_scheme=Manfredi,
-            space_scheme=FiniteDifferencesNaive, first_M=first_M, u_flux_f=test_case, first_dt=first_dt, c=c, adjust_M=True))
+            space_scheme=FiniteDifferencesNaive, first_M=first_M, u_flux_f=test_case, first_dt=first_dt, c=c, adjust_M=False))
         print("Time order with BackwardEuler:", \
         test_any_time_scheme_domain1_FD(time_scheme=BackwardEuler,
                     space_scheme=FiniteDifferencesNaive, first_M=first_M, u_flux_f=test_case, first_dt=first_dt, c=c, adjust_M=False))
@@ -474,7 +474,7 @@ def test_any_time_scheme_domain2_FV2(time_scheme, u_ubar_flux_fbar, first_M=10, 
     # Loop to compare different settings:
     M = first_M
     dts = (first_dt, first_dt/2, first_dt/3, first_dt/4, first_dt/8)
-    # dts = (first_dt, first_dt/2)
+    #dts = (first_dt, first_dt/2)
     for dt in dts:
         if int((Courant/(D*dt))) > first_M and adjust_M:
             M = int((Courant/(D*dt)))
@@ -559,7 +559,7 @@ def test_any_time_scheme_domain2_FV2(time_scheme, u_ubar_flux_fbar, first_M=10, 
         ret += [np.linalg.norm(u_bar(x2-h2/2, h2, t_n+dt) - u2_0)/np.linalg.norm(u_bar(x2-h2/2, h2, t_n+dt))]
     # FIGURE OF VALIDATION ORDRE 2:
     import matplotlib.pyplot as plt
-    plt.loglog(dts, 10*np.array(dts)**1, "k--", label="y=10dt")
+    plt.loglog(dts, np.array(dts)**2, "k--", label="y=dt^2")
     plt.loglog(dts, ret, '+', label="error on u=cos(x+t), with reaction")
     plt.xlabel("dt")
     plt.ylabel("error")

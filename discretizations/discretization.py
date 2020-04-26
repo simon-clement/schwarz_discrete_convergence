@@ -467,7 +467,9 @@ class Discretization:
         # and \\lambda_+ is the secondary root.
         if order_equations == float('inf'):
             lam1, lam2, lam1_p, lam2_p = self.lambda_1_2_pm(s)
-            sig1, sig2, sig1_p, sig2_p = np.log(lam1), np.log(lam2), np.log(lam1_p), np.log(lam2_p)
+            h1, h2 = self.get_h()
+            h1, h2 = h1[0], h2[0]
+            sig1, sig2, sig1_p, sig2_p = np.log(lam1)/h1, np.log(lam2)/h2, np.log(lam1_p)/h1, np.log(lam2_p)/h2
         else:
             sig1, sig2 = self.sigma_modified(w, s, order_equations)
             sig1_p = -sig1
@@ -478,8 +480,10 @@ class Discretization:
         #########################################################
 
         if order_operators == float('inf'):
-            eta1_dir, eta1_neu = self.eta_dirneu(j=1, lam_m=np.exp(sig1), lam_p=np.exp(sig1_p), s=s)
-            eta2_dir, eta2_neu = self.eta_dirneu(j=2, lam_m=np.exp(sig2), lam_p=np.exp(sig2_p), s=s)
+            h1, h2 = self.get_h()
+            h1, h2 = h1[0], h2[0]
+            eta1_dir, eta1_neu = self.eta_dirneu(j=1, lam_m=np.exp(h1*sig1), lam_p=np.exp(h1*sig1_p), s=s)
+            eta2_dir, eta2_neu = self.eta_dirneu(j=2, lam_m=np.exp(h2*sig2), lam_p=np.exp(h2*sig2_p), s=s)
         else:
             eta1_dir, eta1_neu = self.eta_dirneu_modif(j=1, sigj=sig1, order_operators=order_operators, w=w)
             eta2_dir, eta2_neu = self.eta_dirneu_modif(j=2, sigj=sig2, order_operators=order_operators, w=w)
