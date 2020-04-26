@@ -185,13 +185,13 @@ def fig_validatePadeAnalysisFDRR():
     from discretizations.time.Manfredi import Manfredi
     # parameters of the schemes are given to the builder:
     builder = Builder()
-    builder.LAMBDA_1 = 1e9
-    builder.LAMBDA_2 = 0.
-    builder.M1 = 2000
-    builder.M2 = 2000
+    builder.LAMBDA_1 = 0.5
+    builder.LAMBDA_2 = -0.4
+    builder.M1 = 200
+    builder.M2 = 200
     builder.D1 = 1.
     builder.D2 = 2.
-    builder.C = 0.4
+    builder.C = 0.5
     dt = builder.DT
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
     print("Courant parabolic number :", dt/h**2)
@@ -229,7 +229,7 @@ def fig_validatePadeAnalysisFDRR():
     for name in discretizations:
         time_dis, space_dis = discretizations[name]
         alpha_w = memoised(Builder.frequency_cv_factor, builder,
-                time_dis, space_dis, N=N, number_samples=5)
+                time_dis, space_dis, N=N, number_samples=20)
         k = 1
         convergence_factors[name] = np.abs(alpha_w[k+1] / alpha_w[k])
 
@@ -859,8 +859,8 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
         # now we have g^2-4f = (pol_a /z^2 + pol_b / z + pol_c)/gamma^2
         # in wolfram alpha we enter : (c + v / z)^2/gamma - 4*(q + d / z)
         z = get_z(w)
-        q = 1 + r**2 * dt * b
-        d = r * dt - 1
+        q = (1 + r * dt * b)**2
+        d = - 1 - a*r*dt
         v = a / b
         c = 2*(1+r*dt*b)
         gamma = Gamma(b, nu)
@@ -918,16 +918,16 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     lambda1_c = 1+chi_1/2 - np.sqrt(chi_1*(chi_1+4))/2 # Je comprends pas pourquoi c'est pas un +
     lambda2_c = 1+chi_2/2 - np.sqrt(chi_2*(chi_2+4))/2
 
+    """
     axes.semilogx(w*dt, -sigma_1FD, label="$\\sigma_1$ FD")
-    #axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
+    axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
     axes.semilogx(w*dt, sigma_1, "--", label="$\\sigma_1$ sd time")
 
-    #axes.semilogx(w*dt, sigma_2, "--", label="$\\sigma_2$ sd time")
+    axes.semilogx(w*dt, sigma_2, "--", label="$\\sigma_2$ sd time")
     axes.semilogx(w*dt, -np.log(lambda1_c)/h, label="$\\sigma_1$ sd space")
     axes.semilogx(w*dt, np.sqrt((1j*w + r)/nu_1), label="$\\sigma_1$ continuous")
-    #axes.semilogx(w*dt, np.log(lambda2_c)/h, label="$\\sigma_2$ time continuous")
+    axes.semilogx(w*dt, np.log(lambda2_c)/h, label="$\\sigma_2$ time continuous")
 
-    """
     axes.semilogx(w*dt, sigma_1FD, label="$\\sigma_1$ FD")
     axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
 
@@ -985,10 +985,14 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
 
     eta_22 = nu_2 * sigma_2
     eta_24 = nu_2 * sigma_4
-    eta_11 = -nu_1 * sigma_1
-    eta_13 = -nu_1 * sigma_3
+    eta_11 = nu_1 * sigma_1
+    eta_13 = nu_1 * sigma_3
 
-    varrho_cont = ((1 - gamma_t) * eta_11 + gamma_t * eta_13) * ((1 - gamma_t) / eta_22 + gamma_t / eta_24)
+    # DN: varrho_cont = ((1 - gamma_t) * eta_11 + gamma_t * eta_13) * ((1 - gamma_t) / eta_22 + gamma_t / eta_24)
+    varrho_cont = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t) + \
+             (L1 + eta_24)/(L2 + eta_24) * (gamma_t)) * \
+             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t) + \
+             (L2 + eta_13)/(L1 + eta_13) * (gamma_t))
 
     # naive interface:
     eta_22 = nu_2 * (lambda_2-1)/h
@@ -996,20 +1000,16 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     eta_11 = nu_1 * (1-lambda_1)/h
     eta_13 = nu_1 * (1-lambda_3)/h
 
-    # perfect operators:
-    # eta_11 = -nu_1 * sigma_1FD
-    # eta_22 = nu_2 * sigma_2FD
-    # eta_13 = -nu_1 * sigma_3FD
-    # eta_24 = nu_2 * sigma_4FD
-
-    # axes.semilogx(w*dt, nu_2 * sigma_2, label="eta_cont")
-    # axes.semilogx(w*dt, nu_2 * sigma_4, label="eta_cont")
-    #problematic part:
-    #varrho = eta_22
-    varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
+    #DN :
+    #varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
+    # RR:
+    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
+             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
+             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
+             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
 
     axes.semilogx(w*dt, np.abs((varrho_cont)), label="rho_sd_time")
-    axes.semilogx(w*dt, np.abs(nu_1/nu_2*(lambda1_c - 1)/(lambda2_c - 1)), "--", label="rho_sd_space")
+    #DN: axes.semilogx(w*dt, np.abs(nu_1/nu_2*(lambda1_c - 1)/(lambda2_c - 1)), "--", label="rho_sd_space")
     axes.semilogx(w*dt, np.abs((varrho)), "-.", label="rho_discrete, naive")
 
 
@@ -1018,7 +1018,12 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     eta_13 = -nu_1/h * (lambda_3 - 1) * (3/2 - lambda_3/2)
     eta_22 = nu_2/h * (lambda_2 - 1) * (3/2 - lambda_2/2)
     eta_24 = nu_2/h * (lambda_4 - 1) * (3/2 - lambda_4/2)
-    varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
+    # DN: varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
+    # RR:
+    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
+             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
+             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
+             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
 
     axes.semilogx(w*dt, np.abs((varrho)), "-.", label="rho_discrete, extra")
 
