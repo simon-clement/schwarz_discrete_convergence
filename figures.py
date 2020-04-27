@@ -190,7 +190,7 @@ def fig_validatePadeAnalysisFDRR():
     builder.M1 = 200
     builder.M2 = 200
     builder.D1 = 1.
-    builder.D2 = 2.
+    builder.D2 = 1.
     builder.C = 0.5
     dt = builder.DT
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
@@ -199,16 +199,16 @@ def fig_validatePadeAnalysisFDRR():
     discretizations = {}
     time_scheme = Manfredi
 
-    discretizations["FV2"] = (time_scheme, QuadSplinesFV)
+    #discretizations["FV2"] = (time_scheme, QuadSplinesFV)
     #discretizations["FV4"] = (time_scheme, FourthOrderFV)
-    discretizations["FD, corr=0"] = (time_scheme, FiniteDifferencesNaive)
-    discretizations["FD, extra"] = (time_scheme, FiniteDifferencesExtra)
+    discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
+    discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
     #discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
 
     convergence_factors = {}
     theorical_convergence_factors = {}
 
-    N = 300
+    N = 3000
     ###########
     # Computation of the frequency axis
     ###########
@@ -220,9 +220,27 @@ def fig_validatePadeAnalysisFDRR():
     # w = 2 pi k T / (N)
     axis_freq = 2 * pi*all_k / N / dt
 
-    kwargs_label_simu = {'label':"Validation by simulation"}
-    kwargs_label_cont = {'label':"Continuous"}
-    fig, axes = plt.subplots(1, 2, figsize=[6.4*1.7, 4.8])
+    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
+
+
+    dis = builder.build(BackwardEuler, FiniteDifferencesNaive)
+    continuous = dis.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=0,
+                    order_equations=0)
+    axes.semilogx(axis_freq * dt, continuous, label="$\\rho^{\\rm c, c}$")
+
+    for name in discretizations:
+        time_dis, space_dis = discretizations[name]
+        dis = builder.build(time_dis, space_dis)
+        theorical_convergence_factors[name] = \
+                dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=0, order_operators=float('inf'),
+                        order_equations=float('inf'))
+        axes.semilogx(axis_freq * dt, theorical_convergence_factors[name],
+                label="$\\rho^{\\rm c, "+name + "}$")
+
+    compare_rho_discrete_semidiscrete(axes, builder, N=N)
+
     ###########
     # for each discretization, a simulation
     ###########
@@ -232,41 +250,12 @@ def fig_validatePadeAnalysisFDRR():
                 time_dis, space_dis, N=N, number_samples=20)
         k = 1
         convergence_factors[name] = np.abs(alpha_w[k+1] / alpha_w[k])
+        axes.semilogx(axis_freq * dt, convergence_factors[name], "--", label=name)
 
-        dis = builder.build(time_dis, space_dis)
-        try:
-            theorical_convergence_factors[name] = \
-                    dis.analytic_robin_robin_modified(w=axis_freq,
-                            order_time=float('inf'), order_operators=float('inf'),
-                            order_equations=float('inf'))
-            axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], "--", **kwargs_label_simu)
-        except:
-            pass
-        continuous = dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=0, order_operators=0,
-                        order_equations=0)
-        axes[0].semilogx(axis_freq * dt, convergence_factors[name], label=name)
-        if kwargs_label_simu: # We only want the legend to be present once
-            axes[0].semilogx(axis_freq * dt, continuous, "--", **kwargs_label_cont)
-            kwargs_label_simu = {}
-            kwargs_label_cont = {}
-
-    #w, rho_theoric = wAndRhoPadeFDRR(builder)
-    #axes[0].semilogx(w*builder.DT, rho_theoric, "k--", label="theoric")
-    compare_rho_discrete_semidiscrete(axes[1], builder, N=N)
-    compare_rho_discrete_semidiscrete(axes[0], builder, N=N)
-    """
-    w, rho_theoric = wAndRhoPadeRR(builder)
-    axes[0].semilogx(w*builder.DT, rho_theoric, label="theoric continuous")
-    builder.DT /= 1e4
-    w, rho_theoric = wAndRhoPadeRR(builder)
-    axes[0].semilogx(w*builder.DT, rho_theoric, "--", label="theoric continuous, dt / 1e4")
-    """
-
-    axes[0].set_xlabel("Frequency variable $\\omega \\delta t$")
-    axes[0].set_ylabel("Convergence factor $\\rho$")
-    axes[0].set_title("Validation of finite differences discrete analysis")
-    axes[0].legend()
+    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes.set_ylabel("Convergence factor $\\rho$")
+    axes.set_title("Validation of finite differences discrete analysis")
+    axes.legend()
     show_or_save("fig_validatePadeAnalysisFDRR")
 
 
@@ -486,151 +475,6 @@ def fig_rootsManfrediFD():
     plt.legend()
     show_or_save("fig_rootsManfrediFD")
 
-def wAndRhoPadeFDRR(builder=DEFAULT):
-    ###########################
-    # equation: (\Gamma_{a,j} = a*dt*nu/h^2, \Gamma_{b,j} = b*dt*nu/h^2)
-    #        (z-1+r\Delta t + z r^2 \Delta t b)\lambda_i^2 + 
-    #        \left(\Gamma_a - 2z\Gamma_b(1+r\Delta t b)\right) \lambda \left(\lambda-1\right)^2 + 
-    #        2\Gamma_b^2 \left(\lambda-1\right)^4 = 0
-    # rewrite it for wolframAlpha: f* x^2 + g*x(x-1)^2 + (x-1)^4 = 0
-    # where x = \lambda
-    # where f = (z-1+r\Delta t + z*r^2 \Delta t b) / (z\Gamma_b^2)
-    # and g = (\Gamma_a - 2z\Gamma_b(1 + r*dt*b)) / (z\Gamma_b^2)
-    ##########################"
-    a = 1+np.sqrt(2)
-    b = 1+1/np.sqrt(2)
-    dt= builder.DT
-    r = builder.C
-    nu_1 = builder.D1
-    nu_2 = builder.D2
-    L1 = builder.LAMBDA_1
-    L2 = builder.LAMBDA_2
-    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-    print(builder)
-
-    def get_z(w):
-        return np.exp(-1j*w*dt)
-
-    def gamma(w):
-        z = get_z(w)
-        return b + z*(b-a)
-
-    def Gamma(ab, nu):
-        return ab*dt*nu/h**2
-
-    def sqrt_g2_4f(w, nu):
-        # f is (q + d / z)/gamma^2
-        # g is (v / z - c)/gamma
-        # now we have g^2-4f = (pol_a /z^2 + pol_b / z + pol_c)/gamma^2
-        # in wolfram alpha we enter : (c + v / z)^2/gamma - 4*(q + d / z)
-        z = get_z(w)
-        q = 1 + r**2 * dt * b
-        d = r * dt - 1
-        v = a / b
-        c = 2*(1+r*dt*b)
-        gamma = Gamma(b, nu)
-
-        pol_a = v**2
-        pol_b = - (4*d + 2*c*v)
-        pol_c = c**2 - 4*q
-
-        first_term = np.sqrt((1/z - (-pol_b + np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
-        second_term = np.sqrt((1/z - (-pol_b - np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
-
-        return np.sqrt(pol_a) * first_term * second_term / gamma
-
-    def get_f_g(w, nu):
-        z = get_z(w)
-        Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
-        return (z - 1 + r*dt + z*r**2*dt*b) / (z*Gamma_b**2), \
-                (Gamma_a - 2*z*Gamma_b*(1 + r*dt*b)) / (z*Gamma_b**2)
-
-    def lambda_pp(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 + sqrt_g2_4f(w, nu) + np.sqrt(((g-4)*(-sqrt_g2_4f(w, nu)/2 +(g-4)/2 + 2) - f))/2
-
-    def lambda_pm(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 + sqrt_g2_4f(w, nu) - np.sqrt(((g-4)*(-sqrt_g2_4f(w, nu)/2 +(g-4)/2 + 2) - f))/2
-
-    def lambda_mp(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (sqrt_g2_4f(w, nu) + np.sqrt(((g-4)*(sqrt_g2_4f(w, nu)/2 +(g-4)/2 + 2) - f))/2)
-    def lambda_mm(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (sqrt_g2_4f(w, nu) - np.sqrt(((g-4)*(sqrt_g2_4f(w, nu)/2 +(g-4)/2 + 2) - f))/2)
-
-    N = 3000
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[int(N//2)] = .5
-    # w dt = 2 pi k T / (N)
-    w = 2 * pi*all_k / N / dt
-
-    lambda_2 = lambda_mp(w, nu_2)
-    lambda_4 = lambda_pm(w, nu_2)
-
-    lambda_1 = lambda_mm(w, nu_1)
-    lambda_3 = lambda_pp(w, nu_1)
-
-    sigma_1 = np.log(lambda_1) / h
-    sigma_2 = np.log(lambda_2) / h
-    sigma_3 = np.log(lambda_3) / h
-    sigma_4 = np.log(lambda_4) / h
-
-    eta_22 = nu_2 * (lambda_2 - 1) / h
-    eta_24 = nu_2 * (lambda_4 - 1) / h
-    eta_11 = nu_1 * (lambda_1 - 1) / h
-    eta_13 = nu_1 * (lambda_3 - 1) / h
-
-    def mu(w, nu_i, lambda_i):
-        z = get_z(w)
-        return z*(1 + r*dt*b - b*dt*nu_i/h**2*(lambda_i - 2 + 1/lambda_i))
-
-    """
-    ########################################
-    # CONTINUOUS APPROX
-    # Now we're trying to use the continuous parts to be able to understand the error
-    # TODO remove this part, it brings an error
-    ######################################
-    # perfect interface operators:
-    eta_22 = nu_2 * sigma_2
-    eta_24 = nu_2 * sigma_4
-    eta_11 = nu_1 * sigma_1
-    eta_13 = nu_1 * sigma_3
-
-    # continuous operator mu:
-    def mu(w, nu_i, lambda_i):
-        z = get_z(w)
-        return z*(1 + r*dt*b - b*nu_i*(np.log(lambda_i) / h)**2)
-    ###################################
-    # End of continuous approx
-    #####################################
-    """
-
-    mu_1 = mu(w, nu_1, lambda_1)
-    mu_2 = mu(w, nu_2, lambda_2)
-    mu_3 = mu(w, nu_1, lambda_3)
-    mu_4 = mu(w, nu_2, lambda_4)
-
-    gamma_t1 = (mu_1 - gamma(w))/(mu_1 - mu_3)
-    gamma_t2 = (mu_2 - gamma(w))/(mu_2 - mu_4)
-    plt.plot(w*dt, np.imag(gamma_t1), label="in code: gamma_t1")
-    plt.plot(w*dt, np.imag(gamma_t2), label="in code: gamma_t2")
-
-    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
-
-    print("difference with DN cv factor:", \
-             np.linalg.norm(varrho - ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)))
-
-    return w, np.abs(varrho)
-
-
 def wAndRhoPadeRR(builder=DEFAULT):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
@@ -794,9 +638,6 @@ def fig_rootsManfredi():
     show_or_save("fig_rootsManfredi")
 
 def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
-    ##################################
-    # CONTINUOUS CASE, discrete in time ofc
-    ##################################
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
@@ -809,13 +650,24 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     def get_z(w):
         return np.exp(-1j*w*dt)
 
-    def get_z_s(w):
-        z = get_z(w)
-        return z, (z - 1)/(z*dt)
-
     def gamma(w):
         z, _ = get_z_s(w)
         return b + z*(b-a)
+
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    all_k[int(N//2)] = .5
+    w = 2 * pi*all_k / N / dt
+
+    ##################################
+    # CONTINUOUS CASE, discrete in time ofc
+    ##################################
+
+    def get_z_s(w):
+        z = get_z(w)
+        return z, (z - 1)/(z*dt)
 
     def square_root_interior(w):
         z, s = get_z_s(w)
@@ -829,24 +681,11 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
         z, s = get_z_s(w)
         return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
 
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[int(N//2)] = .5
-    # w = 2 pi k T / (N)
-    w = 2 * pi*all_k / N / dt
-    #w = np.exp(np.linspace(-4, np.log(np.pi/dt), 1000))
-    #w = np.linspace(-4, np.pi/dt, 1000)
-
     sigma_1 = sigma_minus(w, nu_1)
     sigma_2 = - sigma_minus(w, nu_2)
     sigma_3 = sigma_plus(w, nu_1)
     sigma_4 = -sigma_plus(w, nu_2)
-    assert (np.real(sigma_1) > 0).all()
-    assert (np.real(sigma_2) < 0).all()
-    assert (np.real(sigma_3) > 0).all()
-    assert (np.real(sigma_4) < 0).all()
+
     ##################################
     # DISCRETE CASE, discrete in time ofc
     ##################################
@@ -854,17 +693,21 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
 
     def sqrt_g2_4f(w, nu):
-        # f is (q + d / z)/gamma^2
-        # g is (v / z - c)/gamma
-        # now we have g^2-4f = (pol_a /z^2 + pol_b / z + pol_c)/gamma^2
-        # in wolfram alpha we enter : (c + v / z)^2/gamma - 4*(q + d / z)
+        """
+            computes the value sqrt(g^2 - 4f).
+            This value must be carefully computed because
+            it is the square root of a complex:
+            a factorization of (g^2-4f) is needed.
+        """
         z = get_z(w)
+        # f is (q + d / z)/Gamma_b^2
+        # g is (v / z - c)/Gamma_b
         q = (1 + r * dt * b)**2
         d = - 1 - a*r*dt
         v = a / b
         c = 2*(1+r*dt*b)
-        gamma = Gamma(b, nu)
-
+        Gamma_b = Gamma(b, nu)
+        # now we have g^2-4f = (pol_a /z^2 + pol_b / z + pol_c)/Gamma_b^2
         pol_a = v**2
         pol_b = - (4*d + 2*c*v)
         pol_c = c**2 - 4*q
@@ -872,11 +715,7 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
         first_term = np.sqrt((1/z - (-pol_b + np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
         second_term = np.sqrt((1/z - (-pol_b - np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
 
-        return np.sqrt(pol_a) * first_term * second_term / gamma
-
-    def gamma(w):
-        z = get_z(w)
-        return b + z*(b-a)
+        return np.sqrt(pol_a) * first_term * second_term / Gamma_b
 
     def Gamma(ab, nu):
         return ab*dt*nu/h**2
@@ -884,7 +723,7 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     def get_f_g(w, nu):
         z = get_z(w)
         Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
-        return (z - 1 + r*dt + z*r**2*dt*b) / (z*Gamma_b**2), \
+        return ((1+b*r*dt)**2 - (1+a*r*dt)/z) / (Gamma_b**2), \
                 (Gamma_a - 2*z*Gamma_b*(1 + r*dt*b)) / (z*Gamma_b**2)
 
     def lambda_pp(w, nu):
@@ -903,9 +742,9 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
         f, g = get_f_g(w, nu)
         return (4 -g)/4 - (sqrt_g2_4f(w, nu)/4 - np.sqrt(((g-4)*(sqrt_g2_4f(w, nu) +g)/2 - f))/2)
 
-    lambda_1 = lambda_mp(w, nu_1) # TODO comprendre pourquoi c'est toujours mp, pm qui sont utilisés
-    lambda_2 = lambda_mp(w, nu_2) # bon en fait normalement on pourrait utiliser pp et mm
-    lambda_3 = lambda_pm(w, nu_1) # mais faudrait changer le reste... On fera ça un autre jour^^
+    lambda_1 = lambda_mp(w, nu_1) # bon en fait normalement on pourrait utiliser pp et mm
+    lambda_2 = lambda_mp(w, nu_2) # mais faudrait utiliser partout lambda_1^{-1} au lieu
+    lambda_3 = lambda_pm(w, nu_1) # de lambda_1. Ca vaut pas vraiment le coup
     lambda_4 = lambda_pm(w, nu_2)
 
     sigma_1FD = np.log(lambda_1) / h
@@ -993,6 +832,7 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
              (L1 + eta_24)/(L2 + eta_24) * (gamma_t)) * \
              ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t) + \
              (L2 + eta_13)/(L1 + eta_13) * (gamma_t))
+    axes.semilogx(w*dt, np.abs((varrho_cont)), label="$\\rho^{\\rm Pade, c}$")
 
     # naive interface:
     eta_22 = nu_2 * (lambda_2-1)/h
@@ -1001,16 +841,15 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     eta_13 = nu_1 * (1-lambda_3)/h
 
     #DN :
-    #varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
+    varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
     # RR:
     varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
              (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
              ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
              (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
 
-    axes.semilogx(w*dt, np.abs((varrho_cont)), label="rho_sd_time")
     #DN: axes.semilogx(w*dt, np.abs(nu_1/nu_2*(lambda1_c - 1)/(lambda2_c - 1)), "--", label="rho_sd_space")
-    axes.semilogx(w*dt, np.abs((varrho)), "-.", label="rho_discrete, naive")
+    axes.semilogx(w*dt, np.abs((varrho)), label="$\\rho^{\\rm Pade, FD(corr=0)}$")
 
 
     # extrapolation:
@@ -1025,7 +864,7 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
              ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
              (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
 
-    axes.semilogx(w*dt, np.abs((varrho)), "-.", label="rho_discrete, extra")
+    axes.semilogx(w*dt, np.abs((varrho)), label="$\\rho^{\\rm Pade, FD(extra)}$")
 
     axes.set_xlim(left=0)
     axes.legend()
