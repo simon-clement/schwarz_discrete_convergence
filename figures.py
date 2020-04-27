@@ -12,79 +12,86 @@ import functools
 import discretizations
 from simulator import frequency_simulation
 
+def fig_validatePadeAnalysisFDRR():
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.theta_method import ThetaMethod
+    from discretizations.time.RK2 import RK2
+    from discretizations.time.RK4 import RK4
+    from discretizations.time.Manfredi import Manfredi
+    from cv_factor_pade import rho_Pade_FD_corr0
+    from cv_factor_pade import rho_Pade_FD_extra
+    from cv_factor_pade import rho_Pade_c
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = .5
+    builder.LAMBDA_2 = -0.4
+    builder.M1 = 200
+    builder.M2 = 200
+    builder.D1 = 1.
+    builder.D2 = 2.
+    builder.C = 0.5
+    N = 300
+    dt = builder.DT
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    print("Courant parabolic number :", builder.D1*dt/h**2)
 
-"""
-    The dictionnary all_figures contains all the functions
-    of this module that begins with "fig_".
-    When you want to add a figure,
-    follow the following rule:
-        if the figure is going to be labelled as "fig:foo"
-        then the function that generates it should
-                                        be named (fig_foo())
-    The dictionnary is filling itself: don't try to
-    manually add a function.
-"""
-all_figures = {}
+    time_scheme = Manfredi
+        
+    discretizations = {}
 
-class Builder():
-    def __init__(self): # changing defaults will result in needing to recompute all cache
-        self.COURANT_NUMBER = 100.
-        self.M1 = 2000
-        self.M2 = 2000
-        self.SIZE_DOMAIN_1 = 200
-        self.SIZE_DOMAIN_2 = 200
-        self.D1 = .54
-        self.D2 = .6
-        self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
-        self.A = 0.
-        self.C = 0.
-        self.LAMBDA_1 = 1e9
-        self.LAMBDA_2 = 0.
+    discretizations["FV2"] = (time_scheme, QuadSplinesFV)
+    #discretizations["FV4"] = (time_scheme, FourthOrderFV)
+    discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
+    discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
 
-    def new(self, Discretisation):
-        return Discretisation(A=self.A, C=self.C,
-                              D1=self.D1, D2=self.D2,
-                              M1=self.M1, M2=self.M2,
-                              SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,
-                              SIZE_DOMAIN_2=self.SIZE_DOMAIN_2,
-                              LAMBDA_1=self.LAMBDA_1,
-                              LAMBDA_2=self.LAMBDA_2,
-                              DT=self.DT)
-    def build(self, time_discretization, space_discretization):
-        """
-            Given two abstract classes of a time and space discretization,
-            build a scheme.
-        """
-        class AnonymousScheme(time_discretization, space_discretization):
-            def __init__(self, *args, **kwargs):
-                space_discretization.__init__(self, *args, **kwargs)
-                time_discretization.__init__(self, *args, **kwargs)
-        return self.new(AnonymousScheme)
+    axis_freq = get_discrete_freq(N, dt)
+    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
 
-    def frequency_cv_factor(self, time_discretization, space_discretization, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        return frequency_simulation(discretization, **kwargs)
+    dis_cont = builder.build(time_scheme, FiniteDifferencesNaive) # any discretisation would do 
+    continuous = dis_cont.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=0,
+                    order_equations=0)
+    axes.semilogx(axis_freq * dt, continuous, label="$\\rho^{\\rm c, c}$")
 
-    def robin_robin_theorical_cv_factor(self, time_discretization, space_discretization, *args, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        return discretization.analytic_robin_robin_modified(*args, **kwargs)
+    for name in discretizations:
+        time_dis, space_dis = discretizations[name]
+        dis = builder.build(time_dis, space_dis)
+        theorical_convergence_factor = \
+                dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=0, order_operators=float('inf'),
+                        order_equations=float('inf'))
+        axes.semilogx(axis_freq * dt, theorical_convergence_factor,
+                label="$\\rho^{\\rm c, "+name + "}$")
 
-    """
-        __eq__ and __hash__ are implemented, so that a discretization
-        can be stored as key in a dict
-        (it is useful for memoisation)
-    """
+    axes.semilogx(axis_freq * dt, rho_Pade_FD_corr0(builder, axis_freq),
+            label="$\\rho^{\\rm Pade, FD(corr=0)}$")
+    axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
+            label="$\\rho^{\\rm Pade, FD(extra)}$")
+    axes.semilogx(axis_freq * dt, rho_Pade_c(builder, axis_freq),
+            label="$\\rho^{\\rm Pade, c}$")
 
-    def __eq__(self, other):
-        return self.__dict__ == other.__dict__
+    ###########
+    # for each discretization, a simulation
+    ###########
+    for name in discretizations:
+        time_dis, space_dis = discretizations[name]
+        alpha_w = memoised(Builder.frequency_cv_factor, builder,
+                time_dis, space_dis, N=N, number_samples=5, NUMBER_IT=2)
+        k = 1
+        convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+        axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
 
-    def __hash__(self):
-        return hash(repr(sorted(self.__dict__.items())))
+    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes.set_ylabel("Convergence factor $\\rho$")
+    axes.set_title("Validation of finite differences discrete analysis")
+    axes.legend()
+    show_or_save("fig_validatePadeAnalysisFDRR")
 
-    def __repr__(self):
-        return repr(sorted(self.__dict__.items()))
-
-DEFAULT = Builder()
 
 def fig_validatePadeAnalysisRR():
     from discretizations.space.FD_naive import FiniteDifferencesNaive
@@ -119,16 +126,7 @@ def fig_validatePadeAnalysisRR():
 
     N = 300
     dt = DEFAULT.DT
-    ###########
-    # Computation of the frequency axis
-    ###########
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[int(N//2)] = .5
-    # w = 2 pi k T / (N)
-    axis_freq = 2 * pi*all_k / N / dt
+    axis_freq = get_discrete_freq(N, dt)
 
     kwargs_label_simu = {'label':"Validation by simulation"}
     kwargs_label_cont = {'label':"Continuous"}
@@ -139,7 +137,7 @@ def fig_validatePadeAnalysisRR():
     for name in discretizations:
         time_dis, space_dis = discretizations[name]
         alpha_w = memoised(Builder.frequency_cv_factor, builder,
-                time_dis, space_dis, N=N, number_samples=50)
+                time_dis, space_dis, N=N, number_samples=5)
         k = 1
         convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
 
@@ -170,93 +168,6 @@ def fig_validatePadeAnalysisRR():
     axes.set_title("Various space discretizations with " + time_scheme.__name__)
     axes.legend()
     show_or_save("fig_validatePadeAnalysisRR")
-
-
-def fig_validatePadeAnalysisFDRR():
-    from discretizations.space.FD_naive import FiniteDifferencesNaive
-    from discretizations.space.FD_corr import FiniteDifferencesCorr
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    from discretizations.space.fourth_order_fv import FourthOrderFV
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.time.theta_method import ThetaMethod
-    from discretizations.time.RK2 import RK2
-    from discretizations.time.RK4 import RK4
-    from discretizations.time.Manfredi import Manfredi
-    # parameters of the schemes are given to the builder:
-    builder = Builder()
-    builder.LAMBDA_1 = 0.5
-    builder.LAMBDA_2 = -0.4
-    builder.M1 = 200
-    builder.M2 = 200
-    builder.D1 = 1.
-    builder.D2 = 1.
-    builder.C = 0.5
-    dt = builder.DT
-    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-    print("Courant parabolic number :", dt/h**2)
-        
-    discretizations = {}
-    time_scheme = Manfredi
-
-    #discretizations["FV2"] = (time_scheme, QuadSplinesFV)
-    #discretizations["FV4"] = (time_scheme, FourthOrderFV)
-    discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
-    discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
-    #discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
-
-    convergence_factors = {}
-    theorical_convergence_factors = {}
-
-    N = 3000
-    ###########
-    # Computation of the frequency axis
-    ###########
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[int(N//2)] = .5
-    # w = 2 pi k T / (N)
-    axis_freq = 2 * pi*all_k / N / dt
-
-    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
-
-
-    dis = builder.build(BackwardEuler, FiniteDifferencesNaive)
-    continuous = dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=0, order_operators=0,
-                    order_equations=0)
-    axes.semilogx(axis_freq * dt, continuous, label="$\\rho^{\\rm c, c}$")
-
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        dis = builder.build(time_dis, space_dis)
-        theorical_convergence_factors[name] = \
-                dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=0, order_operators=float('inf'),
-                        order_equations=float('inf'))
-        axes.semilogx(axis_freq * dt, theorical_convergence_factors[name],
-                label="$\\rho^{\\rm c, "+name + "}$")
-
-    compare_rho_discrete_semidiscrete(axes, builder, N=N)
-
-    ###########
-    # for each discretization, a simulation
-    ###########
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder,
-                time_dis, space_dis, N=N, number_samples=20)
-        k = 1
-        convergence_factors[name] = np.abs(alpha_w[k+1] / alpha_w[k])
-        axes.semilogx(axis_freq * dt, convergence_factors[name], "--", label=name)
-
-    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
-    axes.set_ylabel("Convergence factor $\\rho$")
-    axes.set_title("Validation of finite differences discrete analysis")
-    axes.legend()
-    show_or_save("fig_validatePadeAnalysisFDRR")
 
 
 def fig_compareSettingsDirichletNeumann():
@@ -294,17 +205,7 @@ def fig_compareSettingsDirichletNeumann():
     theorical_convergence_factors = {}
 
     N = 300
-    dt = DEFAULT.DT
-    ###########
-    # Computation of the frequency axis
-    ###########
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[int(N//2)] = .5
-    # w = 2 pi k T / (N)
-    axis_freq = 2 * pi*all_k / N / dt
+    axis_freq = get_discrete_freq(N, dt)
 
     kwargs_label_simu = {'label':"Validation by simulation"}
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
@@ -433,13 +334,7 @@ def fig_rootsManfrediFD():
         return 1 - g/4 - 1j* (np.sqrt(4*f - g**2)/4 - square_root_interior(f, g))
 
     N = 30000
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[int(N//2)] = .5
-    # w = 2 pi k T / (N)
-    w = 2 * pi*all_k / N / dt
+    w = get_discrete_freq(N, dt)
 
     sigma_1 = np.log(lambda_pm(w, nu_1)) / h
     sigma_2 = np.log(lambda_mp(w, nu_1)) / h
@@ -475,7 +370,7 @@ def fig_rootsManfrediFD():
     plt.legend()
     show_or_save("fig_rootsManfrediFD")
 
-def wAndRhoPadeRR(builder=DEFAULT):
+def wAndRhoPadeRR(builder):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
@@ -506,13 +401,7 @@ def wAndRhoPadeRR(builder=DEFAULT):
         return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
 
     N = 300
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[int(N//2)] = .5
-    # w = 2 pi k T / (N)
-    w = 2 * pi*all_k / N / dt
+    w = get_discrete_freq(N, dt)
 
     sigma_1 = sigma_minus(w, nu_1)
     sigma_2 = - sigma_minus(w, nu_2)
@@ -637,7 +526,7 @@ def fig_rootsManfredi():
     plt.legend()
     show_or_save("fig_rootsManfredi")
 
-def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
+def old_compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
@@ -654,12 +543,7 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
         z, _ = get_z_s(w)
         return b + z*(b-a)
 
-    if N % 2 == 0: # even
-        all_k = np.linspace(-N/2, N/2 - 1, N)
-    else: #odd
-        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
-    all_k[int(N//2)] = .5
-    w = 2 * pi*all_k / N / dt
+    w = get_discrete_freq(N, dt)
 
     ##################################
     # CONTINUOUS CASE, discrete in time ofc
@@ -870,6 +754,104 @@ def compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     axes.legend()
 
 
+######################################################
+# Utilities for analysing, representing discretizations
+######################################################
+
+class Builder():
+    """
+        interface between the discretization classes and the plotting functions.
+        The main functions is build: given a space and a time discretizations,
+        it returns a class which can be used with all the available functions.
+
+        The use of anonymous classes forbids to use a persistent cache.
+        To shunt this problem, function @frequency_cv_factor allows to
+        specify the time and space discretizations at the last time, so
+        the function @frequency_cv_factor can be stored in cache.
+
+        To use this class, instanciate builder = Builder(),
+        choose appropriate arguments of builder:
+        builder.DT = 0.1
+        builder.LAMBDA_2 = -0.3
+        and then build all the schemes you want with theses parameters:
+        dis_1 = builder.build(BackwardEuler, FiniteDifferencesNaive)
+        dis_2 = builder.build(ThetaMethod, QuadSplinesFV)
+        The comparison is thus then quite easy
+    """
+    def __init__(self): # changing defaults will result in needing to recompute all cache
+        self.COURANT_NUMBER = 100.
+        self.M1 = 2000
+        self.M2 = 2000
+        self.SIZE_DOMAIN_1 = 200
+        self.SIZE_DOMAIN_2 = 200
+        self.D1 = .54
+        self.D2 = .6
+        self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
+        self.A = 0.
+        self.C = 0.
+        self.LAMBDA_1 = 1e9
+        self.LAMBDA_2 = 0.
+
+    def build(self, time_discretization, space_discretization):
+        """
+            Given two abstract classes of a time and space discretization,
+            build a scheme.
+        """
+        class AnonymousScheme(time_discretization, space_discretization):
+            def __init__(self, *args, **kwargs):
+                space_discretization.__init__(self, *args, **kwargs)
+                time_discretization.__init__(self, *args, **kwargs)
+
+        return AnonymousScheme(A=self.A, C=self.C,
+                              D1=self.D1, D2=self.D2,
+                              M1=self.M1, M2=self.M2,
+                              SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,
+                              SIZE_DOMAIN_2=self.SIZE_DOMAIN_2,
+                              LAMBDA_1=self.LAMBDA_1,
+                              LAMBDA_2=self.LAMBDA_2,
+                              DT=self.DT)
+
+    def frequency_cv_factor(self, time_discretization, space_discretization, **kwargs):
+        discretization = self.build(time_discretization, space_discretization)
+        return frequency_simulation(discretization, **kwargs)
+
+    def robin_robin_theorical_cv_factor(self, time_discretization, space_discretization, *args, **kwargs):
+        discretization = self.build(time_discretization, space_discretization)
+        return discretization.analytic_robin_robin_modified(*args, **kwargs)
+
+    """
+        __eq__ and __hash__ are implemented, so that a discretization
+        can be stored as key in a dict
+        (it is useful for memoisation)
+    """
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __hash__(self):
+        return hash(repr(sorted(self.__dict__.items())))
+
+    def __repr__(self):
+        return repr(sorted(self.__dict__.items()))
+
+DEFAULT = Builder()
+
+
+def get_discrete_freq(N, dt, avoid_zero=True):
+    """
+        Computation of the frequency axis.
+        Z transform gives omega = 2 pi k T / (N).
+    """
+    N = N + 1 # actually, the results of the simulator contains one more point
+    if N % 2 == 0: # even
+        all_k = np.linspace(-N/2, N/2 - 1, N)
+    else: #odd
+        all_k = np.linspace(-(N-1)/2, (N-1)/2, N)
+    # Usually, we don't want the zero frequency so we use instead 1/T:
+    if avoid_zero:
+        all_k[int(N//2)] = .5
+    return 2 * np.pi*all_k / N / dt
+
 #############################################
 # Utilities for saving, visualizing, calling functions
 #############################################
@@ -915,6 +897,19 @@ def show_or_save(name_func):
         except:
             print("cannot set default directory or name")
         plt.show()
+
+"""
+    The dictionnary all_figures contains all the functions
+    of this module that begins with "fig_".
+    When you want to add a figure,
+    follow the following rule:
+        if the figure is going to be labelled as "fig:foo"
+        then the function that generates it should
+                                        be named (fig_foo())
+    The dictionnary is filling itself: don't try to
+    manually add a function.
+"""
+all_figures = {}
 
 ##################################################################################
 # Filling the dictionnary all_figures with the functions beginning with "fig_":  #

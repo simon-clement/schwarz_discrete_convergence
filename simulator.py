@@ -57,7 +57,7 @@ def interface_errors(discretization,
     np.random.seed(seed)
     all_u1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
     all_phi1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
-    ret = [all_phi1_interface[1:]]
+    ret = [discretization.LAMBDA_2 * all_u1_interface + all_phi1_interface]
     # Beginning of schwarz iterations:
     from scipy.interpolate import interp1d
     for k in range(NUMBER_IT):
@@ -116,7 +116,7 @@ def interface_errors(discretization,
             all_u1_interface += [u_interface]
             all_phi1_interface += [phi_interface]
 
-        ret += [all_phi1_interface[1:]]
+        ret += [discretization.LAMBDA_2 * np.array(all_u1_interface) + np.array(all_phi1_interface)]
 
     return ret
 
