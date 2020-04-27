@@ -35,7 +35,7 @@ def fig_validatePadeAnalysisFDRR():
     builder.D1 = 1.
     builder.D2 = 2.
     builder.C = 0.5
-    N = 300
+    N = 3000
     dt = builder.DT
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
     print("Courant parabolic number :", builder.D1*dt/h**2)
@@ -91,83 +91,6 @@ def fig_validatePadeAnalysisFDRR():
     axes.set_title("Validation of finite differences discrete analysis")
     axes.legend()
     show_or_save("fig_validatePadeAnalysisFDRR")
-
-
-def fig_validatePadeAnalysisRR():
-    from discretizations.space.FD_naive import FiniteDifferencesNaive
-    from discretizations.space.FD_corr import FiniteDifferencesCorr
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    from discretizations.space.fourth_order_fv import FourthOrderFV
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.time.theta_method import ThetaMethod
-    from discretizations.time.RK2 import RK2
-    from discretizations.time.RK4 import RK4
-    from discretizations.time.Manfredi import Manfredi
-    # parameters of the schemes are given to the builder:
-    builder = Builder()
-    builder.LAMBDA_1 = 0.5
-    builder.LAMBDA_2 = -.4
-    builder.D1 = 1.
-    builder.D2 = 2.
-    builder.C = .5
-        
-    discretizations = {}
-    time_scheme = Manfredi
-
-    discretizations["FV2"] = (time_scheme, QuadSplinesFV)
-    discretizations["FV4"] = (time_scheme, FourthOrderFV)
-    discretizations["FD, corr=0"] = (time_scheme, FiniteDifferencesNaive)
-    discretizations["FD, extra"] = (time_scheme, FiniteDifferencesExtra)
-    #discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
-
-    convergence_factors = {}
-    theorical_convergence_factors = {}
-
-    N = 300
-    dt = DEFAULT.DT
-    axis_freq = get_discrete_freq(N, dt)
-
-    kwargs_label_simu = {'label':"Validation by simulation"}
-    kwargs_label_cont = {'label':"Continuous"}
-    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
-    ###########
-    # for each discretization, a simulation
-    ###########
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder,
-                time_dis, space_dis, N=N, number_samples=5)
-        k = 1
-        convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
-
-        dis = builder.build(time_dis, space_dis)
-        try:
-            theorical_convergence_factors[name] = \
-                    dis.analytic_robin_robin_modified(w=axis_freq,
-                            order_time=float('inf'), order_operators=float('inf'),
-                            order_equations=float('inf'))
-            axes.semilogx(axis_freq * dt, theorical_convergence_factors[name], "--", **kwargs_label_simu)
-        except:
-            pass
-        continuous = dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=0, order_operators=0,
-                        order_equations=0)
-        axes.semilogx(axis_freq * dt, convergence_factors[name], label=name)
-        if kwargs_label_simu: # We only want the legend to be present once
-            axes.semilogx(axis_freq * dt, continuous, "--", **kwargs_label_cont)
-            kwargs_label_simu = {}
-            kwargs_label_cont = {}
-
-        #axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name+ " theorical")
-    w, rho_theoric = wAndRhoPadeRR(builder)
-    axes.semilogx(w*DEFAULT.DT, rho_theoric, "k--", label="theoric")
-
-    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
-    axes.set_ylabel("Convergence factor $\\rho$")
-    axes.set_title("Various space discretizations with " + time_scheme.__name__)
-    axes.legend()
-    show_or_save("fig_validatePadeAnalysisRR")
 
 
 def fig_compareSettingsDirichletNeumann():
@@ -779,13 +702,13 @@ class Builder():
         The comparison is thus then quite easy
     """
     def __init__(self): # changing defaults will result in needing to recompute all cache
-        self.COURANT_NUMBER = 100.
-        self.M1 = 2000
-        self.M2 = 2000
+        self.COURANT_NUMBER = 1.
+        self.M1 = 200
+        self.M2 = 200
         self.SIZE_DOMAIN_1 = 200
         self.SIZE_DOMAIN_2 = 200
-        self.D1 = .54
-        self.D2 = .6
+        self.D1 = 1.
+        self.D2 = 1.
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
         self.A = 0.
         self.C = 0.

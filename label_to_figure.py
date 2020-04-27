@@ -7,6 +7,5 @@ FIGURE = {}
 FIGURE["1"] = "fig_rootsManfredi"
 FIGURE["2"] = "fig_gammaTilde"
 FIGURE["3"] = "fig_compareSettingsDirichletNeumann"
-FIGURE["4"] = "fig_validatePadeAnalysisRR"
 FIGURE["5"] = "fig_validatePadeAnalysisFDRR"
 ALL_LABELS = FIGURE
