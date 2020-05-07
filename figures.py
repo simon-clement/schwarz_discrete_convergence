@@ -28,14 +28,14 @@ def fig_validatePadeAnalysisFDRR():
     from cv_factor_pade import rho_Pade_c
     # parameters of the schemes are given to the builder:
     builder = Builder()
-    builder.LAMBDA_1 = .5
-    builder.LAMBDA_2 = -0.4
+    builder.LAMBDA_1 = 1.11 # optimal parameters for corr=0, N=3000
+    builder.LAMBDA_2 = -0.76
     builder.M1 = 200
     builder.M2 = 200
     builder.D1 = 1.
     builder.D2 = 2.
     builder.C = 0.5
-    N = 3000
+    N = 300
     dt = builder.DT
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
     print("Courant parabolic number :", builder.D1*dt/h**2)
@@ -44,10 +44,10 @@ def fig_validatePadeAnalysisFDRR():
         
     discretizations = {}
 
-    discretizations["FV2"] = (time_scheme, QuadSplinesFV)
+    #discretizations["FV2"] = (time_scheme, QuadSplinesFV)
     #discretizations["FV4"] = (time_scheme, FourthOrderFV)
     discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
-    discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
+    #discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
 
     axis_freq = get_discrete_freq(N, dt)
     fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
@@ -81,8 +81,14 @@ def fig_validatePadeAnalysisFDRR():
     for name in discretizations:
         time_dis, space_dis = discretizations[name]
         alpha_w = memoised(Builder.frequency_cv_factor, builder,
-                time_dis, space_dis, N=N, number_samples=5, NUMBER_IT=2)
+                time_dis, space_dis, N=N, number_samples=5, NUMBER_IT=4)
         k = 1
+        convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+        axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
+        k = 2
+        convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+        axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
+        k = 3
         convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
         axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
 
@@ -91,6 +97,92 @@ def fig_validatePadeAnalysisFDRR():
     axes.set_title("Validation of finite differences discrete analysis")
     axes.legend()
     show_or_save("fig_validatePadeAnalysisFDRR")
+
+def fig_optimized_rho():
+    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
+    discrete_factor = rho_Pade_c
+    setting = Builder()
+    setting.M1 = 200
+    setting.M2 = 200
+    setting.D1 = 1.
+    setting.D2 = 2.
+    setting.C = 0.5
+    setting.DT /= 100
+    N = 3000
+    axis_freq = get_discrete_freq(N, setting.DT)
+    def convergence_factor(lam):
+        builder = setting.copy()
+        builder.LAMBDA_1 = lam[0]
+        builder.LAMBDA_2 = lam[1]
+        return np.max(discrete_factor(builder, axis_freq))
+
+    def convergence_factor(lam):
+        builder = setting.copy()
+        builder.LAMBDA_1 = lam
+        builder.LAMBDA_2 = -lam
+        return np.max(discrete_factor(builder, axis_freq))
+
+    from scipy.optimize import minimize_scalar, minimize
+    optimal_lam = minimize_scalar(fun=convergence_factor)
+    print(optimal_lam)
+    setting.LAMBDA_1 = optimal_lam.x
+    setting.LAMBDA_2 = -optimal_lam.x
+    plt.semilogx(axis_freq * setting.DT, discrete_factor(setting, axis_freq),
+            label="$\\rho^{\\rm Pade, FD(corr=0)}$")
+
+    show_or_save("fig_optimized_rho")
+
+def fig_optimized_rho_BE_FV():
+    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.RK2 import RK2
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    time_dis = BackwardEuler
+    space_dis = FourthOrderFV
+    setting = Builder()
+    setting.C = .0
+    #setting.DT /= 10
+    N = 3000
+    axis_freq = get_discrete_freq(N, setting.DT)
+    def convergence_factor(lam):
+        builder = setting.copy()
+        builder.LAMBDA_1 = lam[0]
+        builder.LAMBDA_2 = lam[1]
+        dis = builder.build(time_dis, space_dis)
+        return dis.analytic_robin_robin_modified(w=axis_freq,
+            order_time=float('inf'), order_equations=float('inf'), order_operators=float('inf'))
+
+    def to_minimize(lam):
+        return np.max(np.abs(convergence_factor(lam)))
+
+    from scipy.optimize import minimize_scalar, minimize
+    optimal_lam = minimize(fun=to_minimize, x0=(.5, -.5))
+    print(optimal_lam)
+    plt.semilogx(axis_freq * setting.DT, convergence_factor(optimal_lam.x),
+            label="$\\rho^{\\rm Pade, FD(corr=0)}$")
+
+    show_or_save("fig_optimized_rho_BE_FV")
+
+def fig_impact_DT_pade_DN():
+    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
+    setting = Builder()
+    setting.C = .0
+    setting.D2 = 2.
+    N = 300
+    axis_freq = get_discrete_freq(N, setting.DT)
+
+    plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
+            label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt1")
+    setting.C += .1
+    axis_freq = get_discrete_freq(N, setting.DT)
+    plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
+            "--", label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt2")
+    setting.C += 1.
+    axis_freq = get_discrete_freq(N, setting.DT)
+    plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
+            "k-.", label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt3")
+
+    show_or_save("fig_optimized_rho")
 
 
 def fig_compareSettingsDirichletNeumann():
@@ -156,7 +248,7 @@ def fig_compareSettingsDirichletNeumann():
             kwargs_label_simu = {}
         #axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name+ " theorical")
     w, rho_theoric = wAndRhoPadeRR(builder)
-    axes[0].plot(w*DEFAULT.DT, rho_theoric, "k--", label="theoric")
+    axes[0].plot(w*builder.DT, rho_theoric, "k--", label="theoric")
 
     axes[0].set_xlabel("Frequency variable $\\omega \\delta t$")
     axes[0].set_ylabel("Convergence factor $\\rho$")
@@ -202,7 +294,7 @@ def fig_rootsManfrediFD():
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2, figsize=[9.6, 2.])
     plt.subplots_adjust(left=.07, bottom=.28, right=.97, top=.85)
-    builder = DEFAULT
+    builder = Builder()
 
     ###########################
     # equation: (\Gamma_{a,j} = a*dt*nu/h^2, \Gamma_{b,j} = b*dt*nu/h^2)
@@ -401,7 +493,7 @@ def fig_rootsManfredi():
     r=.5
     nu_1 = 1.
     nu_2 = 2.
-    assert r == 0.
+    #assert r == 0.
     def get_z_s(w):
         z = np.exp(-1j*w*dt)
         return z, (z - 1)/(z*dt)
@@ -422,28 +514,28 @@ def fig_rootsManfredi():
 
     axes[0].semilogx(w, (np.real(sigma_minus(w, nu_1))), label="$\\sigma_1$")
 
-    #axes[0].semilogx(w, np.abs(np.real(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
+    axes[0].semilogx(w, np.abs(np.real(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
     axes[0].semilogx(w, (np.real(sigma_plus(w, nu_1))), label="$\\sigma_3$")
-    #axes[0].semilogx(w, np.abs(np.real(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
+    axes[0].semilogx(w, np.abs(np.real(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
 
     axes[0].semilogx(w, np.abs(np.real(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
-    #axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w)/nu_2))), "k--")
+    axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w)/nu_2))), "k--")
     axes[0].set_xlabel("$\\Delta t\\omega$")
     axes[0].set_ylabel("$\\mathfrak{R}(\\sigma)$")
-    axes[0].set_title("Real part $\\mathfrak{R}(\\sigma)$")
+    axes[0].set_title("Real part $|\\mathfrak{R}(\\sigma)|$")
     axes[0].grid()
 
     axes[1].loglog(w, np.abs(np.imag(sigma_minus(w, nu_1))), label="$\\sigma_1$")
 
-    #axes[1].loglog(w, np.abs(np.imag(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
+    axes[1].loglog(w, np.abs(np.imag(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
     axes[1].loglog(w, np.abs(np.imag(sigma_plus(w, nu_1))), label="$\\sigma_3$")
-    #axes[1].loglog(w, np.abs(np.imag(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
+    axes[1].loglog(w, np.abs(np.imag(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
 
     axes[1].loglog(w, np.abs(np.imag(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
-    #axes[1].loglog(w, np.abs(np.imag(-np.sqrt((r+1j*w)/nu_2))), "k--")
+    axes[1].loglog(w, np.abs(np.imag(-np.sqrt((r+1j*w)/nu_2))), "k--")
     axes[1].set_xlabel("$\\Delta t\\omega$")
     axes[1].set_ylabel("$Im(\\sigma)$")
-    axes[1].set_title("Imaginary part $Im(\\sigma)$")
+    axes[1].set_title("Imaginary part $|Im(\\sigma)|$")
     axes[1].grid()
 
     plt.legend()
@@ -741,6 +833,11 @@ class Builder():
     def robin_robin_theorical_cv_factor(self, time_discretization, space_discretization, *args, **kwargs):
         discretization = self.build(time_discretization, space_discretization)
         return discretization.analytic_robin_robin_modified(*args, **kwargs)
+
+    def copy(self):
+        ret = Builder()
+        ret.__dict__ = self.__dict__.copy()
+        return ret
 
     """
         __eq__ and __hash__ are implemented, so that a discretization
