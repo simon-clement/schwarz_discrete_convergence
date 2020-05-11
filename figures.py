@@ -47,7 +47,7 @@ def fig_validatePadeAnalysisFDRR():
     #discretizations["FV2"] = (time_scheme, QuadSplinesFV)
     #discretizations["FV4"] = (time_scheme, FourthOrderFV)
     discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
-    #discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
+    # discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
 
     axis_freq = get_discrete_freq(N, dt)
     fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
@@ -68,6 +68,14 @@ def fig_validatePadeAnalysisFDRR():
         axes.semilogx(axis_freq * dt, theorical_convergence_factor,
                 label="$\\rho^{\\rm c, "+name + "}$")
 
+        theorical_convergence_factor = \
+                dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=4, order_operators=float('inf'),
+                        order_equations=float('inf'))
+        axes.semilogx(axis_freq * dt, theorical_convergence_factor,
+                label="$\\rho^{\\rm modified, "+name + "}$")
+
+
     axes.semilogx(axis_freq * dt, rho_Pade_FD_corr0(builder, axis_freq),
             label="$\\rho^{\\rm Pade, FD(corr=0)}$")
     axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
@@ -85,12 +93,12 @@ def fig_validatePadeAnalysisFDRR():
         k = 1
         convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
         axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
-        k = 2
-        convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
-        axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
-        k = 3
-        convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
-        axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
+        # k = 2
+        # convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+        # axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
+        # k = 3
+        # convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+        # axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
 
     axes.set_xlabel("Frequency variable $\\omega \\delta t$")
     axes.set_ylabel("Convergence factor $\\rho$")
@@ -131,6 +139,79 @@ def fig_optimized_rho():
             label="$\\rho^{\\rm Pade, FD(corr=0)}$")
 
     show_or_save("fig_optimized_rho")
+
+def fig_compare_discrete_modif():
+    from discretizations.time.Manfredi import Manfredi as Pade
+    from discretizations.time.backward_euler import BackwardEuler as BE
+    from discretizations.space.FD_naive import FiniteDifferencesNaive as FD
+    from discretizations.space.FD_extra import FiniteDifferencesExtra as FD
+    from discretizations.space.quad_splines_fv import QuadSplinesFV as FV
+    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
+    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+
+    setting = Builder()
+    setting.LAMBDA_1 = 1.11 # optimal parameters for corr=0, N=3000
+    setting.LAMBDA_2 = -0.76
+    setting.M1 = 200
+    setting.M2 = 200
+    setting.D1 = 1.
+    setting.D2 = 1.
+    setting.C = 0.5
+    dt = setting.DT
+    N = 30
+    axis_freq = get_discrete_freq(N, setting.DT)
+    axis_freq = np.exp(np.linspace(-5, np.log(pi), 10000))/dt
+
+    time_dis = Pade
+    space_dis = FD
+    dis = setting.build(time_dis, space_dis)
+    full_discrete = rho_Pade_c(setting, w=axis_freq) # disccrete in time
+    # full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
+    #         order_time=float('inf'), order_equations=0, order_operators=0)
+
+    cont_time = dis.analytic_robin_robin_modified(w=axis_freq,
+            order_time=0, order_equations=0, order_operators=0) #continuous in time
+    axes[0].loglog(axis_freq*dt, np.abs(full_discrete - cont_time), label="error cont_time")
+
+    modif_time2 = dis.analytic_robin_robin_modified(w=axis_freq,
+            order_time=2, order_equations=0, order_operators=0) # modified in time
+
+    axes[0].loglog(axis_freq*dt, np.abs(full_discrete - modif_time2), label="error modif_time2")
+    # axes[0].semilogx(axis_freq*dt, np.abs(full_discrete_error_order3), label="ideal error order 3")
+    axes[0].set_title("Pade time scheme")
+
+    dis = setting.build(time_dis, space_dis)
+
+    # if time_dis is Pade:
+    #     simu = memoised(Builder.frequency_cv_factor, setting, time_dis, space_dis, N=N, number_samples=50)
+    #     simu = simu[2] / simu[1]
+
+    #     full_discrete = dis.analytic_robin_robin_modified(w=axis_freq*dt,
+    #             order_time=0, order_equations=float('inf'), order_operators=float('inf'))
+
+    #     modif_space0 = dis.analytic_robin_robin_modified(w=axis_freq*dt,
+    #             order_time=0, order_equations=0, order_operators=float('inf'))
+
+    #     modif_space1 = dis.analytic_robin_robin_modified(w=axis_freq*dt,
+    #             order_time=0, order_equations=1, order_operators=float('inf'))
+
+    #     modif_space2 = dis.analytic_robin_robin_modified(w=axis_freq*dt,
+    #             order_time=0, order_equations=2, order_operators=float('inf'))
+
+    #     # axes[1].plot(axis_freq, full_discrete, label="full discrete")
+    #     axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - simu), label="error of full discrete")
+    #     axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space0), label="error cont_space")
+    #     axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space1), label="error modif_space1")
+    #     axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space2), label="error modif_space2")
+    #     axes[1].set_title("Finite differences space scheme")
+
+    axes[0].legend()
+    axes[1].legend()
+    # axes[0].set_xlim(left=0)
+    # axes[1].set_xlim(left=0)
+    #axes[0].set_ylim(top=0.0001, bottom=0)
+    # axes[1].set_xlim(left=0)
+    show_or_save("fig_compare_discrete_modif")
 
 def fig_optimized_rho_BE_FV():
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
@@ -203,6 +284,7 @@ def fig_compareSettingsDirichletNeumann():
     builder.D1 = 1.
     builder.D2 = 2.
     builder.C = 0.4
+    dt = builder.DT
     assert builder.C * builder.DT < 1
         
 
@@ -220,7 +302,7 @@ def fig_compareSettingsDirichletNeumann():
     theorical_convergence_factors = {}
 
     N = 300
-    axis_freq = get_discrete_freq(N, dt)
+    axis_freq = get_discrete_freq(N, builder.DT)
 
     kwargs_label_simu = {'label':"Validation by simulation"}
     fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
@@ -229,7 +311,7 @@ def fig_compareSettingsDirichletNeumann():
     ###########
     for name in discretizations:
         time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=50)
+        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N=N, number_samples=5)
         k = 1
         convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
 
@@ -243,12 +325,12 @@ def fig_compareSettingsDirichletNeumann():
         #                 order_equations=float('inf'))
         # plt.plot(axis_freq * dt, continuous, "--", label="Continuous Theorical " + name)
         #axes[0].semilogx(axis_freq * dt, convergence_factors[name], "k--", **kwargs_label_simu)
-        axes[0].plot(axis_freq * dt, convergence_factors[name], label=name)
+        axes[0].semilogx(axis_freq * dt, convergence_factors[name], label=name)
         if kwargs_label_simu: # We only want the legend to be present once
             kwargs_label_simu = {}
         #axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name+ " theorical")
     w, rho_theoric = wAndRhoPadeRR(builder)
-    axes[0].plot(w*builder.DT, rho_theoric, "k--", label="theoric")
+    axes[0].semilogx(w*builder.DT, rho_theoric, "k--", label="theoric")
 
     axes[0].set_xlabel("Frequency variable $\\omega \\delta t$")
     axes[0].set_ylabel("Convergence factor $\\rho$")
@@ -271,7 +353,7 @@ def fig_compareSettingsDirichletNeumann():
 
     for name in discretizations:
         time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N, number_samples=50)
+        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N=N, number_samples=5)
         k = 1
         convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
 
@@ -401,7 +483,7 @@ def wAndRhoPadeRR(builder):
 
     def gamma(w):
         z, _ = get_z_s(w)
-        return b + z*(b-a)
+        return z - b*(z-1) - b/2 * (z-1)**2
 
     def square_root_interior(w):
         z, s = get_z_s(w)
@@ -472,7 +554,7 @@ def fig_gammaTilde():
 
     def gamma(w):
         z = np.exp(-1j*w*dt)
-        return b + z*(b-a)
+        return z - b*(z-1) - b/2 * (z-1)**2
     w = np.linspace(0,pi, 1000)
     plt.plot(w, np.real((mu_minus(w) - gamma(w))/(mu_plus(w) - mu_minus(w))), label="Real part of $\\tilde{\\gamma}$")
     plt.plot(w, np.imag((mu_minus(w) - gamma(w))/(mu_plus(w) - mu_minus(w))), label="Imaginary part of $\\tilde{\\gamma}$")
@@ -510,7 +592,8 @@ def fig_rootsManfredi():
         z, s = get_z_s(w)
         return np.sqrt(1+a*dt*s + a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
 
-    w = np.exp(np.linspace(-3, np.log(pi), 1000))[:-1]
+    w = np.exp(np.linspace(-8, np.log(pi), 1000))[:-1]
+    ref =(np.real(sigma_minus(w, nu_1)))
 
     axes[0].semilogx(w, (np.real(sigma_minus(w, nu_1))), label="$\\sigma_1$")
 
@@ -518,8 +601,14 @@ def fig_rootsManfredi():
     axes[0].semilogx(w, (np.real(sigma_plus(w, nu_1))), label="$\\sigma_3$")
     axes[0].semilogx(w, np.abs(np.real(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
 
-    axes[0].semilogx(w, np.abs(np.real(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
+    axes[0].loglog(w, np.abs(np.real(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
     axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w)/nu_2))), "k--")
+
+    #axes[0].loglog(w, np.abs(np.real(np.sqrt((r+1j*w + (4+3*np.sqrt(2))* (w*1j)**3 * dt**2/6)/nu_1) - ref)), label="$\\sigma_j$ modified")
+    #axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w+ (4+3*np.sqrt(2))* (w*1j)**3 * dt**2/6)/nu_2))), "k--")
+
+
+
     axes[0].set_xlabel("$\\Delta t\\omega$")
     axes[0].set_ylabel("$\\mathfrak{R}(\\sigma)$")
     axes[0].set_title("Real part $|\\mathfrak{R}(\\sigma)|$")
@@ -556,7 +645,7 @@ def old_compare_rho_discrete_semidiscrete(axes, builder, N=3000):
 
     def gamma(w):
         z, _ = get_z_s(w)
-        return b + z*(b-a)
+        return z - b*(z-1) - b/2 * (z-1)**2
 
     w = get_discrete_freq(N, dt)
 

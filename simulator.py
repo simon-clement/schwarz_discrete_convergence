@@ -67,9 +67,9 @@ def interface_errors(discretization,
         additional = []
         # Time iteration:
         interpolator_u1 = interp1d(x=np.array(range(time_window_len+1)), y=all_u1_interface,
-                kind='cubic', bounds_error=False, fill_value=(0., float("NaN")))
+                kind='cubic', bounds_error=False, fill_value=(0., 0.))
         interpolator_phi1 = interp1d(x=np.array(range(time_window_len+1)), y=all_phi1_interface,
-                kind='cubic', bounds_error=False, fill_value=(0., float("NaN")))
+                kind='cubic', bounds_error=False, fill_value=(0., 0.))
 
         for i in range(1, time_window_len+1):
             u_interface = lambda t : interpolator_u1(i-1+t)
@@ -95,9 +95,9 @@ def interface_errors(discretization,
         additional = []
 
         interpolator_u2 = interp1d(x=np.array(range(time_window_len+1)), y=all_u2_interface,
-                kind='cubic', bounds_error=False, fill_value=(0., float("NaN")))
+                kind='cubic', bounds_error=False, fill_value=(0., 0.))
         interpolator_phi2 = interp1d(x=np.array(range(time_window_len+1)), y=all_phi2_interface,
-                kind='cubic', bounds_error=False, fill_value=(0., float("NaN")))
+                kind='cubic', bounds_error=False, fill_value=(0., 0.))
         for i in range(1, time_window_len+1):
             u_interface = lambda t : interpolator_u2(i-1+t)
             phi_interface = lambda t : interpolator_phi2(i-1+t)

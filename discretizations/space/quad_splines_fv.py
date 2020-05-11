@@ -320,11 +320,17 @@ class QuadSplinesFV(Discretization):
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2
 
-        s1, s2 = s, s
+        s1 = np.copy(s)
         if order_equations > 0:
-            s1 += s**2*h1**2/12/D1 # I found 12 and Florian 8
-            s2 += s**2*h2**2/12/D2 # it is 12 when starting from discrete.
-            # problem of sign ?
+            s1 += (s + self.C)**2 * (h1**2/(12*D1))
+        if order_equations > 1:
+            s1 += (s + self.C)**3 * h1**4/(90*D1**2)
+
+        s2 = np.copy(s)
+        if order_equations > 0:
+            s2 += (s + self.C)**2 * (h2**2/(12*D2))
+        if order_equations > 1:
+            s2 += (s + self.C)**3 * h2**4/(90*D2**2)
 
         sig1 = np.sqrt((s1+self.C)/self.D1)
         sig2 = -np.sqrt((s2+self.C)/self.D2)

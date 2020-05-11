@@ -31,11 +31,14 @@ class Manfredi(Discretization):
 
         bma = beta - alpha # beta - alpha = -1/sqrt(2)
 
-        # WITH 3rd degree interpolation:
-        def get_star(func): return func(bma)
+        # WITH 3rd degree interpolation of scipy.interp1d :
+        # def get_star(func): return func(bma)
 
-        # WITH GAMMA = b + z(b-a)
-        def get_star(func): return beta*func(0) + bma*func(1)
+        # WITH GAMMA = b + z(b-a) = z - b*(z-1)
+        # def get_star(func): return beta*func(0) + bma*func(1)
+
+        # WITH GAMMA = b/2 (1 - z^2) + z(2b-a) = z - b*(z-1) - b/2 * (z-1)**2
+        def get_star(func): return beta/2*(func(0) - func(2)) + (2*beta-alpha)*func(1)
 
         u_star_interface = get_star(u_interface)
         phi_star_interface = get_star(phi_interface)
@@ -131,6 +134,6 @@ class Manfredi(Discretization):
     def s_time_modif(self, w, order):
         s = w * 1j
         if order > 1:
-            s -= 4+3*np.sqrt(2)* w**3 * self.DT**2/6 * 1j
+            s += (4+3*np.sqrt(2))* (w*1j)**3 * self.DT**2/6 # warning: bugs with reaction
         return s
 

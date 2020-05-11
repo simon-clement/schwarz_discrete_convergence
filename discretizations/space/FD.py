@@ -117,19 +117,18 @@ class FiniteDifferences(Discretization):
         h1, h2 = self.get_h()
         h1, h2 = h1[0], h2[0]
         D1, D2 = self.D1, self.D2
-        dt = self.DT
 
-        s1 = s
+        s1 = np.copy(s)
         if order_equations > 0:
-            s1 += w**2 * (h1**2/(12*D1))
+            s1 -= (s + self.C)**2 * (h1**2/(12*D1))
         if order_equations > 1:
-            s1 -= 1j * w**3 * (h1**2/(12*D1) * dt/2 - h1**4/(12*30*D1**2))
+            s1 += (s + self.C)**3 * h1**4/(90*D1**2)
 
-        s2 = s
+        s2 = np.copy(s)
         if order_equations > 0:
-            s2 += w**2 * (h2**2/(12*D2))
+            s2 -= (s + self.C)**2 * (h2**2/(12*D2))
         if order_equations > 1:
-            s2 -= 1j * w**3 * (h2**2/(12*D2) * dt/2 - h2**4/(12*30*D2**2))
+            s2 += (s + self.C)**3 * h2**4/(90*D2**2)
 
         sig1 = np.sqrt((s1+self.C)/self.D1)
         sig2 = -np.sqrt((s2+self.C)/self.D2)

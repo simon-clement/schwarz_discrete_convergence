@@ -28,7 +28,7 @@ def rho_Pade_c(builder, w):
 
     def gamma(w):
         z, _ = get_z_s(w)
-        return b + z*(b-a)
+        return z - b*(z-1) - b/2 * (z-1)**2
 
     def square_root_interior(w):
         z, s = get_z_s(w)
@@ -86,7 +86,7 @@ def lambda_gamma_Pade_FD(builder, w):
 
     def gamma(w):
         z = get_z(w)
-        return b + z*(b-a)
+        return z - b*(z-1) - b/2 * (z-1)**2
 
     ##################################
     # DISCRETE CASE, discrete in time ofc
