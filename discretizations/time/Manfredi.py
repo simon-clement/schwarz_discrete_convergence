@@ -26,19 +26,17 @@ class Manfredi(Discretization):
     def integrate_one_step(self, f, bd_cond, u_nm1, u_interface,
             phi_interface, upper_domain=True, Y=None, additional=[], **kwargs):
 
-        alpha = 1. + np.sqrt(2)
-        beta = 1. + 1/np.sqrt(2)
-
-        bma = beta - alpha # beta - alpha = -1/sqrt(2)
+        a = 1. + np.sqrt(2)
+        b = 1. + 1/np.sqrt(2)
 
         # WITH 3rd degree interpolation of scipy.interp1d :
-        # def get_star(func): return func(bma)
+        # def get_star(func): return func(b-a)
 
         # WITH GAMMA = b + z(b-a) = z - b*(z-1)
-        # def get_star(func): return beta*func(0) + bma*func(1)
+        # def get_star(func): return b*func(0) + (b-a)*func(1)
 
         # WITH GAMMA = b/2 (1 - z^2) + z(2b-a) = z - b*(z-1) - b/2 * (z-1)**2
-        def get_star(func): return beta/2*(func(0) - func(2)) + (2*beta-alpha)*func(1)
+        def get_star(func): return b/2*(func(0) - func(2)) + (2*b-a)*func(1)
 
         u_star_interface = get_star(u_interface)
         phi_star_interface = get_star(phi_interface)
@@ -68,60 +66,60 @@ class Manfredi(Discretization):
         A = self.A_interior(upper_domain=upper_domain)
         B = self.B_interior(upper_domain=upper_domain)
 
-        # naive method for rhs: f_first_step = (beta*f_star - alpha*f_nm1)
-        f_first_step = beta*f_star - alpha*f_nm1
+        # naive method for rhs: f_first_step = (b*f_star - a*f_nm1)
+        f_first_step = b*f_star - a*f_nm1
         # f_first_step = np.zeros_like(f_nm1_2)
         f_bd = f_first_step
 
         ###################
         # FIRST STEP : find the time derivative at star time
-        # The equation is A(u*-u_nm1)/dt - (beta*Bu* - alpha*Bu_nm1) + reaction*Au_nm1 = f(1/2)
+        # The equation is A(u*-u_nm1)/dt - (b*Bu* - a*Bu_nm1) + reaction*Au_nm1 = f(1/2)
         ###################
-        to_inverse = add_banded(scal_multiply(A, 1./self.DT), scal_multiply(B, -beta))
+        to_inverse = add_banded(scal_multiply(A, 1./self.DT), scal_multiply(B, -b))
         rhs = multiply_interior(A, u_nm1) * (1 / self.DT) \
-                - alpha * multiply_interior(B, u_nm1) + f_first_step[1:-1]
+                - a * multiply_interior(B, u_nm1) + f_first_step[1:-1]
 
         cond_robin_star = Lambda * u_star_interface + phi_star_interface
 
         Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin_star,
-                                     coef_explicit=-alpha, coef_implicit=beta,
+                                     coef_explicit=-a, coef_implicit=b,
                                      dt=self.DT, f=f_bd, sol_for_explicit=u_nm1, sol_unm1=u_nm1,
                                      bd_cond=bd_cond_star, upper_domain=upper_domain,
                                      additional=additional)
         result_star = solve_linear(Y, rhs)
 
-        additional_star = self.update_additional(result=-alpha*u_nm1 + beta*result_star,
+        additional_star = self.update_additional(result=-a*u_nm1 + b*result_star,
                 additional=additional, dt=self.DT,
                 upper_domain=upper_domain, f=f_first_step,
-                reaction_explicit=None if additional is None else -alpha*additional, # anti-diffusive explicit step of size alpha
-                coef_reaction_implicit=beta) #diffusive implicit beta step
+                reaction_explicit=None if additional is None else -a*additional, # anti-diffusive explicit step of size a
+                coef_reaction_implicit=b) #diffusive implicit b step
 
         ###################
         # SECOND STEP : We need to inverse the same tridiagonal matrix, except the boundaries
-        # The equation is (u_np1-u*)/dt - beta*Bu_np1 = 0, WITHOUT REACTION AND FORCING TERM
+        # The equation is (u_np1-u*)/dt - b*Bu_np1 = 0, WITHOUT REACTION AND FORCING TERM
         ###################
         # keeping the same matrix to inverse
-        # to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -beta))
+        # to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -b))
         # This time the rhs does not take into account the forcing term
 
-        # naive method for rhs: f_second_step = beta*f
-        f_second_step = beta*f
+        # naive method for rhs: f_second_step = b*f
+        f_second_step = b*f
         #f_second_step = np.zeros_like(f)
-        f_bd = f_second_step/beta
+        f_bd = f_second_step/b
         rhs = multiply_interior(A, result_star) / self.DT + f_second_step[1:-1]
 
         cond_robin = Lambda * u_interface + phi_interface
     
         Y, rhs = self.add_boundaries(to_inverse=to_inverse, rhs=rhs, interface_cond=cond_robin,
                                      coef_explicit=0., coef_implicit=1.,
-                                     dt=beta*self.DT, f=f_bd, sol_for_explicit=result_star,
+                                     dt=b*self.DT, f=f_bd, sol_for_explicit=result_star,
                                      sol_unm1=result_star,
                                      bd_cond=bd_cond, upper_domain=upper_domain,
                                      additional=additional_star)
         result = solve_linear(Y, rhs)
 
-        additional = self.update_additional(result=result, additional=additional_star, dt=beta*self.DT,
-                upper_domain=upper_domain, f=f_second_step/beta, reaction_explicit=0, coef_reaction_implicit=1.) # Now additional is in time n
+        additional = self.update_additional(result=result, additional=additional_star, dt=b*self.DT,
+                upper_domain=upper_domain, f=f_second_step/b, reaction_explicit=0, coef_reaction_implicit=1.) # Now additional is in time n
 
         additional = self.new_additional(result=result, upper_domain=upper_domain,
                 cond=bd_cond if upper_domain else cond_robin)
