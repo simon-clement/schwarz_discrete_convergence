@@ -16,7 +16,7 @@ def rho_Pade_c(builder, w):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
-    r = builder.C
+    r = builder.R
     nu_1 = builder.D1
     nu_2 = builder.D2
     L1 = builder.LAMBDA_1
@@ -77,7 +77,7 @@ def lambda_gamma_Pade_FD(builder, w):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
-    r = builder.C
+    r = builder.R
     nu_1 = builder.D1
     nu_2 = builder.D2
 

@@ -61,13 +61,13 @@ class Default():
         self.D2 = .6
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
         self.A = 0.
-        self.C = 1e-10
+        self.R = 1e-10
         self.LAMBDA_1 = 0.
         self.LAMBDA_2 = 0.
         self.N = int(self.T/self.DT)
 
     def new(self, Discretisation):
-        return Discretisation(A=self.A, C=self.C,
+        return Discretisation(A=self.A, C=self.R,
                               D1=self.D1, D2=self.D2,
                               M1=self.M1, M2=self.M2,
                               SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,
@@ -416,7 +416,7 @@ def fig_compare_continuous_discrete_rate_robin_robin_volspl2rk2():
     axes.yaxis.set_tick_params(labelbottom=True)
     #fig, axes = None, None
     finite_volumes.COURANT_NUMBER = .1
-    finite_volumes.C = 0.1
+    finite_volumes.R = 0.1
     compare_continuous_discrete_rate_robin_robin(fig, axes, finite_volumes,
                                                           T=T, number_dt_h2=.1,
                                                           number_samples=4,
@@ -448,7 +448,7 @@ def fig_compare_continuous_discrete_rate_robin_robin_vol():
                                                           bounds_h=(-1.5,0.))
     """
     finite_volumes.COURANT_NUMBER = 10
-    finite_volumes.C = .05
+    finite_volumes.R = .05
     compare_continuous_discrete_rate_robin_robin(fig, axes, finite_volumes,
                                                           T=T, number_dt_h2=10,
                                                           number_samples=2000,
@@ -764,7 +764,7 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_nonzero():
     finite_difference_naive = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     for dis in (finite_difference, finite_volumes,
                 finite_difference_wout_corr, finite_difference_naive):
-        dis.C = c
+        dis.R = c
         dis.DT *= 10
 
     analysis_frequency_rate((finite_difference, finite_volumes,
@@ -799,7 +799,7 @@ def fig_frequency_rate_dirichlet_neumann_comparison_c_zero():
         dis.M2 = 400
         courant_number = .1
         dis.A = 0
-        #dis.C = 10
+        #dis.R = 10
         dis.DT = courant_number * (dis.SIZE_DOMAIN_1 / (dis.M1-1))**2 / DEFAULT.D1
 
     analysis_frequency_rate((finite_difference_naive,finite_volumes),
@@ -903,7 +903,7 @@ def fig_compare_modif_approaches_vol():
 def fig_compare_modif_approaches_vol_spline2():
     dis = DEFAULT.new(FiniteVolumesSpline2)
     #setup_modified = [(0,0,0, "continuous"), (4,0,0,"time"), (4, 0, 4, "time+space"),(4, 1.5, 4, "time+space+op")]
-    dis.C = 0.01
+    dis.R = 0.01
     setup_modified = [(0,0,0, "continuous"), (0,1,4,"space")]
     fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified)
     ax.set_title("Finite Volumes : modified convergence factor")
@@ -911,7 +911,7 @@ def fig_compare_modif_approaches_vol_spline2():
 
 def fig_compare_modif_approaches_volspl2rk2():
     dis = DEFAULT.new(Rk2FiniteVolumesSpline2)
-    dis.C = 0.01
+    dis.R = 0.01
     setup_modified = [(0,0,0, "continuous"), (0,1,4,"space")]
     fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified)
     ax.set_title("RK2 : modified convergence factor")
@@ -919,7 +919,7 @@ def fig_compare_modif_approaches_volspl2rk2():
 
 def fig_compare_modif_approaches_volspl2rk2_semidiscrete():
     dis = DEFAULT.new(Rk2FiniteVolumesSpline2)
-    dis.C = 0.01
+    dis.R = 0.01
     setup_modified = [(0,0,0, "continuous")]
     fig, ax = compare_modif_approaches(dis, setup_modified=setup_modified, semi_discrete=True)
     ax.set_title("RK2 : modified convergence factor")
@@ -1174,7 +1174,7 @@ def fig_validate_analysis_modif_approach():
     """
     dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     dis.D1 = dis.D2
-    dis.C = 0
+    dis.R = 0
     dis.DT *= 1
     # 0.5; -0.5 is generally a good choice with our parameters
     lambda_1 = 0.1
@@ -1234,7 +1234,7 @@ def fig_validate_analysis_modif_approach():
     """
     dis = DEFAULT.new(FiniteDifferencesNaiveNeumann)
     dis.D1 = dis.D2
-    dis.C = 0
+    dis.R = 0
     dis.DT *= 1
     # 0.5; -0.5 is generally a good choice with our parameters
     lambda_1 = 0.1
@@ -1561,7 +1561,7 @@ def raw_plot(discretization, N, number_samples=1000):
 def fig_colormap_one_sided_problem():
     dis = DEFAULT.new(FiniteVolumes)
     dis.D1 = dis.D2
-    dis.C = 0
+    dis.R = 0
     cont_modified = functools.partial(cv_rate.continuous_analytic_rate_robin_robin_modified_only_eq, dis)
     def fun(x):
         return np.clip(cont_modified(Lambda_1=x[0], Lambda_2=-x[0], w=x[1]), 0, 1)

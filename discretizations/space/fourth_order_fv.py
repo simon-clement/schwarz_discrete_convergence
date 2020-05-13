@@ -44,7 +44,7 @@ class FourthOrderFV(Discretization):
             in the time integration.
             For finite differences, A is identity.
         """
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
         #left diagonal: applies to u[:-2]
         Y_0 = - (1/h[:-1] + a / (2*D[2:])) + c * h[:-1] / D[:-2] /12
@@ -84,7 +84,7 @@ class FourthOrderFV(Discretization):
             return ([1/D[-1]], bd_cond)
         else: # Dirichlet :
             M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
-            a, c, _ = self.get_a_c_dt()
+            a, c, _ = self.get_a_r_dt()
             if override_r is not None:
                 c = override_r
 
@@ -108,7 +108,7 @@ class FourthOrderFV(Discretization):
             don't forget to interpolate f in time before calling function
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         if override_r is not None:
             c = override_r
 
@@ -131,7 +131,7 @@ class FourthOrderFV(Discretization):
         # starting from additional=\\Bar{u}^n, making additional=\\Bar{u}^{n+1}
         # average of u on a cell. Warning, you need to interpolate result for making
         # an implicit/explicit thing
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
         return dt / (1 + dt * c * coef_reaction_implicit) * \
                 (additional/dt + np.diff(result) / h - a * (result[1:] + result[:-1]) / 2 \
@@ -252,7 +252,7 @@ class FourthOrderFV(Discretization):
         """
         assert s is not None
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=False)
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         h, D = h[0], D[0]
         Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (12 * D)
         Y_1 = 1 / (s + c) * 2 / h + 10 * h / (12 * D)
@@ -286,7 +286,7 @@ class FourthOrderFV(Discretization):
         """
         assert j == 1 or j == 2 and s is not None
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         h, D = h[0], D[0]
 
         lambda_moins = lam_m
@@ -319,8 +319,8 @@ class FourthOrderFV(Discretization):
 
         s1, s2 = s, s
 
-        sig1 = np.sqrt((s1+self.C)/self.D1)
-        sig2 = -np.sqrt((s2+self.C)/self.D2)
+        sig1 = np.sqrt((s1+self.R)/self.D1)
+        sig2 = -np.sqrt((s2+self.R)/self.D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):

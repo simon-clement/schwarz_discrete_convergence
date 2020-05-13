@@ -34,7 +34,7 @@ def fig_validatePadeAnalysisFDRR():
     builder.M2 = 200
     builder.D1 = 1.
     builder.D2 = 2.
-    builder.C = 0.5
+    builder.R = 0.5
     N = 300
     dt = builder.DT
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
@@ -114,7 +114,7 @@ def fig_optimized_rho():
     setting.M2 = 200
     setting.D1 = 1.
     setting.D2 = 2.
-    setting.C = 0.5
+    setting.R = 0.5
     setting.DT /= 100
     N = 3000
     axis_freq = get_discrete_freq(N, setting.DT)
@@ -156,7 +156,7 @@ def fig_compare_discrete_modif():
     setting.M2 = 200
     setting.D1 = 1.
     setting.D2 = 1.
-    setting.C = 0.5
+    setting.R = 0.5
     dt = setting.DT
     N = 30
     axis_freq = get_discrete_freq(N, setting.DT)
@@ -221,7 +221,7 @@ def fig_optimized_rho_BE_FV():
     time_dis = BackwardEuler
     space_dis = FourthOrderFV
     setting = Builder()
-    setting.C = .0
+    setting.R = .0
     #setting.DT /= 10
     N = 3000
     axis_freq = get_discrete_freq(N, setting.DT)
@@ -247,18 +247,18 @@ def fig_optimized_rho_BE_FV():
 def fig_impact_DT_pade_DN():
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
     setting = Builder()
-    setting.C = .0
+    setting.R = .0
     setting.D2 = 2.
     N = 300
     axis_freq = get_discrete_freq(N, setting.DT)
 
     plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
             label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt1")
-    setting.C += .1
+    setting.R += .1
     axis_freq = get_discrete_freq(N, setting.DT)
     plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
             "--", label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt2")
-    setting.C += 1.
+    setting.R += 1.
     axis_freq = get_discrete_freq(N, setting.DT)
     plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
             "k-.", label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt3")
@@ -283,9 +283,9 @@ def fig_compareSettingsDirichletNeumann():
     builder.LAMBDA_2 = 0. # lambda=0 is a Neumann condition
     builder.D1 = 1.
     builder.D2 = 2.
-    builder.C = 0.4
+    builder.R = 0.4
     dt = builder.DT
-    assert builder.C * builder.DT < 1
+    assert builder.R * builder.DT < 1
         
 
 
@@ -391,7 +391,7 @@ def fig_rootsManfrediFD():
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
-    r = builder.C
+    r = builder.R
     nu_1 = builder.D1
     nu_2 = builder.D2
     L1 = builder.LAMBDA_1
@@ -471,7 +471,7 @@ def wAndRhoPadeRR(builder):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
-    r = builder.C
+    r = builder.R
     nu_1 = builder.D1
     nu_2 = builder.D2
     L1 = builder.LAMBDA_1
@@ -634,7 +634,7 @@ def old_compare_rho_discrete_semidiscrete(axes, builder, N=3000):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
-    r = builder.C
+    r = builder.R
     nu_1 = builder.D1
     nu_2 = builder.D2
     L1 = builder.LAMBDA_1
@@ -892,7 +892,7 @@ class Builder():
         self.D2 = 1.
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
         self.A = 0.
-        self.C = 0.
+        self.R = 0.
         self.LAMBDA_1 = 1e9
         self.LAMBDA_2 = 0.
 
@@ -906,7 +906,7 @@ class Builder():
                 space_discretization.__init__(self, *args, **kwargs)
                 time_discretization.__init__(self, *args, **kwargs)
 
-        return AnonymousScheme(A=self.A, C=self.C,
+        return AnonymousScheme(A=self.A, C=self.R,
                               D1=self.D1, D2=self.D2,
                               M1=self.M1, M2=self.M2,
                               SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,

@@ -35,7 +35,7 @@ class FiniteDifferencesExtra(FiniteDifferences):
         assert j == 1 or j == 2
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
         h, D = h[0], D[0]
-        a, c, dt = self.get_a_c_dt()
+        a, c, dt = self.get_a_r_dt()
         if s is None:
             s = 1 / dt
 

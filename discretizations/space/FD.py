@@ -34,7 +34,7 @@ class FiniteDifferences(Discretization):
         """
             gives B, such as inside the domain, A \\partial_t u = Bu
         """
-        a, c, dt = self.get_a_c_dt()
+        a, c, dt = self.get_a_r_dt()
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
         #left diagonal: applies to u[:-2]
         Y_0 = D[1:]/h[1:]/((h[1:] + h[:-1])/2) + a / (h[1:] + h[:-1])
@@ -88,7 +88,7 @@ class FiniteDifferences(Discretization):
             returns \\lambda_{-, j=1}, \\lambda_{-, j=2}, \\lambda_{+, j=1}, \\lambda_{+, j=2}.
         """
         assert s is not None
-        a, c, dt = self.get_a_c_dt()
+        a, c, dt = self.get_a_r_dt()
         M1, h1, D1, Lambda_1 = self.M_h_D_Lambda(upper_domain=False)
         M2, h2, D2, Lambda_2 = self.M_h_D_Lambda(upper_domain=True)
         h1, h2 = h1[0], h2[0]
@@ -120,18 +120,18 @@ class FiniteDifferences(Discretization):
 
         s1 = np.copy(s)
         if order_equations > 0:
-            s1 -= (s + self.C)**2 * (h1**2/(12*D1))
+            s1 -= (s + self.R)**2 * (h1**2/(12*D1))
         if order_equations > 1:
-            s1 += (s + self.C)**3 * h1**4/(90*D1**2)
+            s1 += (s + self.R)**3 * h1**4/(90*D1**2)
 
         s2 = np.copy(s)
         if order_equations > 0:
-            s2 -= (s + self.C)**2 * (h2**2/(12*D2))
+            s2 -= (s + self.R)**2 * (h2**2/(12*D2))
         if order_equations > 1:
-            s2 += (s + self.C)**3 * h2**4/(90*D2**2)
+            s2 += (s + self.R)**3 * h2**4/(90*D2**2)
 
-        sig1 = np.sqrt((s1+self.C)/self.D1)
-        sig2 = -np.sqrt((s2+self.C)/self.D2)
+        sig1 = np.sqrt((s1+self.R)/self.D1)
+        sig2 = -np.sqrt((s2+self.R)/self.D2)
         return sig1, sig2
 
 

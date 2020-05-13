@@ -113,11 +113,11 @@ def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time
     builder.D1 = D
     builder.D2 = D
     builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
-    builder.C = 0.
+    builder.R = 0.
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 
-    u_flux_f = u_flux_f(builder.A, builder.C, D)
+    u_flux_f = u_flux_f(builder.A, builder.R, D)
     scheme = builder.build(time_scheme, space_scheme)
 
     ret = []

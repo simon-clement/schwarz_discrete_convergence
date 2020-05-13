@@ -109,11 +109,11 @@ def test_any_time_scheme_domain1_FD(time_scheme, space_scheme, u_flux_f, first_M
     builder.D1 = D
     builder.D2 = D
     builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
-    builder.C = c
+    builder.R = c
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 
-    u_flux_f = u_flux_f(builder.A, builder.C, D)
+    u_flux_f = u_flux_f(builder.A, builder.R, D)
 
     ret = []
     M = first_M
@@ -226,11 +226,11 @@ def test_any_time_scheme_domain2(time_scheme, space_scheme, u_flux_f, first_M=8,
     builder.D1 = D
     builder.D2 = D
     builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
-    builder.C = c
+    builder.R = c
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 
-    u_flux_f = u_flux_f(builder.A, builder.C, D)
+    u_flux_f = u_flux_f(builder.A, builder.R, D)
 
     ret = []
     M = first_M
@@ -348,11 +348,11 @@ def test_any_time_scheme_domain1_FV4(time_scheme, u_ubar_flux_fbar, first_M=8, f
     builder.D1 = D
     builder.D2 = D
     builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
-    builder.C = c
+    builder.R = c
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 
-    u_ubar_flux_fbar = u_ubar_flux_fbar(builder.A, builder.C, D)
+    u_ubar_flux_fbar = u_ubar_flux_fbar(builder.A, builder.R, D)
 
     scheme = builder.build(time_scheme, space_scheme)
 
@@ -462,11 +462,11 @@ def test_any_time_scheme_domain2_FV2(time_scheme, u_ubar_flux_fbar, first_M=10, 
     builder.D1 = D
     builder.D2 = D
     builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
-    builder.C = c
+    builder.R = c
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 
-    u_ubar_flux_fbar = u_ubar_flux_fbar(builder.A, builder.C, D)
+    u_ubar_flux_fbar = u_ubar_flux_fbar(builder.A, builder.R, D)
 
     scheme = builder.build(time_scheme, space_scheme)
 

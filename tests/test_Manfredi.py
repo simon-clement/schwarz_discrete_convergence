@@ -86,7 +86,7 @@ def test_like_Manfredi_paper_FV():
     builder.D1 = D
     builder.D2 = D
     builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
-    builder.C = .0
+    builder.R = .0
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 
@@ -212,7 +212,7 @@ def test_like_Manfredi_paper_FD():
     builder.D1 = D
     builder.D2 = D
     builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
-    builder.C = .0
+    builder.R = .0
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
 

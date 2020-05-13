@@ -33,7 +33,7 @@ class FiniteDifferencesNaive(FiniteDifferences):
         """
         assert j == 1 or j == 2
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
-        a, c, dt = self.get_a_c_dt()
+        a, c, dt = self.get_a_r_dt()
         h, D = h[0], D[0]
         if s is None:
             s = 1 / dt

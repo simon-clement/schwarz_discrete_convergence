@@ -34,7 +34,7 @@ class FiniteDifferencesCorr(FiniteDifferences):
             given the result of the inversion, returns (u_np1, u_interface, phi_interface)
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        a, c, dt = self.get_a_c_dt()
+        a, c, dt = self.get_a_r_dt()
         h, D = h[0], D[0]
         phi = D*(result_explicit[1] - result_explicit[0])/h
         phi -= h/2 * (partial_t_result0 \
@@ -54,7 +54,7 @@ class FiniteDifferencesCorr(FiniteDifferences):
             don't forget to interpolate f in time before calling function
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         if override_r is not None:
             c = override_r
 
@@ -87,7 +87,7 @@ class FiniteDifferencesCorr(FiniteDifferences):
         """
         assert j == 1 or j == 2
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
-        a, c, dt = self.get_a_c_dt()
+        a, c, dt = self.get_a_r_dt()
         D = D[0]
         if s is None:
             s = 1 / dt

@@ -48,7 +48,7 @@ class Discretization:
             The space step depends on the space discretization.
             It will be either SIZE_DOMAIN_j / M_j or SIZE_DOMAIN_j / (M_j-1)
         """
-        self.A, self.C, self.D1, self.D2, \
+        self.A, self.R, self.D1, self.D2, \
             self.M1, self.M2, self.SIZE_DOMAIN_1, \
             self.SIZE_DOMAIN_2, self.LAMBDA_1, \
             self.LAMBDA_2, self.DT = A, C, D1, D2, \
@@ -576,14 +576,14 @@ class Discretization:
         else:
             return self.M1, h1, D1, self.LAMBDA_1
 
-    def get_a_c_dt(self):
+    def get_a_r_dt(self):
         """
             Returns default values of a, c, dt or parameters if given.
         """
         assert "A" in self.__dict__
         assert "C" in self.__dict__
         assert "DT" in self.__dict__
-        return self.A, self.C, self.DT
+        return self.A, self.R, self.DT
 
     def clone(self):
         ret = self.__class__()

@@ -44,7 +44,7 @@ class QuadSplinesFV(Discretization):
             in the time integration.
             For finite differences, A is identity.
         """
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
         #left diagonal: applies to u[:-2]
         Y_0 = - (1/h[:-1] + a / (2*D[2:])) + c * h[:-1] / D[:-2] /6
@@ -85,7 +85,7 @@ class QuadSplinesFV(Discretization):
             return ([1/D[-1]], bd_cond)
         else: # Dirichlet :
             M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
-            a, c, _ = self.get_a_c_dt()
+            a, c, _ = self.get_a_r_dt()
 
             if override_r is not None:
                 c = override_r
@@ -110,7 +110,7 @@ class QuadSplinesFV(Discretization):
             don't forget to interpolate f in time before calling function
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         if override_r is not None:
             c = override_r
 
@@ -133,7 +133,7 @@ class QuadSplinesFV(Discretization):
         # starting from additional=\\Bar{u}^n, making additional=\\Bar{u}^{n+1}
         # average of u on a cell. Warning, you need to interpolate result for making
         # an implicit/explicit thing
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
         return dt / (1 + dt * c * coef_reaction_implicit) * \
                 (additional/dt + np.diff(result) / h - a * (result[1:] + result[:-1]) / 2 \
@@ -255,7 +255,7 @@ class QuadSplinesFV(Discretization):
         """
         assert s is not None
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=False)
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         h, D = h[0], D[0]
         Y_0 = -1 / (s + c) * (1 / h + a / (2 * D)) + h / (6 * D)
         Y_1 = 1 / (s + c) * 2 / h + 2 * h / (3 * D)
@@ -289,7 +289,7 @@ class QuadSplinesFV(Discretization):
         """
         assert j == 1 or j == 2 and s is not None
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
-        a, c, _ = self.get_a_c_dt()
+        a, c, _ = self.get_a_r_dt()
         h, D = h[0], D[0]
 
         lambda_moins = lam_m
@@ -322,18 +322,18 @@ class QuadSplinesFV(Discretization):
 
         s1 = np.copy(s)
         if order_equations > 0:
-            s1 += (s + self.C)**2 * (h1**2/(12*D1))
+            s1 += (s + self.R)**2 * (h1**2/(12*D1))
         if order_equations > 1:
-            s1 += (s + self.C)**3 * h1**4/(90*D1**2)
+            s1 += (s + self.R)**3 * h1**4/(90*D1**2)
 
         s2 = np.copy(s)
         if order_equations > 0:
-            s2 += (s + self.C)**2 * (h2**2/(12*D2))
+            s2 += (s + self.R)**2 * (h2**2/(12*D2))
         if order_equations > 1:
-            s2 += (s + self.C)**3 * h2**4/(90*D2**2)
+            s2 += (s + self.R)**3 * h2**4/(90*D2**2)
 
-        sig1 = np.sqrt((s1+self.C)/self.D1)
-        sig2 = -np.sqrt((s2+self.C)/self.D2)
+        sig1 = np.sqrt((s1+self.R)/self.D1)
+        sig2 = -np.sqrt((s2+self.R)/self.D2)
         return sig1, sig2
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
@@ -350,7 +350,7 @@ class QuadSplinesFV(Discretization):
         eta_neu_modif = Dj
         eta_dir_modif = 1/sigj
         if order_operators >= 1:
-            eta_dir_modif += (1j*w+self.C)*hj**2/(12*Dj) / sigj
+            eta_dir_modif += (1j*w+self.R)*hj**2/(12*Dj) / sigj
         if order_operators > 1:
             eta_dir_modif += hj**3*sigj**2/24 
         if order_operators >= 2:
