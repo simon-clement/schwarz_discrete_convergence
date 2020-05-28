@@ -261,10 +261,10 @@ class QuadSplinesFV(Discretization):
         Y_1 = 1 / (s + c) * 2 / h + 2 * h / (3 * D)
         Y_2 = -1 / (s + c) * (1 / h - a / (2 * D)) + h / (6 * D)
 
-        lam1_m = (Y_1 - np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
-                                / (-2 * Y_2)
-        lam1_p = (Y_1 + np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
-                                / (-2 * Y_2)
+        lam1_m = (-Y_1 - np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
+                                / (2 * Y_2)
+        lam1_p = (-Y_1 + np.sqrt(Y_1**2 - 4 * Y_0 * Y_2)) \
+                                / (2 * Y_2)
 
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=True)
         h, D = h[0], D[0]

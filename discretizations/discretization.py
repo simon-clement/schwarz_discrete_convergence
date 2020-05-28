@@ -581,7 +581,7 @@ class Discretization:
             Returns default values of a, c, dt or parameters if given.
         """
         assert "A" in self.__dict__
-        assert "C" in self.__dict__
+        assert "R" in self.__dict__
         assert "DT" in self.__dict__
         return self.A, self.R, self.DT
 

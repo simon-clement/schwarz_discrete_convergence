@@ -11,8 +11,12 @@ from numpy import pi
 #########################################################################
 # THEORIC PART : RETURN RATES YIELDED BY ANALYSIS IN FREQUENTIAL DOMAIN #
 #########################################################################
+def default_gamma(z):
+    b = 1+1/np.sqrt(2)
+    return z - b*(z-1) - b/2 * (z-1)**2
 
-def rho_Pade_c(builder, w):
+
+def rho_Pade_c(builder, w, gamma=default_gamma):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
@@ -25,10 +29,6 @@ def rho_Pade_c(builder, w):
     def get_z_s(w):
         z = np.exp(-1j*w*dt)
         return z, (z - 1)/(z*dt)
-
-    def gamma(w):
-        z, _ = get_z_s(w)
-        return z - b*(z-1) - b/2 * (z-1)**2
 
     def square_root_interior(w):
         z, s = get_z_s(w)
@@ -58,7 +58,7 @@ def rho_Pade_c(builder, w):
     mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
     assert (np.linalg.norm(mu_1 - mu_2) < 1e-10) # mu_1 == mu_2
     assert (np.linalg.norm(mu_3 - mu_4) < 1e-10) # mu_3 == mu_4
-    gamma_t = (mu_1 - gamma(w))/(mu_1 - mu_3)
+    gamma_t = (mu_1 - gamma(z))/(mu_1 - mu_3)
 
     varrho = ((L1 + nu_2*sigma_2)/(L2 + nu_2*sigma_2) * (1 - gamma_t) + \
              (L1 + nu_2*sigma_4)/(L2 + nu_2*sigma_4) * gamma_t) * \
@@ -69,7 +69,7 @@ def rho_Pade_c(builder, w):
 
 
 
-def lambda_gamma_Pade_FD(builder, w):
+def lambda_gamma_Pade_FD(builder, w, gamma=default_gamma):
     """
         returns lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2
         used in the computation of rho^{Pade, FD}.
@@ -83,10 +83,6 @@ def lambda_gamma_Pade_FD(builder, w):
 
     def get_z(w):
         return np.exp(-1j*w*dt)
-
-    def gamma(w):
-        z = get_z(w)
-        return z - b*(z-1) - b/2 * (z-1)**2
 
     ##################################
     # DISCRETE CASE, discrete in time ofc
@@ -158,13 +154,14 @@ def lambda_gamma_Pade_FD(builder, w):
         z = get_z(w)
         return z*(1 + r*dt*b - Gamma(b, nu_i)*(lambda_i - 2 + 1/lambda_i))
 
+    z = get_z(w)
     mu_1FD = mu_FD(w, nu_1, lambda_1)
     mu_2FD = mu_FD(w, nu_2, lambda_2)
     mu_3FD = mu_FD(w, nu_1, lambda_3)
     mu_4FD = mu_FD(w, nu_2, lambda_4)
 
-    gamma_t1 = (mu_1FD - gamma(w))/(mu_1FD - mu_3FD)
-    gamma_t2 = (mu_2FD - gamma(w))/(mu_2FD - mu_4FD)
+    gamma_t1 = (mu_1FD - gamma(z))/(mu_1FD - mu_3FD)
+    gamma_t2 = (mu_2FD - gamma(z))/(mu_2FD - mu_4FD)
     return lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2
 
 def rho_Pade_FD_corr0(builder, w):

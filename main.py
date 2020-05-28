@@ -41,7 +41,7 @@ def main():
 
         #  example of use : ./main.py figsave 17
         elif sys.argv[1] == "figsave":
-            figures.set_save_to_png()
+            figures.set_save_to_pdf()
             from label_to_figure import ALL_LABELS
             if len(sys.argv) == 2:
                 print("Please enter the id of the figure in the paper.")

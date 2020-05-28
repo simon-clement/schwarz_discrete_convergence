@@ -8,4 +8,5 @@ FIGURE["1"] = "fig_rootsManfredi"
 FIGURE["2"] = "fig_gammaTilde"
 FIGURE["3"] = "fig_compareSettingsDirichletNeumann"
 FIGURE["5"] = "fig_validatePadeAnalysisFDRR"
+FIGURE["6"] = "fig_compare_discrete_modif"
 ALL_LABELS = FIGURE

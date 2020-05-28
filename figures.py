@@ -147,70 +147,158 @@ def fig_compare_discrete_modif():
     from discretizations.space.FD_extra import FiniteDifferencesExtra as FD
     from discretizations.space.quad_splines_fv import QuadSplinesFV as FV
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
-    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8])
+    fig, axes = plt.subplots(2, 2, figsize=[6.4, 4.4], sharex=False, sharey=True)
+    plt.subplots_adjust(left=.11, bottom=.11, right=.98, top=.92, wspace=0.1, hspace=0.15)
+    COLOR_CONT = '#888888FF'
+    COLOR_CONT_FD = '#555555FF'
+    COLOR_MODIF = '#000000FF'
 
-    setting = Builder()
-    setting.LAMBDA_1 = 1.11 # optimal parameters for corr=0, N=3000
-    setting.LAMBDA_2 = -0.76
-    setting.M1 = 200
-    setting.M2 = 200
-    setting.D1 = 1.
-    setting.D2 = 1.
-    setting.R = 0.5
-    dt = setting.DT
-    N = 30
-    axis_freq = get_discrete_freq(N, setting.DT)
-    axis_freq = np.exp(np.linspace(-5, np.log(pi), 10000))/dt
+    for r, axes in ((0, axes[0,:]), (.1, axes[1,:])):
+        setting = Builder()
+        setting.R = r
 
-    time_dis = Pade
-    space_dis = FD
-    dis = setting.build(time_dis, space_dis)
-    full_discrete = rho_Pade_c(setting, w=axis_freq) # disccrete in time
-    # full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-    #         order_time=float('inf'), order_equations=0, order_operators=0)
+        setting.LAMBDA_1 = 1. # optimal parameters for corr=0, N=3000
+        setting.LAMBDA_2 = -1.
+        setting.M1 = 200
+        setting.M2 = 200
+        setting.D1 = 1.
+        setting.D2 = 1.
+        dt = setting.DT
+        # N = 30
+        # axis_freq = get_discrete_freq(N, setting.DT)
+        axis_freq = np.exp(np.linspace(-5, np.log(pi), 10000))/dt
 
-    cont_time = dis.analytic_robin_robin_modified(w=axis_freq,
-            order_time=0, order_equations=0, order_operators=0) #continuous in time
-    axes[0].loglog(axis_freq*dt, np.abs(full_discrete - cont_time), label="error cont_time")
+        #########################################################
+        # LEFT CANVA: TIME COMPARISON
+        #########################################################
 
-    modif_time2 = dis.analytic_robin_robin_modified(w=axis_freq,
-            order_time=2, order_equations=0, order_operators=0) # modified in time
+        space_dis = FD
+        dis = setting.build(Pade, space_dis)
 
-    axes[0].loglog(axis_freq*dt, np.abs(full_discrete - modif_time2), label="error modif_time2")
-    # axes[0].semilogx(axis_freq*dt, np.abs(full_discrete_error_order3), label="ideal error order 3")
-    axes[0].set_title("Pade time scheme")
+        cont_time = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=0, order_operators=0) #continuous in time
+        modif_time = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=2, order_equations=0, order_operators=0) # modified in time
 
-    dis = setting.build(time_dis, space_dis)
+        b = 1+1/np.sqrt(2)
+        def gamma_order2(z):
+            return z - b*(z-1) - b/2 * (z-1)**2
 
-    # if time_dis is Pade:
-    #     simu = memoised(Builder.frequency_cv_factor, setting, time_dis, space_dis, N=N, number_samples=50)
-    #     simu = simu[2] / simu[1]
+        def gamma_order1(z):
+            return z - b*(z-1)
 
-    #     full_discrete = dis.analytic_robin_robin_modified(w=axis_freq*dt,
-    #             order_time=0, order_equations=float('inf'), order_operators=float('inf'))
+        ######################
+        # TIME SCHEME : GAMMA ORDER 2:
+        ######################
 
-    #     modif_space0 = dis.analytic_robin_robin_modified(w=axis_freq*dt,
-    #             order_time=0, order_equations=0, order_operators=float('inf'))
+        full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order2) # disccrete in time
+        labelg2 = r"P2: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (P2,c)}\right|/\left|\rho_{\rm RR}^{\rm (P2,c)}\right|$" + "\n" + r"$\gamma = z - b (z-1) - \frac{b^2}{2}(z-1)^2$"
+        lineg2, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_MODIF, linestyle='solid')
+        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_CONT, linestyle='solid')
 
-    #     modif_space1 = dis.analytic_robin_robin_modified(w=axis_freq*dt,
-    #             order_time=0, order_equations=1, order_operators=float('inf'))
+        ######################
+        # TIME SCHEME : GAMMA ORDER 1:
+        ######################
 
-    #     modif_space2 = dis.analytic_robin_robin_modified(w=axis_freq*dt,
-    #             order_time=0, order_equations=2, order_operators=float('inf'))
+        full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order1) # disccrete in time
 
-    #     # axes[1].plot(axis_freq, full_discrete, label="full discrete")
-    #     axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - simu), label="error of full discrete")
-    #     axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space0), label="error cont_space")
-    #     axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space1), label="error modif_space1")
-    #     axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space2), label="error modif_space2")
-    #     axes[1].set_title("Finite differences space scheme")
+        labelg1 = r"P2: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (P2,c)}\right|/\left|\rho_{\rm RR}^{\rm (P2,c)}\right|$" + "\n" + r"$\gamma = z - b (z-1)$"
+        lineg1, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_MODIF, linestyle='dashed')
+        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_CONT, linestyle='dashed')
 
-    axes[0].legend()
-    axes[1].legend()
-    # axes[0].set_xlim(left=0)
-    # axes[1].set_xlim(left=0)
-    #axes[0].set_ylim(top=0.0001, bottom=0)
-    # axes[1].set_xlim(left=0)
+        ########################
+        # TIME SCHEME : Backward Euler
+        #########################
+        dis = setting.build(BE, space_dis)
+
+        modif_time = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=2, order_equations=0, order_operators=0) # modified in time
+        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=float('inf'), order_equations=0, order_operators=0) # discrete in time
+
+        labelbe = r"BE: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (BE,c)}\right|/\left|\rho_{\rm RR}^{\rm (BE,c)}\right|$"
+        linebe, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete),
+                color=COLOR_MODIF, linestyle=':', linewidth="2.3")
+        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete),
+                color=COLOR_CONT, linestyle=':', linewidth="2.3")
+
+        axes[0].grid()
+        axes[0].set_xlim(left=0.9e-2, right=.7)
+        #axes[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see axes[1].set_xlim
+        Title = r'Relative error of $\rho_{\rm RR}^{\rm (\cdot,c)}$'
+        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
+        axes[0].set_ylabel(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
+        if r == 0:
+            axes[0].legend((lineg2, ), (labelg2, ))
+            axes[0].set_title(Title)
+            #print(axes[0].ticks)
+            axes[0].set_xticklabels([])
+        else:
+            axes[0].legend((lineg1, linebe), (labelg1, labelbe))
+            axes[0].set_xlabel(r'$\omega\Delta t$')
+
+        #########################################################
+        # RIGHT CANVA: SPACE COMPARISON
+        #########################################################
+        time_dis = BE # we don't really care, since everything is continuous in time now
+
+        ######################
+        # SPACE SCHEME : FV
+        ######################
+        dis = setting.build(time_dis, FV)
+
+        cont_space = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=0, order_operators=0) #continuous in time
+
+        modif_space = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=2, order_operators=0) # modified in time
+
+        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=float('inf'), order_operators=0)
+
+
+        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_MODIF, linestyle='solid',
+                label=r"FV: $\left|\rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c,FV)}\right|/\left|\rho_{\rm RR}^{\rm (c,FV)}\right|$")
+        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_CONT, linestyle='solid')
+
+        ######################
+        # SPACE SCHEME : FD
+        ######################
+        dis = setting.build(time_dis, FD)
+
+        cont_space = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=0, order_operators=0) #continuous in time
+
+        modif_space = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=2, order_operators=0) # modified in time
+
+        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=float('inf'), order_operators=0)
+
+        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_MODIF, linestyle='dashed',
+                label=r"FD: $\left|\rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c,FD)}\right|/\left|\rho_{\rm RR}^{\rm (c,FD)}\right|$")
+        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_CONT_FD, linestyle='dashed')
+
+        axes[1].grid()
+        axes[1].set_xlim(left=2e-2, right=3)
+        axes[1].set_ylim(top=0.03, bottom=0.)
+        Title = r'Relative error of $\rho_{\rm RR}^{\rm (c, \cdot)}$'
+        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c, Discrete)}\right|/\left|\rho_{\rm RR}^{\rm (c, Discrete)}\right| $'
+        if r == 0:
+            axes[1].legend()
+            axes[1].set_title(Title)
+            axes[1].set_xticklabels([])
+        else:
+            axes[1].set_xlabel(r'$\omega\Delta t$')
+
     show_or_save("fig_compare_discrete_modif")
 
 def fig_optimized_rho_BE_FV():
@@ -969,13 +1057,21 @@ def get_discrete_freq(N, dt, avoid_zero=True):
 def set_save_to_png():
     global SAVE_TO_PNG
     SAVE_TO_PNG = True
+    assert not SAVE_TO_PDF and not SAVE_TO_PGF
+
+def set_save_to_pdf():
+    global SAVE_TO_PDF
+    SAVE_TO_PDF = True
+    assert not SAVE_TO_PGF and not SAVE_TO_PNG
 
 def set_save_to_pgf():
     global SAVE_TO_PGF
     SAVE_TO_PGF = True
+    assert not SAVE_TO_PDF and not SAVE_TO_PNG
 
 SAVE_TO_PNG = False
 SAVE_TO_PGF = False
+SAVE_TO_PDF = False
 def show_or_save(name_func):
     """
     By using this function instead plt.show(),
@@ -995,6 +1091,11 @@ def show_or_save(name_func):
         import os
         os.makedirs(directory, exist_ok=True)
         plt.savefig(directory + name_fig + '.pgf')
+    elif SAVE_TO_PDF:
+        print("exporting to directory " + directory)
+        import os
+        os.makedirs(directory, exist_ok=True)
+        plt.savefig(directory + name_fig + '.pdf')
     else:
         try:
             import matplotlib as mpl
