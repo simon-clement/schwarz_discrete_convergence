@@ -4,6 +4,29 @@
 """
 import numpy as np
 
+def scal_multiply(Y, s):
+    """
+        Returns "Y * s", Y being a tuple of np arrays
+    """
+    s = float(s)
+    assert type(s) == float
+    ret_list = []
+    for element in Y:
+        ret_list += [element * s]
+    return tuple(ret_list)
+
+
+def add_banded(Y1, Y2):
+    """
+        Returns "Y1 + Y2", Y1 and Y2 being tuples of ndarrays of the same size
+    """
+    assert len(Y1) == len(Y2)
+    ret_list = []
+    for y1, y2 in zip(Y1, Y2):
+        assert y1.ndim == y2.ndim
+        assert y1.shape[0] == y2.shape[0]
+        ret_list += [y1 + y2]
+    return tuple(ret_list)
 
 def multiply(Y, u):
     """
@@ -19,10 +42,24 @@ def multiply(Y, u):
     return np.concatenate(([0], Y[0] * u[:-1])) + Y[1] * u + \
         np.concatenate((Y[2] * u[1:], [0]))
 
+def multiply_interior(Y, u):
+    """
+        Returns "Y * u"
+        equivalent code :
+        return (np.diag(Y[1])+np.diag(Y[0], k=-1) + np.diag(Y[2], k=1)) @ u
+        Y is a tridiagonal matrix returned by get_Y or get_Y_star
+    """
+    assert len(Y) == 3
+    assert u.ndim == Y[0].ndim == Y[1].ndim == Y[2].ndim == 1
+    assert Y[2].shape[0] == Y[1].shape[0] == Y[0].shape[0] == u.shape[0] - 2
+    return Y[0] * u[:-2] + Y[1] * u[1:-1] + Y[2] * u[2:]
 
 def solve_linear(Y, f):
     """
         Solve the linear TRIDIAGONAL system Yu = f and returns u.
+        Y can have an additional (and only one) upper diagonal
+        to take into account the case with extrapolation at boundary
+
         This function is just a wrapper over scipy
         Y is a tuple (Y_0, Y_1, Y_2) containing respectively:
         - The left diagonal of size M-1
@@ -37,6 +74,9 @@ def solve_linear(Y, f):
 
         Y is returned by the functions get_Y and get_Y_star
     """
+    if len(Y) == 4:
+        return solve_linear_with_ultra_right(Y, f)
+    # if there is not 4 diagonals in Y, then it is a tridiagonal matrix
     # We note Y_1 the main diagonal, Y_2 the right diag, Y_0 the left diag
     Y_0, Y_1, Y_2 = Y
     assert Y_0.ndim == Y_1.ndim == Y_2.ndim == f.ndim == 1

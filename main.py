@@ -21,8 +21,8 @@ def main():
     import sys
 
     if len(sys.argv) == 1:
-        print("to launch tests, use \"python3 cv_rate.py test\"")
-        print("Usage: cv_rate {test, graph, optimize, debug, analytic}")
+        print("to launch tests, use \"python3 main.py test\"")
+        print("Usage: main.py {test, graph, optimize, debug, analytic}")
     else:
         #  example of use : ./main.py figure 17
         if sys.argv[1] == "figure":
@@ -41,7 +41,7 @@ def main():
 
         #  example of use : ./main.py figsave 17
         elif sys.argv[1] == "figsave":
-            figures.set_save_to_png()
+            figures.set_save_to_pdf()
             from label_to_figure import ALL_LABELS
             if len(sys.argv) == 2:
                 print("Please enter the id of the figure in the paper.")
@@ -127,27 +127,33 @@ def main():
         # Verify installation, and run non-regression tests
         # example of use : ./main.py test
         elif sys.argv[1] == "test":
-            import tests.test_linear_sys
-            import tests.test_schwarz
-            import tests.test_finite_volumes
-            import tests.test_finite_differences
-            import tests.test_finite_differences_no_corrective_term
-            import tests.test_finite_differences_naive_neumann
-            import tests.test_optimal_neumann_robin
-            test_dict = {
-                'linear_sys': tests.test_linear_sys.launch_all_tests,
-                'schwarz': tests.test_schwarz.launch_all_tests,
-                'fvolumes': tests.test_finite_volumes.launch_all_tests,
-                'rate': tests.test_optimal_neumann_robin.launch_all_tests,
-                'fdifferences': tests.test_finite_differences.launch_all_tests,
-                'fdifferences_no_corr': tests.test_finite_differences_no_corrective_term.launch_all_tests,
-                'fdifferences_naive': tests.test_finite_differences_naive_neumann.launch_all_tests
-            }
             if len(sys.argv) > 2:
-                test_dict[sys.argv[2]]()
+                if sys.argv[2] == "Manfredi": # ./main.py debug Manfredi
+                    from tests.test_Manfredi import launch_all_tests
+                    launch_all_tests()
+
+                if sys.argv[2] == "Manfredi_rhs": # ./main.py debug Manfredi
+                    from tests.test_Manfredi_rhs_c import launch_all_tests
+                    launch_all_tests()
+
+                if sys.argv[2] == "FV2":  # ./main.py debug 1
+                    from tests.test_finite_volumes_spline2 import launch_all_tests
+                    launch_all_tests()
+
+                if sys.argv[2] == "FV4":  # ./main.py debug 1
+                    from tests.test_finite_volumes import launch_all_tests
+                    launch_all_tests()
+
+                elif sys.argv[2] == "FD":  # ./main.py debug 2
+                    from tests.test_finite_differences import launch_all_tests
+                    launch_all_tests()
             else:
-                for test_func in test_dict.values():
-                    test_func()
+                from tests.test_finite_volumes_spline2 import launch_all_tests
+                launch_all_tests()
+                from tests.test_finite_volumes import launch_all_tests
+                launch_all_tests()
+                from tests.test_finite_differences import launch_all_tests
+                launch_all_tests()
             import label_to_figure
             for val in label_to_figure.ALL_LABELS.values():
                 try:
@@ -162,68 +168,23 @@ def main():
         # It is here to tests things with default parameters,
         # not to export figures
         elif sys.argv[1] == "debug":
-            # defining discretizations:
-
-            from discretizations.finite_difference import FiniteDifferences
-            from discretizations.finite_difference_no_corrective_term \
-                    import FiniteDifferencesNoCorrectiveTerm
-            from discretizations.finite_difference_naive_neumann \
-                    import FiniteDifferencesNaiveNeumann
-            from discretizations.finite_volumes import FiniteVolumes
-            LAMBDA_1_DEFAULT = 0.0
-            LAMBDA_2_DEFAULT = 0.0
-
-            A_DEFAULT = 0.0
-            C_DEFAULT = 1e-10
-            D1_DEFAULT = .54
-            D2_DEFAULT = .6
-
-            M1_DEFAULT = 200
-            M2_DEFAULT = 200
-
-            SIZE_DOMAIN_1 = 200
-            SIZE_DOMAIN_2 = 200
-
-            NUMBER_DDT_H2 = .1
-            T = 10.
-
-            DT_DEFAULT = NUMBER_DDT_H2 * (M1_DEFAULT / SIZE_DOMAIN_1)**2 / D1_DEFAULT
-            # should not be too different from the value with M2, Size_domain2, and D2
-            TIME_WINDOW_LEN_DEFAULT = int(T / DT_DEFAULT)
-
-
-            finite_difference = FiniteDifferences(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
-                                                  D2_DEFAULT, M1_DEFAULT,
-                                                  M2_DEFAULT, SIZE_DOMAIN_1,
-                                                  SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
-                                                  LAMBDA_2_DEFAULT, DT_DEFAULT)
-
-            finite_difference_wout = \
-                    FiniteDifferencesNoCorrectiveTerm(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
-                                                      D2_DEFAULT, M1_DEFAULT,
-                                                      M2_DEFAULT, SIZE_DOMAIN_1,
-                                                      SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
-                                                      LAMBDA_2_DEFAULT, DT_DEFAULT)
-
-            finite_difference_naive = \
-                    FiniteDifferencesNaiveNeumann(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
-                                                      D2_DEFAULT, M1_DEFAULT,
-                                                      M2_DEFAULT, SIZE_DOMAIN_1,
-                                                      SIZE_DOMAIN_2, LAMBDA_1_DEFAULT,
-                                                      LAMBDA_2_DEFAULT, DT_DEFAULT)
-
-            finite_volumes = FiniteVolumes(A_DEFAULT, C_DEFAULT, D1_DEFAULT,
-                                           D2_DEFAULT, M1_DEFAULT, M2_DEFAULT,
-                                           SIZE_DOMAIN_1, SIZE_DOMAIN_2,
-                                           LAMBDA_1_DEFAULT, LAMBDA_2_DEFAULT,
-                                           DT_DEFAULT)
-
             """ You can now test any function here, without impacting the program."""
             if len(sys.argv) > 2:
-                if sys.argv[2] == "1":  # ./cv_rate debug 1
-                    pass
-                elif sys.argv[2] == "2":  # ./cv_rate debug 2
-                    pass
+                if sys.argv[2] == "Manfredi": # ./main.py debug Manfredi
+                    from tests.test_Manfredi import launch_all_tests
+                    launch_all_tests()
+
+                if sys.argv[2] == "FV2":
+                    from tests.test_finite_volumes_spline2 import launch_all_tests
+                    launch_all_tests()
+
+                if sys.argv[2] == "FV4":
+                    from tests.test_finite_volumes import launch_all_tests
+                    launch_all_tests()
+
+                elif sys.argv[2] == "FD":
+                    from tests.test_finite_differences import launch_all_tests
+                    launch_all_tests()
 
 def global_launch_figsave(number_fig):
     """
