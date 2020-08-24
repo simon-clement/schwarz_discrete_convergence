@@ -343,13 +343,11 @@ class Discretization:
         list_bd_cond = self.discretization_bd_cond(upper_domain=upper_domain)
         list_interface = self.discretization_interface(upper_domain=upper_domain)
         if list_bd_cond is None:
-            print("list_bd_cond is none")
             list_bd_cond, new_rhs[-1] = self.hardcoded_bd_cond(upper_domain=upper_domain,
                     bd_cond=bd_cond, dt=dt, f=f, sol_for_explicit=sol_for_explicit,
                     sol_unm1=sol_unm1, additional=additional,
                     coef_explicit=coef_explicit, coef_implicit=coef_implicit, **kwargs)
         if list_interface is None:
-            print("list_interface is none")
             list_interface, new_rhs[0] = self.hardcoded_interface(upper_domain=upper_domain,
                     robin_cond=interface_cond, dt=dt, f=f, sol_for_explicit=sol_for_explicit,
                     sol_unm1=sol_unm1,

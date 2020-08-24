@@ -40,9 +40,9 @@ def test_integrate_one_step(space_scheme_FD, CORRECTIVE_TERM=False):
             raise
 
     print("BACKWARD EULER SCHEME:")
-    verify_order(BackwardEuler, const_space_quad_time, 2) # exact in time so the only error is space
-    # Backward Euler is order 1 in time, so 2 in space (constant Courant parabolic number)
     verify_order(BackwardEuler, linear_time, 2) # exact in time so the only error is space
+    verify_order(BackwardEuler, const_space_quad_time, 2) # exact in space or almost so the only error is time
+    # Backward Euler is order 1 in time, so 2 in space (constant Courant parabolic number)
     verify_order(BackwardEuler, intricated_spacetime, 2) #Naive : =2.8
     verify_order(BackwardEuler, cosinus_time, 2) # Naive: =1.28
     verify_order(BackwardEuler, exp_space_quad_time, 2)
@@ -95,7 +95,7 @@ def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time
     T = 4.
     Lambda = 1.
     Courant = .2 # 0.16 is RK2 experimental CFL condition
-    D = 1.
+    D = 20.
 
     builder.COURANT_NUMBER = Courant
     builder.LAMBDA_2 = Lambda
@@ -176,10 +176,12 @@ def test_any_time_scheme_domain1(time_scheme, space_scheme, u_flux_f=linear_time
             # if int(4 * N * (t_n - t_initial) / T) % int(4*N/nb_plots) == 0:
             #     import matplotlib.pyplot as plt
             #    
-            #     plt.plot(x_du, uprime_np1, label="approximation flux, should be 0")
-            #     #plt.plot(x_du, flux(x_du, t_n+dt)/D, label="real flux")
-            #     plt.plot(x1, u_np1, "g", label="approximation np1")
-            #     plt.plot(x1, u_real(x1, t_n+dt), "y--", label="solution np1")
+            #     #plt.plot(x_du, uprime_np1, label="approximation flux, should be 0")
+            #     #plt.plot(x_du, flux(x_du, t_n+dt)/D, "m--", label="real flux")
+            #     plt.plot(x_du, flux(x_du, t_n+dt)/D - uprime_np1, label="approximation flux, should be 0")
+            #     #plt.plot(x_du, flux(x_du, t_n+dt)/D, "m--", label="real flux")
+            #     plt.plot(x1, u_real(x1, t_n+dt) - u_np1, "g", label="approximation np1")
+            #     #plt.plot(x1, u_real(x1, t_n+dt), "y--", label="solution np1")
             #     plt.legend()
             #     plt.show()
             #     print("enter to continue, or ctrl-C to stop")
@@ -211,9 +213,9 @@ def test_any_time_scheme_domain2(time_scheme, space_scheme, u_flux_f=linear_time
     # DEFINITION OF THE SETTING:
     ###########################################
     T = 4.
-    Lambda = 0.
+    Lambda = -10.
     Courant = .2 # 0.16 is RK2 experimental CFL condition
-    D = 1.
+    D = .2
 
     builder.COURANT_NUMBER = Courant
     builder.LAMBDA_2 = Lambda
@@ -288,17 +290,18 @@ def test_any_time_scheme_domain2(time_scheme, space_scheme, u_flux_f=linear_time
             u_np1 = additional[0]
 
             nb_plots = 4
-            if int(4 * N * (t_n - t_initial) / T) % int(4*N/nb_plots) == 0:
-                import matplotlib.pyplot as plt
-               
-                plt.plot(x_du, uprime_np1, label="approximation flux, should be 0")
-                #plt.plot(x_u, flux(x_u, t_n+dt)/D, label="real flux")
-                plt.plot(x_u, u_np1, "g", label="approximation np1")
-                plt.plot(x_u, u_real(x_u, t_n+dt), "y--", label="solution np1")
-                plt.legend()
-                plt.show()
-                print("enter to continue, or ctrl-C to stop")
-                input()
+            # if int(4 * N * (t_n - t_initial) / T) % int(4*N/nb_plots) == 0:
+            #     import matplotlib.pyplot as plt
+            #    
+            #     #plt.plot(x_du, uprime_np1, label="approximation flux, should be 0")
+            #     plt.plot(x_du, uprime_np1 - flux(x_du, t_n+dt)/D, label="approximation flux, should be 0")
+            #     #plt.plot(x_u, flux(x_u, t_n+dt)/D, label="real flux")
+            #     plt.plot(x_u, u_np1 - u_real(x_u, t_n+dt), "g", label="approximation np1")
+            #     # plt.plot(x_u, u_real(x_u, t_n+dt), "y--", label="solution np1")
+            #     plt.legend()
+            #     plt.show()
+            #     print("enter to continue, or ctrl-C to stop")
+            #     input()
 
             u2_0 = u_np1
             uprime2_0 = uprime_np1

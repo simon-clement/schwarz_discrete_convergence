@@ -38,11 +38,11 @@ class FiniteDifferencesBulk(Discretization):
         a, c, dt = self.get_a_r_dt()
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
         #left diagonal: applies to u[:-2]
-        Y_0 = D[1:]/h[1:]/((h[1:] + h[:-1])/2) + a / (h[1:] + h[:-1])
+        Y_0 = D[2:]/(h[1:]*h[1:]) + a / (h[1:] + h[:-1])
         #right diagonal: applies to u[2:]
-        Y_2 = D[:-1]/h[:-1]/((h[1:] + h[:-1])/2) - a / (h[1:] + h[:-1])
+        Y_2 = D[:-2]/(h[:-1]*h[1:]) - a / (h[1:] + h[:-1])
         # diagonal: applies to u[1:-1]
-        Y_1 = - (D[1:]/h[1:] + D[:-1]/h[:-1])/((h[1:] + h[:-1])/2) - c
+        Y_1 = - 2*D[1:-1]/(h[:-1]*h[1:]) - c
         return (Y_0, Y_1, Y_2)
 
     def discretization_bd_cond(self, upper_domain):
@@ -78,7 +78,7 @@ class FiniteDifferencesBulk(Discretization):
             assert h[-1] > 0
             assert sol_for_explicit is not None
             assert additional is not None
-            return dt / h[-1] * np.array([3/2, -2, 1/2]), bd_cond - 3/2 * additional[-1] + additional[-2] / 2 + dt / 2 * (f[-2] - 3*f[-1])
+            return D[-1] * dt / h[-1] * np.array([3/2, -2, 1/2]), bd_cond - 3/2 * additional[-1] + additional[-2] / 2 + dt / 2 * (f[-2] - 3*f[-1])
 
     def discretization_interface(self, upper_domain):
         return None
@@ -98,7 +98,7 @@ class FiniteDifferencesBulk(Discretization):
         if override_r is not None:
             c = override_r
 
-        return (D[0] * np.array([1, 0, 0]) + Lambda * np.array([-3/2, 2, -1/2]) * dt / h[0],
+        return (D[0] * np.array([1, 0, 0]) + Lambda * np.array([-3/2, 2, -1/2]) * D[0] * dt / h[0],
                robin_cond + Lambda * (additional[1]/2 - 3*additional[0]/2 + dt/2*(f[1] - 3*f[0])))
 
     def create_additional(self, upper_domain): # u at a point
@@ -112,10 +112,11 @@ class FiniteDifferencesBulk(Discretization):
         # an implicit/explicit thing
         a, c, _ = self.get_a_r_dt()
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        return additional + dt* (np.diff(result) / h + f)
+        return additional + dt* (np.diff(D*result) / h + f)
 
     def new_additional(self, result, upper_domain, cond):
         print("Why are you creating a new variable u ? Are you sure it is the right thing to do ?")
+        raise
         if upper_domain: # cond is a Dirichlet condition
             _, h2 = self.get_h()
             _, D = self.get_D()
@@ -258,10 +259,8 @@ class FiniteDifferencesBulk(Discretization):
         x1 = np.cumsum(np.concatenate(([0], h1)))
         x2 = np.cumsum(np.concatenate(([0], h2)))
         # coordinates at half-points:
-        x1_1_2 = x1[:-1] + h1 / 2
-        x2_1_2 = x2[:-1] + h2 / 2
-        D1 = function_D1(x1_1_2)
-        D2 = function_D2(x2_1_2)
+        D1 = function_D1(x1)
+        D2 = function_D2(x2)
         return D1, D2
 
     def name(self):
