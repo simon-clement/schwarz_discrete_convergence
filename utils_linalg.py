@@ -55,6 +55,32 @@ def multiply_interior(Y, u):
     return Y[0] * u[:-2] + Y[1] * u[1:-1] + Y[2] * u[2:]
 
 def solve_linear(Y, f):
+    k = 0
+    for i in range(1, len(Y)):
+        if Y[i].shape[0] > Y[i-1].shape[0]:
+            k = i
+
+    # k is the index of the main diag: it means that
+    # there is k diagonals at the left of the main diag,
+    # and len(Y)-k-1 diagonals at the right of it
+
+    Y_to_stack = [] # creating future scipy banded matrix
+
+    for i in range(len(Y)-1, k, -1): # adding upper diagonals
+        Y_to_stack += [np.concatenate(([0] * (i-k), Y[i]))]
+    
+    Y_to_stack += [Y[k]] # adding diagonal to the stackable array
+
+    for i in range(k-1, -1, -1): # adding subdiagonals
+        Y_to_stack += [np.concatenate((Y[i], [0] * (k-i)))]
+
+    Y = np.vstack(Y_to_stack)
+
+    from scipy.linalg import solve_banded
+    return solve_banded((k, len(Y) - k - 1), Y, f)
+
+
+def solve_linear_tridiag(Y, f):
     """
         Solve the linear TRIDIAGONAL system Yu = f and returns u.
         Y can have an additional (and only one) upper diagonal

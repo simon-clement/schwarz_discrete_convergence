@@ -55,52 +55,58 @@ def interface_errors(discretization,
     u2_0 = np.zeros(discretization.size_prognostic(upper_domain=True))
     # random false initialization:
     np.random.seed(seed)
-    all_u1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
-    all_phi1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
+    all_u1_interface = [np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))]
+    all_phi1_interface = [np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))]
+    all_u2_interface = [np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))]
+    all_phi2_interface = [np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))]
+
     ret = [discretization.LAMBDA_2 * all_u1_interface + all_phi1_interface]
     # Beginning of schwarz iterations:
     from scipy.interpolate import interp1d
     for k in range(NUMBER_IT):
-        all_u2_interface = [0]
-        all_phi2_interface = [0]
+        u2_interface = [0]
+        phi2_interface = [0]
         last_u2 = u2_0
         additional = []
         # Time iteration:
-        interpolator_u1 = interp1d(x=np.array(range(time_window_len+1)), y=all_u1_interface,
-                kind='cubic', bounds_error=False, fill_value=(0., 0.))
-        interpolator_phi1 = interp1d(x=np.array(range(time_window_len+1)), y=all_phi1_interface,
-                kind='cubic', bounds_error=False, fill_value=(0., 0.))
+        interpolators_u1 += [interp1d(x=np.array(range(time_window_len+1)), y=all_u1_interface,
+                kind='cubic', bounds_error=False, fill_value=(0., 0.))]
+        interpolators_phi1 += [interp1d(x=np.array(range(time_window_len+1)), y=all_phi1_interface,
+                kind='cubic', bounds_error=False, fill_value=(0., 0.))]
 
         for i in range(1, time_window_len+1):
-            u_interface = lambda t : interpolator_u1(i-1+t)
-            phi_interface = lambda t : interpolator_phi1(i-1+t)
+            u_interface_ti = [lambda t : interpolator(i-1+t) for interpolator in interpolators_u1]
+            phi_interface_ti = [lambda t : interpolator(i-1+t) for interpolator in interpolators_phi1]
 
             u2_ret, u_interface, phi_interface, *additional = \
                     discretization.integrate_one_step(
                 f=f2,
                 bd_cond=neumann,
                 u_nm1=last_u2,
-                u_interface=u_interface,
-                phi_interface=phi_interface,
+                u_interface=u_interface_ti,
+                phi_interface=phi_interface_ti,
                 additional=additional,
                 upper_domain=True,
                 Y=precomputed_Y2)
             last_u2 = u2_ret
-            all_u2_interface += [u_interface]
-            all_phi2_interface += [phi_interface]
+            u2_interface += [u_interface]
+            phi2_interface += [phi_interface]
 
-        all_u1_interface = [0]
-        all_phi1_interface = [0]
+        all_u2_interface += [u2_interface]
+        all_phi2_interface += [phi2_interface]
+
+        u1_interface = [0]
+        phi1_interface = [0]
         last_u1 = u1_0
         additional = []
 
-        interpolator_u2 = interp1d(x=np.array(range(time_window_len+1)), y=all_u2_interface,
-                kind='cubic', bounds_error=False, fill_value=(0., 0.))
-        interpolator_phi2 = interp1d(x=np.array(range(time_window_len+1)), y=all_phi2_interface,
-                kind='cubic', bounds_error=False, fill_value=(0., 0.))
+        interpolators_u2 += [interp1d(x=np.array(range(time_window_len+1)), y=all_u2_interface,
+                kind='cubic', bounds_error=False, fill_value=(0., 0.))]
+        interpolators_phi2 += [interp1d(x=np.array(range(time_window_len+1)), y=all_phi2_interface,
+                kind='cubic', bounds_error=False, fill_value=(0., 0.))]
         for i in range(1, time_window_len+1):
-            u_interface = lambda t : interpolator_u2(i-1+t)
-            phi_interface = lambda t : interpolator_phi2(i-1+t)
+            u_interface_ti = [lambda t : interpolator(i-1+t) for interpolator in interpolators_u2]
+            phi_interface_ti = [lambda t : interpolator(i-1+t) for interpolator in interpolators_phi2]
 
             u1_ret, u_interface, phi_interface, *additional = \
                     discretization.integrate_one_step(
@@ -113,10 +119,12 @@ def interface_errors(discretization,
                 upper_domain=False,
                 Y=precomputed_Y1)
             last_u1 = u1_ret
-            all_u1_interface += [u_interface]
-            all_phi1_interface += [phi_interface]
+            u1_interface += [u_interface]
+            phi1_interface += [phi_interface]
 
-        ret += [discretization.LAMBDA_2 * np.array(all_u1_interface) + np.array(all_phi1_interface)]
+        all_u1_interface += [u1_interface]
+        all_phi1_interface += [phi1_interface]
+    ret = discretization.LAMBDA_2 * np.array(all_u1_interface) + np.array(all_phi1_interface)
 
     return ret
 

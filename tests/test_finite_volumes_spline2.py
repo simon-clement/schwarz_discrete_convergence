@@ -243,7 +243,7 @@ def test_any_time_scheme_domain2(time_scheme, u_ubar_flux_fbar=linear_time):
     builder.LAMBDA_2 = Lambda
     builder.D1 = D
     builder.D2 = D
-    builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
+    builder.A = 0. # warning: note that if a!=0 or r!=0, the rhs must take them into account
     builder.R = 0.
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.
@@ -376,7 +376,7 @@ def test_reconstruction():
     builder.LAMBDA_2 = Lambda
     builder.D1 = D
     builder.D2 = D
-    builder.A = 0. # warning: note that if a!=0 or c!=0, the rhs must take them into account
+    builder.A = 0. # warning: note that if a!=0 or r!=0, the rhs must take them into account
     builder.R = .0
     builder.SIZE_DOMAIN_1 = 1.
     builder.SIZE_DOMAIN_2 = 1.

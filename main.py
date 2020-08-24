@@ -147,6 +147,10 @@ def main():
                 elif sys.argv[2] == "FD":  # ./main.py debug 2
                     from tests.test_finite_differences import launch_all_tests
                     launch_all_tests()
+
+                elif sys.argv[2] == "bulk":  # ./main.py debug 2
+                    from tests.test_bulk import launch_all_tests
+                    launch_all_tests()
             else:
                 from tests.test_finite_volumes_spline2 import launch_all_tests
                 launch_all_tests()

@@ -58,7 +58,7 @@ class ThetaMethod(Discretization):
         # Pour le schéma C-N, on veut faire (A/dt+B/2) u^{np1} = (A/dt + B/2) u^n + f
 
         to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -self.THETA))
-        rhs = multiply_interior(A, u_nm1) / self.DT + multiply_interior(B, u_nm1) * (1 - self.THETA) + f[1:-1]
+        rhs = multiply_interior(A, u_nm1) / self.DT + multiply_interior(B, u_nm1) * (1 - self.THETA) + self.crop_f_as_prognostic(f, upper_domain=upper_domain)
         # Here f is cropped, but its extremal
         # values can serve in some space schemes in the interface conditions
 

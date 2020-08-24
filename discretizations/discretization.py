@@ -169,13 +169,14 @@ class Discretization:
     #   - get_D (if you need a variable diffusivity. also, useful to provide the size of D)
     #
     #   For particular cases:
-    #       If an additional state variable is needed, e.g. \\Bar{u} (default is None):
+    #       If an additional (diagnostic) state variable is needed, e.g. \\Bar{u} (default is None):
     #   - create_additional: should return a valid initialization
     #   - update_additional: is called after time steps.
     # 
     #       If the boundary conditions depends on more than the state vector:
     #   - hardcoded_bd_cond (returns the coefficients in front of the state vector and the rhs)
     #   - hardcoded_interface (identitcal to hardcoded_bd_cond but with Robin condition at interface)
+    #   - crop_f_as_prognostic (when f[1:-1] is not to be added with A.prognostic
     #   
     #   ANALYSIS:
     #
@@ -301,6 +302,9 @@ class Discretization:
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
         return M
 
+    def crop_f_as_prognostic(self, f, **args):
+        return f[1:-1]
+
     def size_prognostic(self, upper_domain):
         """
             Returns the size of the prognostic state variable. This variable is often named "u" but
@@ -339,18 +343,21 @@ class Discretization:
         list_bd_cond = self.discretization_bd_cond(upper_domain=upper_domain)
         list_interface = self.discretization_interface(upper_domain=upper_domain)
         if list_bd_cond is None:
+            print("list_bd_cond is none")
             list_bd_cond, new_rhs[-1] = self.hardcoded_bd_cond(upper_domain=upper_domain,
                     bd_cond=bd_cond, dt=dt, f=f, sol_for_explicit=sol_for_explicit,
                     sol_unm1=sol_unm1, additional=additional,
                     coef_explicit=coef_explicit, coef_implicit=coef_implicit, **kwargs)
         if list_interface is None:
+            print("list_interface is none")
             list_interface, new_rhs[0] = self.hardcoded_interface(upper_domain=upper_domain,
                     robin_cond=interface_cond, dt=dt, f=f, sol_for_explicit=sol_for_explicit,
                     sol_unm1=sol_unm1,
                     additional=additional, coef_explicit=coef_explicit, coef_implicit=coef_implicit, **kwargs)
         # let's begin with the boundary condition:
         new_Y = []
-        assert len(list_bd_cond) == 1 or len(list_bd_cond) == 2
+        assert len(list_bd_cond) >= 1
+        #TODO : handle duplicate code (?)
         assert len(list_interface) >= 1
         Y_0, Y_1, Y_2 = to_inverse
         Y_1 = np.concatenate(([list_interface[0]], Y_1, [list_bd_cond[0]]))
@@ -363,6 +370,12 @@ class Discretization:
         for additional_coeff_interface in list_interface[2:]:
             ret += [np.zeros(ret[-1].shape[0] - 1)] # new diagonal above the last one
             ret[-1][0] = additional_coeff_interface
+
+        for additional_coeff_bd_cond in list_bd_cond[2:]:
+            ret = [np.zeros(ret[0].shape[0] - 1)] + ret # new diagonal under the last one
+            ret[0][-1] = additional_coeff_bd_cond
+
+        assert max(len(list_bd_cond), 2) + max(len(list_interface), 2) - 1 == len(ret)
         return tuple(ret), new_rhs
 
     def add_boundaries_to_Y(self, to_inverse, upper_domain, coef_implicit, coef_explicit, dt):
@@ -392,7 +405,7 @@ class Discretization:
                     robin_cond=0., f=f, sol_for_explicit=u, sol_unm1=u, additional=add)
         # let's begin with the boundary condition:
         new_Y = []
-        assert len(list_bd_cond) == 1 or len(list_bd_cond) == 2
+        assert len(list_bd_cond) >= 1
         assert len(list_interface) >= 1
         Y_0, Y_1, Y_2 = to_inverse
         Y_1 = np.concatenate(([list_interface[0]], Y_1, [list_bd_cond[0]]))
@@ -405,6 +418,13 @@ class Discretization:
         for additional_coeff_interface in list_interface[2:]:
             ret += [np.zeros(ret[-1].shape[0] - 1)] # new diagonal above the last one
             ret[-1][0] = additional_coeff_interface
+
+        for additional_coeff_bd_cond in list_bd_cond[2:]:
+            ret = [np.zeros(ret[0].shape[0] - 1)] + ret # new diagonal under the last one
+            ret[0][-1] = additional_coeff_bd_cond
+
+        assert max(len(list_bd_cond), 2) + max(len(list_interface), 2) - 1 == len(ret)
+
         return tuple(ret)
 
     def get_rhs(self, rhs, interface_cond, bd_cond, upper_domain,

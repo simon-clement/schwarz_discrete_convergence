@@ -77,7 +77,7 @@ class Manfredi(Discretization):
         ###################
         to_inverse = add_banded(scal_multiply(A, 1./self.DT), scal_multiply(B, -b))
         rhs = multiply_interior(A, u_nm1) * (1 / self.DT) \
-                - a * multiply_interior(B, u_nm1) + f_first_step[1:-1]
+                - a * multiply_interior(B, u_nm1) + self.crop_f_as_prognostic(f_first_step, upper_domain=upper_domain)
 
         cond_robin_star = Lambda * u_star_interface + phi_star_interface
 
@@ -106,7 +106,7 @@ class Manfredi(Discretization):
         f_second_step = b*f
         #f_second_step = np.zeros_like(f)
         f_bd = f_second_step/b
-        rhs = multiply_interior(A, result_star) / self.DT + f_second_step[1:-1]
+        rhs = multiply_interior(A, result_star) / self.DT + self.crop_f_as_prognostic(f_second_step, upper_domain=upper_domain)
 
         cond_robin = Lambda * u_interface + phi_interface
     

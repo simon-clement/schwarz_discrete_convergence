@@ -63,7 +63,7 @@ class RK4(Discretization):
         ###################
         to_inverse = scal_multiply(A, 2/self.DT)
         rhs = multiply_interior(A, u_nm1) * 2 / self.DT +\
-                multiply_interior(B, u_nm1) + f_nm1[1:-1]
+                multiply_interior(B, u_nm1) + self.crop_f_as_prognostic(f_nm1, upper_domain=upper_domain)
         # Here f is cropped, but its extremal
         # values can serve in some space schemes in the interface conditions
 
@@ -82,7 +82,7 @@ class RK4(Discretization):
         ###################
         to_inverse = scal_multiply(A, 2/self.DT)
         rhs = multiply_interior(A, u_nm1) * 2 / self.DT +\
-                multiply_interior(B, result_nm1_2_k1) + f_nm1_2[1:-1]
+                multiply_interior(B, result_nm1_2_k1) + self.crop_f_as_prognostic(f_nm1_2, upper_domain=upper_domain)
         # Here f is cropped, but its extremal
         # values can serve in some space schemes in the interface conditions
 
@@ -102,7 +102,7 @@ class RK4(Discretization):
         ###################
         to_inverse = scal_multiply(A, 1/self.DT)
         rhs = multiply_interior(A, u_nm1) / self.DT +\
-                multiply_interior(B, result_nm1_2_k2) + f[1:-1]
+                multiply_interior(B, result_nm1_2_k2) + self.crop_f_as_prognostic(f, upper_domain=upper_domain)
         # Here f is cropped, but its extremal
         # values can serve in some space schemes in the interface conditions
 
@@ -123,7 +123,7 @@ class RK4(Discretization):
         f_averaged = (f_nm1 + 4*f_nm1_2 + f)/6
         to_inverse = scal_multiply(A, 1/self.DT)
         rhs = multiply_interior(A, u_nm1) / self.DT +\
-                multiply_interior(B, result_averaged) + f_averaged[1:-1]
+                multiply_interior(B, result_averaged) + self.crop_f_as_prognostic(f_averaged, upper_domain=upper_domain)
 
         cond_robin = Lambda * u_interface + phi_interface
 

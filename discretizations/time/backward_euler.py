@@ -51,7 +51,7 @@ class BackwardEuler(Discretization):
         # to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -1.))
 
 
-        # rhs = multiply_interior(A, u_nm1) / self.DT + f[1:-1] #Here f is cropped, but its extremal
+        # rhs = multiply_interior(A, u_nm1) / self.DT + self.crop_f_as_prognostic(f) #Here f is cropped, but its extremal
         # # value can serve in some space schemes in the interface conditions
 
         # # extrapolation ? no! it is inside phi_interface
@@ -63,7 +63,7 @@ class BackwardEuler(Discretization):
         #                              bd_cond=bd_cond, upper_domain=upper_domain, additional=additional)
         A = self.A_interior(upper_domain=upper_domain)
         B = self.B_interior(upper_domain=upper_domain)
-        rhs = multiply_interior(A, u_nm1) / self.DT + f[1:-1] #Here f is cropped, but its extremal
+        rhs = multiply_interior(A, u_nm1) / self.DT + self.crop_f_as_prognostic(f=f, upper_domain=upper_domain) #Here f is cropped, but its extremal
         # value of f[0], f[-1] can serve in some space schemes in the interface conditions
 
         cond_robin = Lambda * u_interface + phi_interface
@@ -78,8 +78,8 @@ class BackwardEuler(Discretization):
         additional = self.update_additional(result=result, additional=additional, dt=self.DT,
                 upper_domain=upper_domain, f=f, reaction_explicit=0, coef_reaction_implicit=1.)
 
-        additional = self.new_additional(result=result, upper_domain=upper_domain,
-                cond=bd_cond if upper_domain else cond_robin)
+        #additional = self.new_additional(result=result, upper_domain=upper_domain,
+        #        cond=bd_cond if upper_domain else cond_robin) # note: inefficient
 
         partial_t_result0 = (result[0] - u_nm1[0])/self.DT
         return self.projection_result(result=result, upper_domain=upper_domain, additional=additional, partial_t_result0=partial_t_result0, f=f, result_explicit=result)
