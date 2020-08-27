@@ -111,7 +111,7 @@ class FiniteDifferencesBulk(Discretization):
         # average of u on a cell. Warning, you need to interpolate result for making
         # an implicit/explicit thing
         a, c, _ = self.get_a_r_dt()
-        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
+        M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
         return additional + dt* (np.diff(D*result) / h + f)
 
     def new_additional(self, result, upper_domain, cond):
@@ -141,9 +141,9 @@ class FiniteDifferencesBulk(Discretization):
         """
             given the result of the inversion, returns (phi_np1, u_interface, phi_interface)
         """
-        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
+        M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
         u = additional[0] - result[0] * h[0]/2
-        return result, u, result[0], additional
+        return result, u, D[0]*result[0], additional
 
     def eta_dirneu(self, j, lam_m, lam_p, s=None):
         """
@@ -157,9 +157,16 @@ class FiniteDifferencesBulk(Discretization):
             returns tuple (etaj_dir, etaj_neu).
         """
         assert j == 1 or j == 2
-        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=(j==2))
+        M, h, D, _ = self.M_h_D_Lambda(upper_domain=(j==2))
         a, c, dt = self.get_a_r_dt()
         raise NotImplementedError()
+
+    def size_f(self, upper_domain):
+        if upper_domain:
+            return self.M2 - 1
+        else:
+            return self.M1 - 1
+
 
     def eta_dirneu_modif(self, j, sigj, order_operators, w, *kwargs, **dicargs):
         # This code should not run and is here as an example
@@ -177,8 +184,8 @@ class FiniteDifferencesBulk(Discretization):
         """
         assert s is not None
         a, c, dt = self.get_a_r_dt()
-        M1, h1, D1, Lambda_1 = self.M_h_D_Lambda(upper_domain=False)
-        M2, h2, D2, Lambda_2 = self.M_h_D_Lambda(upper_domain=True)
+        M1, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
+        M2, h2, D2, _ = self.M_h_D_Lambda(upper_domain=True)
         h1, h2 = h1[0], h2[0]
         D1, D2 = D1[0], D2[0]
 
@@ -199,7 +206,6 @@ class FiniteDifferencesBulk(Discretization):
                                 / (-2 * Y_2)
         lambda2_plus = (Y_1 + s + np.sqrt((Y_1 + s)**2 - 4 * Y_0 * Y_2)) \
                                 / (-2 * Y_2)
-        raise NotImplementedError()
         return lambda1_moins, lambda2_moins, lambda1_plus, lambda2_plus, 
 
     def sigma_modified(self, w, s, order_equations):

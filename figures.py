@@ -12,6 +12,74 @@ import functools
 import discretizations
 from simulator import frequency_simulation
 
+
+def fig_firstBulkAnalysis():
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.theta_method import ThetaMethod
+    from discretizations.time.RK2 import RK2
+    from discretizations.time.RK4 import RK4
+    from discretizations.time.Manfredi import Manfredi
+    from cv_factor_pade import rho_Pade_FD_corr0
+    from cv_factor_pade import rho_Pade_FD_extra
+    from cv_factor_pade import rho_Pade_c
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = 0.
+    builder.LAMBDA_2 = 0.
+    builder.M1 = 200
+    builder.M2 = 200
+    builder.D1 = 1.
+    builder.D2 = 1.
+    builder.R = 0.
+    N = 300
+    dt = builder.DT
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    print("Courant parabolic number :", builder.D1*dt/h**2)
+
+    time_scheme = Manfredi
+        
+    discretizations = {}
+
+    axis_freq = get_discrete_freq(N, dt)
+    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
+
+    from discretizations.BE_FD_bulk import be_fd_bulk
+    theta=1.
+    ratio_density=1.
+    alpha=1.
+    D2=builder.D2
+    for D2 in (10., 1., .1):
+        dis =  be_fd_bulk(alpha=alpha, theta=theta, ratio_density=ratio_density,
+                A=builder.A, C=builder.R,
+                                  D1=builder.D1, D2=D2,
+                                  M1=builder.M1, M2=builder.M2,
+                                  SIZE_DOMAIN_1=builder.SIZE_DOMAIN_1,
+                                  SIZE_DOMAIN_2=builder.SIZE_DOMAIN_2,
+                                  LAMBDA_1=builder.LAMBDA_1,
+                                  LAMBDA_2=builder.LAMBDA_2,
+                                  DT=builder.DT)
+        
+        axes.loglog(axis_freq * dt, np.abs(dis.convergence_rate(axis_freq)), label="convergence rate, $\\alpha$="+str(alpha)+", $\\theta$="+str(theta)+", $\\rho_2/\\rho_1$="+ str(ratio_density)+ ", $\\nu_2/\\nu_1=$"+str(D2))
+
+        alpha_w = memoised(frequency_simulation, dis, N=N, number_samples=5, NUMBER_IT=4, ignore_cached=False)
+
+        convergence_factor = np.abs(alpha_w[2] / alpha_w[1])
+        axes.loglog(axis_freq * dt, convergence_factor, "k--", label="numerical validation")
+
+    axes.loglog(axis_freq * dt, np.ones_like(convergence_factor), "m--", label="limit of convergence")
+
+    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes.set_ylabel("Convergence factor $\\rho$")
+    axes.set_title("Convergence rate with flux prescription $\\phi=\\alpha(\\Delta u)$")
+    axes.legend()
+    show_or_save("fig_firstBulkAnalysis")
+
+
 def fig_validatePadeAnalysisFDRR():
     from discretizations.space.FD_naive import FiniteDifferencesNaive
     from discretizations.space.FD_corr import FiniteDifferencesCorr

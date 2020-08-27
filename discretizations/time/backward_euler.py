@@ -85,7 +85,7 @@ class BackwardEuler(Discretization):
         return self.projection_result(result=result, upper_domain=upper_domain, additional=additional, partial_t_result0=partial_t_result0, f=f, result_explicit=result)
 
     def precompute_Y(self, upper_domain):
-        M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
+        M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
         A = self.A_interior(upper_domain=upper_domain)
         B = self.B_interior(upper_domain=upper_domain)
         assert len(A) == 3 # tridiagonal matrix
@@ -93,9 +93,6 @@ class BackwardEuler(Discretization):
         to_inverse = add_banded(scal_multiply(A, 1/self.DT), scal_multiply(B, -1.))
         Y = self.add_boundaries_to_Y(to_inverse=to_inverse, upper_domain=upper_domain,
                 coef_explicit=0., coef_implicit=1., dt=self.DT)
-        # Y_full_matrix = np.diag(Y_inv[0], k=-1)
-        # for k in range(len(Y_inv)-1):
-        #     Y_full_matrix += np.diag(Y_inv[k+1], k=k)
         return Y
 
     def s_time_discrete(self, w):
