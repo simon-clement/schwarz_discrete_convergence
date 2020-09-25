@@ -21,10 +21,16 @@ def fig_optiRates():
     axes[1,0].grid()
     axes[0,1].grid()
     axes[1,1].grid()
-    axes[1,1].set_ylim(bottom=0.15, top=0.45) # all axis are shared
+    axes[1,1].set_ylim(bottom=0.13, top=0.44) # all axis are shared
+
+    caracs = {}
+    caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
+    caracs["modified"] = {'color':'#0000FF', 'width':1.3, 'nb_+':12}
+    caracs["discrete"] = {'color':'#000000', 'width':0.7, 'nb_+':15}
+
 
     fig.suptitle("Optimized convergence rates with different methods")
-    fig.subplots_adjust(left=0.05, bottom=0.06, right=0.98, top=0.92, wspace=0.13, hspace=0.16)
+    fig.subplots_adjust(left=0.05, bottom=0.12, right=0.98, top=0.92, wspace=0.13, hspace=0.16)
     #####################################
     # PADE
     ####################################
@@ -46,7 +52,7 @@ def fig_optiRates():
                     order_time=2, order_operators=float('inf'),
                     order_equations=float('inf'))
 
-    optiRatesGeneral(axes[0,0], rho_c_FD_extra, rho_m_FD, rho_Pade_FD_extra, time_dis, space_dis, "Pade")
+    optiRatesGeneral(axes[0,0], rho_c_FD_extra, rho_m_FD, rho_Pade_FD_extra, time_dis, space_dis, "Pade", caracs=caracs)
 
     ########################################
     # BE
@@ -71,7 +77,7 @@ def fig_optiRates():
                     order_time=1, order_operators=float('inf'),
                     order_equations=float('inf'))
     
-    optiRatesGeneral(axes[0,1], rho_c_FD_extra, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "Backward Euler")
+    optiRatesGeneral(axes[0,1], rho_c_FD_extra, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "Backward Euler", caracs=caracs)
 
     #############################################
     # FD
@@ -97,7 +103,7 @@ def fig_optiRates():
                     order_time=float('inf'), order_operators=float('inf'),
                     order_equations=2)
     
-    optiRatesGeneral(axes[1,0], rho_BE_c, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "Finite Differences")
+    optiRatesGeneral(axes[1,0], rho_BE_c, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "Finite Differences", caracs=caracs)
     ###########################
     # FV
     ##########################
@@ -122,7 +128,18 @@ def fig_optiRates():
                     order_time=float('inf'), order_operators=float('inf'),
                     order_equations=2)
     
-    optiRatesGeneral(axes[1,1], rho_BE_c, rho_m_FV, rho_BE_FV, time_dis, space_dis, "Finite Volumes")
+    optiRatesGeneral(axes[1,1], rho_BE_c, rho_m_FV, rho_BE_FV, time_dis, space_dis, "Finite Volumes", caracs=caracs)
+
+
+    from matplotlib.lines import Line2D
+    custom_lines = [Line2D([0], [0], color=caracs["continuous"]["color"], lw=caracs["continuous"]["width"]),
+                    Line2D([0], [0], color=caracs["modified"]["color"], lw=caracs["modified"]["width"]),
+                    Line2D([0], [0], color=caracs["discrete"]["color"], lw=caracs["discrete"]["width"]),
+                    Line2D([0], [0], marker="^", markersize=6., linewidth=0.,
+                        color=caracs["discrete"]["color"]) ]
+    custom_labels = ["Continuous", "Modified", "Discrete", "Prediction"]
+    #fig.legend(custom_lines, custom_labels, loc = (0.5, 0), ncol=5)
+    fig.legend(custom_lines, custom_labels, loc=(0.2, 0.), ncol=5)
 
     show_or_save("fig_optiRates")
 
@@ -146,7 +163,12 @@ def fig_optiRatesPade():
                     order_time=2, order_operators=float('inf'),
                     order_equations=float('inf'))
 
-    optiRatesGeneral(axes, rho_c_FD_extra, rho_m_FD, rho_Pade_FD_extra, time_dis, space_dis, "Pade")
+    caracs = {}
+    caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
+    caracs["modified"] = {'color':'#0000FF', 'width':1., 'nb_+':12}
+    caracs["discrete"] = {'color':'#000000', 'width':.9, 'nb_+':15}
+
+    optiRatesGeneral(axes, rho_c_FD_extra, rho_m_FD, rho_Pade_FD_extra, time_dis, space_dis, "Pade", caracs=caracs)
 
     show_or_save("fig_optiRatesPade")
 
@@ -172,7 +194,12 @@ def fig_optiRatesBE():
                     order_time=1, order_operators=float('inf'),
                     order_equations=float('inf'))
     
-    optiRatesGeneral(axes, rho_c_FD_extra, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "BE")
+    caracs = {}
+    caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
+    caracs["modified"] = {'color':'#0000FF', 'width':1., 'nb_+':12}
+    caracs["discrete"] = {'color':'#000000', 'width':.9, 'nb_+':15}
+
+    optiRatesGeneral(axes, rho_c_FD_extra, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "BE", caracs=caracs)
     show_or_save("fig_OptiRatesBE")
 
 
@@ -198,7 +225,12 @@ def fig_optiRatesFD():
                     order_time=float('inf'), order_operators=float('inf'),
                     order_equations=2)
     
-    optiRatesGeneral(axes, rho_BE_c, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "FD")
+    caracs = {}
+    caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
+    caracs["modified"] = {'color':'#0000FF', 'width':1., 'nb_+':12}
+    caracs["discrete"] = {'color':'#000000', 'width':.9, 'nb_+':15}
+
+    optiRatesGeneral(axes, rho_BE_c, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "FD", caracs=caracs)
     show_or_save("fig_OptiRatesFD")
 
 
@@ -224,10 +256,15 @@ def fig_optiRatesFV():
                     order_time=float('inf'), order_operators=float('inf'),
                     order_equations=2)
     
-    optiRatesGeneral(axes, rho_BE_c, rho_m_FV, rho_BE_FV, time_dis, space_dis, "FV")
+    caracs = {}
+    caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
+    caracs["modified"] = {'color':'#0000FF', 'width':1., 'nb_+':12}
+    caracs["discrete"] = {'color':'#000000', 'width':.9, 'nb_+':15}
+
+    optiRatesGeneral(axes, rho_BE_c, rho_m_FV, rho_BE_FV, time_dis, space_dis, "FV", caracs=caracs)
     show_or_save("fig_OptiRatesFV")
 
-def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_dis, space_dis, name_method="Unknown discretization"):
+def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_dis, space_dis, name_method="Unknown discretization", caracs={}):
     """
         Creates a figure comparing analysis methods for a discretization.
         the functions "rate" should be:
@@ -252,11 +289,6 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
     axes.set_ylabel("$\\rho$")
     #axes.set_title("Optimized convergence rates with different methods (" + name_method + ")")
     axes.set_title(name_method)
-    caracs = {}
-    caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
-    caracs["modified"] = {'color':'#0000FF', 'width':1., 'nb_+':12}
-    caracs["discrete"] = {'color':'#000000', 'width':.9, 'nb_+':15}
-
     for discrete_factor, names in zip((continuous_rate, modified_rate, discrete_rate), caracs):
         if names == "modified":
             freq_opti = get_discrete_freq(N//10, setting.DT*10.)
@@ -298,16 +330,16 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
 
         # LESS IMPORTANT CURVE : WHAT IS PREDICTED
 
-        axes.semilogx(axis_freq * setting.DT, convergence_factor, linewidth=caracs[names]["width"], label=names + " optimum: $p_1, p_2 =$ ("+ str(optimal_lam.x[0])[:4] +", "+ str(optimal_lam.x[1])[:5] + ")", color=caracs[names]["color"]+"90")
+        axes.semilogx(axis_freq * setting.DT, convergence_factor, linewidth=caracs[names]["width"], label= "$p_1, p_2 =$ ("+ str(optimal_lam.x[0])[:4] +", "+ str(optimal_lam.x[1])[:5] + ")", color=caracs[names]["color"]+"90")
         if names =="discrete":
-            axes.semilogx(axis_freq_predicted * setting.DT, discrete_factor(setting, axis_freq_predicted), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"], label="prediction")
+            axes.semilogx(axis_freq_predicted * setting.DT, discrete_factor(setting, axis_freq_predicted), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])# , label="prediction")
         else:
             axes.semilogx(axis_freq_predicted * setting.DT, discrete_factor(setting, axis_freq_predicted), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])
 
         axes.semilogx(axis_freq * setting.DT, np.ones_like(axis_freq)*max(convergence_factor), linestyle="dashed", linewidth=caracs[names]["width"], color=caracs[names]["color"]+"90")
 
 
-    axes.legend()
+    axes.legend( loc=(0., 0.), ncol=1 )
     axes.set_xlim(left=1e-4, right=3.4)
     #axes.set_ylim(bottom=0)
 
