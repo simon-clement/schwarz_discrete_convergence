@@ -21,7 +21,7 @@ def fig_optiRates():
     axes[1,0].grid()
     axes[0,1].grid()
     axes[1,1].grid()
-    axes[1,1].set_ylim(bottom=0.13, top=0.44) # all axis are shared
+    axes[1,1].set_ylim(bottom=0.18, top=0.49) # all axis are shared
 
     caracs = {}
     caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
@@ -276,8 +276,8 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
     """
 
     setting = Builder()
-    setting.M1 = 100
-    setting.M2 = 100
+    setting.M1 = 200
+    setting.M2 = 200
     setting.D1 = .5
     setting.D2 = 1.
     setting.R = 1e-3
@@ -289,6 +289,16 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
     axes.set_ylabel("$\\rho$")
     #axes.set_title("Optimized convergence rates with different methods (" + name_method + ")")
     axes.set_title(name_method)
+
+    def rate_onesided(lam):
+        builder = setting.copy()
+        builder.LAMBDA_1 = lam
+        builder.LAMBDA_2 = -lam
+        return np.max(continuous_rate(builder, axis_freq))
+    from scipy.optimize import minimize_scalar, minimize
+    optimal_lam = minimize_scalar(fun=rate_onesided)
+    x0_opti = (optimal_lam.x, -optimal_lam.x)
+
     for discrete_factor, names in zip((continuous_rate, modified_rate, discrete_rate), caracs):
         if names == "modified":
             freq_opti = get_discrete_freq(N//10, setting.DT*10.)
@@ -296,23 +306,16 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
             freq_opti = axis_freq
 
 
-        def rate_onesided(lam):
-            builder = setting.copy()
-            builder.LAMBDA_1 = lam
-            builder.LAMBDA_2 = -lam
-            return np.max(discrete_factor(builder, freq_opti))
-
         def rate_twosided(lam):
             builder = setting.copy()
             builder.LAMBDA_1 = lam[0]
             builder.LAMBDA_2 = lam[1]
             return np.max(discrete_factor(builder, freq_opti))
 
-        from scipy.optimize import minimize_scalar, minimize
-        optimal_lam = minimize_scalar(fun=rate_onesided)
-        print(optimal_lam)
         optimal_lam = minimize(method='Nelder-Mead',
-                fun=rate_twosided, x0=(optimal_lam.x, -optimal_lam.x))
+                fun=rate_twosided, x0=x0_opti)
+        if names == "continuous":
+            x0_opti = optimal_lam.x
         print(optimal_lam)
         setting.LAMBDA_1 = optimal_lam.x[0]
         setting.LAMBDA_2 = optimal_lam.x[1]
@@ -323,7 +326,7 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
                     time_dis, space_dis, N=N, number_samples=32, NUMBER_IT=2) # WAS 7 IN CACHE
             convergence_factor = np.abs((alpha_w[2] / alpha_w[1]))
         else:
-            convergence_factor = rho_BE_FD_extra(setting, axis_freq)
+            convergence_factor = discrete_rate(setting, axis_freq)
 
 
         axis_freq_predicted = np.exp(np.linspace(np.log(min(np.abs(axis_freq))), np.log(axis_freq[-1]), caracs[names]["nb_+"]))
@@ -480,7 +483,7 @@ def fig_compare_discrete_modif():
     from discretizations.space.quad_splines_fv import QuadSplinesFV as FV
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
     fig, axes = plt.subplots(2, 2, figsize=[6.4, 4.4], sharex=False, sharey=True)
-    plt.subplots_adjust(left=.11, bottom=.11, right=.98, top=.92, wspace=0.1, hspace=0.15)
+    plt.subplots_adjust(left=.11, bottom=.32, right=.99, top=.92, wspace=0.19, hspace=0.15)
     COLOR_CONT = '#888888FF'
     COLOR_CONT_FD = '#555555FF'
     COLOR_MODIF = '#000000FF'
@@ -525,9 +528,9 @@ def fig_compare_discrete_modif():
 
         full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order2) # disccrete in time
         labelg2 = r"P2: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (P2,c)}\right|/\left|\rho_{\rm RR}^{\rm (P2,c)}\right|$" + "\n" + r"$\gamma = z - b (z-1) - \frac{b^2}{2}(z-1)^2$"
-        lineg2, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='2.',
+        lineg2, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='1.1',
                 color=COLOR_MODIF, linestyle='solid')
-        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='2.',
+        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='1.1',
                 color=COLOR_CONT, linestyle='solid')
 
         ######################
@@ -537,9 +540,9 @@ def fig_compare_discrete_modif():
         full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order1) # disccrete in time
 
         labelg1 = r"P2: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (P2,c)}\right|/\left|\rho_{\rm RR}^{\rm (P2,c)}\right|$" + "\n" + r"$\gamma = z - b (z-1)$"
-        lineg1, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='2.',
+        lineg1, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='1.1',
                 color=COLOR_MODIF, linestyle='dashed')
-        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='2.',
+        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='1.1',
                 color=COLOR_CONT, linestyle='dashed')
 
         ########################
@@ -561,16 +564,16 @@ def fig_compare_discrete_modif():
         axes[0].grid()
         axes[0].set_xlim(left=0.9e-2, right=.7)
         #axes[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see axes[1].set_xlim
-        Title = r'Relative error of $\rho_{\rm RR}^{\rm (\cdot,c)}$'
+        Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
         #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
         axes[0].set_ylabel(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
         if r == 0:
-            axes[0].legend((lineg2, ), (labelg2, ))
+            #axes[0].legend((lineg2, ), (labelg2, ))
             axes[0].set_title(Title)
             #print(axes[0].ticks)
             axes[0].set_xticklabels([])
         else:
-            axes[0].legend((lineg1, linebe), (labelg1, labelbe))
+            #axes[0].legend((lineg1, linebe), (labelg1, labelbe))
             axes[0].set_xlabel(r'$\omega\Delta t$')
 
         #########################################################
@@ -622,14 +625,35 @@ def fig_compare_discrete_modif():
         axes[1].grid()
         axes[1].set_xlim(left=2e-2, right=3)
         axes[1].set_ylim(top=0.03, bottom=0.)
-        Title = r'Relative error of $\rho_{\rm RR}^{\rm (c, \cdot)}$'
+        Title = r'$d\rho_{\rm RR}^{\rm (c, \cdot)}$'
         #x_legend= r'$\left| \rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c, Discrete)}\right|/\left|\rho_{\rm RR}^{\rm (c, Discrete)}\right| $'
         if r == 0:
-            axes[1].legend()
+            #axes[1].legend()
             axes[1].set_title(Title)
             axes[1].set_xticklabels([])
         else:
             axes[1].set_xlabel(r'$\omega\Delta t$')
+
+
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    custom_lines = [
+                    Line2D([0], [0], lw=.9, color='black'),
+                    Line2D([0], [0], linestyle='dashed', lw=.9, color='black'),
+                    Line2D([0], [0], linestyle='dotted', lw=1.5, color='black'),
+                    Patch(facecolor=COLOR_MODIF),
+                    Patch(facecolor=COLOR_CONT),
+                    Line2D([0], [0], lw=2., color='black'),
+                    Line2D([0], [0], linestyle='dashed', lw=2., color='black'),
+                    ]
+
+    custom_labels = [
+            r"$d\rho^{\rm (\mathbf{P2}, c)}$" + ", " + r"$\gamma = z - \beta (z-1)$" + r"$- \beta(\beta-1)^2(z-1)^2$",
+            r"$d\rho^{\rm (\mathbf{P2}, c)}$" + ", " + r"$\gamma = z - \beta (z-1)$",
+            r"$d\rho^{\rm (\mathbf{BE}, c)}$",
+            r'$d^\mathbf{m} \rho^{\rm (\cdot, \cdot)}$', r'$d^\mathbf{c} \rho^{\rm (\cdot, \cdot)}$',
+            r"$d\rho^{\rm (c, \mathbf{FV})}$", r"$d\rho^{\rm (c, \mathbf{FD})}$",]
+    fig.legend(custom_lines, custom_labels, loc=(0.04, 0.), ncol=3)
 
     show_or_save("fig_compare_discrete_modif")
 
@@ -642,7 +666,6 @@ def fig_optimized_rho_BE_FV():
     space_dis = FourthOrderFV
     setting = Builder()
     setting.R = .0
-    #setting.DT /= 10
     N = 3000
     axis_freq = get_discrete_freq(N, setting.DT)
     def convergence_factor(lam):
@@ -887,7 +910,7 @@ def fig_rootsManfrediFD():
     plt.legend()
     show_or_save("fig_rootsManfrediFD")
 
-def wAndRhoPadeRR(builder):
+def wAndRhoPadeRR(builder, gamma=None):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
@@ -901,9 +924,10 @@ def wAndRhoPadeRR(builder):
         z = np.exp(-1j*w*dt)
         return z, (z - 1)/(z*dt)
 
-    def gamma(w):
-        z, _ = get_z_s(w)
-        return z - b*(z-1) - b/2 * (z-1)**2
+    if gamma is None:
+        def gamma(w):
+            z, _ = get_z_s(w)
+            return z - b*(z-1) - b/2 * (z-1)**2
 
     def square_root_interior(w):
         z, s = get_z_s(w)
@@ -947,12 +971,56 @@ def wAndRhoPadeRR(builder):
 
 def fig_rhoDNPade():
     import matplotlib.pyplot as plt
-    w, varrho = wAndRhoPadeRR()
-    plt.semilogx(w*DEFAULT.DT, np.abs(varrho), label="$\\rho_{DN}^{Pade, c}$")
-    plt.title("Convergence rate of Pade scheme") 
-    plt.grid()
-    plt.legend()
-    show_or_save("fig_gammaTilde")
+    fig, axes = plt.subplots(1, 1, sharex=False, sharey=True,figsize=(7,3))
+    ax   = axes
+    wmax = np.pi
+    wmin = wmax / 200
+    ax.set_xlim(wmin,wmax)
+    ax.set_ylim(0.5,1.0)
+    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+    ax.set_xlabel (r'$\omega$', fontsize=18)
+    ax.set_xticklabels(ax.get_xticks(),fontsize=12)
+#    ax.set_yticklabels(ax.get_yticks(),fontsize=12)  
+    ax.set_title(r"$\rho_{\rm DN}^{\rm (P2,c)}$",fontsize=16) 
+
+
+    builder = Builder()
+    builder.R = 0.
+    builder.D1 = .5
+
+    b = 1+1/np.sqrt(2)
+
+    def get_z_s(w):
+        z = np.exp(-1j*w*builder.DT)
+        return z, (z - 1)/(z*builder.DT)
+
+    def gamma_highTilde(w):
+        z, _ = get_z_s(w)
+        return z - b*(z-1)
+
+    def gamma_lowTilde(w):
+        z, _ = get_z_s(w)
+        return z - b*(z-1) - b * (b-1)**2 * (z-1)**2
+
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
+    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')   
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
+
+    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta(\beta-1)^2 (z-1)^2$')       
+
+    builder.R = 0.1
+
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
+    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='solid' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')   
+
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
+    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')    
+
+    rho_continuous = np.sqrt(builder.D1/builder.D2) * np.ones_like(w)
+    ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2.,color='r', linestyle='dashed' ,label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
+    ax.legend(loc=2,prop={'size':9},ncol=1,handlelength=2)
+
+    show_or_save("fig_rhoDNPade")
 
 def fig_gammaTilde():
     import matplotlib.pyplot as plt

@@ -297,14 +297,18 @@ class QuadSplinesFV(Discretization):
 
         # The computation is then different because the boundary condition is different (and we are in the finite domain case)
         if j == 1:
-            lambda_moins, lambda_plus = lambda_plus, lambda_moins # we invert the l- and l+ to have |l-|<1
-            # We added a minus in front of h/6D ?
             xi = (-h/(6*D) * (s+c) + 1/h + a/(2*D)) / (h/(3*D) * (s+c) + 1/h - a/(2*D))
+            # domain of finite sizes:
             eta1_dir = (-(1/h + a/(2*D))/(s+c) - h/(3*D)) \
                     * (1 - (lambda_moins - xi) / (lambda_plus - xi) * (lambda_moins / lambda_plus)**(M-1)) \
                     + ((1/h - a/(2*D))/(s+c) - h/(6*D)) \
                     * (lambda_moins - lambda_plus* (lambda_moins - xi) / (lambda_plus - xi) *(lambda_moins / lambda_plus)**M)
             eta1_neu = 1 + (lambda_moins-xi) / (lambda_plus - xi) *(lambda_moins / lambda_plus) ** (M - 1)
+            # infinite domains:
+            # eta1_dir = (-(1/h + a/(2*D))/(s+c) - h/(3*D)) \
+            #         + ((1/h - a/(2*D))/(s+c) - h/(6*D)) * lambda_moins
+
+            # eta1_neu = 1
             return eta1_dir, eta1_neu
         elif j == 2:
             eta2_dir = (-(1/h + a/(2*D))/(s+c) - h/(3*D)) \
@@ -312,6 +316,10 @@ class QuadSplinesFV(Discretization):
                     + ((1/h - a/(2*D))/(s+c) - h/(6*D)) \
                     * (lambda_moins - lambda_plus*(lambda_moins / lambda_plus)**M)
             eta2_neu = 1 + (lambda_moins / lambda_plus) ** M
+            # infinite domains:
+            # eta2_dir = (-(1/h + a/(2*D))/(s+c) - h/(3*D)) \
+            #         + ((1/h - a/(2*D))/(s+c) - h/(6*D)) * lambda_moins
+            # eta2_neu = 1
             return eta2_dir, eta2_neu
 
 
