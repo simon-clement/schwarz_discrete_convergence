@@ -493,6 +493,8 @@ class Discretization:
         #########################################################
         rho_numerator = (self.LAMBDA_2*eta1_dir + eta1_neu) * (self.LAMBDA_1*eta2_dir + eta2_neu)
         rho_denominator = (self.LAMBDA_2*eta2_dir + eta2_neu) * (self.LAMBDA_1*eta1_dir + eta1_neu)
+        h1, h2 = self.get_h()
+        D1, D2 = self.get_D()
         return np.abs(rho_numerator / rho_denominator)
 
     def eta_dirneu(self, j, lam_m, lam_p, s=None):

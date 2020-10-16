@@ -5,7 +5,7 @@ import numpy as np
 from numpy import cos, sin, pi
 from numpy.random import random
 import matplotlib.pyplot as plt
-from discretizations.time.Manfredi import Manfredi
+from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
 """
     Test function of the module.
     Tests the finite volumes space scheme, with all the time schemes.
@@ -32,16 +32,16 @@ def test_with_all_space_schemes():
         print("Time order with ThetaSchema FV4:", \
                 tests.test_finite_volumes.test_any_time_scheme_domain1(ThetaMethod,
                 test_case, first_M, )/2)
-        print("Time order Manfredi FV4:", \
-                tests.test_finite_volumes.test_any_time_scheme_domain1(Manfredi,
+        print("Time order PadeLowTildeGamma FV4:", \
+                tests.test_finite_volumes.test_any_time_scheme_domain1(PadeLowTildeGamma,
                 test_case, first_M )/2)
 
         """
         print("Order with FV4:", \
-            tests.test_finite_volumes.test_any_time_scheme_domain1(time_scheme=Manfredi,
+            tests.test_finite_volumes.test_any_time_scheme_domain1(time_scheme=PadeLowTildeGamma,
                 first_M=first_M, u_ubar_flux_fbar=test_case)/2)
         print("Order with FV2:", \
-            tests.test_finite_volumes_spline2.test_any_time_scheme_domain1(time_scheme=Manfredi,
+            tests.test_finite_volumes_spline2.test_any_time_scheme_domain1(time_scheme=PadeLowTildeGamma,
                 first_M=first_M, u_ubar_flux_fbar=test_case)/2)
         """
 
@@ -62,7 +62,7 @@ def test_like_Manfredi_paper_FV():
 
     returns the order in space (i.e. order in time / 2 because courant parabolic is fixed)
     """
-    from discretizations.time.Manfredi import Manfredi
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.RK4 import RK4
 
@@ -105,7 +105,7 @@ def test_like_Manfredi_paper_FV():
     ret = []
     # Loop to compare different settings:
     for scheme, name in zip((builder.build(ThetaMethod, space_scheme),
-        builder.build(Manfredi, space_scheme)), ("ThetaMethod", "Manfredi")):
+        builder.build(PadeLowTildeGamma, space_scheme)), ("ThetaMethod", "PadeLowTildeGamma")):
         dt = 1/M**2*Courant/D
 
         scheme.DT = dt
@@ -190,7 +190,7 @@ def test_like_Manfredi_paper_FD():
 
     returns the order in space (i.e. order in time / 2 because courant parabolic is fixed)
     """
-    from discretizations.time.Manfredi import Manfredi
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
     from discretizations.time.theta_method import ThetaMethod
 
     from figures import Builder
@@ -228,8 +228,8 @@ def test_like_Manfredi_paper_FD():
 
     ret = []
     # Loop to compare different settings:
-    for scheme, name in zip((builder.build(Manfredi, space_scheme),
-        builder.build(ThetaMethod, space_scheme)), ("Manfredi", "C-N")):
+    for scheme, name in zip((builder.build(PadeLowTildeGamma, space_scheme),
+        builder.build(ThetaMethod, space_scheme)), ("PadeLowTildeGamma", "C-N")):
         dt = 1/M**2*Courant/D
 
         scheme.DT = dt

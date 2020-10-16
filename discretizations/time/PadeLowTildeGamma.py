@@ -15,7 +15,7 @@ from utils_linalg import multiply
 from utils_linalg import add_banded
 
 
-class Manfredi(Discretization):
+class PadeLowTildeGamma(Discretization):
 
     def __init__(self, *args, **kwargs):
         """
@@ -128,7 +128,7 @@ class Manfredi(Discretization):
         return self.projection_result(result=result, upper_domain=upper_domain,
                 additional=additional, partial_t_result0=partial_t_result0, f=f, result_explicit=result)
 
-    # s_time_discrete is not a variable but an operator for Manfredi scheme
+    # s_time_discrete is not a variable but an operator for Pade scheme
     def s_time_modif(self, w, order):
         s = w * 1j
         if order > 1:

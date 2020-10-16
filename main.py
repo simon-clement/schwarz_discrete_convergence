@@ -128,11 +128,11 @@ def main():
         # example of use : ./main.py test
         elif sys.argv[1] == "test":
             if len(sys.argv) > 2:
-                if sys.argv[2] == "Manfredi": # ./main.py debug Manfredi
+                if sys.argv[2] == "PadeLowTildeGamma": # ./main.py debug PadeLowTildeGamma
                     from tests.test_Manfredi import launch_all_tests
                     launch_all_tests()
 
-                if sys.argv[2] == "Manfredi_rhs": # ./main.py debug Manfredi
+                if sys.argv[2] == "PadeLowTildeGamma_rhs": # ./main.py debug PadeLowTildeGamma
                     from tests.test_Manfredi_rhs_c import launch_all_tests
                     launch_all_tests()
 
@@ -170,7 +170,7 @@ def main():
         elif sys.argv[1] == "debug":
             """ You can now test any function here, without impacting the program."""
             if len(sys.argv) > 2:
-                if sys.argv[2] == "Manfredi": # ./main.py debug Manfredi
+                if sys.argv[2] == "PadeLowTildeGamma": # ./main.py debug PadeLowTildeGamma
                     from tests.test_Manfredi import launch_all_tests
                     launch_all_tests()
 

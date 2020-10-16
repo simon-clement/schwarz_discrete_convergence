@@ -30,7 +30,7 @@ def test_integrate_one_step(space_scheme_FD, CORRECTIVE_TERM=False):
     from discretizations.time.RK2 import RK2
     from discretizations.time.RK4 import RK4
     from discretizations.time.theta_method import ThetaMethod
-    from discretizations.time.Manfredi import Manfredi
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
     def verify_order(time_scheme, function, order, **kwargs): # /!\ give order in space !
         try:
             experimental_order = test_any_time_scheme_domain1(time_scheme, space_scheme_FD, function,  **kwargs)
@@ -45,11 +45,11 @@ def test_integrate_one_step(space_scheme_FD, CORRECTIVE_TERM=False):
             raise
 
     print("MANFREDI SCHEME:")
-    # Manfredi is a particular scheme. It makes an order 1 error when using a rhs
-    verify_order(Manfredi, intricated_spacetime, 2)
-    verify_order(Manfredi, linear_time, 2)
-    verify_order(Manfredi, cosinus_time, 2)
-    verify_order(Manfredi, exp_space_quad_time, 2)
+    # PadeLowTildeGamma is a particular scheme. It makes an order 1 error when using a rhs
+    verify_order(PadeLowTildeGamma, intricated_spacetime, 2)
+    verify_order(PadeLowTildeGamma, linear_time, 2)
+    verify_order(PadeLowTildeGamma, cosinus_time, 2)
+    verify_order(PadeLowTildeGamma, exp_space_quad_time, 2)
 
     print("BACKWARD EULER SCHEME:")
     # Backward Euler is order 1 in time, so 2 in space (constant Courant parabolic number)

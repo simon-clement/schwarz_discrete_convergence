@@ -26,7 +26,7 @@ def test_integrate_one_step():
     from discretizations.time.RK2 import RK2
     from discretizations.time.RK4 import RK4
     from discretizations.time.theta_method import ThetaMethod
-    from discretizations.time.Manfredi import Manfredi
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
     def verify_order(time_scheme, function, order, **kwargs): # /!\ give order in space !
         try:
             experimental_order = test_any_time_scheme_domain1(time_scheme, function,  **kwargs)
@@ -47,11 +47,11 @@ def test_integrate_one_step():
     verify_order(BackwardEuler, exp_space_quad_time, 2)
 
     print("MANFREDI SCHEME:")
-    # Manfredi is a particular scheme. It makes an order 1 error when using a rhs
-    verify_order(Manfredi, intricated_spacetime, 2)
-    verify_order(Manfredi, linear_time, 4) # It should be 4 but it is 2, probably because of error in forcing
-    verify_order(Manfredi, cosinus_time, 2)
-    verify_order(Manfredi, exp_space_quad_time, 2)
+    # PadeLowTildeGamma is a particular scheme. It makes an order 1 error when using a rhs
+    verify_order(PadeLowTildeGamma, intricated_spacetime, 2)
+    verify_order(PadeLowTildeGamma, linear_time, 4) # It should be 4 but it is 2, probably because of error in forcing
+    verify_order(PadeLowTildeGamma, cosinus_time, 2)
+    verify_order(PadeLowTildeGamma, exp_space_quad_time, 2)
 
     # the 2nd order time schemes gives 4rth order in space error.
 

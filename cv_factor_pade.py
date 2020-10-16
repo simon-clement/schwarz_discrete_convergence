@@ -164,13 +164,13 @@ def lambda_gamma_Pade_FD(builder, w, gamma=default_gamma):
     gamma_t2 = (mu_2FD - gamma(z))/(mu_2FD - mu_4FD)
     return lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2
 
-def rho_Pade_FD_corr0(builder, w):
+def rho_Pade_FD_corr0(builder, w, gamma=default_gamma):
     L1 = builder.LAMBDA_1
     L2 = builder.LAMBDA_2
     nu_1 = builder.D1
     nu_2 = builder.D2
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-    lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w)
+    lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w, gamma=gamma)
 
     # naive interface:
     eta_22 = nu_2 * (lambda_2-1)/h
@@ -186,13 +186,13 @@ def rho_Pade_FD_corr0(builder, w):
 
     return np.abs(varrho)
 
-def rho_Pade_FD_extra(builder, w):
+def rho_Pade_FD_extra(builder, w, gamma=default_gamma):
     L1 = builder.LAMBDA_1
     L2 = builder.LAMBDA_2
     nu_1 = builder.D1
     nu_2 = builder.D2
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-    lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w)
+    lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w, gamma=gamma)
 
     # extrapolation:
     eta_11 = -nu_1/h * (lambda_1 - 1) * (3/2 - lambda_1/2)

@@ -12,7 +12,7 @@ import functools
 import discretizations
 from simulator import frequency_simulation
 
-REAL_FIG = True
+REAL_FIG = False
 
 
 def fig_optiRates():
@@ -34,11 +34,11 @@ def fig_optiRates():
     #####################################
     # PADE
     ####################################
-    from discretizations.time.Manfredi import Manfredi
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
     from discretizations.space.FD_extra import FiniteDifferencesExtra
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
 
-    time_dis, space_dis = Manfredi, FiniteDifferencesExtra
+    time_dis, space_dis = PadeLowTildeGamma, FiniteDifferencesExtra
 
     def rho_c_FD_extra(builder, axis_freq):
         dis = builder.build(time_dis, space_dis)
@@ -144,12 +144,21 @@ def fig_optiRates():
     show_or_save("fig_optiRates")
 
 def fig_optiRatesPade():
-    fig, axes = plt.subplots(1, 1, figsize=[6.4*1, 4.8*1])
-    from discretizations.time.Manfredi import Manfredi
+    fig, axes = plt.subplots(1, 2, figsize=[6.4*2, 4.8*1], sharey=True)
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+    from discretizations.time.PadeSimpleGamma import PadeSimpleGamma
     from discretizations.space.FD_extra import FiniteDifferencesExtra
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
 
-    time_dis, space_dis = Manfredi, FiniteDifferencesExtra
+    time_dis, space_dis = PadeLowTildeGamma, FiniteDifferencesExtra
+
+    def lowTilde_gamma(z):
+        b = 1+1/np.sqrt(2)
+        return z - b*(z-1) - b/2 * (z-1)**2
+
+    def simple_gamma(z):
+        b = 1+1/np.sqrt(2)
+        return z - b*(z-1)
 
     def rho_c_FD_extra(builder, axis_freq):
         dis = builder.build(time_dis, space_dis)
@@ -163,12 +172,20 @@ def fig_optiRatesPade():
                     order_time=2, order_operators=float('inf'),
                     order_equations=float('inf'))
 
+    def rho_Pade_FD_lowTilde(builder, axis_freq):
+        return rho_Pade_FD_extra(builder, axis_freq, gamma=lowTilde_gamma)
+
+    def rho_Pade_FD_simple(builder, axis_freq):
+        return rho_Pade_FD_extra(builder, axis_freq, gamma=simple_gamma)
+
     caracs = {}
     caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
     caracs["modified"] = {'color':'#0000FF', 'width':1., 'nb_+':12}
     caracs["discrete"] = {'color':'#000000', 'width':.9, 'nb_+':15}
 
-    optiRatesGeneral(axes, rho_c_FD_extra, rho_m_FD, rho_Pade_FD_extra, time_dis, space_dis, "Pade", caracs=caracs)
+    optiRatesGeneral(axes[0], rho_c_FD_extra, rho_m_FD, rho_Pade_FD_lowTilde, PadeLowTildeGamma, space_dis, "PadeLowTildeGamma", caracs=caracs)
+
+    optiRatesGeneral(axes[1], rho_c_FD_extra, rho_m_FD, rho_Pade_FD_simple, PadeSimpleGamma, space_dis, "PadeSimpleGamma", caracs=caracs)
 
     show_or_save("fig_optiRatesPade")
 
@@ -264,7 +281,7 @@ def fig_optiRatesFV():
     optiRatesGeneral(axes, rho_BE_c, rho_m_FV, rho_BE_FV, time_dis, space_dis, "FV", caracs=caracs)
     show_or_save("fig_OptiRatesFV")
 
-def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_dis, space_dis, name_method="Unknown discretization", caracs={}):
+def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_dis, space_dis, name_method="Unknown discretization", caracs={}, **args_for_discretization):
     """
         Creates a figure comparing analysis methods for a discretization.
         the functions "rate" should be:
@@ -280,7 +297,7 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
     setting.M2 = 200
     setting.D1 = .5
     setting.D2 = 1.
-    setting.R = 1e-3
+    setting.R = 1e-2 # 1e-3
     setting.DT = 1.
     N = 30000
     axis_freq = get_discrete_freq(N, setting.DT)
@@ -301,7 +318,7 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
 
     for discrete_factor, names in zip((continuous_rate, modified_rate, discrete_rate), caracs):
         if names == "modified":
-            freq_opti = get_discrete_freq(N//10, setting.DT*10.)
+            freq_opti = axis_freq # get_discrete_freq(N//10, setting.DT*10.)
         else:
             freq_opti = axis_freq
 
@@ -357,7 +374,7 @@ def fig_validatePadeAnalysisFDRR():
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.RK2 import RK2
     from discretizations.time.RK4 import RK4
-    from discretizations.time.Manfredi import Manfredi
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
     from cv_factor_pade import rho_Pade_FD_corr0
     from cv_factor_pade import rho_Pade_FD_extra
     from cv_factor_pade import rho_Pade_c
@@ -375,7 +392,7 @@ def fig_validatePadeAnalysisFDRR():
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
     print("Courant parabolic number :", builder.D1*dt/h**2)
 
-    time_scheme = Manfredi
+    time_scheme = PadeLowTildeGamma
         
     discretizations = {}
 
@@ -476,7 +493,7 @@ def fig_optimized_rho():
     show_or_save("fig_optimized_rho")
 
 def fig_compare_discrete_modif():
-    from discretizations.time.Manfredi import Manfredi as Pade
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma as Pade
     from discretizations.time.backward_euler import BackwardEuler as BE
     from discretizations.space.FD_naive import FiniteDifferencesNaive as FD
     from discretizations.space.FD_extra import FiniteDifferencesExtra as FD
@@ -657,6 +674,180 @@ def fig_compare_discrete_modif():
 
     show_or_save("fig_compare_discrete_modif")
 
+def fig_operators_FD():
+    operators_disc_cont(corrective_term=False)
+    show_or_save("fig_operators_FD")
+
+def fig_operators_FD_corr():
+    operators_disc_cont(corrective_term=True)
+    show_or_save("fig_operators_FD_corr")
+
+def operators_disc_cont(corrective_term=True):
+    from discretizations.time.backward_euler import BackwardEuler as BE
+    from discretizations.space.FD_naive import FiniteDifferencesNaive as FD_naive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr as FD_corr
+    fig, axes = plt.subplots(1, 2, figsize=[6.4, 2.4], sharex=False, sharey=True)
+    axes[0].set_ylabel(r'$\widehat{\rho}$')
+    plt.subplots_adjust(left=.11, bottom=.24, right=.99, top=.85, wspace=0.19, hspace=0.15)
+    COLOR_CONT = '#FF0000FF'
+    COLOR_CONT_FD = '#555555FF'
+    COLOR_DIS = '#000000FF'
+
+    for r, ax in ((0, axes[0]), (1., axes[1])):
+        setting = Builder()
+        setting.R = r
+        ax.set_xlabel(r'$\omega\Delta t$')
+
+        setting.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
+        setting.LAMBDA_2 = 0.
+        setting.M1 = 200
+        setting.M2 = 200
+        setting.D1 = .5
+        setting.D2 = 1.
+        dt = setting.DT/100
+        # N = 30
+        # axis_freq = get_discrete_freq(N, setting.DT)
+        axis_freq = np.exp(np.linspace(-10, np.log(pi), 10000))/dt
+
+        #########################################################
+        # LEFT CANVA: TIME COMPARISON
+        #########################################################
+
+        if corrective_term:
+            space_dis = FD_corr
+        else:
+            space_dis = FD_naive
+        dis = setting.build(BE, space_dis)
+
+        cont_operators = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=0, order_operators=0) #continuous in time
+        discrete_operators = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=0, order_operators=float('inf')) # discrete
+
+
+        ax.semilogx(axis_freq*dt, cont_operators,
+                color=COLOR_CONT, linewidth="1.8", label="Continuous")
+        ax.semilogx(axis_freq*dt, discrete_operators,
+                color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
+
+        ax.grid()
+        #ax[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see ax[1].set_xlim
+        ax.set_title(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
+        Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
+        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
+        ax.set_ylabel(r'$\widehat{\rho}$')
+        ax.set_xlabel(r'$\omega \Delta t$')
+    axes[0].legend()
+
+def fig_FD_disc_modif():
+    from discretizations.time.backward_euler import BackwardEuler as BE
+    from discretizations.space.FD_naive import FiniteDifferencesNaive as FD_naive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr as FD_corr
+    fig, axes = plt.subplots(1, 2, figsize=[6.4, 2.4], sharex=False, sharey=True)
+    plt.subplots_adjust(left=.11, bottom=.24, right=.99, top=.85, wspace=0.19, hspace=0.15)
+    COLOR_CONT = '#FF0000FF'
+    COLOR_CONT_FD = '#555555FF'
+    COLOR_DIS = '#000000FF'
+
+    for r, ax in ((0, axes[0]), (1., axes[1])):
+        setting = Builder()
+        setting.R = r
+
+        ax.set_ylim(0.45,1.0)
+        setting.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
+        setting.LAMBDA_2 = 0.
+        setting.M1 = 200
+        setting.M2 = 200
+        setting.D1 = .5
+        setting.D2 = 1.
+        dt = setting.DT/100
+        # N = 30
+        # axis_freq = get_discrete_freq(N, setting.DT)
+        axis_freq = np.exp(np.linspace(-10, np.log(pi), 10000))/dt
+
+        #########################################################
+        # LEFT CANVA: TIME COMPARISON
+        #########################################################
+
+        dis = setting.build(BE, FD_naive)
+
+        cont_operators = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=0, order_operators=0) #continuous in time
+        modif_operators = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=2, order_operators=0) #continuous in time
+        discrete_operators = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=float('inf'), order_operators=0)
+
+
+        ax.semilogx(axis_freq*dt, cont_operators,
+                color=COLOR_CONT, linewidth="1.8", label="Continuous")
+        ax.semilogx(axis_freq*dt, discrete_operators,
+                color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
+        ax.semilogx(axis_freq*dt, modif_operators,
+                color=COLOR_CONT_FD, linewidth="1.8", label="Modified Equations")
+
+        ax.grid()
+        #ax[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see ax[1].set_xlim
+        ax.set_title(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
+        Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
+        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
+        ax.set_ylabel(r'$\widehat{\rho}$')
+        ax.set_xlabel(r'$\omega \Delta t$')
+    axes[0].legend()
+    show_or_save("fig_FD_disc_modif")
+
+def fig_FD_disc_cont():
+    from discretizations.time.backward_euler import BackwardEuler as BE
+    from discretizations.space.FD_naive import FiniteDifferencesNaive as FD_naive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr as FD_corr
+    fig, axes = plt.subplots(1, 2, figsize=[6.4, 2.4], sharex=False, sharey=True)
+    plt.subplots_adjust(left=.11, bottom=.24, right=.99, top=.85, wspace=0.19, hspace=0.15)
+    COLOR_CONT = '#FF0000FF'
+    COLOR_CONT_FD = '#555555FF'
+    COLOR_DIS = '#000000FF'
+
+    for r, ax in ((0, axes[0]), (1., axes[1])):
+        setting = Builder()
+        setting.R = r
+
+        setting.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
+        setting.LAMBDA_2 = 0.
+        setting.M1 = 200
+        setting.M2 = 200
+        setting.D1 = .5
+        setting.D2 = 1.
+        dt = setting.DT/100
+        # N = 30
+        # axis_freq = get_discrete_freq(N, setting.DT)
+        axis_freq = np.exp(np.linspace(-10, np.log(pi), 10000))/dt
+
+        #########################################################
+        # LEFT CANVA: TIME COMPARISON
+        #########################################################
+
+        dis = setting.build(BE, FD_naive)
+
+        cont_operators = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=0, order_operators=0) #continuous in time
+        discrete_operators = dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_equations=float('inf'), order_operators=0)
+
+
+        ax.semilogx(axis_freq*dt, cont_operators,
+                color=COLOR_CONT, linewidth="1.8", label="Continuous")
+        ax.semilogx(axis_freq*dt, discrete_operators,
+                color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
+
+        ax.grid()
+        #ax[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see ax[1].set_xlim
+        ax.set_title(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
+        Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
+        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
+        ax.set_ylabel(r'$\widehat{\rho}$')
+        ax.set_xlabel(r'$\omega \Delta t$')
+    axes[0].legend()
+    show_or_save("fig_FD_disc_cont")
+
 def fig_optimized_rho_BE_FV():
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
     from discretizations.time.backward_euler import BackwardEuler
@@ -719,7 +910,7 @@ def fig_compareSettingsDirichletNeumann():
     from discretizations.time.theta_method import ThetaMethod
     from discretizations.time.RK2 import RK2
     from discretizations.time.RK4 import RK4
-    from discretizations.time.Manfredi import Manfredi
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
     # parameters of the schemes are given to the builder:
     builder = Builder()
     builder.LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
@@ -733,7 +924,7 @@ def fig_compareSettingsDirichletNeumann():
 
 
     discretizations = {}
-    time_scheme = Manfredi
+    time_scheme = PadeLowTildeGamma
 
     discretizations["FV2"] = (time_scheme, QuadSplinesFV)
     discretizations["FV4"] = (time_scheme, FourthOrderFV)
@@ -790,7 +981,7 @@ def fig_compareSettingsDirichletNeumann():
     discretizations["ThetaMethod"] = (ThetaMethod, space_scheme)
     # discretizations["RK2"] = (RK2, space_scheme)
     # discretizations["RK4"] = (RK4, space_scheme)
-    discretizations["Manfredi"] = (Manfredi, space_scheme)
+    discretizations["PadeLowTildeGamma"] = (PadeLowTildeGamma, space_scheme)
 
     kwargs_label_simu = {'label':"Validation by simulation"}
 
@@ -969,6 +1160,115 @@ def wAndRhoPadeRR(builder, gamma=None):
 
     return w, np.abs(varrho)
 
+def fig_rhoDNPadeModif():
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(1, 1, figsize=[6.4, 2.4], sharex=False, sharey=True)
+    plt.subplots_adjust(left=.11, bottom=.24, right=.99, top=.85, wspace=0.19, hspace=0.15)
+    ax   = axes
+    wmax = np.pi
+    wmin = wmax / 200
+    ax.set_xlim(wmin,wmax)
+    ax.set_ylim(0.5,1.0)
+    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+    ax.set_xticklabels(ax.get_xticks(),fontsize=12)
+#    ax.set_yticklabels(ax.get_yticks(),fontsize=12)  
+    ax.set_title(r'$r=' + str(0) + r'\;{\rm s}^{-1}$')
+
+
+    builder = Builder()
+    builder.R = 0.
+    builder.D1 = .5
+
+    b = 1+1/np.sqrt(2)
+
+    def get_z_s(w):
+        z = np.exp(-1j*w*builder.DT)
+        return z, (z - 1)/(z*builder.DT)
+
+    def gamma_highTilde(w):
+        z, _ = get_z_s(w)
+        return z - b*(z-1)
+
+    def gamma_lowTilde(w):
+        z, _ = get_z_s(w)
+        return z - b*(z-1) - b * (b-1)**2 * (z-1)**2
+
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
+    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$\gamma = z - \beta (z-1)$')   
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
+
+    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$\gamma = z - \beta (z-1) - \beta(\beta-1)^2 (z-1)^2$')       
+
+    rho_continuous = np.sqrt(builder.D1/builder.D2) * np.ones_like(w)
+
+
+    ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2., color='r', linestyle='dashed', label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
+    ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2., color='k', linestyle='dotted', label=r'Modified Equations') 
+
+    ax.legend(loc=2,prop={'size':9},ncol=1,handlelength=2)
+    ax.set_xlabel(r"$\omega \Delta t$")
+    ax.set_ylabel(r"$\widehat{\rho}$")
+
+    show_or_save("fig_rhoDNPadeModif")
+
+def fig_rhoDNPadepres():
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(1, 2, figsize=[6.4, 2.4], sharex=False, sharey=True)
+    plt.subplots_adjust(left=.11, bottom=.24, right=.99, top=.85, wspace=0.19, hspace=0.15)
+    wmax = np.pi
+    wmin = wmax / 200
+    for ax in axes:
+        ax.set_xlim(wmin,wmax)
+        ax.set_ylim(0.54,1.0)
+        ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+        ax.set_xlabel (r'$\omega\Delta t$')
+        ax.set_xticklabels(ax.get_xticks(),fontsize=12)
+    #    ax.set_yticklabels(ax.get_yticks(),fontsize=12)  
+
+    axes[0].set_title(r'$r=' + str(0.) + r'\;{\rm s}^{-1}$')
+    axes[0].set_ylabel(r'$\widehat{\rho}$')
+    axes[1].set_title(r'$r=' + str(1.) + r'\;{\rm s}^{-1}$')
+
+
+    builder = Builder()
+    builder.R = 0.
+    builder.D1 = .5
+
+    b = 1+1/np.sqrt(2)
+
+    def get_z_s(w):
+        z = np.exp(-1j*w*builder.DT)
+        return z, (z - 1)/(z*builder.DT)
+
+    def gamma_highTilde(w):
+        z, _ = get_z_s(w)
+        return z - b*(z-1)
+
+    def gamma_lowTilde(w):
+        z, _ = get_z_s(w)
+        return z - b*(z-1) - b * (b-1)**2 * (z-1)**2
+
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
+    axes[0].semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$\gamma = z - \beta (z-1)$')   
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
+
+    axes[0].semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$\gamma = z - \beta (z-1) - \beta(\beta-1)^2 (z-1)^2$')       
+
+    builder.R = 1.
+
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
+    axes[1].semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$\gamma = z - \beta (z-1)$')   
+
+    w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
+    axes[1].semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$\gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')    
+
+    rho_continuous = np.sqrt(builder.D1/builder.D2) * np.ones_like(w)
+    axes[0].semilogx(w*builder.DT, rho_continuous ,linewidth=2.,color='r', linestyle='dashed' ,label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
+    axes[1].semilogx(w*builder.DT, rho_continuous ,linewidth=2.,color='r', linestyle='dashed' ,label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
+    axes[1].legend(loc=2,prop={'size':9},ncol=1,handlelength=2)
+
+    show_or_save("fig_rhoDNPadepres")
+
 def fig_rhoDNPade():
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 1, sharex=False, sharey=True,figsize=(7,3))
@@ -1008,13 +1308,13 @@ def fig_rhoDNPade():
 
     ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta(\beta-1)^2 (z-1)^2$')       
 
-    builder.R = 0.1
+    builder.R = 1.
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
-    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='solid' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')   
+    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='solid' ,label=r'$r=1.\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')   
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
-    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')    
+    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$r=1.\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')    
 
     rho_continuous = np.sqrt(builder.D1/builder.D2) * np.ones_like(w)
     ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2.,color='r', linestyle='dashed' ,label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
@@ -1117,233 +1417,6 @@ def fig_rootsManfredi():
 
     plt.legend()
     show_or_save("fig_rootsManfredi")
-
-def old_compare_rho_discrete_semidiscrete(axes, builder, N=3000):
-    a = 1+np.sqrt(2)
-    b = 1+1/np.sqrt(2)
-    dt= builder.DT
-    r = builder.R
-    nu_1 = builder.D1
-    nu_2 = builder.D2
-    L1 = builder.LAMBDA_1
-    L2 = builder.LAMBDA_2
-
-    def get_z(w):
-        return np.exp(-1j*w*dt)
-
-    def gamma(w):
-        z, _ = get_z_s(w)
-        return z - b*(z-1) - b/2 * (z-1)**2
-
-    w = get_discrete_freq(N, dt)
-
-    ##################################
-    # CONTINUOUS CASE, discrete in time ofc
-    ##################################
-
-    def get_z_s(w):
-        z = get_z(w)
-        return z, (z - 1)/(z*dt)
-
-    def square_root_interior(w):
-        z, s = get_z_s(w)
-        return np.sqrt(1 - dt*s) * np.sqrt(1 - a**2*dt*s)
-
-    def sigma_plus(w, nu):
-        z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s +a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
-
-    def sigma_minus(w, nu):
-        z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
-
-    sigma_1 = sigma_minus(w, nu_1)
-    sigma_2 = - sigma_minus(w, nu_2)
-    sigma_3 = sigma_plus(w, nu_1)
-    sigma_4 = -sigma_plus(w, nu_2)
-
-    ##################################
-    # DISCRETE CASE, discrete in time ofc
-    ##################################
-
-    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-
-    def sqrt_g2_4f(w, nu):
-        """
-            computes the value sqrt(g^2 - 4f).
-            This value must be carefully computed because
-            it is the square root of a complex:
-            a factorization of (g^2-4f) is needed.
-        """
-        z = get_z(w)
-        # f is (q + d / z)/Gamma_b^2
-        # g is (v / z - c)/Gamma_b
-        q = (1 + r * dt * b)**2
-        d = - 1 - a*r*dt
-        v = a / b
-        c = 2*(1+r*dt*b)
-        Gamma_b = Gamma(b, nu)
-        # now we have g^2-4f = (pol_a /z^2 + pol_b / z + pol_c)/Gamma_b^2
-        pol_a = v**2
-        pol_b = - (4*d + 2*c*v)
-        pol_c = c**2 - 4*q
-
-        first_term = np.sqrt((1/z - (-pol_b + np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
-        second_term = np.sqrt((1/z - (-pol_b - np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
-
-        return np.sqrt(pol_a) * first_term * second_term / Gamma_b
-
-    def Gamma(ab, nu):
-        return ab*dt*nu/h**2
-
-    def get_f_g(w, nu):
-        z = get_z(w)
-        Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
-        return ((1+b*r*dt)**2 - (1+a*r*dt)/z) / (Gamma_b**2), \
-                (Gamma_a - 2*z*Gamma_b*(1 + r*dt*b)) / (z*Gamma_b**2)
-
-    def lambda_pp(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 + sqrt_g2_4f(w, nu)/4 + np.sqrt((-(g-4)*(sqrt_g2_4f(w, nu) -g)/2 - f))/2
-
-    def lambda_pm(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 + sqrt_g2_4f(w, nu)/4 - np.sqrt((-(g-4)*(sqrt_g2_4f(w, nu) -g)/2 - f))/2
-
-    def lambda_mp(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (sqrt_g2_4f(w, nu)/4 + np.sqrt(((g-4)*(sqrt_g2_4f(w, nu) +g)/2 - f))/2)
-
-    def lambda_mm(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (sqrt_g2_4f(w, nu)/4 - np.sqrt(((g-4)*(sqrt_g2_4f(w, nu) +g)/2 - f))/2)
-
-    lambda_1 = lambda_mp(w, nu_1) # bon en fait normalement on pourrait utiliser pp et mm
-    lambda_2 = lambda_mp(w, nu_2) # mais faudrait utiliser partout lambda_1^{-1} au lieu
-    lambda_3 = lambda_pm(w, nu_1) # de lambda_1. Ca vaut pas vraiment le coup
-    lambda_4 = lambda_pm(w, nu_2)
-
-    sigma_1FD = np.log(lambda_1) / h
-    sigma_2FD = np.log(lambda_2) / h
-    sigma_3FD = np.log(lambda_3) / h
-    sigma_4FD = np.log(lambda_4) / h
-
-    chi_1 = h**2 * (r+1j*w)/nu_1
-    chi_2 = h**2 * (r+1j*w)/nu_2
-    lambda1_c = 1+chi_1/2 - np.sqrt(chi_1*(chi_1+4))/2 # Je comprends pas pourquoi c'est pas un +
-    lambda2_c = 1+chi_2/2 - np.sqrt(chi_2*(chi_2+4))/2
-
-    """
-    axes.semilogx(w*dt, -sigma_1FD, label="$\\sigma_1$ FD")
-    axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
-    axes.semilogx(w*dt, sigma_1, "--", label="$\\sigma_1$ sd time")
-
-    axes.semilogx(w*dt, sigma_2, "--", label="$\\sigma_2$ sd time")
-    axes.semilogx(w*dt, -np.log(lambda1_c)/h, label="$\\sigma_1$ sd space")
-    axes.semilogx(w*dt, np.sqrt((1j*w + r)/nu_1), label="$\\sigma_1$ continuous")
-    axes.semilogx(w*dt, np.log(lambda2_c)/h, label="$\\sigma_2$ time continuous")
-
-    axes.semilogx(w*dt, sigma_1FD, label="$\\sigma_1$ FD")
-    axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
-
-    axes.semilogx(w*dt, sigma_3, "--", label="$\\sigma_3$ continuous")
-    axes.semilogx(w*dt, sigma_4, "--", label="$\\sigma_4$ continuous")
-    """
-    #axes.semilogx(w*dt, sigma_1FD, label="$\\sigma_1$ FD")
-    #axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
-    # axes.semilogx(w*dt, sigma_3FD, label="$\\sigma_3$ FD")
-    # axes.semilogx(w*dt, sigma_4FD, label="$\\sigma_4$ FD")
-    #axes.semilogx(w*dt, sigma_1, "k--", label="$\\sigma_1$ continuous")
-    #axes.semilogx(w*dt, sigma_2, "k--", label="$\\sigma_1$ continuous")
-    # axes.semilogx(w*dt, sigma_3, "k--", label="$\\sigma_3$ continuous")
-    # axes.semilogx(w*dt, sigma_4, "k--", label="$\\sigma_3$ continuous")
-
-    z = get_z(w)
-    mu_1 = z*(1 + r*dt*b - b*dt*nu_1*sigma_1**2)
-    mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2)
-    #z = get_z(-w)
-    mu_3 = z*(1 + r*dt*b - b*dt*nu_1*sigma_3**2)
-    mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
-
-    def mu_FD(w, nu_i, lambda_i):
-        z = get_z(w)
-        return z*(1 + r*dt*b - Gamma(b, nu_i)*(lambda_i - 2 + 1/lambda_i))
-
-    # Comparing mu in continuous and discrete cases:
-    # axes.plot(w*dt, mu_1, label="mu_1")
-    # #axes.plot(w*dt, mu_2, "k--", label="mu_2")
-    # axes.plot(w*dt, mu_3, label="mu_3")
-    # #axes.plot(w*dt, mu_4, "k--", label="mu_4")
-
-    # axes.plot(w*dt, mu_FD(w, nu_1, lambda_1), "k--", label="mu_1 FD")
-    # axes.plot(w*dt, mu_FD(w, nu_2, lambda_2), "k-.", label="mu_2 FD")
-
-    # axes.plot(w*dt, mu_FD(w, nu_1, lambda_3), label="mu_3 FD")
-    # axes.plot(w*dt, mu_FD(w, nu_2, lambda_4), label="mu_4 FD")
-
-    mu_1FD = mu_FD(w, nu_1, lambda_1)
-    mu_2FD = mu_FD(w, nu_2, lambda_2)
-    mu_3FD = mu_FD(w, nu_1, lambda_3)
-    mu_4FD = mu_FD(w, nu_2, lambda_4)
-
-    gamma_t1 = (mu_1FD - gamma(w))/(mu_1FD - mu_3FD)
-    gamma_t2 = (mu_2FD - gamma(w))/(mu_2FD - mu_4FD)
-    gamma_t = (mu_1 - gamma(w))/(mu_1 - mu_3)
-
-    # comparing \\Tilde{gamma} to gamma_t1, gamma_t2
-    # axes.loglog(w*dt, np.abs(np.imag(gamma_t1)), "k--", label="gammat1")
-    # axes.loglog(w*dt, np.abs(np.imag(gamma_t2)), "k-.", label="gammat2")
-    # axes.loglog(w*dt, np.abs(np.imag((mu_1 - gamma(w))/(mu_1 - mu_3))), label="gamma")
-    # axes.loglog(w*dt, np.abs(np.real(gamma_t1)), "k--", label="gammat1r")
-    # axes.loglog(w*dt, np.abs(np.real(gamma_t2)), "k-.", label="gammat2r")
-    # axes.loglog(w*dt, (np.real((mu_1 - gamma(w))/(mu_1 - mu_3))), label="gammar")
-
-    eta_22 = nu_2 * sigma_2
-    eta_24 = nu_2 * sigma_4
-    eta_11 = nu_1 * sigma_1
-    eta_13 = nu_1 * sigma_3
-
-    # DN: varrho_cont = ((1 - gamma_t) * eta_11 + gamma_t * eta_13) * ((1 - gamma_t) / eta_22 + gamma_t / eta_24)
-    varrho_cont = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t) + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t)) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t) + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t))
-    axes.semilogx(w*dt, np.abs((varrho_cont)), label="$\\rho^{\\rm Pade, c}$")
-
-    # naive interface:
-    eta_22 = nu_2 * (lambda_2-1)/h
-    eta_24 = nu_2 * (lambda_4-1)/h
-    eta_11 = nu_1 * (1-lambda_1)/h
-    eta_13 = nu_1 * (1-lambda_3)/h
-
-    #DN :
-    varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
-    # RR:
-    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
-
-    #DN: axes.semilogx(w*dt, np.abs(nu_1/nu_2*(lambda1_c - 1)/(lambda2_c - 1)), "--", label="rho_sd_space")
-    axes.semilogx(w*dt, np.abs((varrho)), label="$\\rho^{\\rm Pade, FD(corr=0)}$")
-
-
-    # extrapolation:
-    eta_11 = -nu_1/h * (lambda_1 - 1) * (3/2 - lambda_1/2)
-    eta_13 = -nu_1/h * (lambda_3 - 1) * (3/2 - lambda_3/2)
-    eta_22 = nu_2/h * (lambda_2 - 1) * (3/2 - lambda_2/2)
-    eta_24 = nu_2/h * (lambda_4 - 1) * (3/2 - lambda_4/2)
-    # DN: varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
-    # RR:
-    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
-
-    axes.semilogx(w*dt, np.abs((varrho)), label="$\\rho^{\\rm Pade, FD(extra)}$")
-
-    axes.set_xlim(left=0)
-    axes.legend()
 
 
 ######################################################

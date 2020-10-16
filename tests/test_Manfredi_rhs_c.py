@@ -5,7 +5,7 @@ import numpy as np
 from numpy import cos, sin, pi
 from numpy.random import random
 import matplotlib.pyplot as plt
-from discretizations.time.Manfredi import Manfredi
+from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
 """
     Test function of the module.
     Tests the finite volumes space scheme, with all the time schemes.
@@ -29,8 +29,8 @@ def test_FV4():
         print("the Padé scheme is supposed to be of order 2 in time (thus 4 in space)")
 
         print("testing", test_case.__name__)
-        print("Time order with Manfredi:", \
-        test_any_time_scheme_domain1_FV4(time_scheme=Manfredi,
+        print("Time order with PadeLowTildeGamma:", \
+        test_any_time_scheme_domain1_FV4(time_scheme=PadeLowTildeGamma,
             first_M=first_M, u_ubar_flux_fbar=test_case, first_dt=first_dt, c=c))
         # print("Time order with ThetaMethod:", \
         # test_any_time_scheme_domain1_FV4(time_scheme=ThetaMethod,
@@ -49,8 +49,8 @@ def test_FV2():
         print("the Padé scheme is supposed to be of order 2 in time (thus 4 in space)")
 
         print("testing", test_case.__name__)
-        print("Time order with Manfredi:", \
-        test_any_time_scheme_domain2_FV2(time_scheme=Manfredi,
+        print("Time order with PadeLowTildeGamma:", \
+        test_any_time_scheme_domain2_FV2(time_scheme=PadeLowTildeGamma,
             first_M=first_M, u_ubar_flux_fbar=test_case, first_dt=first_dt, c=c, adjust_M=False))
         # print("Time order with ThetaMethod:", \
         # test_any_time_scheme_domain2_FV2(time_scheme=ThetaMethod,
@@ -69,8 +69,8 @@ def test_FD():
         print("the Padé scheme is supposed to be of order 2 in time (thus 4 in space)")
 
         print("testing", test_case.__name__)
-        print("Time order with Manfredi:", \
-        test_any_time_scheme_domain1_FD(time_scheme=Manfredi,
+        print("Time order with PadeLowTildeGamma:", \
+        test_any_time_scheme_domain1_FD(time_scheme=PadeLowTildeGamma,
             space_scheme=FiniteDifferencesNaive, first_M=first_M, u_flux_f=test_case, first_dt=first_dt, c=c, adjust_M=False))
         print("Time order with BackwardEuler:", \
         test_any_time_scheme_domain1_FD(time_scheme=BackwardEuler,
