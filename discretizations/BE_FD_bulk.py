@@ -121,16 +121,18 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
     def convergence_rate(self, w):
         # _, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
         _, h2, _, _ = self.M_h_D_Lambda(upper_domain=True)
-        h = h2[0]
+        _, h1, _, _ = self.M_h_D_Lambda(upper_domain=False)
+        h2 = h2[0]
+        h1 = abs(h1[0])
 
         z = np.exp(w * 1j * self.DT)
         s = self.s_time_discrete(w)
         lam1, lam2, _, _ = self.lambda_1_2_pm(s)
         # now we have D2*(1+implicit_part) * B_k = explicit_part * D2 * B_{k-1}
         # thus D2*(1+implicit_part) * A_k = explicit_part * A_{k-1}
-        implicit_part = self.THETA*self.DT*self.ALPHA/h * (1-lam2) * z/ (z-1)
-        explicit_part = self.ALPHA/h / s * \
-                ((1 - self.THETA) * (lam2-1) + self.RHO_2_OVER_RHO_1*(lam1-1) )
+        implicit_part = self.THETA*self.DT*self.ALPHA/h2 * (1-lam2) * z/ (z-1)
+        explicit_part = self.ALPHA / s * \
+                ((1 - self.THETA) * (lam2-1)/h2 + self.RHO_2_OVER_RHO_1*(lam1-1)/h1 )
         return explicit_part/((1+implicit_part))
 
 

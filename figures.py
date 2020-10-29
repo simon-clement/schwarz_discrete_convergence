@@ -31,46 +31,46 @@ def fig_firstBulkAnalysis():
     builder = Builder()
     builder.LAMBDA_1 = 0.
     builder.LAMBDA_2 = 0.
-    builder.M1 = 200
-    builder.M2 = 200
+    builder.M1 = 100
+    builder.M2 = 100
     builder.D1 = 1.
     builder.D2 = 1.
     builder.R = 0.
     N = 300
     dt = builder.DT
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-    print("Courant parabolic number :", builder.D1*dt/h**2)
-
-    time_scheme = Manfredi
-        
-    discretizations = {}
 
     axis_freq = get_discrete_freq(N, dt)
     fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
 
-    from discretizations.BE_FD_realbulk import be_fd_bulk
-    theta=1.
+    from discretizations.BE_FD_bulk import be_fd_bulk
+    theta=0.
     ratio_density=1.
-    alpha=0.
+    alpha=1.
     D2=builder.D2
+    M1 = builder.M1
+    M2 = builder.M2
     for theta in (0., 1.):
-        for D2 in (10., .1):
+        for M1 in (1000, 10000):
+        #for M1 in (10, 100,1000):
             dis =  be_fd_bulk(alpha=alpha, theta=theta, ratio_density=ratio_density,
                     A=builder.A, C=builder.R,
                                       D1=builder.D1, D2=D2,
-                                      M1=builder.M1, M2=builder.M2,
+                                      M1=M1, M2=M2,
                                       SIZE_DOMAIN_1=builder.SIZE_DOMAIN_1,
                                       SIZE_DOMAIN_2=builder.SIZE_DOMAIN_2,
                                       LAMBDA_1=builder.LAMBDA_1,
                                       LAMBDA_2=builder.LAMBDA_2,
                                       DT=builder.DT)
-            
-            #axes.loglog(axis_freq * dt, np.abs(dis.convergence_rate(axis_freq)), label="convergence rate, $\\alpha$="+str(alpha)+", $\\theta$="+str(theta)+", $\\rho_2/\\rho_1$="+ str(ratio_density)+ ", $\\nu_2/\\nu_1=$"+str(D2))
 
-            alpha_w = memoised(frequency_simulation, dis, N=N, number_samples=50, NUMBER_IT=4, ignore_cached=False)
+            alpha_w = memoised(frequency_simulation, dis, N=N, number_samples=10, NUMBER_IT=2, ignore_cached=False)
 
-            convergence_factor = np.sqrt(np.abs(alpha_w[3] / alpha_w[1]))
-            axes.loglog(axis_freq * dt, convergence_factor, "--", label="convergence rate, $\\alpha=C_D||u_2-u_1||$, $\\theta$="+str(theta)+", $\\rho_2/\\rho_1$="+ str(ratio_density)+ ", $\\nu_2/\\nu_1=$"+str(D2))
+            convergence_factor = np.abs(alpha_w[2] / alpha_w[1])
+            axes.loglog(axis_freq * dt, convergence_factor, "--")
+                
+            axes.loglog(axis_freq * dt, np.abs(dis.convergence_rate(axis_freq)), label="convergence rate, $\\alpha$="+str(alpha)+", $\\theta$="+str(theta)+", $\\rho_2/\\rho_1$="+ str(ratio_density)+ ", $h_2/h_1=$"+str(M1/M2))
+
+            #axes.loglog(axis_freq * dt, convergence_factor, "--", label="convergence rate, $\\alpha=C_D||u_2-u_1||$, $\\theta$="+str(theta)+", $\\rho_2/\\rho_1$="+ str(ratio_density)+ ", $h_2/h_1=$"+str(M1/M2))
 
     #axes.loglog(axis_freq * dt, np.ones_like(convergence_factor), "m--", label="limit of convergence")
 
