@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import functools
 import discretizations
 from simulator import frequency_simulation
+from simulator import matrixlinear_frequency_simulation
 
 REAL_FIG = False
 
@@ -363,7 +364,6 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
     axes.set_xlim(left=1e-4, right=3.4)
     #axes.set_ylim(bottom=0)
 
-
 def fig_validatePadeAnalysisFDRR():
     from discretizations.space.FD_naive import FiniteDifferencesNaive
     from discretizations.space.FD_corr import FiniteDifferencesCorr
@@ -375,6 +375,7 @@ def fig_validatePadeAnalysisFDRR():
     from discretizations.time.RK2 import RK2
     from discretizations.time.RK4 import RK4
     from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+    from discretizations.PadeFDCorr import PadeFDCorr
     from cv_factor_pade import rho_Pade_FD_corr0
     from cv_factor_pade import rho_Pade_FD_extra
     from cv_factor_pade import rho_Pade_c
@@ -398,7 +399,7 @@ def fig_validatePadeAnalysisFDRR():
 
     #discretizations["FV2"] = (time_scheme, QuadSplinesFV)
     #discretizations["FV4"] = (time_scheme, FourthOrderFV)
-    discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
+    #discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
     # discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
 
     axis_freq = get_discrete_freq(N, dt)
@@ -408,32 +409,44 @@ def fig_validatePadeAnalysisFDRR():
     continuous = dis_cont.analytic_robin_robin_modified(w=axis_freq,
                     order_time=0, order_operators=0,
                     order_equations=0)
-    axes.semilogx(axis_freq * dt, continuous, label="$\\rho^{\\rm c, c}$")
+    #axes.semilogx(axis_freq * dt, continuous, label="$\\rho^{\\rm c, c}$")
 
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        dis = builder.build(time_dis, space_dis)
-        theorical_convergence_factor = \
-                dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=0, order_operators=float('inf'),
-                        order_equations=float('inf'))
-        axes.semilogx(axis_freq * dt, theorical_convergence_factor,
-                label="$\\rho^{\\rm c, "+name + "}$")
-
-        theorical_convergence_factor = \
-                dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=4, order_operators=float('inf'),
-                        order_equations=float('inf'))
-        axes.semilogx(axis_freq * dt, theorical_convergence_factor,
-                label="$\\rho^{\\rm modified, "+name + "}$")
+    #for name in discretizations:
+    #time_dis, space_dis = discretizations[name]
+    #dis = builder.build(time_dis, space_dis)
+    dis = builder.build_scheme(PadeFDCorr)
+    print(dis.__dict__)
 
 
-    axes.semilogx(axis_freq * dt, rho_Pade_FD_corr0(builder, axis_freq),
-            label="$\\rho^{\\rm Pade, FD(corr=0)}$")
-    axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
-            label="$\\rho^{\\rm Pade, FD(extra)}$")
-    axes.semilogx(axis_freq * dt, rho_Pade_c(builder, axis_freq),
-            label="$\\rho^{\\rm Pade, c}$")
+    theorical_convergence_factor = \
+            dis.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=float('inf'),
+                    order_equations=float('inf'))
+
+    
+    alpha_w = memoised(Builder.frequency_cv_factor_spacetime_scheme, builder,
+            PadeFDCorr, N=N, number_samples=8, NUMBER_IT=2) # WAS 7 IN CACHE
+
+    axes.semilogx(axis_freq * dt, alpha_w[2] / alpha_w[1],
+            label="observed $\\rho^{\\rm c, "+"Pade, FD Corr=1" + "}$")
+
+    axes.semilogx(axis_freq * dt, theorical_convergence_factor,
+            label="$\\rho^{\\rm c, "+"Pade, FD Corr=1" + "}$")
+
+    # theorical_convergence_factor = \
+    #         dis.analytic_robin_robin_modified(w=axis_freq,
+    #                 order_time=4, order_operators=float('inf'),
+    #                 order_equations=float('inf'))
+    # axes.semilogx(axis_freq * dt, theorical_convergence_factor,
+    #         label="$\\rho^{\\rm modified, "+ "Pade, FD Corr=1" + "}$")
+
+
+    # axes.semilogx(axis_freq * dt, rho_Pade_FD_corr0(builder, axis_freq),
+    #         label="$\\rho^{\\rm Pade, FD(corr=0)}$")
+    # axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
+    #         label="$\\rho^{\\rm Pade, FD(extra)}$")
+    # axes.semilogx(axis_freq * dt, rho_Pade_c(builder, axis_freq),
+    #         label="$\\rho^{\\rm Pade, c}$")
 
     ###########
     # for each discretization, a simulation
@@ -457,6 +470,208 @@ def fig_validatePadeAnalysisFDRR():
     axes.set_title("Validation of finite differences discrete analysis")
     axes.legend()
     show_or_save("fig_validatePadeAnalysisFDRR")
+
+def fig_validate_matrixlinear():
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.theta_method import ThetaMethod
+    from discretizations.time.RK2 import RK2
+    from discretizations.time.RK4 import RK4
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+    from discretizations.PadeFDCorr import PadeFDCorr
+    from cv_factor_pade import rho_Pade_FD_corr0
+    from cv_factor_pade import rho_Pade_FD_corr1
+    from cv_factor_pade import rho_Pade_FD_extra
+    from cv_factor_pade import rho_Pade_c
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = 1.11 # optimal parameters for corr=0, N=3000
+    builder.LAMBDA_2 = -0.76
+    builder.M1 = 200
+    builder.M2 = 200
+    builder.D1 = 1.
+    builder.D2 = 2.
+    builder.R = 0.5
+    N = 3000
+    dt = builder.DT/10
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    print("Courant parabolic number :", builder.D1*dt/h**2)
+
+    time_scheme = PadeLowTildeGamma
+        
+    discretizations = {}
+
+    #discretizations["FV2"] = (time_scheme, QuadSplinesFV)
+    #discretizations["FV4"] = (time_scheme, FourthOrderFV)
+    #discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
+    # discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
+
+    axis_freq = get_discrete_freq(N, dt)
+    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
+
+    dis_cont = builder.build(time_scheme, FiniteDifferencesNaive) # any discretisation would do 
+    continuous = dis_cont.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=0,
+                    order_equations=0)
+    #axes.semilogx(axis_freq * dt, continuous, label="$\\rho^{\\rm c, c}$")
+
+    #for name in discretizations:
+    #time_dis, space_dis = discretizations[name]
+    dis = builder.build(time_dis, space_dis)
+    #dis = builder.build_scheme(PadeFDCorr)
+
+    theorical_convergence_factor = \
+            dis.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=float('inf'),
+                    order_equations=float('inf'))
+
+    u, phi = memoised(Builder.frequency_cv_factor_spacetime_scheme, builder,
+            PadeFDCorr, ignore_cached=False, linear=False, N=N, number_samples=3, NUMBER_IT=4) # WAS 7 IN CACHE
+
+    def det_uj_over_u1(j, u, phi):
+        """
+            for j=2 or 3, returns the ration of the determinants
+            of U_k^j over U_k^1.
+            with D1, D2 the eigenvalues of the transition matrix,
+            the result of this function:
+            -for j=1, is D1+D2
+            - for j=2, is D2^2 + D1^2 + D1*D2
+        """
+        return (u[1] * phi[1+j] - phi[1] * u[1+j]) / (u[1] * phi[2] - phi[1] * u[2])
+
+    R2 = det_uj_over_u1(2, u, phi)
+    R3 = det_uj_over_u1(3, u, phi)
+    assert not np.isnan(R2).any()
+    assert not np.isnan(R3).any()
+
+    #D1 and D2 are our two eigenvalues of interest.
+    from numpy.lib import scimath
+    D1 = (R2 + scimath.sqrt(4 * R3 - 3*R2*R2))/2
+    D2 = (R2 - scimath.sqrt(4 * R3 - 3*R2*R2))/2
+
+    axes.semilogx(axis_freq * dt, np.abs(D1),
+            label="observed $\\rho^{\\rm c, "+"Pade, FD Corr=1" + "}$")
+    axes.semilogx(axis_freq * dt, np.abs(D2),
+            label="observed $\\rho^{\\rm c, "+"Pade, FD Corr=1" + "}$")
+
+    axes.semilogx(axis_freq * dt, theorical_convergence_factor,
+            label="$\\rho^{\\rm c, "+"Pade, FD Corr=1" + "}$")
+
+    # theorical_convergence_factor = \
+    #         dis.analytic_robin_robin_modified(w=axis_freq,
+    #                 order_time=4, order_operators=float('inf'),
+    #                 order_equations=float('inf'))
+    # axes.semilogx(axis_freq * dt, theorical_convergence_factor,
+    #         label="$\\rho^{\\rm modified, "+ "Pade, FD Corr=1" + "}$")
+
+
+    axes.semilogx(axis_freq * dt, rho_Pade_FD_corr1(builder, axis_freq)[0],
+            label="$\\rho^{\\rm Pade, FD(corr=1)}$")
+    axes.semilogx(axis_freq * dt, rho_Pade_FD_corr1(builder, axis_freq)[1],
+            label="$\\rho^{\\rm Pade, FD(corr=1)}$")
+    # axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
+    #         label="$\\rho^{\\rm Pade, FD(extra)}$")
+    # axes.semilogx(axis_freq * dt, rho_Pade_c(builder, axis_freq),
+    #         label="$\\rho^{\\rm Pade, c}$")
+
+    ###########
+    # for each discretization, a simulation
+    ###########
+    for name in discretizations:
+        time_dis, space_dis = discretizations[name]
+        alpha_w = memoised(Builder.frequency_cv_factor, builder,
+                time_dis, space_dis, N=N, number_samples=5, NUMBER_IT=4)
+        k = 1
+        convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+        axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
+        # k = 2
+        # convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+        # axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
+        # k = 3
+        # convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+        # axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
+
+    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes.set_ylabel("Convergence factor $\\rho$")
+    axes.set_title("Validation of finite differences discrete analysis")
+    axes.legend()
+    show_or_save("fig_validatePadeAnalysisFDRR")
+
+def fig_validate_validation():
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+    from cv_factor_pade import rho_Pade_FD_extra
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = 1.11 # optimal parameters for corr=0, N=3000
+    builder.LAMBDA_2 = -0.76
+    builder.M1 = 200
+    builder.M2 = 200
+    builder.D1 = 1.
+    builder.D2 = 2.
+    builder.R = 0.5
+    N = 30
+    dt = builder.DT
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    print("Courant parabolic number :", builder.D1*dt/h**2)
+
+    time_scheme = PadeLowTildeGamma
+        
+    discretizations = {}
+
+    axis_freq = get_discrete_freq(N, dt)
+    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
+
+    dis_cont = builder.build(time_scheme, FiniteDifferencesExtra) # any discretisation would do 
+
+    dis = builder.build(time_scheme, FiniteDifferencesExtra)
+
+    u, phi = memoised(Builder.frequency_cv_factor, builder, time_scheme, FiniteDifferencesExtra,
+            ignore_cached=True, linear=False, N=N, number_samples=3, NUMBER_IT=4) # WAS 7 IN CACHE
+
+    def det_uj_over_u1(j, u, phi):
+        """
+            for j=2 or 3, returns the ration of the determinants
+            of U_k^j over U_k^1.
+            with D1, D2 the eigenvalues of the transition matrix,
+            the result of this function:
+            -for j=1, is D1+D2
+            - for j=2, is D2^2 + D1^2 + D1*D2
+        """
+        return (u[1] * phi[1+j] - phi[1] * u[1+j]) / (u[1] * phi[2] - phi[1] * u[2])
+
+    R2 = det_uj_over_u1(2, u, phi)
+    R3 = det_uj_over_u1(3, u, phi)
+    assert not np.isnan(R2).any()
+    assert not np.isnan(R3).any()
+
+    #D1 and D2 are our two eigenvalues of interest.
+    from numpy.lib import scimath
+    D1 = (R2 + scimath.sqrt(4 * R3 - 3*R2*R2))/2
+    D2 = (R2 - scimath.sqrt(4 * R3 - 3*R2*R2))/2
+
+    axes.semilogx(axis_freq * dt, np.abs(D1),
+            label="observed first eigenvalue")
+    axes.semilogx(axis_freq * dt, np.abs(D2),
+            label="observed second eigenvalue")
+    axes.semilogx(axis_freq * dt, np.abs((dis.LAMBDA_2*u[2] + phi[2]) / (dis.LAMBDA_2*u[1] + phi[1])),
+            label="classical convergence factor")
+
+    axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
+            label="$\\rho^{\\rm Pade, FD(extra)}$")
+
+    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes.set_ylabel("Convergence factor $\\rho$")
+    axes.set_title("Validation of finite differences discrete analysis")
+    axes.legend()
+
+
+    show_or_save("fig_validate_validation")
+
 
 def fig_optimized_rho():
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
@@ -1457,6 +1672,19 @@ class Builder():
         self.LAMBDA_1 = 1e9
         self.LAMBDA_2 = 0.
 
+    def build_scheme(self, scheme):
+        """
+            To use with a space-time discretization
+        """
+        return scheme(A=self.A, C=self.R,
+                              D1=self.D1, D2=self.D2,
+                              M1=self.M1, M2=self.M2,
+                              SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,
+                              SIZE_DOMAIN_2=self.SIZE_DOMAIN_2,
+                              LAMBDA_1=self.LAMBDA_1,
+                              LAMBDA_2=self.LAMBDA_2,
+                              DT=self.DT)
+
     def build(self, time_discretization, space_discretization):
         """
             Given two abstract classes of a time and space discretization,
@@ -1475,6 +1703,13 @@ class Builder():
                               LAMBDA_1=self.LAMBDA_1,
                               LAMBDA_2=self.LAMBDA_2,
                               DT=self.DT)
+
+    def frequency_cv_factor_spacetime_scheme(self, discretization, linear=True, **kwargs):
+        discretization = self.build_scheme(discretization)
+        if linear:
+            return frequency_simulation(discretization, **kwargs)
+        else:
+            return matrixlinear_frequency_simulation(discretization, **kwargs)
 
     def frequency_cv_factor(self, time_discretization, space_discretization, **kwargs):
         discretization = self.build(time_discretization, space_discretization)

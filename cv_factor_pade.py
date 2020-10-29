@@ -208,6 +208,82 @@ def rho_Pade_FD_extra(builder, w, gamma=default_gamma):
 
     return np.abs(varrho)
 
+def rho_Pade_FD_corr1(builder, w, gamma=default_gamma):
+    L1 = builder.LAMBDA_1
+    L2 = builder.LAMBDA_2
+    nu_1 = builder.D1
+    nu_2 = builder.D2
+    dt = builder.DT
+    z = np.exp(-1j*w*dt)
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    r = builder.R
+    b = 1 + 1/np.sqrt(2)
+    a = 1 + np.sqrt(2)
+
+    lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w, gamma=gamma)
+
+    def mu_FD(nu_i, lambda_i):
+        return z*(1 + r*dt*b - b*dt*nu_i/h**2 *(lambda_i - 2 + 1/lambda_i))
+
+    mu_1 = mu_FD(nu_1, lambda_1)
+    mu_2 = mu_FD(nu_2, lambda_2)
+    mu_3 = mu_FD(nu_1, lambda_3)
+    mu_4 = mu_FD(nu_2, lambda_4)
+
+    # naive interface:
+    eta_22 = nu_2 * (lambda_2-1)/h
+    eta_24 = nu_2 * (lambda_4-1)/h
+    eta_11 = nu_1 * (1-lambda_1)/h
+    eta_13 = nu_1 * (1-lambda_3)/h
+
+    #is always the same h, and not h and -h !
+    # the sign is taken into account in the matrix inversion.
+
+    zeta_11 = nu_1 * (b*mu_1 - a) * (lambda_1 - 1) / h - h / 2 * ((mu_1 - 1) / dt + r*(b*mu_1 - a))
+    zeta_12 = nu_2 * (b*mu_2 - a) * (lambda_2 - 1) / h - h / 2 * ((mu_2 - 1) / dt + r*(b*mu_2 - a))
+    zeta_13 = nu_1 * (b*mu_3 - a) * (lambda_3 - 1) / h - h / 2 * ((mu_3 - 1) / dt + r*(b*mu_3 - a))
+    zeta_14 = nu_2 * (b*mu_4 - a) * (lambda_4 - 1) / h - h / 2 * ((mu_4 - 1) / dt + r*(b*mu_4 - a))
+
+    zeta_21 = nu_1 * (lambda_1 - 1) / h - h / 2 * ((z - mu_1) / (z*b*dt) + r)
+    zeta_22 = nu_2 * (lambda_2 - 1) / h - h / 2 * ((z - mu_2) / (z*b*dt) + r)
+    zeta_23 = nu_1 * (lambda_3 - 1) / h - h / 2 * ((z - mu_3) / (z*b*dt) + r)
+    zeta_24 = nu_2 * (lambda_4 - 1) / h - h / 2 * ((z - mu_4) / (z*b*dt) + r)
+
+
+    psi_11 = nu_1 * (b*gamma(z) - a) *(1 - lambda_1) / h + h/2 * ((gamma(z) - 1)/dt + r*(b*gamma(z) - a))
+    psi_12 = nu_2 * (b*gamma(z) - a) *(1 - lambda_2) / h + h/2 * ((gamma(z) - 1)/dt + r*(b*gamma(z) - a))
+    psi_13 = nu_1 * (b*gamma(z) - a) *(1 - lambda_3) / h + h/2 * ((gamma(z) - 1)/dt + r*(b*gamma(z) - a))
+    psi_14 = nu_2 * (b*gamma(z) - a) *(1 - lambda_4) / h + h/2 * ((gamma(z) - 1)/dt + r*(b*gamma(z) - a))
+
+    psi_21 = nu_1 * (1 - lambda_1) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
+    psi_22 = nu_2 * (1 - lambda_2) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
+    psi_23 = nu_1 * (1 - lambda_3) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
+    psi_24 = nu_2 * (1 - lambda_4) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
+
+    #warning of the axis: matrices of arrays...
+    bold_psi1 = np.array( [ [psi_11 + L1 * (b*gamma(z)-a), psi_13 + L1 * (b*gamma(z)-a)],
+            [psi_21 + L1, psi_23 + L1]])
+    # The index on bold matrix is for L1 or L2
+    bold_psi2 = np.array([
+            [-psi_12 + L2 * (b*gamma(z)-a), - psi_14 + L2 * (b*gamma(z)-a)],
+            [- psi_22 + L2, -psi_24 + L2]])
+
+
+    bold_zeta1 = np.array(
+        [[zeta_12 + L1 * (b*mu_2-a), zeta_14 + L1 * (b*mu_4-a)],
+        [zeta_22 + L1, zeta_24 + L1]])
+    bold_zeta2 = np.array(
+        [[-zeta_11 + L2 * (b*mu_1-a), -zeta_13 + L2 * (b*mu_3-a)],
+        [-zeta_21 + L2, -zeta_23 + L2]])
+
+    bold_zeta1 = bold_zeta1.transpose((2,0,1))
+    bold_zeta2 = bold_zeta2.transpose((2,0,1))
+    bold_psi1 = bold_psi1.transpose((2,0,1))
+    bold_psi2 = bold_psi2.transpose((2,0,1))
+    print(np.linalg.inv(bold_zeta2).shape)
+    # the matrix ret should be 2x2 (being 2x2 does not mean it is correct tho)
+    ret = np.linalg.inv(bold_zeta2) @ bold_psi1 @ np.linalg.inv(bold_zeta1) @ bold_psi2
+    return np.linalg.eig(ret)[0].transpose() # returns couple of two arrays of eigenvalues
 if __name__ == "__main__":
     import main
     main.main()

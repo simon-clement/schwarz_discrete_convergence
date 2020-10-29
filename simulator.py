@@ -7,6 +7,33 @@ import functools
 import numpy as np
 from numpy import pi
 
+def matrixlinear_frequency_simulation(discretization, N, number_samples=100, **kwargs):
+    """
+        Simulate and returns directly errors in frequencial domain.
+        number_samples simulations are done to have
+        an average on all possible first guess.
+        Every argument should be given in discretization.
+        N is the number of time steps.
+        kwargs can contain any argument of interface_errors, like NUMBER_IT
+    """
+    import concurrent.futures
+    from numpy.fft import fft, fftshift
+    to_map = functools.partial(interface_errors, discretization, N, **kwargs)
+    print(number_samples, "samples")
+
+    from progressbar import ProgressBar
+    progressbar = ProgressBar(maxval=number_samples)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        errors_u = []
+        errors_phi = []
+        for result in progressbar(executor.map(to_map, range(number_samples))):
+            errors_u += [result[0]]
+            errors_phi += [result[1]]
+    freq_err_u = fftshift(fft(np.array(errors_u), axis=-1), axes=(-1, ))
+    freq_err_phi = fftshift(fft(np.array(errors_phi), axis=-1), axes=(-1, ))
+    return np.std(freq_err_u, axis=0), np.std(freq_err_phi, axis=0)
+
 def frequency_simulation(discretization, N, number_samples=100, **kwargs):
     """
         Simulate and returns directly errors in frequencial domain.
@@ -27,9 +54,11 @@ def frequency_simulation(discretization, N, number_samples=100, **kwargs):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         errors = []
         for result in progressbar(executor.map(to_map, range(number_samples))):
-            errors += [result]
-    freq_err = fftshift(fft(np.array(errors), axis=-1), axes=(-1, ))
-    return np.std(freq_err, axis=0)
+            errors_u += [result[0]]
+            errors_phi += [result[1]]
+    freq_err_u = fftshift(fft(np.array(errors_u), axis=-1), axes=(-1, ))
+    freq_err_phi = fftshift(fft(np.array(errors_phi), axis=-1), axes=(-1, ))
+    return np.std(freq_err_u * discretization.LAMBDA_2 + freq_err_phi, axis=0)
 
 
 def interface_errors(discretization,
@@ -57,7 +86,9 @@ def interface_errors(discretization,
     np.random.seed(seed)
     all_u1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
     all_phi1_interface = np.concatenate(([0], 2 * (np.random.rand(time_window_len) - 0.5)))
-    ret = [discretization.LAMBDA_2 * all_u1_interface + all_phi1_interface]
+    #ret = [discretization.LAMBDA_2 * all_u1_interface + all_phi1_interface]
+    ret_u = [all_u1_interface]
+    ret_phi = [all_phi1_interface]
     # Beginning of schwarz iterations:
     from scipy.interpolate import interp1d
     for k in range(NUMBER_IT):
@@ -116,9 +147,11 @@ def interface_errors(discretization,
             all_u1_interface += [u_interface]
             all_phi1_interface += [phi_interface]
 
-        ret += [discretization.LAMBDA_2 * np.array(all_u1_interface) + np.array(all_phi1_interface)]
+        #ret += [discretization.LAMBDA_2 * np.array(all_u1_interface) + np.array(all_phi1_interface)]
+        ret_u += [np.array(all_u1_interface)]
+        ret_phi += [np.array(all_phi1_interface)]
 
-    return ret
+    return ret_u, ret_phi
 
 
 if __name__ == "__main__":
