@@ -73,7 +73,7 @@ class PadeSimpleGamma(Discretization):
 
         ###################
         # FIRST STEP : find the time derivative at star time
-        # The equation is A(u*-u_nm1)/dt - (b*Bu* - a*Bu_nm1) + reaction*Au_nm1 = f(1/2)
+        # The equation is A(u*-u_nm1)/dt - (b*Bu* - a*Bu_nm1) = f(1/2)
         ###################
         to_inverse = add_banded(scal_multiply(A, 1./self.DT), scal_multiply(B, -b))
         rhs = multiply_interior(A, u_nm1) * (1 / self.DT) \

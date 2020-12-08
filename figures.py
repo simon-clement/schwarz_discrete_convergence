@@ -10,8 +10,11 @@ from memoisation import memoised, FunMem
 import matplotlib.pyplot as plt
 import functools
 import discretizations
+from simulator import simulation_cv_rate_linear, simulation_cv_rate_matrixlinear
 from simulator import frequency_simulation
 from simulator import matrixlinear_frequency_simulation
+from simulator import eigenvalues_matrixlinear_frequency_simulation
+from simulator import simulation_firstlevels
 
 REAL_FIG = False
 
@@ -105,6 +108,7 @@ def fig_optiRates():
                     order_equations=2)
     
     optiRatesGeneral(axes[1,0], rho_BE_c, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "Finite Differences", caracs=caracs)
+
     ###########################
     # FV
     ##########################
@@ -471,6 +475,70 @@ def fig_validatePadeAnalysisFDRR():
     axes.legend()
     show_or_save("fig_validatePadeAnalysisFDRR")
 
+
+def fig_validatePadeAnalysisFVRR():
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+    from cv_factor_pade import rho_Pade_c
+    from cv_factor_pade import rho_Pade_FV
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
+    builder.LAMBDA_2 = -0.
+    builder.M1 = 200
+    builder.M2 = 200
+    builder.D1 = 1.
+    builder.D2 = 2.
+    builder.R = 0.
+    #builder.DT = 1e-3
+    N = 300
+    dt = builder.DT
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    print("Courant parabolic number :", builder.D1*dt/h**2)
+
+    time_scheme = PadeLowTildeGamma
+        
+    axis_freq = get_discrete_freq(N, dt)
+    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
+
+    dis_cont = builder.build(time_scheme, QuadSplinesFV) # any discretisation would do 
+    continuous = dis_cont.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=0,
+                    order_equations=0)
+
+    dis = builder.build(time_scheme, QuadSplinesFV)
+
+    theorical_convergence_factor = \
+            dis.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=float('inf'),
+                    order_equations=float('inf'))
+
+    cv_rate_simulated = memoised(Builder.frequency_cv_rate, builder, time_scheme,
+            QuadSplinesFV, N=N, number_samples=5, NUMBER_IT=2) # WAS 7 IN CACHE
+    alpha_w = memoised(Builder.frequency_cv_factor, builder, time_scheme,
+            QuadSplinesFV, N=N, number_samples=5, NUMBER_IT=2) # WAS 7 IN CACHE
+
+    axes.semilogx(axis_freq * dt, alpha_w[2]/alpha_w[1],
+            label="observed $\\rho^{\\rm c, "+"Pade, FV" + "}$")
+    axes.semilogx(axis_freq * dt, np.abs(cv_rate_simulated), "--",
+            label="observed $\\rho^{\\rm c, "+"Pade, FV" + "}$")
+
+    axes.semilogx(axis_freq * dt, theorical_convergence_factor,
+            label="$\\rho^{\\rm FV, "+"c" + "}$")
+
+    axes.semilogx(axis_freq * dt, rho_Pade_c(builder, axis_freq),
+            label="$\\rho^{\\rm c, "+"Pade" + "}$")
+ 
+    axes.semilogx(axis_freq * dt, rho_Pade_FV(builder, axis_freq),
+            label="$\\rho^{\\rm FV, "+"Pade" + "}$")
+
+
+    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
+    axes.set_ylabel("Convergence factor $\\rho$")
+    axes.set_title("Validation of finite differences discrete analysis")
+    axes.legend()
+    show_or_save("fig_validatePadeAnalysisFDRR")
+
 def fig_validate_matrixlinear():
     from discretizations.space.FD_naive import FiniteDifferencesNaive
     from discretizations.space.FD_corr import FiniteDifferencesCorr
@@ -614,7 +682,7 @@ def fig_validate_validation():
     builder.D1 = 1.
     builder.D2 = 2.
     builder.R = 0.5
-    N = 30
+    N = 100
     dt = builder.DT
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
     print("Courant parabolic number :", builder.D1*dt/h**2)
@@ -630,36 +698,41 @@ def fig_validate_validation():
 
     dis = builder.build(time_scheme, FiniteDifferencesExtra)
 
-    u, phi = memoised(Builder.frequency_cv_factor, builder, time_scheme, FiniteDifferencesExtra,
-            ignore_cached=True, linear=False, N=N, number_samples=3, NUMBER_IT=4) # WAS 7 IN CACHE
+    # u, phi = memoised(Builder.frequency_cv_factor, builder, time_scheme, FiniteDifferencesExtra,
+    #         ignore_cached=False, linear=False, N=N, number_samples=3000, NUMBER_IT=4) # WAS 7 IN CACHE
 
-    def det_uj_over_u1(j, u, phi):
-        """
-            for j=2 or 3, returns the ration of the determinants
-            of U_k^j over U_k^1.
-            with D1, D2 the eigenvalues of the transition matrix,
-            the result of this function:
-            -for j=1, is D1+D2
-            - for j=2, is D2^2 + D1^2 + D1*D2
-        """
-        return (u[1] * phi[1+j] - phi[1] * u[1+j]) / (u[1] * phi[2] - phi[1] * u[2])
+    # def det_uj_over_u1(j, u, phi):
+    #     """
+    #         for j=2 or 3, returns the ration of the determinants
+    #         of U_k^j over U_k^1.
+    #         with D1, D2 the eigenvalues of the transition matrix,
+    #         the result of this function:
+    #         -for j=1, is D1+D2
+    #         - for j=2, is D2^2 + D1^2 + D1*D2
+    #     """
+    #     return (u[1] * phi[1+j] - phi[1] * u[1+j]) / (u[1] * phi[2] - phi[1] * u[2])
 
-    R2 = det_uj_over_u1(2, u, phi)
-    R3 = det_uj_over_u1(3, u, phi)
-    assert not np.isnan(R2).any()
-    assert not np.isnan(R3).any()
+    # R2 = det_uj_over_u1(2, u, phi)
+    # R3 = det_uj_over_u1(3, u, phi)
+    # assert not np.isnan(R2).any()
+    # assert not np.isnan(R3).any()
 
-    #D1 and D2 are our two eigenvalues of interest.
-    from numpy.lib import scimath
-    D1 = (R2 + scimath.sqrt(4 * R3 - 3*R2*R2))/2
-    D2 = (R2 - scimath.sqrt(4 * R3 - 3*R2*R2))/2
+    # #D1 and D2 are our two eigenvalues of interest.
+    # from numpy.lib import scimath
+    # D1 = (R2 + scimath.sqrt(4 * R3 - 3*R2*R2))/2
+    # D2 = (R2 - scimath.sqrt(4 * R3 - 3*R2*R2))/2
+    D1, D2 =  memoised(Builder.frequency_eigenvalues, builder, time_scheme, FiniteDifferencesExtra,
+            ignore_cached=False, N=N, number_samples=64, NUMBER_IT=4) # WAS 7 IN CACHE
 
-    axes.semilogx(axis_freq * dt, np.abs(D1),
+
+    # axes.loglog(axis_freq * dt, np.mean(np.abs(np.real(D1).T), axis=1), "+",
+    #         label="observed first eigenvalue")
+    # axes.semilogx(axis_freq * dt, np.mean(np.abs(np.real(D2).T), axis=1), "--",
+    #         label="observed second eigenvalue")
+    axes.loglog(axis_freq * dt, np.mean(np.abs((D1).T), axis=1), "+",
             label="observed first eigenvalue")
-    axes.semilogx(axis_freq * dt, np.abs(D2),
+    axes.semilogx(axis_freq * dt, np.mean(np.abs((D2).T), axis=1), "--",
             label="observed second eigenvalue")
-    axes.semilogx(axis_freq * dt, np.abs((dis.LAMBDA_2*u[2] + phi[2]) / (dis.LAMBDA_2*u[1] + phi[1])),
-            label="classical convergence factor")
 
     axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
             label="$\\rho^{\\rm Pade, FD(extra)}$")
@@ -671,6 +744,41 @@ def fig_validate_validation():
 
 
     show_or_save("fig_validate_validation")
+
+def fig_validate_validate_validation():
+    A0 = np.random.rand(2)
+    F = np.random.rand(2, 2)
+    D = np.array(((1e-5, 0), (0, 3.234567))) # very ill-conditionned
+    u = np.array(((F @ D @ A0)[0], (F @ D @D@ A0)[0], (F @ D@D@D @ A0)[0], (F @ D@D@D@D @ A0)[0], (F @ D@D@D@D @D@ A0)[0]))
+    phi = np.array(((F @ D @ A0)[1], (F @ D @D@ A0)[1], (F @ D@D@D @ A0)[1], (F @ D@D@D@D @ A0)[1], (F @ D@D@D@D @D@ A0)[1]))
+    import scipy
+    from scipy import linalg
+    def det_uj_over_u1(j, u, phi):
+        """
+            for j=2 or 3, returns the ration of the determinants
+            of U_k^j over U_k^1.
+            with D1, D2 the eigenvalues of the transition matrix,
+            the result of this function:
+            -for j=1, is D1+D2
+            - for j=2, is D2^2 + D1^2 + D1*D2
+        """
+        u1 = np.array(((u[1], phi[1]),(u[2],phi[2])))
+        uj = np.array(((u[1], phi[1]),(u[1+j],phi[1+j])))
+        return scipy.linalg.det(uj) / scipy.linalg.det(u1)
+
+    R2 = det_uj_over_u1(2, u, phi)
+    R3 = det_uj_over_u1(3, u, phi)
+    assert not np.isnan(R2).any()
+    assert not np.isnan(R3).any()
+    print("R2, R3:", R2,R3)
+    print("under the sqrt:", 4 * R3 - 3*R2*R2)
+
+    #D1 and D2 are our two eigenvalues of interest.
+    from numpy.lib import scimath
+    D1 = (R2 + scimath.sqrt(4 * R3 - 3*R2*R2))/2
+    D2 = (R2 - scimath.sqrt(4 * R3 - 3*R2*R2))/2
+    print(D1, D2)
+
 
 
 def fig_optimized_rho():
@@ -911,7 +1019,6 @@ def operators_disc_cont(corrective_term=True):
     for r, ax in ((0, axes[0]), (1., axes[1])):
         setting = Builder()
         setting.R = r
-        ax.set_xlabel(r'$\omega\Delta t$')
 
         setting.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
         setting.LAMBDA_2 = 0.
@@ -940,9 +1047,9 @@ def operators_disc_cont(corrective_term=True):
                 order_time=0, order_equations=0, order_operators=float('inf')) # discrete
 
 
-        ax.semilogx(axis_freq*dt, cont_operators,
+        ax.semilogx(axis_freq, cont_operators,
                 color=COLOR_CONT, linewidth="1.8", label="Continuous")
-        ax.semilogx(axis_freq*dt, discrete_operators,
+        ax.semilogx(axis_freq, discrete_operators,
                 color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
 
         ax.grid()
@@ -951,7 +1058,7 @@ def operators_disc_cont(corrective_term=True):
         Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
         #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
         ax.set_ylabel(r'$\widehat{\rho}$')
-        ax.set_xlabel(r'$\omega \Delta t$')
+        ax.set_xlabel(r'$\omega$')
     axes[0].legend()
 
 def fig_FD_disc_modif():
@@ -968,14 +1075,14 @@ def fig_FD_disc_modif():
         setting = Builder()
         setting.R = r
 
-        ax.set_ylim(0.45,1.0)
+        ax.set_ylim(0.45,0.8)
         setting.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
         setting.LAMBDA_2 = 0.
         setting.M1 = 200
         setting.M2 = 200
         setting.D1 = .5
         setting.D2 = 1.
-        dt = setting.DT/100
+        dt = setting.DT/1000
         # N = 30
         # axis_freq = get_discrete_freq(N, setting.DT)
         axis_freq = np.exp(np.linspace(-10, np.log(pi), 10000))/dt
@@ -994,12 +1101,12 @@ def fig_FD_disc_modif():
                 order_time=0, order_equations=float('inf'), order_operators=0)
 
 
-        ax.semilogx(axis_freq*dt, cont_operators,
+        ax.semilogx(axis_freq, cont_operators,
                 color=COLOR_CONT, linewidth="1.8", label="Continuous")
-        ax.semilogx(axis_freq*dt, discrete_operators,
+        ax.semilogx(axis_freq, discrete_operators,
                 color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
-        ax.semilogx(axis_freq*dt, modif_operators,
-                color=COLOR_CONT_FD, linewidth="1.8", label="Modified Equations")
+        ax.semilogx(axis_freq, modif_operators,
+                color=COLOR_CONT_FD, linewidth="1.8", label="Equivalent PDE")
 
         ax.grid()
         #ax[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see ax[1].set_xlim
@@ -1007,7 +1114,7 @@ def fig_FD_disc_modif():
         Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
         #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
         ax.set_ylabel(r'$\widehat{\rho}$')
-        ax.set_xlabel(r'$\omega \Delta t$')
+        ax.set_xlabel(r'$\omega$')
     axes[0].legend()
     show_or_save("fig_FD_disc_modif")
 
@@ -1031,10 +1138,10 @@ def fig_FD_disc_cont():
         setting.M2 = 200
         setting.D1 = .5
         setting.D2 = 1.
-        dt = setting.DT/100
+        dt = setting.DT/1000000
         # N = 30
         # axis_freq = get_discrete_freq(N, setting.DT)
-        axis_freq = np.exp(np.linspace(-10, np.log(pi), 10000))/dt
+        axis_freq = np.exp(np.linspace(-17, np.log(pi), 10000))/dt
 
         #########################################################
         # LEFT CANVA: TIME COMPARISON
@@ -1048,9 +1155,9 @@ def fig_FD_disc_cont():
                 order_time=0, order_equations=float('inf'), order_operators=0)
 
 
-        ax.semilogx(axis_freq*dt, cont_operators,
+        ax.semilogx(axis_freq, cont_operators,
                 color=COLOR_CONT, linewidth="1.8", label="Continuous")
-        ax.semilogx(axis_freq*dt, discrete_operators,
+        ax.semilogx(axis_freq, discrete_operators,
                 color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
 
         ax.grid()
@@ -1059,7 +1166,7 @@ def fig_FD_disc_cont():
         Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
         #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
         ax.set_ylabel(r'$\widehat{\rho}$')
-        ax.set_xlabel(r'$\omega \Delta t$')
+        ax.set_xlabel(r'$\omega$')
     axes[0].legend()
     show_or_save("fig_FD_disc_cont")
 
@@ -1409,19 +1516,19 @@ def fig_rhoDNPadeModif():
         return z - b*(z-1) - b * (b-1)**2 * (z-1)**2
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
-    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$\gamma = z - \beta (z-1)$')   
+    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$\gamma$: interpolation')   
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
 
-    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$\gamma = z - \beta (z-1) - \beta(\beta-1)^2 (z-1)^2$')       
+    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$\gamma$: imitate scheme')
 
     rho_continuous = np.sqrt(builder.D1/builder.D2) * np.ones_like(w)
 
 
     ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2., color='r', linestyle='dashed', label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
-    ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2., color='k', linestyle='dotted', label=r'Modified Equations') 
+    ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2., color='k', linestyle='dotted', label=r'Equivalent PDE') 
 
     ax.legend(loc=2,prop={'size':9},ncol=1,handlelength=2)
-    ax.set_xlabel(r"$\omega \Delta t$")
+    ax.set_xlabel(r"$\omega\Delta t$")
     ax.set_ylabel(r"$\widehat{\rho}$")
 
     show_or_save("fig_rhoDNPadeModif")
@@ -1472,10 +1579,10 @@ def fig_rhoDNPadepres():
     builder.R = 1.
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
-    axes[1].semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$\gamma = z - \beta (z-1)$')   
+    axes[1].semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$\gamma$: interpolation')   
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
-    axes[1].semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$\gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')    
+    axes[1].semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$\gamma$: imitate scheme')    
 
     rho_continuous = np.sqrt(builder.D1/builder.D2) * np.ones_like(w)
     axes[0].semilogx(w*builder.DT, rho_continuous ,linewidth=2.,color='r', linestyle='dashed' ,label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
@@ -1709,11 +1816,30 @@ class Builder():
         if linear:
             return frequency_simulation(discretization, **kwargs)
         else:
+            raise NotImplementedError("Just a linear regression in 2D")
             return matrixlinear_frequency_simulation(discretization, **kwargs)
 
-    def frequency_cv_factor(self, time_discretization, space_discretization, **kwargs):
+    def frequency_cv_rate(self, time_discretization, space_discretization, linear=True, **kwargs):
         discretization = self.build(time_discretization, space_discretization)
-        return frequency_simulation(discretization, **kwargs)
+        if linear:
+            return simulation_cv_rate_linear(discretization, **kwargs)
+        else:
+            return simulation_cv_rate_matrixlinear(discretization, **kwargs)
+
+    def simulation_firstlevels(self, time_discretization, space_discretization, **kwargs):
+        discretization = self.build(time_discretization, space_discretization)
+        return simulation_firstlevels(discretization, **kwargs)
+
+    def frequency_cv_factor(self, time_discretization, space_discretization, linear=True, **kwargs):
+        discretization = self.build(time_discretization, space_discretization)
+        if linear:
+            return frequency_simulation(discretization, **kwargs)
+        else:
+            return matrixlinear_frequency_simulation(discretization, **kwargs)
+
+    def frequency_eigenvalues(self, time_discretization, space_discretization, **kwargs):
+        discretization = self.build(time_discretization, space_discretization)
+        return eigenvalues_matrixlinear_frequency_simulation(discretization, **kwargs)
 
     def robin_robin_theorical_cv_factor(self, time_discretization, space_discretization, *args, **kwargs):
         discretization = self.build(time_discretization, space_discretization)

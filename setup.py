@@ -6,6 +6,7 @@ import os
 
 os.system('pip3 install scipy')
 os.system('pip3 install matplotlib')
+os.system('pip3 install scikit-learn')
 try:
     os.system('sudo apt install python3-tk gfortran libopenblas-dev liblapack-dev')
     os.system('curl https://sh.rustup.rs -sSf | sh')

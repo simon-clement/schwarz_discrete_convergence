@@ -186,6 +186,68 @@ def main():
                     from tests.test_finite_differences import launch_all_tests
                     launch_all_tests()
 
+                elif sys.argv[2] == "PadeFV":
+                    from cv_factor_pade import rho_Pade_FV
+                    from figures import get_discrete_freq, Builder
+                    builder = Builder()
+                    builder.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
+                    builder.LAMBDA_2 = -0.
+                    builder.M1 = 1000
+                    builder.M2 = 1000
+                    builder.D1 = 1.
+                    builder.D2 = 2.
+                    builder.R = .0
+                    builder.DT = 1e-5
+                    N=10000
+                    w = get_discrete_freq(N, builder.DT)
+                    rho_Pade_FV(builder, w)
+                elif sys.argv[2] == "rootsPadeFV":
+                    import numpy as np
+                    from cv_factor_pade import rho_Pade_FV
+                    from figures import get_discrete_freq, Builder
+                    from memoisation import memoised, FunMem
+                    from validation_pade_fv import invert_u_phi
+                    from discretizations.space.quad_splines_fv import QuadSplinesFV
+                    from discretizations.time.PadeSimpleGamma import PadeSimpleGamma
+                    from simulator import firstlevels_errors
+                    from simulator import linear_regression_cplx
+                    builder = Builder()
+                    builder.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
+                    builder.LAMBDA_2 = -0.
+                    builder.M1 = 100
+                    builder.M2 = 100
+                    builder.D1 = 1.
+                    builder.D2 = 2.
+                    builder.R = .0
+                    builder.DT = 1e-2
+                    N=1000
+                    w = get_discrete_freq(N, builder.DT)
+                    phi_samples, u_samples = memoised(Builder.simulation_firstlevels,
+                            builder, PadeSimpleGamma, QuadSplinesFV, 
+                            N=N, number_samples=30)
+
+                    # We give the 0 location for {phi,u}[sample, frequency, location]
+                    A_k, A_kprime = invert_u_phi(builder, w, phi_samples[:, :, 0], u_samples[:, :, 0])
+                    # then we do a 2D linear regression, with as input A_k A_kprime
+                    lambda_1, lambda_2 = 1j*np.zeros(A_k.shape[1]), 1j*np.zeros(A_k.shape[1])
+                    for i in range(A_k.shape[1]):
+                        x = np.array([(A_k[k,i], A_kprime[k,i]) for k in range(A_k.shape[0])])
+                        # and as output, phi_samples[:, :, 1]
+                        lambda_1[i], lambda_2[i] = linear_regression_cplx(x, phi_samples[:, i, 1])
+                    import matplotlib.pyplot as plt
+
+                    from cv_factor_pade import lambda_Pade_FV
+                    lam1, lam2, lam3, lam4 = lambda_Pade_FV(builder, w)
+
+                    plt.semilogx(w, lambda_1)
+                    plt.semilogx(w, lam1, "--")
+                    plt.semilogx(w, lambda_2)
+                    plt.semilogx(w, lam2, "--")
+                    plt.semilogx(w, lam3, "--")
+                    plt.semilogx(w, lam4, "--")
+                    plt.show()
+
+
 def global_launch_figsave(number_fig):
     """
         This function launch an external python context for figure number_fig.
