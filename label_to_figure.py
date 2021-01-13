@@ -5,8 +5,10 @@ For example, the function used to generate the Figure 4.4 is fig_validation_code
 You can then look for this function name in the file figures.py """
 FIGURE = {}
 FIGURE["2"] = "fig_rhoDNPade"
-FIGURE["5"] = "fig_compare_discrete_modif"
-FIGURE["6"] = "fig_optiRates"
+FIGURE["5"] = "fig_DNInteraction"
+FIGURE["6"] = "fig_RRInteraction"
+FIGURE["7"] = "fig_compare_discrete_modif"
+FIGURE["8"] = "fig_optiRates"
 FIGURE["pres1"] = "fig_operators_FD"
 FIGURE["pres2"] = "fig_operators_FD_corr"
 FIGURE["pres3"] = "fig_FD_disc_cont"

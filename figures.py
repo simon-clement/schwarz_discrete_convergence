@@ -16,16 +16,19 @@ from simulator import matrixlinear_frequency_simulation
 from simulator import eigenvalues_matrixlinear_frequency_simulation
 from simulator import simulation_firstlevels
 
-REAL_FIG = False
+REAL_FIG = True
 
 
 def fig_optiRates():
+    import matplotlib as mpl
+    mpl.rc('text', usetex=True)
+    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
     fig, axes = plt.subplots(2, 2, figsize=[6.4*1.4, 4.8*1.4], sharex=True, sharey=True)
     axes[0,0].grid()
     axes[1,0].grid()
     axes[0,1].grid()
     axes[1,1].grid()
-    axes[1,1].set_ylim(bottom=0.18, top=0.49) # all axis are shared
+    axes[1,1].set_ylim(bottom=0.095, top=0.3) # all axis are shared
 
     caracs = {}
     caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
@@ -34,7 +37,7 @@ def fig_optiRates():
 
 
     fig.suptitle("Optimized convergence rates with different methods")
-    fig.subplots_adjust(left=0.05, bottom=0.12, right=0.98, top=0.92, wspace=0.13, hspace=0.16)
+    fig.subplots_adjust(left=0.07, bottom=0.12, right=0.98, top=0.92, wspace=0.13, hspace=0.16)
     #####################################
     # PADE
     ####################################
@@ -53,7 +56,7 @@ def fig_optiRates():
     def rho_m_FD(builder, axis_freq):
         dis = builder.build(time_dis, space_dis)
         return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=2, order_operators=float('inf'),
+                    order_time=1, order_operators=float('inf'),
                     order_equations=float('inf'))
 
     optiRatesGeneral(axes[0,0], rho_c_FD_extra, rho_m_FD, rho_Pade_FD_extra, time_dis, space_dis, "Pade", caracs=caracs)
@@ -104,8 +107,8 @@ def fig_optiRates():
     def rho_m_FD(builder, axis_freq):
         dis = builder.build(time_dis, space_dis)
         return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=float('inf'),
-                    order_equations=2)
+                    order_time=float('inf'), order_operators=1,
+                    order_equations=1)
     
     optiRatesGeneral(axes[1,0], rho_BE_c, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "Finite Differences", caracs=caracs)
 
@@ -130,7 +133,7 @@ def fig_optiRates():
     def rho_m_FV(builder, axis_freq):
         dis = builder.build(time_dis, space_dis)
         return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=float('inf'),
+                    order_time=float('inf'), order_operators=1,
                     order_equations=2)
     
     optiRatesGeneral(axes[1,1], rho_BE_c, rho_m_FV, rho_BE_FV, time_dis, space_dis, "Finite Volumes", caracs=caracs)
@@ -143,8 +146,7 @@ def fig_optiRates():
                     Line2D([0], [0], marker="^", markersize=6., linewidth=0.,
                         color=caracs["discrete"]["color"]) ]
     custom_labels = ["Continuous", "Modified", "Discrete", "Prediction"]
-    #fig.legend(custom_lines, custom_labels, loc = (0.5, 0), ncol=5)
-    fig.legend(custom_lines, custom_labels, loc=(0.2, 0.), ncol=5)
+    fig.legend(custom_lines, custom_labels, loc=(0.2, 0.), ncol=5, handlelength=2)
 
     show_or_save("fig_optiRates")
 
@@ -302,13 +304,13 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
     setting.M2 = 200
     setting.D1 = .5
     setting.D2 = 1.
-    setting.R = 1e-2 # 1e-3
+    setting.R = 1e-2
     setting.DT = 1.
     N = 30000
     axis_freq = get_discrete_freq(N, setting.DT)
 
     axes.set_xlabel("$\\omega \\Delta t$")
-    axes.set_ylabel("$\\rho$")
+    axes.set_ylabel(r"${\rho}_{RR}$")
     #axes.set_title("Optimized convergence rates with different methods (" + name_method + ")")
     axes.set_title(name_method)
 
@@ -816,6 +818,9 @@ def fig_optimized_rho():
     show_or_save("fig_optimized_rho")
 
 def fig_compare_discrete_modif():
+    import matplotlib as mpl
+    mpl.rc('text', usetex=True)
+    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
     from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma as Pade
     from discretizations.time.backward_euler import BackwardEuler as BE
     from discretizations.space.FD_naive import FiniteDifferencesNaive as FD
@@ -823,16 +828,16 @@ def fig_compare_discrete_modif():
     from discretizations.space.quad_splines_fv import QuadSplinesFV as FV
     from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
     fig, axes = plt.subplots(2, 2, figsize=[6.4, 4.4], sharex=False, sharey=True)
-    plt.subplots_adjust(left=.11, bottom=.32, right=.99, top=.92, wspace=0.19, hspace=0.15)
-    COLOR_CONT = '#888888FF'
-    COLOR_CONT_FD = '#555555FF'
+    plt.subplots_adjust(left=.11, bottom=.28, right=.99, top=.92, wspace=0.19, hspace=0.34)
+    COLOR_CONT = '#FF3333FF'
+    COLOR_CONT_FD = '#AA0000FF'
     COLOR_MODIF = '#000000FF'
 
     for r, axes in ((0, axes[0,:]), (.1, axes[1,:])):
         setting = Builder()
         setting.R = r
 
-        setting.LAMBDA_1 = 1. # optimal parameters for corr=0, N=3000
+        setting.LAMBDA_1 = 1.
         setting.LAMBDA_2 = -1.
         setting.M1 = 200
         setting.M2 = 200
@@ -865,12 +870,12 @@ def fig_compare_discrete_modif():
         ######################
         # TIME SCHEME : GAMMA ORDER 2:
         ######################
+        axis = axes[1]
 
         full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order2) # disccrete in time
-        labelg2 = r"P2: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (P2,c)}\right|/\left|\rho_{\rm RR}^{\rm (P2,c)}\right|$" + "\n" + r"$\gamma = z - b (z-1) - \frac{b^2}{2}(z-1)^2$"
-        lineg2, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='1.1',
+        lineg2, = axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='1.1',
                 color=COLOR_MODIF, linestyle='solid')
-        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='1.1',
+        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='1.1',
                 color=COLOR_CONT, linestyle='solid')
 
         ######################
@@ -879,10 +884,9 @@ def fig_compare_discrete_modif():
 
         full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order1) # disccrete in time
 
-        labelg1 = r"P2: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (P2,c)}\right|/\left|\rho_{\rm RR}^{\rm (P2,c)}\right|$" + "\n" + r"$\gamma = z - b (z-1)$"
-        lineg1, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='1.1',
+        lineg1, = axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='1.1',
                 color=COLOR_MODIF, linestyle='dashed')
-        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='1.1',
+        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='1.1',
                 color=COLOR_CONT, linestyle='dashed')
 
         ########################
@@ -895,26 +899,21 @@ def fig_compare_discrete_modif():
         full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
                 order_time=float('inf'), order_equations=0, order_operators=0) # discrete in time
 
-        labelbe = r"BE: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (BE,c)}\right|/\left|\rho_{\rm RR}^{\rm (BE,c)}\right|$"
-        linebe, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete),
+        linebe, = axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete),
                 color=COLOR_MODIF, linestyle=':', linewidth="2.3")
-        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete),
+        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete),
                 color=COLOR_CONT, linestyle=':', linewidth="2.3")
 
-        axes[0].grid()
-        axes[0].set_xlim(left=0.9e-2, right=.7)
-        #axes[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see axes[1].set_xlim
-        Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
+        axis.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+        axis.set_xlim(left=0.9e-2, right=.7)
+        #axis.set_ylim(top=0.1, bottom=0.) #sharey activated : see axis.set_xlim
+        Title = r'Semi-discrete in time' #Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
         #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
-        axes[0].set_ylabel(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
         if r == 0:
-            #axes[0].legend((lineg2, ), (labelg2, ))
-            axes[0].set_title(Title)
-            #print(axes[0].ticks)
-            axes[0].set_xticklabels([])
+            axis.set_title(Title)
+            axis.set_xticklabels([])
         else:
-            #axes[0].legend((lineg1, linebe), (labelg1, labelbe))
-            axes[0].set_xlabel(r'$\omega\Delta t$')
+            axis.set_xlabel(r'$\omega\Delta t$')
 
         #########################################################
         # RIGHT CANVA: SPACE COMPARISON
@@ -927,19 +926,19 @@ def fig_compare_discrete_modif():
         dis = setting.build(time_dis, FV)
 
         cont_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=0) #continuous in time
+                order_time=0, order_equations=0, order_operators=float('inf')) #continuous in time
 
         modif_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=2, order_operators=0) # modified in time
+                order_time=0, order_equations=2, order_operators=float('inf')) # modified in time
 
         full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=float('inf'), order_operators=0)
+                order_time=0, order_equations=float('inf'), order_operators=float('inf'))
 
+        axis = axes[0]
 
-        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_MODIF, linestyle='solid',
-                label=r"FV: $\left|\rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c,FV)}\right|/\left|\rho_{\rm RR}^{\rm (c,FV)}\right|$")
-        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
+        axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_MODIF, linestyle='solid')
+        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
                 color=COLOR_CONT, linestyle='solid')
 
         ######################
@@ -948,52 +947,58 @@ def fig_compare_discrete_modif():
         dis = setting.build(time_dis, FD)
 
         cont_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=0) #continuous in time
+                order_time=0, order_equations=0, order_operators=float('inf')) #continuous in time
 
         modif_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=2, order_operators=0) # modified in time
+                order_time=0, order_equations=2, order_operators=float('inf')) # modified in time
 
         full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=float('inf'), order_operators=0)
+                order_time=0, order_equations=float('inf'), order_operators=float('inf'))
 
-        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_MODIF, linestyle='dashed',
-                label=r"FD: $\left|\rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c,FD)}\right|/\left|\rho_{\rm RR}^{\rm (c,FD)}\right|$")
-        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
+        axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
+                color=COLOR_MODIF, linestyle='dashed')
+        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
                 color=COLOR_CONT_FD, linestyle='dashed')
 
-        axes[1].grid()
-        axes[1].set_xlim(left=2e-2, right=3)
-        axes[1].set_ylim(top=0.03, bottom=0.)
-        Title = r'$d\rho_{\rm RR}^{\rm (c, \cdot)}$'
-        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c, Discrete)}\right|/\left|\rho_{\rm RR}^{\rm (c, Discrete)}\right| $'
+        axis.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+        axis.set_xlim(left=2e-2, right=3)
+        axis.set_ylim(top=0.03, bottom=0.)
+        Title = r'Semi-discrete in space' #r'$d\rho_{\rm RR}^{\rm (c, \cdot)}$'
+        axis.set_ylabel(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
         if r == 0:
-            #axes[1].legend()
-            axes[1].set_title(Title)
-            axes[1].set_xticklabels([])
+            #axis.legend()
+            axis.set_title(Title)
+            axis.set_xticklabels([])
         else:
-            axes[1].set_xlabel(r'$\omega\Delta t$')
+            axis.set_xlabel(r'$\omega$')
 
 
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
     custom_lines = [
-                    Line2D([0], [0], lw=.9, color='black'),
-                    Line2D([0], [0], linestyle='dashed', lw=.9, color='black'),
-                    Line2D([0], [0], linestyle='dotted', lw=1.5, color='black'),
                     Patch(facecolor=COLOR_MODIF),
                     Patch(facecolor=COLOR_CONT),
+                    Line2D([0],[0],color="w"),
                     Line2D([0], [0], lw=2., color='black'),
                     Line2D([0], [0], linestyle='dashed', lw=2., color='black'),
+                    Line2D([0],[0],color="w"),
+                    Line2D([0], [0], lw=1.2, color='black'),
+                    Line2D([0], [0], linestyle='dashed', lw=1.2, color='black'),
+                    Line2D([0], [0], linestyle='dotted', lw=1.6, color='black'),
                     ]
 
     custom_labels = [
-            r"$d\rho^{\rm (\mathbf{P2}, c)}$" + ", " + r"$\gamma = z - \beta (z-1)$" + r"$- \beta(\beta-1)^2(z-1)^2$",
-            r"$d\rho^{\rm (\mathbf{P2}, c)}$" + ", " + r"$\gamma = z - \beta (z-1)$",
-            r"$d\rho^{\rm (\mathbf{BE}, c)}$",
-            r'$d^\mathbf{m} \rho^{\rm (\cdot, \cdot)}$', r'$d^\mathbf{c} \rho^{\rm (\cdot, \cdot)}$',
-            r"$d\rho^{\rm (c, \mathbf{FV})}$", r"$d\rho^{\rm (c, \mathbf{FD})}$",]
-    fig.legend(custom_lines, custom_labels, loc=(0.04, 0.), ncol=3)
+            r'$(\delta \rho)_\mathbf{m}^{\rm (\cdot, \cdot)}$',
+            r'$(\delta \rho)_\mathbf{c}^{\rm (\cdot, \cdot)}$',
+            r"",
+            r"$(\delta\rho)^{\rm (c, \mathbf{FV})}$", r"$(\delta\rho)^{\rm (c, \mathbf{FD})}$",
+            r"",
+            r"$(\delta\rho)^{\rm (\mathbf{P2}, c)}$" + ", " + r"$\gamma = z - \beta (z-1)$" + r"$- \beta(\beta-1)^2(z-1)^2$",
+            r"$(\delta\rho)^{\rm (\mathbf{P2}, c)}$" + ", " + r"$\gamma = z - \beta (z-1)$",
+            r"$(\delta\rho)^{\rm (\mathbf{BE}, c)}$",]
+    fig.legend(custom_lines, custom_labels, loc=(0.10, 0.), ncol=3)
+    fig.tight_layout()   
+    fig.subplots_adjust(bottom=.28, wspace=.2)
 
     show_or_save("fig_compare_discrete_modif")
 
@@ -1010,7 +1015,7 @@ def operators_disc_cont(corrective_term=True):
     from discretizations.space.FD_naive import FiniteDifferencesNaive as FD_naive
     from discretizations.space.FD_corr import FiniteDifferencesCorr as FD_corr
     fig, axes = plt.subplots(1, 2, figsize=[6.4, 2.4], sharex=False, sharey=True)
-    axes[0].set_ylabel(r'$\widehat{\rho}$')
+    axes[0].set_ylabel(r'${\rho}$')
     plt.subplots_adjust(left=.11, bottom=.24, right=.99, top=.85, wspace=0.19, hspace=0.15)
     COLOR_CONT = '#FF0000FF'
     COLOR_CONT_FD = '#555555FF'
@@ -1052,68 +1057,12 @@ def operators_disc_cont(corrective_term=True):
         ax.semilogx(axis_freq, discrete_operators,
                 color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
 
-        ax.grid()
+        ax.grid(True, color='k', linestyle='dotted', linewidth=0.25) 
         #ax[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see ax[1].set_xlim
         ax.set_title(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
         Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
         #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
-        ax.set_ylabel(r'$\widehat{\rho}$')
-        ax.set_xlabel(r'$\omega$')
-    axes[0].legend()
-
-def fig_FD_disc_modif():
-    from discretizations.time.backward_euler import BackwardEuler as BE
-    from discretizations.space.FD_naive import FiniteDifferencesNaive as FD_naive
-    from discretizations.space.FD_corr import FiniteDifferencesCorr as FD_corr
-    fig, axes = plt.subplots(1, 2, figsize=[6.4, 2.4], sharex=False, sharey=True)
-    plt.subplots_adjust(left=.11, bottom=.24, right=.99, top=.85, wspace=0.19, hspace=0.15)
-    COLOR_CONT = '#FF0000FF'
-    COLOR_CONT_FD = '#555555FF'
-    COLOR_DIS = '#000000FF'
-
-    for r, ax in ((0, axes[0]), (1., axes[1])):
-        setting = Builder()
-        setting.R = r
-
-        ax.set_ylim(0.45,0.8)
-        setting.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
-        setting.LAMBDA_2 = 0.
-        setting.M1 = 200
-        setting.M2 = 200
-        setting.D1 = .5
-        setting.D2 = 1.
-        dt = setting.DT/1000
-        # N = 30
-        # axis_freq = get_discrete_freq(N, setting.DT)
-        axis_freq = np.exp(np.linspace(-10, np.log(pi), 10000))/dt
-
-        #########################################################
-        # LEFT CANVA: TIME COMPARISON
-        #########################################################
-
-        dis = setting.build(BE, FD_naive)
-
-        cont_operators = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=0) #continuous in time
-        modif_operators = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=2, order_operators=0) #continuous in time
-        discrete_operators = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=float('inf'), order_operators=0)
-
-
-        ax.semilogx(axis_freq, cont_operators,
-                color=COLOR_CONT, linewidth="1.8", label="Continuous")
-        ax.semilogx(axis_freq, discrete_operators,
-                color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
-        ax.semilogx(axis_freq, modif_operators,
-                color=COLOR_CONT_FD, linewidth="1.8", label="Equivalent PDE")
-
-        ax.grid()
-        #ax[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see ax[1].set_xlim
-        ax.set_title(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
-        Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
-        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
-        ax.set_ylabel(r'$\widehat{\rho}$')
+        ax.set_ylabel(r'${\rho}$')
         ax.set_xlabel(r'$\omega$')
     axes[0].legend()
     show_or_save("fig_FD_disc_modif")
@@ -1160,12 +1109,12 @@ def fig_FD_disc_cont():
         ax.semilogx(axis_freq, discrete_operators,
                 color=COLOR_DIS, linestyle='--', linewidth="1.8", label="Discrete")
 
-        ax.grid()
+        ax.grid(True, color='k', linestyle='dotted', linewidth=0.25) 
         #ax[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see ax[1].set_xlim
         ax.set_title(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
         Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
         #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
-        ax.set_ylabel(r'$\widehat{\rho}$')
+        ax.set_ylabel(r'${\rho}$')
         ax.set_xlabel(r'$\omega$')
     axes[0].legend()
     show_or_save("fig_FD_disc_cont")
@@ -1243,8 +1192,6 @@ def fig_compareSettingsDirichletNeumann():
     dt = builder.DT
     assert builder.R * builder.DT < 1
         
-
-
     discretizations = {}
     time_scheme = PadeLowTildeGamma
 
@@ -1328,6 +1275,341 @@ def fig_compareSettingsDirichletNeumann():
     axes[1].legend()
     show_or_save("fig_compareSettingsDirichletNeumann")
 
+def fig_PadeFDInteraction():
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
+    builder.LAMBDA_2 = 0. # lambda=0 is a Neumann condition
+    builder.D1 = 1.
+    builder.D2 = 2.
+    builder.R = 0.01
+    dt = builder.DT
+    assert builder.R * builder.DT < 1
+        
+    discretizations = {}
+    time_scheme = PadeLowTildeGamma
+
+    # discretizations["FDextra"] = (time_scheme, FiniteDifferencesExtra)
+    discretizations["FDnaive"] = (time_scheme, FiniteDifferencesNaive)
+    # discretizations["FDcorr"] = (time_scheme, FiniteDifferencesCorr)
+    # discretizations["FV"] = (time_scheme, QuadSplinesFV)
+    def LowTilde_gamma(z):
+        b = 1+1/np.sqrt(2)
+        return z - b*(z-1) - b/2 * (z-1)**2
+    def simple_gamma(z):
+        b = 1+1/np.sqrt(2)
+        return z - b*(z-1)
+
+    for name in discretizations:
+        time_dis, space_dis = discretizations[name]
+
+        for dt in (1e1, 1e0, 1e-1, 1e-2, 1e-3):
+            builder.DT = dt
+            dis = builder.build(time_dis, space_dis)
+            axis_freq = get_discrete_freq(1000/dt, builder.DT)
+            theorical_convergence_factors = rho_Pade_FD_corr0(builder, axis_freq, gamma=simple_gamma)
+
+            axes.semilogx(axis_freq, theorical_convergence_factors, label="dt is "+str(dt))
+
+    axes.legend()
+    show_or_save("fig_compareSettingsDirichletNeumann")
+
+def fig_DNInteraction():
+    import matplotlib as mpl
+    mpl.rc('text', usetex=True)
+    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
+    builder.LAMBDA_2 = 0. # lambda=0 is a Neumann condition
+    # builder.LAMBDA_1 = 1.11 # optimal parameters for corr=0, N=3000
+    # builder.LAMBDA_2 = -0.76
+    builder.D1 = 1.
+    builder.D2 = 2.
+    builder.R = 0.
+    fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))    
+    plt.subplots_adjust(left=.04, bottom=.10, right=.99, top=.92, wspace=0.05, hspace=0.4)
+    dt = builder.DT
+    REACTION_COEFF = 0.1
+        
+    discretizations = {}
+    time_scheme = BackwardEuler
+
+    theorical_convergence_factors = {}
+    theorical_convergence_factors["BEFV"] = {}
+    theorical_convergence_factors["BEFD"] = {}
+    theorical_convergence_factors["BEFD_R"] = {}
+    theorical_convergence_factors["SimplePade"] = {}
+    theorical_convergence_factors["LowTildePade"] = {}
+    theorical_convergence_factors["LowTildePade_R"] = {}
+
+    def low_tilde_gamma(z):
+        b = 1+1/np.sqrt(2)
+        return z - b*(z-1) - b/2 * (z-1)**2
+    def simple_gamma(z):
+        b = 1+1/np.sqrt(2)
+        return z - b*(z-1)
+
+    all_dt = (1e-3, 1e-2, 1e-1, 1e0, 1e1)
+    style = {all_dt[4] : {'col':'k', 'ls':'solid', 'lw':1.4, 'legend':r"$\Gamma=10$"},
+            all_dt[3] : {'col':'.1', 'ls':'dashed', 'lw':1.55, 'legend':r"$\Gamma=1$"},
+            all_dt[2] : {'col':'.5', 'ls':'solid', 'lw':1.7, 'legend':r"$\Gamma=10^{-1}$"},
+            all_dt[1] : {'col':'.5', 'ls':'dashed', 'lw':1.9, 'legend':r"$\Gamma=10^{-2}$"},
+            all_dt[0] : {'col':'r', 'ls':'solid', 'lw':1.2, 'legend':r"$\Gamma=\nu_1\frac{\Delta t}{h^2}=10^{-3}$"}}
+
+    for dt in all_dt:
+        builder.DT = dt
+        assert REACTION_COEFF * builder.DT <= 1
+        axis_freq = get_discrete_freq(1000/dt, builder.DT)
+
+        dis = builder.build(BackwardEuler, FiniteDifferencesNaive)
+        theorical_convergence_factors["BEFD"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=float('inf'), order_operators=float('inf'),
+                        order_equations=float('inf'))
+
+        dis.R = REACTION_COEFF
+        theorical_convergence_factors["BEFD_R"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=float('inf'), order_operators=float('inf'),
+                        order_equations=float('inf'))
+
+        dis = builder.build(BackwardEuler, QuadSplinesFV)
+        theorical_convergence_factors["BEFV"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=float('inf'), order_operators=float('inf'),
+                        order_equations=float('inf'))
+
+        theorical_convergence_factors["SimplePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=simple_gamma)
+
+        builder.R = REACTION_COEFF
+        theorical_convergence_factors["LowTildePade_R"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
+        builder.R = 0.
+
+        theorical_convergence_factors["LowTildePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
+
+        
+        col = style[dt]['col']
+        ls = style[dt]['ls']
+        lw = style[dt]['lw']
+        legend = style[dt]['legend']
+        axes[0,0].semilogx(axis_freq, theorical_convergence_factors["BEFV"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[0,1].semilogx(axis_freq, theorical_convergence_factors["BEFD"][dt], linestyle=ls, color=col, label=legend, linewidth=lw)
+        axes[0,2].semilogx(axis_freq, theorical_convergence_factors["BEFD_R"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[1,0].semilogx(axis_freq, theorical_convergence_factors["SimplePade"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[1,1].semilogx(axis_freq, theorical_convergence_factors["LowTildePade"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[1,2].semilogx(axis_freq, theorical_convergence_factors["LowTildePade_R"][dt], linestyle=ls, color=col, linewidth=lw)
+
+    axes[0,0].set_title(r"${\rho}^{(BE, FV)}_{DN}$", fontsize=10)
+    axes[0,1].set_title(r"${\rho}^{(BE, FD)}_{DN}$", fontsize=10)
+    axes[0,2].set_title(r"${\rho}^{(BE, FD)}_{DN} (r=0.1 s^{-1})$", fontsize=10)
+    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ interpolation", fontsize=10)
+    axes[1,1].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ imitates scheme", fontsize=10)
+    axes[1,2].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ imitates scheme $(r=0.1 s^{-1})$", fontsize=10)
+
+    for i in (0,1,2):
+        axes[1,i].set_xlabel(r"$\omega$", fontsize=12)
+
+    letter_fig = {(0,0): '(a)', 
+            (0,1): '(b)', 
+            (0,2): '(c)', 
+            (1,0): '(d)', 
+            (1,1): '(e)', 
+            (1,2): '(f)', }
+    for i,j in ((0,0), (1,0), (0,1), (1,1), (0,2), (1,2)):
+        txt = axes[i,j].annotate(letter_fig[(i,j)],xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
+        txt.set_bbox(dict(facecolor='white',alpha=1.))  
+        axes[i,j].grid(color='k', linestyle=':', linewidth=0.25)
+    axes[0,1].legend(loc="upper right",prop={'size':7}, handlelength=2)
+    fig.tight_layout()   
+    show_or_save("fig_interactionsDN")
+
+def robin_parameters_discrete_space(builder, N, dt, scheme="FD"):
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.time.backward_euler import BackwardEuler # silent class
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    if scheme == "FD":
+        space_dis = FiniteDifferencesNaive
+    elif scheme == "FV":
+        space_dis = QuadSplinesFV
+    else:
+        raise
+
+    from scipy.optimize import minimize_scalar, minimize
+    axis_freq = get_discrete_freq(N, dt)
+    def to_minimize_onesided(p):
+        dis = builder.build(BackwardEuler, space_dis)
+        dis.LAMBDA_1 = p
+        dis.LAMBDA_2 = -p
+        return np.max(np.abs(dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_operators=float('inf'), order_equations=float('inf'))))
+
+    def to_minimize_twosided(parameters):
+        dis = builder.build(BackwardEuler, space_dis)
+        dis.LAMBDA_1 = parameters[0]
+        dis.LAMBDA_2 = parameters[1]
+        return np.max(np.abs(dis.analytic_robin_robin_modified(w=axis_freq,
+                order_time=0, order_operators=float('inf'), order_equations=float('inf'))))
+
+    res_onesided = minimize_scalar(fun=to_minimize_onesided)
+    p_opti = res_onesided.x
+    res_twosided = minimize(fun=to_minimize_twosided,
+            x0=np.array((p_opti, -p_opti)), method='Nelder-Mead')
+    return res_twosided
+
+def fig_RRInteraction():
+    import matplotlib as mpl
+    mpl.rc('text', usetex=True)
+    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.space.FD_corr import FiniteDifferencesCorr
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.fourth_order_fv import FourthOrderFV
+    from discretizations.time.backward_euler import BackwardEuler
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
+    # parameters of the schemes are given to the builder:
+    builder = Builder()
+    builder.D1 = 1.
+    builder.D2 = 2.
+    fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))    
+    plt.subplots_adjust(left=.04, bottom=.10, right=.99, top=.92, wspace=0.05, hspace=0.4)
+    axes[0,0].set_ylim(top=0.6, bottom=0.) #sharey activated : see ax[1].set_xlim
+    dt = builder.DT
+    REACTION_COEFF = 0.1 # for cases with reaction != 0
+    all_dt = (1e1, 1e0, 1e-1, 1e-2, 1e-3)
+    style = {all_dt[0] : {'col':'k', 'ls':'solid', 'lw':1.4, 'legend':r"$\Gamma=10$"},
+            all_dt[1] : {'col':'.1', 'ls':'dashed', 'lw':1.55, 'legend':r"$\Gamma=1$"},
+            all_dt[2] : {'col':'.5', 'ls':'solid', 'lw':1.7, 'legend':r"$\Gamma=10^{-1}$"},
+            all_dt[3] : {'col':'.5', 'ls':'dashed', 'lw':1.9, 'legend':r"$\Gamma=10^{-2}$"},
+            all_dt[4] : {'col':'r', 'ls':'solid', 'lw':1., 'legend':r"$\Gamma=\nu_1\frac{\Delta t}{h^2}=10^{-3}$"}}
+        
+    discretizations = {}
+    time_scheme = BackwardEuler
+
+    theorical_convergence_factors = {}
+    theorical_convergence_factors["BEFV"] = {}
+    theorical_convergence_factors["BEFD"] = {}
+    theorical_convergence_factors["BEFD_R"] = {}
+    theorical_convergence_factors["SimplePade"] = {}
+    theorical_convergence_factors["LowTildePade"] = {}
+    theorical_convergence_factors["LowTildePade_R"] = {}
+
+    ############## OPTIMISATION #####################
+    dtmin = 1e-3
+    builder.R = 0.
+    builder.DT = dtmin
+    #optimisation for FD:
+    res_twosided = memoised(robin_parameters_discrete_space, builder=builder, N=1000/dtmin, dt=dtmin)
+    theorical_convergence_factors["BEFD"]["robin"] = res_twosided.x
+    #optimisation for FD with Reaction:
+
+    builder.R = REACTION_COEFF
+    theorical_convergence_factors["BEFD_R"]["robin"] =memoised(robin_parameters_discrete_space, builder=builder, N=1000/dtmin, dt=dtmin).x
+
+    #optimisation for FV:
+    builder.R = 0.
+    theorical_convergence_factors["BEFV"]["robin"] = memoised(robin_parameters_discrete_space, builder=builder, N=1000/dtmin, dt=dtmin, scheme="FV").x
+
+    #optimisation for FD with r:
+
+    def low_tilde_gamma(z):
+        b = 1+1/np.sqrt(2)
+        return z - b*(z-1) - b/2 * (z-1)**2
+    def simple_gamma(z):
+        b = 1+1/np.sqrt(2)
+        return z - b*(z-1)
+
+    for dt in all_dt:
+        builder.DT = dt
+        assert REACTION_COEFF * builder.DT <= 1
+        axis_freq = get_discrete_freq(5000/dt, builder.DT)
+
+        dis = builder.build(BackwardEuler, FiniteDifferencesNaive)
+        dis.LAMBDA_1, dis.LAMBDA_2 = theorical_convergence_factors["BEFD"]["robin"]
+        theorical_convergence_factors["BEFD"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=float('inf'), order_operators=float('inf'),
+                        order_equations=float('inf'))
+
+        col = style[dt]['col']
+        ls = style[dt]['ls']
+        lw = style[dt]['lw']
+        legend = style[dt]['legend']
+
+        dis.R = REACTION_COEFF
+        dis.LAMBDA_1, dis.LAMBDA_2 = theorical_convergence_factors["BEFD_R"]["robin"]
+        theorical_convergence_factors["BEFD_R"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=float('inf'), order_operators=float('inf'),
+                        order_equations=float('inf'))
+
+        dis = builder.build(BackwardEuler, QuadSplinesFV)
+        dis.LAMBDA_1, dis.LAMBDA_2 = theorical_convergence_factors["BEFV"]["robin"]
+        theorical_convergence_factors["BEFV"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
+                        order_time=float('inf'), order_operators=float('inf'),
+                        order_equations=float('inf'))
+
+        builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["BEFD"]["robin"]
+        theorical_convergence_factors["SimplePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=simple_gamma)
+
+        builder.R = REACTION_COEFF
+        builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["BEFD_R"]["robin"]
+        theorical_convergence_factors["LowTildePade_R"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
+        builder.R = 0.
+
+        builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["BEFD"]["robin"]
+        theorical_convergence_factors["LowTildePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
+
+        axes[0,0].semilogx(axis_freq, theorical_convergence_factors["BEFV"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[0,1].semilogx(axis_freq, theorical_convergence_factors["BEFD"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[0,2].semilogx(axis_freq, theorical_convergence_factors["BEFD_R"][dt], linestyle=ls, color=col, label=legend, linewidth=lw)
+        axes[1,0].semilogx(axis_freq, theorical_convergence_factors["SimplePade"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[1,1].semilogx(axis_freq, theorical_convergence_factors["LowTildePade"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[1,2].semilogx(axis_freq, theorical_convergence_factors["LowTildePade_R"][dt], linestyle=ls, color=col, linewidth=lw)
+
+    axes[0,0].set_title(r"${\rho}^{(BE, FV)}_{RR}$", fontsize=10)
+    axes[0,1].set_title(r"${\rho}^{(BE, FD)}_{RR}$", fontsize=10)
+    axes[0,2].set_title(r"${\rho}^{(BE, FD)}_{RR} (r=0.1 s^{-1})$", fontsize=10)
+    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ interpolation", fontsize=10)
+    axes[1,1].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ imitates scheme", fontsize=10)
+    axes[1,2].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ imitates scheme $(r=0.1 s^{-1})$", fontsize=10)
+
+    for i in (0,1,2):
+        axes[1,i].set_xlabel(r"$\omega$", fontsize=12)
+    letter_fig = {(0,0): '(a)', 
+            (0,1): '(b)', 
+            (0,2): '(c)', 
+            (1,0): '(d)', 
+            (1,1): '(e)', 
+            (1,2): '(f)', }
+
+    for i,j in ((0,0), (1,0), (0,1), (1,1), (0,2), (1,2)):
+        txt = axes[i,j].annotate(letter_fig[(i,j)],xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
+        axes[0,0].set_xlim(3.1415/1000,9e2)
+        txt.set_bbox(dict(facecolor='white',alpha=1.))  
+        axes[i,j].grid(color='k', linestyle=':', linewidth=0.25)
+    handles, labels = axes[0,2].get_legend_handles_labels()
+    # sort both labels and handles by labels
+    labels, handles = list(reversed(labels)), list(reversed(handles))
+    axes[0,2].legend(handles, labels, loc="upper right",prop={'size':7}, handlelength=2)
+
+    fig.tight_layout()
+    show_or_save("fig_interactionsRR")
+
+
 def fig_rootsManfrediFD():
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2, figsize=[9.6, 2.])
@@ -1405,7 +1687,7 @@ def fig_rootsManfrediFD():
     axes[0].set_xlabel("$\\Delta t\\omega$")
     axes[0].set_ylabel("$\\mathfrak{R}(\\sigma)$")
     axes[0].set_title("Real part $\\mathfrak{R}(\\sigma)$")
-    axes[0].grid()
+    axes[0].grid(True, color='k', linestyle='dotted', linewidth=0.25) 
 
     axes[1].semilogx(w, np.imag(sigma_1), label="$\\sigma_1$")
 
@@ -1418,7 +1700,7 @@ def fig_rootsManfrediFD():
     axes[1].set_xlabel("$\\Delta t\\omega$")
     axes[1].set_ylabel("$Im(\\sigma)$")
     axes[1].set_title("Imaginary part $Im(\\sigma)$")
-    axes[1].grid()
+    axes[1].grid(True, color='k', linestyle='dotted', linewidth=0.25) 
 
     plt.legend()
     show_or_save("fig_rootsManfrediFD")
@@ -1529,7 +1811,7 @@ def fig_rhoDNPadeModif():
 
     ax.legend(loc=2,prop={'size':9},ncol=1,handlelength=2)
     ax.set_xlabel(r"$\omega\Delta t$")
-    ax.set_ylabel(r"$\widehat{\rho}$")
+    ax.set_ylabel(r"${\rho}$")
 
     show_or_save("fig_rhoDNPadeModif")
 
@@ -1548,7 +1830,7 @@ def fig_rhoDNPadepres():
     #    ax.set_yticklabels(ax.get_yticks(),fontsize=12)  
 
     axes[0].set_title(r'$r=' + str(0.) + r'\;{\rm s}^{-1}$')
-    axes[0].set_ylabel(r'$\widehat{\rho}$')
+    axes[0].set_ylabel(r'${\rho}$')
     axes[1].set_title(r'$r=' + str(1.) + r'\;{\rm s}^{-1}$')
 
 
@@ -1592,13 +1874,17 @@ def fig_rhoDNPadepres():
     show_or_save("fig_rhoDNPadepres")
 
 def fig_rhoDNPade():
+    import matplotlib as mpl
+    mpl.rc('text', usetex=True)
+    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 1, sharex=False, sharey=True,figsize=(7,3))
+    #plt.subplots_adjust(bottom=.18, top=.85)
     ax   = axes
     wmax = np.pi
     wmin = wmax / 200
     ax.set_xlim(wmin,wmax)
-    ax.set_ylim(0.5,1.0)
+    ax.set_ylim(0.53,1.05)
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_xlabel (r'$\omega$', fontsize=18)
     ax.set_xticklabels(ax.get_xticks(),fontsize=12)
@@ -1630,17 +1916,19 @@ def fig_rhoDNPade():
 
     ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta(\beta-1)^2 (z-1)^2$')       
 
-    builder.R = 1.
+    builder.R = .1
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
-    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='solid' ,label=r'$r=1.\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')   
+    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='solid' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')   
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
-    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$r=1.\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')    
+    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')    
 
     rho_continuous = np.sqrt(builder.D1/builder.D2) * np.ones_like(w)
     ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2.,color='r', linestyle='dashed' ,label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
+    ax.set_xlabel(r"$\omega\Delta t$")
     ax.legend(loc=2,prop={'size':9},ncol=1,handlelength=2)
+    fig.tight_layout()
 
     show_or_save("fig_rhoDNPade")
 
