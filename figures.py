@@ -16,7 +16,8 @@ from simulator import matrixlinear_frequency_simulation
 from simulator import eigenvalues_matrixlinear_frequency_simulation
 from simulator import simulation_firstlevels
 
-REAL_FIG = True
+# If set to True, the simulations will run, taking multiple hours.
+REAL_FIG = False
 
 def fig_lambda_Pade():
     import matplotlib as mpl
@@ -555,7 +556,7 @@ def fig_DNInteraction():
     axes[0,0].set_title(r"${\rho}^{(BE, FV)}_{DN}$", fontsize=10)
     axes[0,1].set_title(r"${\rho}^{(BE, FD)}_{DN}$", fontsize=10)
     axes[0,2].set_title(r"${\rho}^{(BE, FD)}_{DN} (r=0.1 s^{-1})$", fontsize=10)
-    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ interpolation", fontsize=10)
+    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ extrapolation", fontsize=10)
     axes[1,1].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ imitates scheme", fontsize=10)
     axes[1,2].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ imitates scheme $(r=0.1 s^{-1})$", fontsize=10)
 
@@ -722,7 +723,7 @@ def fig_RRInteraction():
     axes[0,0].set_title(r"${\rho}^{(BE, FV)}_{RR}$", fontsize=10)
     axes[0,1].set_title(r"${\rho}^{(BE, FD)}_{RR}$", fontsize=10)
     axes[0,2].set_title(r"${\rho}^{(BE, FD)}_{RR} (r=0.1 s^{-1})$", fontsize=10)
-    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ interpolation", fontsize=10)
+    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ extrapolation", fontsize=10)
     axes[1,1].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ imitates scheme", fontsize=10)
     axes[1,2].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ imitates scheme $(r=0.1 s^{-1})$", fontsize=10)
 
