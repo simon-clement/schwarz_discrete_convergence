@@ -1,4 +1,4 @@
-# Schwarz TBC finder
+# SWR convergence analysis
 
 You may need to install scipy and matplotlib to make it work:
 ```
