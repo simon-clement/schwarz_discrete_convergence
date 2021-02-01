@@ -12,6 +12,56 @@ import functools
 import discretizations
 from simulator import frequency_simulation
 
+def fig_relaxParamRate():
+    w = np.exp(np.linspace(-10,-2, 100))
+    all_theta = np.linspace(0.88,.92,10001) # pas une bonne idée, plutôt un truc avec plein de points proche de 1
+    #eps = 1e-4
+    eps = 1e-2 # this value is not realistic but it's the best we've got
+    alpha = 1e-3
+    nu_a = 5
+    nu_o = 5e-4
+    h_a = 20.
+    h_o = 2.
+    chi_a = 1j*w*h_a**2/nu_a
+    chi_o = 1j*w*h_o**2/nu_o
+    lam_a = chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4)
+    lam_o = chi_o + np.sqrt(chi_o)*np.sqrt(chi_o+4)
+    rate_th = [max(np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta)) for theta in all_theta]
+
+    # for lam_oi, lam_ai in zip(lam_o, lam_a):
+    #     plt.plot(all_theta, np.abs(1 - all_theta + eps * lam_oi/lam_ai))
+    # plt.plot(all_theta, 1 - all_theta - 2*eps*h_o/h_a*np.sqrt(nu_a/nu_o), "k--")
+
+
+
+
+    plt.plot(all_theta, rate_th)
+    plt.plot(all_theta, np.abs(1 - all_theta - eps * h_o/h_a * np.sqrt(nu_a/nu_o))/all_theta, "k--")
+
+    # print(eps*np.sqrt(nu_a/nu_o)*h_o/h_a)
+    # epsetc = eps*np.sqrt(nu_a/nu_o)*h_o/h_a
+
+    # theta = 1 -epsetc
+    # rate_w = np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta)
+
+    # plt.semilogy(w, rate_w)
+    # #plt.semilogy(w, [np.abs(1 - theta - eps * h_o/h_a * np.sqrt(nu_a/nu_o))/theta for _ in w], "k--")
+    # theta = 1/(1+epsetc)
+    # rate_w = np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta)
+
+    # plt.semilogy(w, rate_w)
+
+
+
+    # print(max(np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta)))
+    # def rate_to_minimize(theta):
+    #     return max(np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta))
+    # from scipy.optimize import minimize_scalar
+    # optimal_lam = minimize_scalar(fun=rate_to_minimize)
+    # print(optimal_lam)
+    show_or_save("fig_relaxParamRate")
+
+
 
 def fig_firstBulkAnalysis():
     from discretizations.space.FD_naive import FiniteDifferencesNaive

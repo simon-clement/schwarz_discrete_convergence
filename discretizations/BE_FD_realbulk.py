@@ -1,3 +1,7 @@
+"""
+alpha is here dependent on the norm of (u_10-u0)
+"""
+
 import numpy as np
 from discretizations.space.FD_bulk import FiniteDifferencesBulk
 from discretizations.time.backward_euler import BackwardEuler

@@ -1,3 +1,6 @@
+"""
+Alpha is a constant
+"""
 import numpy as np
 from discretizations.space.FD_bulk import FiniteDifferencesBulk
 from discretizations.time.backward_euler import BackwardEuler
@@ -76,6 +79,9 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
     def integrate_one_step(self, f, bd_cond, u_nm1, u_interface, phi_interface,
                            upper_domain, Y, additional,
                            selfu_interface, selfphi_interface, **kwargs):
+        # Here in this special function "u" is the prognostic variable, so "u_nm1"
+        # is the derivative of our variable of interest and "additional"
+        # is the actual variable of interest
         f = f(1)
         bd_cond = bd_cond(1)
         u_interface = u_interface[-1](1)
@@ -92,8 +98,7 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
         self.LAMBDA_1 = 0.
         self.LAMBDA_2 = 0. # TODO solve this problem
 
-        A = self.A_interior(upper_domain=upper_domain)
-        B = self.B_interior(upper_domain=upper_domain)
+        A = self.A_interior(upper_domain=upper_domain) #identity matrix
         rhs = multiply_interior(A, u_nm1) / self.DT + self.crop_f_as_prognostic(f=f, upper_domain=upper_domain)
 
         # old cond_robin = Lambda * u_interface + phi_interface

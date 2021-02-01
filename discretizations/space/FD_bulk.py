@@ -107,9 +107,8 @@ class FiniteDifferencesBulk(Discretization):
 
     def update_additional(self, result, additional, dt, f, upper_domain,
             reaction_explicit, coef_reaction_implicit):
-        # starting from additional=\\Bar{u}^n, making additional=\\Bar{u}^{n+1}
-        # average of u on a cell. Warning, you need to interpolate result for making
-        # an implicit/explicit thing
+        # starting from additional=u^n, making additional=u^{n+1}
+        # average of u on a cell.
         a, c, _ = self.get_a_r_dt()
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
         return additional + dt* (np.diff(D*result) / h + f)
