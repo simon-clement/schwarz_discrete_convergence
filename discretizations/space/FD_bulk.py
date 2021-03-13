@@ -75,10 +75,12 @@ class FiniteDifferencesBulk(Discretization):
             if override_r is not None:
                 c = override_r
 
+            reaction_effect = 1./(1+dt*c)
+
             assert h[-1] > 0
             assert sol_for_explicit is not None
             assert additional is not None
-            return D[-1] * dt / h[-1] * np.array([3/2, -2, 1/2]), bd_cond - 3/2 * additional[-1] + additional[-2] / 2 + dt / 2 * (f[-2] - 3*f[-1])
+            return reaction_effect*D[-1] * dt / h[-1] * np.array([3/2, -2, 1/2]), bd_cond + reaction_effect*( -3/2 * additional[-1] + additional[-2] / 2 + dt / 2 * (f[-2] - 3*f[-1]))
 
     def discretization_interface(self, upper_domain):
         return None
@@ -97,9 +99,10 @@ class FiniteDifferencesBulk(Discretization):
         a, c, _ = self.get_a_r_dt()
         if override_r is not None:
             c = override_r
+        reaction_effect = 1./(1+dt*c)
 
-        return (D[0] * np.array([1, 0, 0]) + Lambda * np.array([-3/2, 2, -1/2]) * D[0] * dt / h[0],
-               robin_cond + Lambda * (additional[1]/2 - 3*additional[0]/2 + dt/2*(f[1] - 3*f[0])))
+        return (D[0] * np.array([1, 0, 0]) + Lambda * reaction_effect*np.array([-3/2, 2, -1/2]) * D[0] * dt / h[0],
+               robin_cond + Lambda * reaction_effect * (additional[1]/2 - 3*additional[0]/2 + dt/2*(f[1] - 3*f[0])))
 
     def create_additional(self, upper_domain): # u at a point
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
@@ -111,7 +114,8 @@ class FiniteDifferencesBulk(Discretization):
         # average of u on a cell.
         a, c, _ = self.get_a_r_dt()
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
-        return additional + dt* (np.diff(D*result) / h + f)
+        reaction_effect = 1./(1+dt*c)
+        return (additional + dt* (np.diff(D*result) / h + f))*reaction_effect
 
     def new_additional(self, result, upper_domain, cond):
         print("Why are you creating a new variable u ? Are you sure it is the right thing to do ?")

@@ -408,9 +408,9 @@ class Discretization:
         Y_0, Y_1, Y_2 = to_inverse
         Y_1 = np.concatenate(([list_interface[0]], Y_1, [list_bd_cond[0]]))
         Y_0 = np.concatenate((Y_0,
-            [0 if len(list_bd_cond) == 1 else list_bd_cond[1]]))
+            [0. if len(list_bd_cond) == 1 else list_bd_cond[1]]))
 
-        Y_2 = np.concatenate(([0 if len(list_interface) == 1 else list_interface[1]] , Y_2))
+        Y_2 = np.concatenate(([0.*1j if len(list_interface) == 1 else list_interface[1]] , Y_2))
 
         ret = [Y_0, Y_1, Y_2]
         for additional_coeff_interface in list_interface[2:]:
@@ -418,7 +418,7 @@ class Discretization:
             ret[-1][0] = additional_coeff_interface
 
         for additional_coeff_bd_cond in list_bd_cond[2:]:
-            ret = [np.zeros(ret[0].shape[0] - 1)] + ret # new diagonal under the last one
+            ret = [np.zeros(ret[0].shape[0] - 1) + 0j] + ret # new diagonal under the last one
             ret[0][-1] = additional_coeff_bd_cond
 
         assert max(len(list_bd_cond), 2) + max(len(list_interface), 2) - 1 == len(ret)

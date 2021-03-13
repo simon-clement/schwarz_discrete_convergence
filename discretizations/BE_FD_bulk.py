@@ -43,17 +43,20 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
 
             TODO: include reaction in the computation
             must return a tuple (coefficients, bd_cond)
+
+            Dirichlet condition on both sides
         """
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
-        a, c, _ = self.get_a_r_dt()
+        a, c, dt = self.get_a_r_dt()
 
         if override_r is not None:
             c = override_r
+        reaction_effect = 1./(1+dt*c)
 
         assert h[-1] > 0 and upper_domain or h[-1] < 0 and not upper_domain
         assert sol_for_explicit is not None
         assert additional is not None
-        return D[-1] * dt / h[-1] * np.array([3/2, -2, 1/2]), bd_cond - 3/2 * additional[-1] + additional[-2] / 2 + dt / 2 * (f[-2] - 3*f[-1])
+        return reaction_effect* D[-1] * dt / h[-1] * np.array([3/2, -2, 1/2]), bd_cond + (- 3/2 * additional[-1] + additional[-2] / 2 + dt / 2 * (f[-2] - 3*f[-1])) * reaction_effect
 
     def hardcoded_interface(self, upper_domain, robin_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, additional, override_r=None, **kwargs):
         """
@@ -66,13 +69,14 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
             don't forget to interpolate f in time before calling function
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        a, c, _ = self.get_a_r_dt()
+        a, c, dt = self.get_a_r_dt()
         if override_r is not None:
             c = override_r
 
         if upper_domain:
+            reaction_effect = 1./(1+dt*c)
             theta = self.THETA
-            return (D[0] * np.array([1+theta * self.DT*self.ALPHA/h[0], -theta * self.DT*self.ALPHA/h[0]]), robin_cond)
+            return (D[0] * np.array([1+reaction_effect*theta * self.DT*self.ALPHA/h[0], -reaction_effect*theta * self.DT*self.ALPHA/h[0]]), robin_cond)
         else:
             return (D[0] * np.array([1]), robin_cond)
 
@@ -96,15 +100,17 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
 
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
         self.LAMBDA_1 = 0.
-        self.LAMBDA_2 = 0. # TODO solve this problem
+        self.LAMBDA_2 = 0. # little patch so that we can have our transmission operators
 
         A = self.A_interior(upper_domain=upper_domain) #identity matrix
         rhs = multiply_interior(A, u_nm1) / self.DT + self.crop_f_as_prognostic(f=f, upper_domain=upper_domain)
 
         # old cond_robin = Lambda * u_interface + phi_interface
         if upper_domain:
+            a, c, dt = self.get_a_r_dt()
             theta = self.THETA
-            cond_interface = self.ALPHA * (theta * additional[0] + (1-theta)*selfu_interface[-1](1) - u_interface)
+            reaction_effect = 1./(1+dt*c)
+            cond_interface = self.ALPHA * (theta * reaction_effect * (additional[0] + dt*f[0]) + (1-theta)*selfu_interface[-1](1) - u_interface)
         else:
             cond_interface = self.RHO_2_OVER_RHO_1 * phi_interface
 
@@ -125,8 +131,8 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
 
     def convergence_rate(self, w):
         # _, h1, D1, _ = self.M_h_D_Lambda(upper_domain=False)
-        _, h2, _, _ = self.M_h_D_Lambda(upper_domain=True)
-        _, h1, _, _ = self.M_h_D_Lambda(upper_domain=False)
+        _, h2, nu_2, _ = self.M_h_D_Lambda(upper_domain=True)
+        _, h1, nu_1, _ = self.M_h_D_Lambda(upper_domain=False)
         h2 = h2[0]
         h1 = abs(h1[0])
 
@@ -138,8 +144,11 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
         implicit_part = self.THETA*self.DT*self.ALPHA/h2 * (1-lam2) * z/ (z-1)
         explicit_part = self.ALPHA / s * \
                 ((1 - self.THETA) * (lam2-1)/h2 + self.RHO_2_OVER_RHO_1*(lam1-1)/h1 )
-        return explicit_part/((1+implicit_part))
-
-
-
+        #return explicit_part/((1+implicit_part))
+        chi_a = (s+ self.R)*h2**2/nu_2[0]
+        chi_o = (s+ self.R)*h1**2/nu_1[0]
+        lam_a = (chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4.))/2
+        lam_o = (chi_o - np.sqrt(chi_o)*np.sqrt(chi_o+4.))/2
+        eps = self.RHO_2_OVER_RHO_1 * h2/h1
+        return (np.abs(1 - self.THETA + eps * lam_o/lam_a)/np.abs((s+self.R)*h2/(self.ALPHA*lam_a) - self.THETA))
 

@@ -46,15 +46,16 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
             must return a tuple (coefficients, bd_cond)
         """
         M, h, D, _ = self.M_h_D_Lambda(upper_domain=upper_domain)
-        a, c, _ = self.get_a_r_dt()
+        a, c, dt = self.get_a_r_dt()
 
         if override_r is not None:
             c = override_r
+        reaction_effect = 1./(1+dt*c)
 
         assert h[-1] > 0 and upper_domain or h[-1] < 0 and not upper_domain
         assert sol_for_explicit is not None
         assert additional is not None
-        return D[-1] * dt / h[-1] * np.array([3/2, -2, 1/2]), bd_cond - 3/2 * additional[-1] + additional[-2] / 2 + dt / 2 * (f[-2] - 3*f[-1])
+        return reaction_effect * D[-1] * dt / h[-1] * np.array([3/2, -2, 1/2]), bd_cond + reaction_effect * (- 3/2 * additional[-1] + additional[-2] / 2 + dt / 2 * (f[-2] - 3*f[-1]))
 
     def hardcoded_interface(self, upper_domain, robin_cond, coef_implicit, coef_explicit, dt, f, sol_for_explicit, additional, override_r=None, **kwargs):
         """
@@ -67,14 +68,15 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
             don't forget to interpolate f in time before calling function
         """
         M, h, D, Lambda = self.M_h_D_Lambda(upper_domain=upper_domain)
-        a, c, _ = self.get_a_r_dt()
+        a, c, dt = self.get_a_r_dt()
         if override_r is not None:
             c = override_r
 
         if upper_domain:
             theta = self.THETA
             alpha = self.ALPHA_NONLINEAR
-            return (D[0] * np.array([1+theta * self.DT*alpha/h[0], -theta * self.DT*alpha/h[0]]), robin_cond)
+            reaction_effect = 1./(1+dt*c)
+            return (D[0] * np.array([1+theta * reaction_effect * self.DT*alpha/h[0], - reaction_effect * theta * self.DT*alpha/h[0]]), robin_cond)
         else:
             return (D[0] * np.array([1]), robin_cond)
 
@@ -86,7 +88,7 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
         u_interface = u_interface[-1](1)
         phi_interface = phi_interface[-1](1)
 
-        C_D = 1.2e-3
+        C_D = 1.3e-3
         self.ALPHA_NONLINEAR = C_D * np.abs(selfu_interface[-1](1) - u_interface)
 
         if len(additional) == 0:
@@ -108,7 +110,9 @@ class be_fd_bulk(BackwardEuler, FiniteDifferencesBulk):
         if upper_domain:
             theta = self.THETA
             alpha = self.ALPHA_NONLINEAR
-            cond_interface = alpha * (theta * additional[0] + (1-theta)*selfu_interface[-1](1) - u_interface)
+            a, c, dt = self.get_a_r_dt()
+            reaction_effect = 1./(1+dt*c)
+            cond_interface = alpha * (theta * reaction_effect * (additional[0] + dt*f[0]) + (1-theta)*selfu_interface[-1](1) - u_interface)
         else:
             cond_interface = self.RHO_2_OVER_RHO_1 * phi_interface
 
