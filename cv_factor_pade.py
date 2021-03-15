@@ -285,75 +285,54 @@ def rho_Pade_FD_corr1(builder, w, gamma=default_gamma):
     ret = np.linalg.inv(bold_zeta2) @ bold_psi1 @ np.linalg.inv(bold_zeta1) @ bold_psi2
     return np.linalg.eig(ret)[0].transpose() # returns couple of two arrays of eigenvalues
 
+def select_small_modulus(lam1, lam2, lam3, lam4):
+    """
+        The solution of the 4th degree polynom has 2 roots with modulus < 1.
+        This function takes the 4 roots and returns only two.
+    """
+    rets = [[],[]]
+    for roots in zip(lam1, lam2, lam3, lam4):
+        first = True
+        for r in roots:
+            if np.abs(r) <= 1: # if root has a small modulus
+                if first:
+                    rets[0] += [r] # we put it in the first root
+                    first=False
+                else:
+                    rets[1] += [r] # or in the second one
+    return np.array(rets[0]), np.array(rets[1])
 
-def lambda_Pade_FV(builder, w):
+def lambda_Pade_FV(builder, w, j):
     """
         returns lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2
         used in the computation of rho^{Pade, FV}.
     """
-    a = 1+np.sqrt(2)
-    b = 1+1/np.sqrt(2)
-    dt= builder.DT
-    r = builder.R
-    nu_1 = builder.D1
-    nu_2 = builder.D2
 
+    from numpy import sqrt
+    dt = builder.DT
+    nu = builder.D1 if j == 1 else builder.D2
+    h = builder.SIZE_DOMAIN_1 / (builder.M1 - 1) if j==1 else builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    r = builder.R
     def get_z(w):
         return np.exp(-1j*w*dt)
+    a = 1+sqrt(2)
+    b = 1+1/sqrt(2)
+
     z = get_z(w)
+    Gamma_a = a*dt*(nu/h**2 - r/6) - 1/6
+    Gamma_b = b*dt*(nu/h**2 - r/6) - 1/6
+    Ra = 1+a*dt*r
+    Rb = 1+b*dt*r
+    divider = 6*Gamma_b**2 * z + Gamma_a
+    alpha = (Ra + 12*Gamma_b*z*(Rb + 2 * Gamma_b) - 2*Gamma_a)/divider
 
-    ##################################
-    # DISCRETE CASE, discrete in time ofc
-    ##################################
-
-    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-
-    def Gamma(ab, nu):
-        return ab*dt*(nu/h**2 - r/6) - 1/6
-
-
-    def lambda_pm_pm(sign_first, sign_second, nu):
-        """ solves c (-1 + x)^4 + b (-1 + x)^2 x + a x^2 = 0
-        a = z - 1 - (a - 2 z b - z b^2 dt r) dt r
-        b = gamma_a - (1+b dt r) 2 z gamma_b
-        c = z gamma_b ^2
-
-        we name pa, pb, pc to avoid confusion with a, b letters of Pade
-        """
-        gamma_a = Gamma(a, nu)
-        gamma_b = Gamma(b, nu)
-        assert r == 0
-        pa = z - 1 - (a - 2*z*b - z* b**2 * dt*r)*dt*r
-        pb = gamma_a - (1 + b*dt*r)*2*z*gamma_b
-        pc = z*gamma_b**2
-        """ solves (-1 + x)^4 + f (-1 + x)^2 x + d x^2 = 0 """
-        d = pa / pc
-        f = pb / pc
-
-        sqrt_f2_m_4d = np.sqrt(pc*(f**2 - 4*d))/np.sqrt(pc)
-        return 1+ 1/4 *(sign_second*sqrt_f2_m_4d -f + sign_first * \
-                np.sqrt(pc*(2*(f-4)*(-sign_second*sqrt_f2_m_4d + f) - 4*d))/np.sqrt(pc))
-
-    lambda_1 = lambda_pm_pm(1, -1, nu_1)
-    lambda_2 = lambda_pm_pm(-1, -1, nu_2)
-    lambda_3 = lambda_pm_pm(1, 1, nu_1)
-    lambda_4 = lambda_pm_pm(-1, 1, nu_2)
-
-    nu = nu_1
-    gamma_a = Gamma(a, nu)
-    gamma_b = Gamma(b, nu)
-    assert r == 0
-    pa = z - 1 - (a - 2*z*b - z* b**2 * dt*r)*dt*r
-    pb = gamma_a - (1 + b*dt*r)*2*z*gamma_b
-    pc = z*gamma_b**2
-
-    # TODO tout n'est pas égal à 0: problème ou c'est juste que nu est pas le bon ?
-    # print(max(lambda_1**2 * pa + (lambda_1-1)**2*lambda_1*pb + pc*(lambda_1 - 1)**4))
-    # print(max(lambda_2**2 * pa + (lambda_2-1)**2*lambda_2*pb + pc*(lambda_2 - 1)**4))
-    # print(max(lambda_3**2 * pa + (lambda_3-1)**2*lambda_3*pb + pc*(lambda_3 - 1)**4))
-    # print(max(lambda_4**2 * pa + (lambda_4-1)**2*lambda_4*pb + pc*(lambda_4 - 1)**4))
-
-    return lambda_1, lambda_2, lambda_3, lambda_4
+    beta = (-4*Ra + 6*z*(Rb**2 + 4*Rb*Gamma_b + 6*Gamma_b**2) - 6*Gamma_a) / divider
+    racine = sqrt(alpha**2 -4*beta+8)
+    lambda_1 = alpha / 4 - racine/4 + sqrt(alpha**2/2 - alpha * racine / 2 - beta - 2)/2
+    lambda_2 = alpha / 4 - racine/4 - sqrt(alpha**2/2 - alpha * racine / 2 - beta - 2)/2
+    lambda_3 = alpha / 4 + racine/4 + sqrt(alpha**2/2 + alpha * racine / 2 - beta - 2)/2
+    lambda_4 = alpha / 4 + racine/4 - sqrt(alpha**2/2 + alpha * racine / 2 - beta - 2)/2
+    return select_small_modulus(lambda_1, lambda_2, lambda_3, lambda_4)
 
 def rho_Pade_FV(builder, w, gamma=default_gamma):
     L1 = builder.LAMBDA_1
@@ -367,7 +346,9 @@ def rho_Pade_FV(builder, w, gamma=default_gamma):
     b = 1 + 1/np.sqrt(2)
     a = 1 + np.sqrt(2)
 
-    lambda_1, lambda_2, lambda_3, lambda_4 = lambda_Pade_FV(builder, w)
+    # lambda_1, lambda_2, lambda_3, lambda_4 = lambda_Pade_FV(builder, w)
+    lambda_1_j1, lambda_2_j1 = lambda_Pade_FV(builder, w, j=1)
+    lambda_1_j2, lambda_2_j2 = lambda_Pade_FV(builder, w, j=2)
 
     def Gamma(ab, nu):
         return ab*dt*(nu/h**2 - r/6) - 1/6
@@ -377,82 +358,58 @@ def rho_Pade_FV(builder, w, gamma=default_gamma):
 
     def eta_etastar(lambda_i, nu_j):
         sigma_i = np.log(lambda_i) / h # we let sigma be with a real part negative 
-        mu_i = z  * ( 1 + b * dt * r - Gamma(b, nu_j) * (lambda_i - 2 + 1/lambda_i))
+        mu_i = z  * ( 1 + b * dt * r - Gamma(b, nu_j) * (lambda_i - 2 + 1/lambda_i)) \
+                / (1 + (lambda_i - 2 + 1/lambda_i)/6)
 
         eta_i = -sigma_i * (h/6 * (2 + lambda_i) + ratio_u* nu_j / h * dt * (b*z*(1+b*dt*r) - a + b*mu_i) * (1 - lambda_i))
         eta_istar = -sigma_i * (h/6 * mu_i * (2 + lambda_i) + ratio_ustar * nu_j / h * dt * (b*(1+a*dt*r)/(1+b*dt*r) - a + b*mu_i) * (1 - lambda_i))
         return eta_i, eta_istar
 
-    eta1, eta1star = eta_etastar(lambda_1, nu_1)
-    eta2, eta2star = eta_etastar(lambda_2, nu_2)
-    eta3, eta3star = eta_etastar(lambda_3, nu_1)
-    eta4, eta4star = eta_etastar(lambda_4, nu_2)
+    eta1, eta1star = eta_etastar(lambda_1_j1, nu_1)
+    eta2, eta2star = eta_etastar(lambda_1_j2, nu_2)
+    eta3, eta3star = eta_etastar(lambda_2_j1, nu_1)
+    eta4, eta4star = eta_etastar(lambda_2_j2, nu_2)
 
-    sigma_1 = np.log(lambda_1) / h
-    sigma_2 = np.log(lambda_2) / h
-    sigma_3 = np.log(lambda_3) / h
-    sigma_4 = np.log(lambda_4) / h
+    eta1, eta1star, eta3, eta3star = -eta1, -eta1star, -eta3, -eta3star
 
-    mu_1 = z  * ( 1 + b * dt * r - Gamma(b, nu_1) * (lambda_1 - 2 + 1/lambda_1))
-    mu_2 = z  * ( 1 + b * dt * r - Gamma(b, nu_2) * (lambda_2 - 2 + 1/lambda_2))
-    mu_3 = z  * ( 1 + b * dt * r - Gamma(b, nu_1) * (lambda_3 - 2 + 1/lambda_3))
-    mu_4 = z  * ( 1 + b * dt * r - Gamma(b, nu_2) * (lambda_4 - 2 + 1/lambda_4))
+    sigma_1 = np.log(lambda_1_j1) / h
+    sigma_2 = np.log(lambda_1_j2) / h
+    sigma_3 = np.log(lambda_2_j1) / h
+    sigma_4 = np.log(lambda_2_j2) / h
 
-    # zeta_step is the matrix multiplying (A_k, A_k')^T,(B_k, B_k')^T when they are prognosed.
-    # psi_step is the matrix multiplying (A_k, A_k')^T,(B_k, B_k')^T when they are diagnosed.
+    mu_1 = z  * ( 1 + b * dt * r - Gamma(b, nu_1) * (lambda_1_j1 - 2 + 1/lambda_1_j1)) \
+                / (1 + (lambda_1_j1 - 2 + 1/lambda_1_j1)/6)
+    mu_2 = z  * ( 1 + b * dt * r - Gamma(b, nu_2) * (lambda_1_j2 - 2 + 1/lambda_1_j2)) \
+                / (1 + (lambda_1_j2 - 2 + 1/lambda_1_j2)/6)
+    mu_3 = z  * ( 1 + b * dt * r - Gamma(b, nu_1) * (lambda_2_j1 - 2 + 1/lambda_2_j1)) \
+                / (1 + (lambda_2_j1 - 2 + 1/lambda_2_j1)/6)
+    mu_4 = z  * ( 1 + b * dt * r - Gamma(b, nu_2) * (lambda_2_j2 - 2 + 1/lambda_2_j2)) \
+                / (1 + (lambda_2_j2 - 2 + 1/lambda_2_j2)/6)
+
+    # zeta_{A,B} is the matrix multiplying (A_k, A_k'),(B_k, B_k') when they are prognosed (mu).
+    # psi_{B,A} is the matrix multiplying (B_k, B_k'), (A_k, A_k') when they are diagnosed (gamma).
     zeta_1 = np.array((( L1*eta1    +nu_1*sigma_1,      L1*eta3    +nu_1*sigma_3),
                         (L1*eta1star+nu_1*sigma_1*mu_1, L1*eta3star+nu_1*sigma_3*mu_3)))
     zeta_2 = np.array((( L2*eta2    +nu_2*sigma_2,      L2*eta4    +nu_2*sigma_4),
                         (L2*eta2star+nu_2*sigma_2*mu_2, L2*eta4star+nu_2*sigma_4*mu_4)))
-    psi_1 = np.array((( L1*eta1    +nu_1*sigma_1,      L1*eta3    +nu_1*sigma_3),
-                        ((L1*eta1+nu_1*sigma_1)*gamma(z), (L1*eta3+nu_1*sigma_3)*gamma(z))))
-    psi_2 = np.array((( L2*eta2    +nu_2*sigma_2,        L2*eta4   +nu_2*sigma_4),
-                      ((L2*eta2    +nu_2*sigma_2)*gamma(z),(L2*eta4   +nu_2*sigma_4)*gamma(z))))
+    psi_1 = np.array((( L1*eta2    +nu_2*sigma_2,      L1*eta4    +nu_2*sigma_4),
+                        ((L1*eta2+nu_2*sigma_2)*gamma(z), (L1*eta4+nu_2*sigma_4)*gamma(z))))
+    psi_2 = np.array((( L2*eta1    +nu_1*sigma_1,        L2*eta3   +nu_1*sigma_3),
+                      ((L2*eta1    +nu_1*sigma_1)*gamma(z),(L2*eta3   +nu_1*sigma_3)*gamma(z))))
 
     zeta_1 = zeta_1.transpose((2,0,1))
     zeta_2 = zeta_2.transpose((2,0,1))
     psi_1 = psi_1.transpose((2,0,1))
     psi_2 = psi_2.transpose((2,0,1))
 
-    gamma_t1 = (eta1star*eta3 - gamma(z)*eta1*eta3) / (eta1star*eta3 - eta3star*eta1)
-    gamma_t2 = (mu_2 - gamma(z))/ (mu_2 - mu_4)
-    #gammma_t1 = gamma_t2 = 0 # TO IMITATE CONTINUOUS IN TIME
-    cv_rate = nu_1/nu_2 * (sigma_1 * (1 - gamma_t1) / eta1 + sigma_3 * gamma_t1/eta3) * \
-            ((1 - gamma_t2)/sigma_2 * eta2 + gamma_t2/sigma_4*eta4)
+    matrix_transition = psi_2 @ np.linalg.inv(zeta_1) @ psi_1 @ np.linalg.inv(zeta_2)
+    cv_rate = matrix_transition[:,0,0] + gamma(z) * matrix_transition[:,0,1]
+    # gamma_t1 = (eta1star*eta3 - gamma(z)*eta1*eta3) / (eta1star*eta3 - eta3star*eta1)
+    # gamma_t2 = (mu_2 - gamma(z))/ (mu_2 - mu_4)
+    # cv_rate = nu_1/nu_2 * (sigma_1 * (1 - gamma_t1) / eta1 + sigma_3 * gamma_t1/eta3) * \
+    #         ((1 - gamma_t2)/sigma_2 * eta2 + gamma_t2/sigma_4*eta4)
 
-    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    dis = builder.build(PadeLowTildeGamma, QuadSplinesFV)
-    cv_rate_c = dis.analytic_robin_robin_modified(w=w,
-            order_time=0, order_operators=float('inf'),
-            order_equations=float('inf'))
-    #cv_rate_c = rho_Pade_c(builder, w, gamma=gamma)
-
-
-    # The convergence matrix is thus zeta_1^{-1} psi_2 zeta_2^{-1} psi_1
-    #ret = np.linalg.inv(zeta_1) @ psi_2 @ np.linalg.inv(zeta_2) @ psi_1
-    #plt.plot(np.linalg.eig(ret)[0].transpose()[0])
-    #plt.plot(np.linalg.eig(ret)[0].transpose()[1])
-    import matplotlib.pyplot as plt
-    lam_1m, lam_2m, lam_1p, lam_2p = dis.lambda_1_2_pm(1j*w)
-    etadir, etaneu = dis.eta_dirneu(1, lam_1m, lam_1p, s=1j*w)
-
-    lambda_i = lam_1m
-    nu_j = nu_1
-    #sigma_i = np.log(lambda_i) / h # we let sigma be with a real part negative 
-    #mu_i = z  * ( 1 + b * dt * r - Gamma(b, nu_j) * (lambda_i - 2 + 1/lambda_i))
-    import matplotlib.pyplot as plt
-    plt.semilogx(w, lam_1m, "--", label="lam1_c")
-    plt.semilogx(w, lam_1p, "--", label="lam2_c")
-    plt.semilogx(w, lambda_1, label="lam1")
-    plt.semilogx(w, lambda_2, label="lam2")
-    #plt.semilogx(w, lambda_3, label="lam3")
-    #plt.semilogx(w, lambda_4, label="lam4")
-    plt.legend()
-    plt.show()
-
-    #return np.linalg.eig(ret)[0].transpose()
-    return np.abs(cv_rate)
+    return cv_rate
 
 if __name__ == "__main__":
     import main

@@ -403,15 +403,10 @@ def fig_validatePadeAnalysisFDRR():
         
     discretizations = {}
 
-    #discretizations["FV2"] = (time_scheme, QuadSplinesFV)
-    #discretizations["FV4"] = (time_scheme, FourthOrderFV)
-    #discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
-    # discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
-
     axis_freq = get_discrete_freq(N, dt)
     fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
 
-    dis_cont = builder.build(time_scheme, FiniteDifferencesNaive) # any discretisation would do 
+    dis_cont = builder.build(time_scheme, FiniteDifferencesExtra) # any discretisation would do 
     continuous = dis_cont.analytic_robin_robin_modified(w=axis_freq,
                     order_time=0, order_operators=0,
                     order_equations=0)
@@ -419,8 +414,8 @@ def fig_validatePadeAnalysisFDRR():
 
     #for name in discretizations:
     #time_dis, space_dis = discretizations[name]
-    #dis = builder.build(time_dis, space_dis)
-    dis = builder.build_scheme(PadeFDCorr)
+    dis = builder.build(PadeLowTildeGamma, FiniteDifferencesExtra)
+    # dis = builder.build_scheme(PadeFDCorr)
     print(dis.__dict__)
 
 
@@ -430,10 +425,10 @@ def fig_validatePadeAnalysisFDRR():
                     order_equations=float('inf'))
 
     
-    alpha_w = memoised(Builder.frequency_cv_factor_spacetime_scheme, builder,
-            PadeFDCorr, N=N, number_samples=8, NUMBER_IT=2) # WAS 7 IN CACHE
+    cv_rate = memoised(Builder.frequency_cv_rate, builder,
+            PadeLowTildeGamma, FiniteDifferencesExtra, N=N, number_samples=8, NUMBER_IT=2) # WAS 7 IN CACHE
 
-    axes.semilogx(axis_freq * dt, alpha_w[2] / alpha_w[1],
+    axes.semilogx(axis_freq * dt, np.abs(cv_rate),
             label="observed $\\rho^{\\rm c, "+"Pade, FD Corr=1" + "}$")
 
     axes.semilogx(axis_freq * dt, theorical_convergence_factor,
@@ -449,27 +444,21 @@ def fig_validatePadeAnalysisFDRR():
 
     # axes.semilogx(axis_freq * dt, rho_Pade_FD_corr0(builder, axis_freq),
     #         label="$\\rho^{\\rm Pade, FD(corr=0)}$")
-    # axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
-    #         label="$\\rho^{\\rm Pade, FD(extra)}$")
+    axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
+            label="$\\rho^{\\rm Pade, FD(extra)}$")
     # axes.semilogx(axis_freq * dt, rho_Pade_c(builder, axis_freq),
     #         label="$\\rho^{\\rm Pade, c}$")
 
     ###########
     # for each discretization, a simulation
     ###########
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder,
-                time_dis, space_dis, N=N, number_samples=5, NUMBER_IT=4)
-        k = 1
-        convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
-        axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
-        # k = 2
-        # convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
-        # axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
-        # k = 3
-        # convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
-        # axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
+    # for name in discretizations:
+    #     time_dis, space_dis = discretizations[name]
+    #     alpha_w = memoised(Builder.frequency_cv_factor, builder,
+    #             time_dis, space_dis, N=N, number_samples=5, NUMBER_IT=4)
+    #     k = 1
+    #     #convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
+    #     axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
 
     axes.set_xlabel("Frequency variable $\\omega \\delta t$")
     axes.set_ylabel("Convergence factor $\\rho$")
@@ -485,8 +474,8 @@ def fig_validatePadeAnalysisFVRR():
     from cv_factor_pade import rho_Pade_FV
     # parameters of the schemes are given to the builder:
     builder = Builder()
-    builder.LAMBDA_1 = 1e9 # optimal parameters for corr=0, N=3000
-    builder.LAMBDA_2 = -0.
+    builder.LAMBDA_1 = 1. # optimal parameters for corr=0, N=3000
+    builder.LAMBDA_2 = -0.5
     builder.M1 = 200
     builder.M2 = 200
     builder.D1 = 1.
@@ -503,10 +492,10 @@ def fig_validatePadeAnalysisFVRR():
     axis_freq = get_discrete_freq(N, dt)
     fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
 
-    dis_cont = builder.build(time_scheme, QuadSplinesFV) # any discretisation would do 
-    continuous = dis_cont.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=0, order_operators=0,
-                    order_equations=0)
+    # dis_cont = builder.build(time_scheme, QuadSplinesFV) # any discretisation would do 
+    # continuous = dis_cont.analytic_robin_robin_modified(w=axis_freq,
+    #                 order_time=0, order_operators=0,
+    #                 order_equations=0)
 
     dis = builder.build(time_scheme, QuadSplinesFV)
 
@@ -516,14 +505,7 @@ def fig_validatePadeAnalysisFVRR():
                     order_equations=float('inf'))
 
     cv_rate_simulated = memoised(Builder.frequency_cv_rate, builder, time_scheme,
-            QuadSplinesFV, N=N, number_samples=5, NUMBER_IT=2) # WAS 7 IN CACHE
-    alpha_w = memoised(Builder.frequency_cv_factor, builder, time_scheme,
-            QuadSplinesFV, N=N, number_samples=5, NUMBER_IT=2) # WAS 7 IN CACHE
-
-    axes.semilogx(axis_freq * dt, alpha_w[2]/alpha_w[1],
-            label="observed $\\rho^{\\rm c, "+"Pade, FV" + "}$")
-    axes.semilogx(axis_freq * dt, np.abs(cv_rate_simulated), "--",
-            label="observed $\\rho^{\\rm c, "+"Pade, FV" + "}$")
+            QuadSplinesFV, N=N, number_samples=50, NUMBER_IT=2) # WAS 7 IN CACHE
 
     axes.semilogx(axis_freq * dt, theorical_convergence_factor,
             label="$\\rho^{\\rm FV, "+"c" + "}$")
@@ -531,15 +513,18 @@ def fig_validatePadeAnalysisFVRR():
     axes.semilogx(axis_freq * dt, rho_Pade_c(builder, axis_freq),
             label="$\\rho^{\\rm c, "+"Pade" + "}$")
  
-    axes.semilogx(axis_freq * dt, rho_Pade_FV(builder, axis_freq),
+    axes.semilogx(axis_freq * dt, np.abs(rho_Pade_FV(builder, axis_freq)),
             label="$\\rho^{\\rm FV, "+"Pade" + "}$")
+
+    axes.semilogx(axis_freq * dt, np.abs(cv_rate_simulated), "--",
+            label="observed $\\rho^{\\rm c, "+"Pade, FV" + "}$")
 
 
     axes.set_xlabel("Frequency variable $\\omega \\delta t$")
     axes.set_ylabel("Convergence factor $\\rho$")
-    axes.set_title("Validation of finite differences discrete analysis")
+    axes.set_title("Validation of Padé+ finite volumes discrete analysis")
     axes.legend()
-    show_or_save("fig_validatePadeAnalysisFDRR")
+    show_or_save("fig_validatePadeAnalysisFVRR")
 
 def fig_validate_matrixlinear():
     from discretizations.space.FD_naive import FiniteDifferencesNaive
