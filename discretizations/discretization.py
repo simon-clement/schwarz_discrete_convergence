@@ -436,7 +436,7 @@ class Discretization:
     # ANALYSIS FUNCTIONS:
     #####################
 
-    def analytic_robin_robin_modified(self, w, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
+    def varrho_robin_robin_modified(self, w, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
         """
             When D and h are constant, it is possible to find the convergence
             factor in frequency domain. analytic_robin_robin_modified computes this convergence rate.
@@ -496,6 +496,25 @@ class Discretization:
         h1, h2 = self.get_h()
         D1, D2 = self.get_D()
         return np.abs(rho_numerator / rho_denominator)
+
+
+    def analytic_robin_robin_modified(self, w, order_time=float('inf'), order_operators=float('inf'), order_equations=float('inf')):
+        """
+            When D and h are constant, it is possible to find the convergence
+            factor in frequency domain. analytic_robin_robin_modified computes this convergence rate.
+
+            This method should *not* be overriden, the
+            particularity of the discretization is specified
+            through the methods:
+            eta_dirneu{,_modif}, sigma_modified, lambda_1_2_pm, and s_time_{modif, discrete}
+
+            An infinite order means the discrete analysis is done
+            An order=0 means the continuous analysis is done.
+            Between them, the modified analysis is used.
+        """
+        return np.abs(self.varrho_robin_robin_modified(w,
+            order_time=order_time, order_operators=order_operators,
+            order_equations=order_equations))
 
     def eta_dirneu(self, j, lam_m, lam_p, s=None):
         """

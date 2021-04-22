@@ -404,8 +404,8 @@ def rho_Pade_FV(builder, w, gamma=default_gamma):
 
     matrix_transition = psi_2 @ np.linalg.inv(zeta_1) @ psi_1 @ np.linalg.inv(zeta_2)
 
-    # cv_rate = matrix_transition[:,0,0] + gamma(z) * matrix_transition[:,0,1]
-    cv_rate = np.linalg.eigvals(matrix_transition)[:,1]
+    cv_rate = matrix_transition[:,0,0] + gamma(z) * matrix_transition[:,0,1]
+    #cv_rate = np.linalg.eigvals(matrix_transition)[:,1]
     return cv_rate
 
 if __name__ == "__main__":

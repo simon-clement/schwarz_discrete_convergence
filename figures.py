@@ -18,6 +18,92 @@ from simulator import simulation_firstlevels
 
 REAL_FIG = True
 
+def fig_interactionsTimeSpace():
+    from discretizations.space.FD_extra import FiniteDifferencesExtra
+    from discretizations.space.quad_splines_fv import QuadSplinesFV
+    from discretizations.space.FD_naive import FiniteDifferencesNaive
+    from discretizations.time.backward_euler import BackwardEuler
+    from cv_factor_pade import rho_Pade_c, rho_Pade_FD_extra, rho_Pade_FV
+    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
+
+    #time_dis, space_dis = BackwardEuler, FiniteDifferencesExtra
+    time_dis, space_dis = BackwardEuler, QuadSplinesFV
+    # time_dis, space_dis = PadeLowTildeGamma, FiniteDifferencesExtra
+    # time_dis, space_dis = PadeLowTildeGamma, QuadSplinesFV
+
+    setting = Builder()
+    setting.M1 = 200
+    setting.M2 = 200
+    setting.D1 = .5
+    setting.D2 = 1.
+    setting.R = 0.1
+    setting.DT = 1.
+    N = 3000
+    setting.LAMBDA_1 = 0.14
+    setting.LAMBDA_2 = -0.5
+    axis_freq = get_discrete_freq(N, setting.DT)
+
+    def combined_Pade(LAMBDAS):
+        local_setting = setting.copy()
+        local_setting.LAMBDA_1 = LAMBDAS[0]
+        local_setting.LAMBDA_2 = LAMBDAS[1]
+        dis = local_setting.build(time_dis, space_dis)
+        combined = dis.varrho_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=float('inf'),
+                    order_equations=float('inf')) + rho_Pade_c(builder=local_setting, w=axis_freq) \
+                    - dis.varrho_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=0,
+                    order_equations=0)
+        return np.abs(combined)
+
+    def to_minimize_Pade(LAMBDAS):
+        return np.max(combined_Pade(LAMBDAS))
+
+    def combined_BE(LAMBDAS):
+        local_setting = setting.copy()
+        local_setting.LAMBDA_1 = LAMBDAS[0]
+        local_setting.LAMBDA_2 = LAMBDAS[1]
+        dis = local_setting.build(time_dis, space_dis)
+        combined = dis.varrho_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=float('inf'),
+                    order_equations=float('inf')) + dis.varrho_robin_robin_modified(w=axis_freq,
+                    order_time=float('inf'), order_operators=0.,
+                    order_equations=0) - dis.varrho_robin_robin_modified(w=axis_freq,
+                    order_time=0, order_operators=0,
+                    order_equations=0)
+        return combined
+
+    def to_minimize_BE(LAMBDAS):
+        return np.max(combined_BE(LAMBDAS))
+
+    from scipy.optimize import minimize
+    ret = minimize(method='Nelder-Mead', fun=to_minimize_BE, x0=np.array((0.15, -0.15)))
+
+    setting.LAMBDA_1 = ret.x[0]
+    setting.LAMBDA_2 = ret.x[1]
+
+    dis = setting.build(time_dis, space_dis)
+    plt.semilogx(axis_freq*setting.DT, dis.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=float('inf'), order_operators=0,
+                    order_equations=0), label=r"$\rho^{\rm (Time, c)}$")
+    # plt.semilogx(axis_freq*setting.DT, rho_Pade_c(builder=setting, w=axis_freq), label=r"$\rho^{\rm (Time, c)}$")
+    plt.semilogx(axis_freq*setting.DT, dis.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=0., order_operators=float('inf'),
+                    order_equations=float('inf')), label=r"$\rho^{\rm (c, Space)}$")
+
+    plt.semilogx(axis_freq*setting.DT, np.abs(combined_BE(ret.x)), label=r"$\rho^{\rm (Time, Space)}_{\rm combined}$")
+
+    plt.semilogx(axis_freq*setting.DT, dis.analytic_robin_robin_modified(w=axis_freq,
+                    order_time=float('inf'), order_operators=float('inf'),
+                    order_equations=float('inf')), "--", label=r"$\rho^{\rm (Time, Space)}$")
+    # plt.semilogx(axis_freq*setting.DT, np.abs(rho_Pade_FD_extra(builder=setting, w=axis_freq)), "--", label=r"$\rho^{\rm (Time, Space)}$")
+
+    plt.legend()
+    plt.ylim(ymin=0., ymax=0.1)
+    plt.xlabel(r"$\omega \Delta t$")
+    plt.ylabel(r"Convergence rate estimation")
+    plt.show()
+
 
 def fig_optiRates():
     import matplotlib as mpl
@@ -474,7 +560,7 @@ def fig_validatePadeAnalysisFVRR():
     from cv_factor_pade import rho_Pade_FV
     # parameters of the schemes are given to the builder:
     builder = Builder()
-    builder.LAMBDA_1 = 1. # optimal parameters for corr=0, N=3000
+    builder.LAMBDA_1 = 1.
     builder.LAMBDA_2 = -0.5
     builder.M1 = 200
     builder.M2 = 200
@@ -1401,9 +1487,9 @@ def fig_DNInteraction():
     axes[0,0].set_title(r"${\rho}^{(BE, FV)}_{DN}$", fontsize=10)
     axes[0,1].set_title(r"${\rho}^{(BE, FD)}_{DN}$", fontsize=10)
     axes[0,2].set_title(r"${\rho}^{(BE, FD)}_{DN} (r=0.1 s^{-1})$", fontsize=10)
-    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ interpolation", fontsize=10)
-    axes[1,1].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ imitates scheme", fontsize=10)
-    axes[1,2].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma$ imitates scheme $(r=0.1 s^{-1})$", fontsize=10)
+    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma_{\rm extr}$", fontsize=10)
+    axes[1,1].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma_{\rm init}$", fontsize=10)
+    axes[1,2].set_title(r"${\rho}^{(P2, FD)}_{DN}, \gamma_{\rm imit} (r=0.1 s^{-1})$", fontsize=10)
 
     for i in (0,1,2):
         axes[1,i].set_xlabel(r"$\omega$", fontsize=12)
@@ -1568,9 +1654,9 @@ def fig_RRInteraction():
     axes[0,0].set_title(r"${\rho}^{(BE, FV)}_{RR}$", fontsize=10)
     axes[0,1].set_title(r"${\rho}^{(BE, FD)}_{RR}$", fontsize=10)
     axes[0,2].set_title(r"${\rho}^{(BE, FD)}_{RR} (r=0.1 s^{-1})$", fontsize=10)
-    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ interpolation", fontsize=10)
-    axes[1,1].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ imitates scheme", fontsize=10)
-    axes[1,2].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma$ imitates scheme $(r=0.1 s^{-1})$", fontsize=10)
+    axes[1,0].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma_{\rm extr}$", fontsize=10)
+    axes[1,1].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma_{\rm imit}$", fontsize=10)
+    axes[1,2].set_title(r"${\rho}^{(P2, FD)}_{RR}, \gamma_{\rm imit}$ $(r=0.1 s^{-1})$", fontsize=10)
 
     for i in (0,1,2):
         axes[1,i].set_xlabel(r"$\omega$", fontsize=12)
