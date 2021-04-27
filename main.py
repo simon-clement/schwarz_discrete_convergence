@@ -75,32 +75,6 @@ def main():
                     print("id does not exist. Please use one of:")
                     print(list(ALL_LABELS.keys()))
 
-
-        #  example of use : ./main.py all_figures
-        # WARNING THIS TAKES MULTIPLE HOURS IF YOUR CACHE IS EMPTY
-        elif sys.argv[1] == "all_figures":
-            try:
-                from label_to_figure import ALL_LABELS
-                import concurrent.futures
-                if len(sys.argv) > 2:
-                    with concurrent.futures.ProcessPoolExecutor() as executor:
-                        list(executor.map(global_launch_figsave, list(ALL_LABELS.keys())))
-                else:
-                    print("sequentially exporting all figures.")
-                    # I prefer doing it sequentially
-                    list(map(global_launch_figsave, list(ALL_LABELS.keys())))
-
-            except:
-                raise
-                # We cannot plot them in parallel...
-                # matplotlib won't work if you import it only once :/
-                # if you want to do all figures in parallel,
-                # you'll need an external script
-                from label_to_figure import ALL_LABELS
-                figures.set_save_to_png()
-                for fig in ALL_LABELS.values():
-                    figures.all_figures[fig]()
-
         #  example of use : ./main.py figname fig_rho_robin_neumann
         elif sys.argv[1] == "figname":
             if len(sys.argv) == 2:
@@ -128,36 +102,11 @@ def main():
         # example of use : ./main.py test
         elif sys.argv[1] == "test":
             if len(sys.argv) > 2:
-                if sys.argv[2] == "Manfredi": # ./main.py debug Manfredi
-                    from tests.test_Manfredi import launch_all_tests
-                    launch_all_tests()
-
-                if sys.argv[2] == "Manfredi_rhs": # ./main.py debug Manfredi
-                    from tests.test_Manfredi_rhs_c import launch_all_tests
-                    launch_all_tests()
-
-                if sys.argv[2] == "FV2":  # ./main.py debug 1
-                    from tests.test_finite_volumes_spline2 import launch_all_tests
-                    launch_all_tests()
-
-                if sys.argv[2] == "FV4":  # ./main.py debug 1
-                    from tests.test_finite_volumes import launch_all_tests
-                    launch_all_tests()
-
-                elif sys.argv[2] == "FD":  # ./main.py debug 2
-                    from tests.test_finite_differences import launch_all_tests
-                    launch_all_tests()
-
-                elif sys.argv[2] == "bulk":  # ./main.py debug 2
-                    from tests.test_bulk import launch_all_tests
-                    launch_all_tests()
+                print("Unknown second argument.")
             else:
-                from tests.test_finite_volumes_spline2 import launch_all_tests
+                from tests import launch_all_tests
                 launch_all_tests()
-                from tests.test_finite_volumes import launch_all_tests
-                launch_all_tests()
-                from tests.test_finite_differences import launch_all_tests
-                launch_all_tests()
+
             import label_to_figure
             for val in label_to_figure.ALL_LABELS.values():
                 try:
@@ -174,21 +123,8 @@ def main():
         elif sys.argv[1] == "debug":
             """ You can now test any function here, without impacting the program."""
             if len(sys.argv) > 2:
-                if sys.argv[2] == "Manfredi": # ./main.py debug Manfredi
-                    from tests.test_Manfredi import launch_all_tests
-                    launch_all_tests()
-
-                if sys.argv[2] == "FV2":
-                    from tests.test_finite_volumes_spline2 import launch_all_tests
-                    launch_all_tests()
-
-                if sys.argv[2] == "FV4":
-                    from tests.test_finite_volumes import launch_all_tests
-                    launch_all_tests()
-
-                elif sys.argv[2] == "FD":
-                    from tests.test_finite_differences import launch_all_tests
-                    launch_all_tests()
+                if sys.argv[2] == "FD":
+                    pass
 
 def global_launch_figsave(number_fig):
     """

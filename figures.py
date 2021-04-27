@@ -5,1064 +5,680 @@
     a future change in the default values won't affect old figures...
 """
 import numpy as np
-from numpy import pi
-from memoisation import memoised, FunMem
+from memoisation import memoised
 import matplotlib.pyplot as plt
-import functools
-import discretizations
-from nonlinear_simulator import frequency_simulation
 
-def fig_relaxParamRate():
-    w = np.exp(np.linspace(-10,-2, 100))
-    all_theta = np.linspace(0.88,.92,10001) # pas une bonne idée, plutôt un truc avec plein de points proche de 1
-    #eps = 1e-4
-    eps = 1e-2 # this value is not realistic but it's the best we've got
-    alpha = 1e-3
-    nu_a = 5
-    nu_o = 5e-4
-    h_a = 20.
-    h_o = 2.
-    chi_a = 1j*w*h_a**2/nu_a
-    chi_o = 1j*w*h_o**2/nu_o
-    lam_a = chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4)
-    lam_o = chi_o + np.sqrt(chi_o)*np.sqrt(chi_o+4)
-    rate_th = [max(np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta)) for theta in all_theta]
-
-    # for lam_oi, lam_ai in zip(lam_o, lam_a):
-    #     plt.plot(all_theta, np.abs(1 - all_theta + eps * lam_oi/lam_ai))
-    # plt.plot(all_theta, 1 - all_theta - 2*eps*h_o/h_a*np.sqrt(nu_a/nu_o), "k--")
-
-
-
-
-    plt.plot(all_theta, rate_th)
-    plt.plot(all_theta, np.abs(1 - all_theta - eps * h_o/h_a * np.sqrt(nu_a/nu_o))/all_theta, "k--")
-
-    # print(eps*np.sqrt(nu_a/nu_o)*h_o/h_a)
-    # epsetc = eps*np.sqrt(nu_a/nu_o)*h_o/h_a
-
-    # theta = 1 -epsetc
-    # rate_w = np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta)
-
-    # plt.semilogy(w, rate_w)
-    # #plt.semilogy(w, [np.abs(1 - theta - eps * h_o/h_a * np.sqrt(nu_a/nu_o))/theta for _ in w], "k--")
-    # theta = 1/(1+epsetc)
-    # rate_w = np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta)
-
-    # plt.semilogy(w, rate_w)
-
-
-
-    # print(max(np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta)))
-    # def rate_to_minimize(theta):
-    #     return max(np.abs(1 - theta + eps * lam_o/lam_a)/np.abs(1j*w*h_a/(alpha*lam_a) - theta))
-    # from scipy.optimize import minimize_scalar
-    # optimal_lam = minimize_scalar(fun=rate_to_minimize)
-    # print(optimal_lam)
-    show_or_save("fig_relaxParamRate")
-
-
-
-def fig_firstBulkAnalysis():
-    from discretizations.space.FD_naive import FiniteDifferencesNaive
-    from discretizations.space.FD_corr import FiniteDifferencesCorr
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    from discretizations.space.fourth_order_fv import FourthOrderFV
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.time.theta_method import ThetaMethod
-    from discretizations.time.RK2 import RK2
-    from discretizations.time.RK4 import RK4
-    from discretizations.time.Manfredi import Manfredi
-    from cv_factor_pade import rho_Pade_FD_corr0
-    from cv_factor_pade import rho_Pade_FD_extra
-    from cv_factor_pade import rho_Pade_c
-    # parameters of the schemes are given to the builder:
+def biggest_eig_linearized(theta = 1.):
+    from nonlinear_simulator import bulk_schwarz_spinup
     builder = Builder()
+
+    dt_spinup = builder.DT = 1e12 # almost infinite
+    T_spinup = 10*dt_spinup
+    C_D = 1.2e-3
+    nonlinear_steadystate = memoised(bulk_schwarz_spinup, builder,
+                T=T_spinup, NUMBER_IT=40, nonlinear=True, theta=1.5, C_D=C_D)
+
+    u_atm_NL, _, u_ocean_NL, _ = nonlinear_steadystate
+    steady_jump_solution = u_atm_NL[0] - u_ocean_NL[-1]
+    alpha_linear = C_D * np.abs(steady_jump_solution)
+
+    builder.DT = 60. # 1 minute
+    T = 1*24*60*60. # 1 day
+    laplace_real_part = 0.
+
+    w = get_discrete_freq(int(T/builder.DT), builder.DT, avoid_zero=False)
+    z = np.exp((laplace_real_part+w*1j) * builder.DT)
+    s = (z - 1) / z / builder.DT
+    ratio_densities = 1e-3
+    C_D = 1.2e-3
+    h_a = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    h_o = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
+    #return explicit_part/((1+implicit_part))
+    chi_o = (s+builder.R) * h_o**2/builder.D1
+    chi_a = (s+builder.R) * h_a**2/builder.D2
+    lam_a = (chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4.))/2
+    lam_o = (chi_o - np.sqrt(chi_o)*np.sqrt(chi_o+4.))/2
+    chi_o_conjs = (np.conj(s)+builder.R) * h_o**2/builder.D1
+    chi_a_conjs = (np.conj(s)+builder.R) * h_a**2/builder.D2
+    lam_a_conjs = (chi_a_conjs - np.sqrt(chi_a_conjs)*np.sqrt(chi_a_conjs+4.))/2
+    lam_o_conjs = (chi_o_conjs - np.sqrt(chi_o_conjs)*np.sqrt(chi_o_conjs+4.))/2
+
+    eps = ratio_densities * h_a / h_o 
+    impl_part = (s+builder.R)*h_a/alpha_linear - lam_a * theta
+    # now we have B_k = gamma B_{k-1} + mu CONJ(B_{k-1})
+    orientation = steady_jump_solution / np.conj(steady_jump_solution) * (s+builder.R) / (s - builder.R)
+    gamma_w = ((1.5 - theta) * lam_a + 1.5 * eps * lam_o) / impl_part
+    mu_w = .5 * orientation * np.conj(lam_a_conjs + eps*lam_o_conjs) / impl_part
+
+    M = [ np.array([[np.real(gamma + mu), -np.imag(gamma - mu)],
+            [np.imag(gamma+mu), np.real(gamma-mu)]]) for gamma, mu in zip(gamma_w, mu_w)]
+    _, sing_values, _ = np.linalg.svd(np.array(M))
+    return np.max(sing_values)
+
+def norm2_linearized(theta):
+    return norm2_lastschwarz_iter(theta, 1)
+
+def norm2_nonlinear(theta):
+    return norm2_lastschwarz_iter(theta, 2)
+
+def norm2_lastschwarz_iter(theta, order):
+    from nonlinear_simulator import bulk_schwarz_spinup, bulk_frequency_simulation, linear_steadystate
+    builder = Builder()
+    dt_spinup = builder.DT = 6000000. # a lot of min
+    T_spinup = 10*dt_spinup
+    C_D = 1.2e-3
+
+    nonlinear_steadystate = memoised(bulk_schwarz_spinup, builder,
+                T=T_spinup, NUMBER_IT=40, nonlinear=True, theta=1.5, C_D=C_D)
+
+    u_atm_NL, _, u_ocean_NL, _ = nonlinear_steadystate
+    steady_jump_solution = u_atm_NL[0] - u_ocean_NL[-1]
+    alpha_linear = C_D * np.abs(steady_jump_solution)
+
+    dt = builder.DT = 60. # 1 minute
+    T = 1*24*60*60. # 1 day
+    axis_freq = get_discrete_freq(int(T/dt), dt, avoid_zero=True)
+    N = int(T/dt)
+    B_k = memoised(bulk_frequency_simulation, builder, number_samples=1, T=T, NUMBER_IT=10,
+            steady_state=nonlinear_steadystate, order=order, theta=theta,
+            C_D=C_D, steady_jump_solution=steady_jump_solution, laplace_real_part=1e-3)[:,N//2:]
+    return np.linalg.norm(B_k[-1])
+
+def fig_eigenvalues_linearized():
+    fig, ax = plt.subplots()
+    from scipy.optimize import minimize_scalar
+
+    print(minimize_scalar(biggest_eig_linearized))
+    print(minimize_scalar(norm2_linearized))
+    print(minimize_scalar(norm2_nonlinear))
+    # B_k = memoised(bulk_frequency_simulation, builder, number_samples=1, T=T, NUMBER_IT=18,
+    #         steady_state=nonlinear_steadystate, order=1, theta=theta,
+    #         C_D=C_D, steady_jump_solution=steady_jump_solution, laplace_real_part=laplace_real_part)[0:]
+
+    # ax.loglog(w, np.abs(B_k[2])/np.abs(B_k[1]))
+    # ax.loglog(w, np.abs(B_k[3])/np.abs(B_k[2]))
+    #show_or_save("fig_is_it_linear_enough")
+
+def fig_validation_linearized():
+    from nonlinear_simulator import bulk_schwarz_spinup
+    builder = Builder()
+
+    dt_spinup = builder.DT = 1e12 # almost infinite
+    T_spinup = 10*dt_spinup
+    C_D = 1.2e-3
+    nonlinear_steadystate = memoised(bulk_schwarz_spinup, builder,
+                T=T_spinup, NUMBER_IT=40, nonlinear=True, theta=1.5, C_D=C_D)
+
+    max_gamma = []
+    max_mu = []
+    theta=1.5
+    u_atm_NL, _, u_ocean_NL, _ = nonlinear_steadystate
+    steady_jump_solution = u_atm_NL[0] - u_ocean_NL[-1]
+    alpha_linear = C_D * np.abs(steady_jump_solution)
+
+    builder.DT = 60. # 1 minute
+    T = 1*24*60*60. # 1 day
+    laplace_real_part = 0.#1e-10
+
+    w = get_discrete_freq(int(T/builder.DT), builder.DT, avoid_zero=False)
+    z = np.exp((laplace_real_part+w*1j) * builder.DT)
+    s = (z - 1) / z / builder.DT
+
+    s = laplace_real_part + w*1j
+
+    ratio_densities = 1e-3
+    C_D = 1.2e-3
+    h_a = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    h_o = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
+    #return explicit_part/((1+implicit_part))
+    chi_o = (s+builder.R) * h_o**2/builder.D1
+    chi_a = (s+builder.R) * h_a**2/builder.D2
+    lam_a = (chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4.))/2
+    lam_o = (chi_o - np.sqrt(chi_o)*np.sqrt(chi_o+4.))/2
+
+    chi_o_conjs = (np.conj(s)+builder.R) * h_o**2/builder.D1
+    chi_a_conjs = (np.conj(s)+builder.R) * h_a**2/builder.D2
+    lam_a_conjs = (chi_a_conjs - np.sqrt(chi_a_conjs)*np.sqrt(chi_a_conjs+4.))/2
+    lam_o_conjs = (chi_o_conjs - np.sqrt(chi_o_conjs)*np.sqrt(chi_o_conjs+4.))/2
+
+    eps = ratio_densities * h_a / h_o
+    impl_part = (s+builder.R) * h_a/alpha_linear - lam_a * theta
+    # now we have B_k = gamma B_{k-1} + mu CONJ(B_{k-1})
+    orientation = steady_jump_solution / np.conj(steady_jump_solution) * (s+builder.R) / (s - builder.R)
+    gamma_w = ((1.5 - theta) * lam_a + 1.5 * eps * lam_o) / impl_part
+    mu_w = .5 * orientation * np.conj(lam_a_conjs + eps*lam_o_conjs) / impl_part
+    M = [ np.array([[np.real(gamma + mu), -np.imag(gamma - mu)],
+            [np.imag(gamma+mu), np.real(gamma-mu)]]) for gamma, mu in zip(gamma_w, mu_w)]
+
+    from nonlinear_simulator import bulk_frequency_simulation
+    #N = int(T/builder.DT)
+    B_k = memoised(bulk_frequency_simulation, builder, number_samples=10, T=T, NUMBER_IT=4,
+            steady_state=nonlinear_steadystate, order=1, theta=theta,
+            C_D=C_D, steady_jump_solution=steady_jump_solution, laplace_real_part=laplace_real_part, ignore_cached=False)#[:,N//2:]
+    plt.semilogx(w, np.real(B_k[2]))
+
+    B_kp1 = gamma_w * B_k[1] + mu_w * np.conj(B_k[1,::-1])
+
+    B_kp1 = B_k[1]*((1-theta)*lam_a + lam_o*eps)/ ((s+builder.R)*h_a/alpha_linear -theta*lam_a)
+    B_kp1 = []
+    for M_w, B_w in zip(M, B_k[2]):
+        B_w_mat = np.array((np.real(B_w), np.imag(B_w)))
+        B_kp1 += [(M_w @ B_w_mat)[0] + 1j*(M_w @ B_w_mat)[1]]
+    #plt.semilogx(w, np.real(B_k[2]), "r")
+    #plt.semilogx(w, np.real(B_kp1), "r--")
+    #plt.semilogx(w, np.imag(B_k[2]), "g")
+    #plt.semilogx(w, np.imag(B_kp1), "g--")
+    plt.semilogx(w, np.abs(B_k[3]/B_k[2]), "b")
+    plt.semilogx(w, np.abs(B_k[2]/B_k[1]), "g")
+    plt.semilogx(w, np.abs(B_k[4]/B_k[3]), "r--")
+    plt.show()
+
+def fig_profile_stationnaire_bug():
+    from nonlinear_simulator import bulk_schwarz_spinup, nonlinear_steadystate
+    builder = Builder()
+    infinite_domain_assumption_factor = 1
+    builder.SIZE_DOMAIN_1 = 400*infinite_domain_assumption_factor
+    builder.SIZE_DOMAIN_2 = 1000*infinite_domain_assumption_factor
+    builder.M2 = 1+50*infinite_domain_assumption_factor
+    builder.M1 = 1+200*infinite_domain_assumption_factor
+    builder.R = 5e-15j
+
+    dt_spinup = builder.DT = 1e30 # a lot of min
+    T_spinup = 10*dt_spinup
+    C_D = 1.2e-3
+    fig, axes = plt.subplots(ncols=2, nrows=2)
+    plt.subplots_adjust(wspace=0.3)
+
+    nonlinear_steady_analytic = nonlinear_steadystate(builder, C_D)
+    nonlinear_steady = memoised(bulk_schwarz_spinup, builder,
+                T=T_spinup, NUMBER_IT=10, nonlinear=True, theta=2., C_D=C_D)
+    nonlinear_steady_analytic = nonlinear_steadystate(builder, C_D)
+    h1 = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
+    h2 = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    depth_u1 = np.linspace(- builder.SIZE_DOMAIN_1 + h1/2, -h1/2, builder.M1 - 1)
+    height_u2 = np.linspace(h2/2, builder.SIZE_DOMAIN_2 - h2/2, builder.M2 - 1)
+
+    u_atm_NL, _, u_ocean_NL, _ = nonlinear_steady
+    u_atm_NL_analytic, _, u_ocean_NL_analytic, _ = nonlinear_steady_analytic
+
+    fig.suptitle(r"Stationnary profile of u when $f=5\times 10^{-14}$")
+    axes[0,0].plot(np.real(u_atm_NL), height_u2, label="Result of 10 Schwarz iterations")
+    axes[0,0].plot(np.real(u_atm_NL_analytic), height_u2, "--", label="Theoretical")
+    axes[0,0].set_yscale('symlog')
+    axes[1,0].plot(np.real(u_ocean_NL), depth_u1)
+    axes[1,0].plot(np.real(u_ocean_NL_analytic), depth_u1, "--")
+    axes[1,0].set_yscale('symlog')
+    axes[0,1].plot(np.imag(u_atm_NL), height_u2)
+    axes[0,1].plot(np.imag(u_atm_NL_analytic), height_u2, "--")
+    axes[0,1].set_yscale('symlog')
+    axes[1,1].plot(np.imag(u_ocean_NL), depth_u1)
+    axes[1,1].plot(np.imag(u_ocean_NL_analytic), depth_u1, "--")
+    axes[1,1].set_yscale('symlog')
+
+    axes[0,0].set_ylabel("z")
+    axes[1,0].set_ylabel("z")
+
+    axes[1,0].set_xlabel("Real part")
+    axes[1,1].set_xlabel("Imaginary part")
+    axes[0,0].legend(loc="upper left")
+
+    plt.show()
+def fig_profile_stationnaire():
+    from nonlinear_simulator import bulk_schwarz_spinup, nonlinear_steadystate
+    builder = Builder()
+    big_domain_factor = 10
+    builder.SIZE_DOMAIN_1 = 5*big_domain_factor
+    builder.SIZE_DOMAIN_2 = 25*big_domain_factor
+    builder.M2 = 1+5*big_domain_factor
+    builder.M1 = 1+5*big_domain_factor
+    builder.R = 4e-8j
+
+    dt_spinup = builder.DT = 1e30 # a lot of min
+    T_spinup = 10*dt_spinup
+    C_D = 1.2e-3
+    fig, axes = plt.subplots(ncols=2, nrows=2)
+    plt.subplots_adjust(wspace=0.3)
+
+    nonlinear_steady_analytic = nonlinear_steadystate(builder, C_D)
+    nonlinear_steady = memoised(bulk_schwarz_spinup, builder,
+                T=T_spinup, NUMBER_IT=5, nonlinear=True, theta=1.5, C_D=C_D)
+    h1 = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
+    h2 = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    depth_u1 = np.linspace(- builder.SIZE_DOMAIN_1 + h1/2, -h1/2, builder.M1 - 1)
+    height_u2 = np.linspace(h2/2, builder.SIZE_DOMAIN_2 - h2/2, builder.M2 - 1)
+
+    u_atm_NL, _, u_ocean_NL, _ = nonlinear_steady
+    u_atm_NL_analytic, _, u_ocean_NL_analytic, _ = nonlinear_steady_analytic
+
+    fig.suptitle("Stationnary profile of u, close to the limit of conditions")
+    axes[0,0].plot(np.real(u_atm_NL), height_u2, label="Result of 40 Schwarz iterations")
+    axes[0,0].plot(np.real(u_atm_NL_analytic), height_u2, "--", label="Theoretical")
+    axes[0,0].set_yscale('symlog')
+    axes[1,0].plot(np.real(u_ocean_NL), depth_u1)
+    axes[1,0].plot(np.real(u_ocean_NL_analytic), depth_u1, "--")
+    axes[1,0].set_yscale('symlog')
+    axes[0,1].plot(np.imag(u_atm_NL), height_u2)
+    axes[0,1].plot(np.imag(u_atm_NL_analytic), height_u2, "--")
+    axes[0,1].set_yscale('symlog')
+    axes[1,1].plot(np.imag(u_ocean_NL), depth_u1)
+    axes[1,1].plot(np.imag(u_ocean_NL_analytic), depth_u1, "--")
+    axes[1,1].set_yscale('symlog')
+
+    axes[0,0].set_ylabel("z")
+    axes[1,0].set_ylabel("z")
+
+    axes[1,0].set_xlabel("Real part")
+    axes[1,1].set_xlabel("Imaginary part")
+    axes[0,0].legend(loc="upper left")
+
+    plt.show()
+
+def fig_is_it_linear_enough():
+    from nonlinear_simulator import bulk_schwarz_spinup, bulk_frequency_simulation, linear_steadystate
+    builder = Builder()
+    dt_spinup = builder.DT = 6000000. # a lot of min
+    T_spinup = 10*dt_spinup
+    C_D = 1.2e-3
+
+    nonlinear_steadystate = memoised(bulk_schwarz_spinup, builder,
+                T=T_spinup, NUMBER_IT=40, nonlinear=True, theta=1.5, C_D=C_D)
+
+    u_atm_NL, _, u_ocean_NL, _ = nonlinear_steadystate
+    steady_jump_solution = u_atm_NL[0] - u_ocean_NL[-1]
+    alpha_linear = C_D * np.abs(steady_jump_solution)
+
+    dt = builder.DT = 60. # 1 minute
+    T = 1*24*60*60. # 1 day
+    axis_freq = get_discrete_freq(int(T/dt), dt, avoid_zero=True)
+    N = int(T/dt)
+    fig, axes = plt.subplots(2,3)
+    for order, axe, vmax in zip((0,2), axes, (0.15, 0.3)):
+        for theta, ax in zip((0.5, 1., 2.), axe):
+            ret = []
+            X = axis_freq[N//2:]
+            B_k = memoised(bulk_frequency_simulation, builder, number_samples=1, T=T, NUMBER_IT=15,
+                    steady_state=nonlinear_steadystate, order=order, theta=theta,
+                    C_D=C_D, steady_jump_solution=steady_jump_solution, laplace_real_part=1e-3)[:,N//2:]
+            for i in range(8):
+                ret += [np.abs(B_k[i+2]/B_k[i+1])]
+
+            Y = list(range(8))
+            Z = np.vstack(ret)
+            CS = ax.pcolormesh(X, Y, Z, vmin=0., vmax=vmax, cmap='Greys')
+            ax.set_xscale('log')
+            #ax.grid(color='k', linestyle=':', linewidth=.2)
+
+            ax.set_xticks([1e-4, 1e-3, 1e-2])
+            ax.set_yticks([1, 4, 7])
+
+            # if order == 2:
+            #     ax.set_title('Local convergence rate: non-linear, $\\theta=$'+str(theta))
+            #     ax.set_title('$\\theta=$'+str(theta))
+            # elif order == 1:
+            #     ax.set_title('Local convergence rate: linearized, $\\theta=$'+str(theta))
+            if order == 0:
+            #    ax.set_title('Local convergence rate: linear, $\\theta=$'+str(theta))
+                ax.set_title('$\\theta=$'+str(theta))
+        cbar = fig.colorbar(CS, ax=ax)
+
+    axes[0,0].set_xticklabels([])
+    axes[0,1].set_xticklabels([])
+    axes[0,2].set_xticklabels([])
+
+    axes[0,1].set_yticklabels([])
+    axes[1,1].set_yticklabels([])
+
+    axes[0,2].set_yticklabels([])
+    axes[1,2].set_yticklabels([])
+
+
+    axes[1,0].set_xlabel(r'$\omega$')
+    axes[1,1].set_xlabel(r'$\omega$')
+    axes[1,2].set_xlabel(r'$\omega$')
+    axes[0,0].set_ylabel(r'Linear iteration')
+    axes[1,0].set_ylabel(r'Nonlinear iteration')
+    show_or_save("fig_is_it_linear_enough")
+
+def fig_evolution_err_nonlinear():
+    from nonlinear_simulator import bulk_schwarz_spinup, bulk_schwarz_simulator
+    builder = Builder()
+    dt_spinup = builder.DT = 1e12 # almost infinite
+    T_spinup = 10*dt_spinup
+    C_D = 1.2e-3
+    ratio_densities = 1e-3
+
+    nonlinear_steadystate = memoised(bulk_schwarz_spinup, builder,
+                T=T_spinup, NUMBER_IT=40, nonlinear=True, theta=1.5, C_D=C_D)
+
+    u_atm_NL, _, u_ocean_NL, _ = nonlinear_steadystate
+    steady_jump_solution = u_atm_NL[0] - u_ocean_NL[-1]
+
+    builder.DT = 60. # 1 minute
+    T = 1*24*60*60. # 1 day
+    fig, axes = plt.subplots(1,1, sharex=True)
+    order = 0
+    theta = 1
+    labels = (r"constant $\alpha$", "nonlinear", "linearized")
+
+    ax = axes#[0]
+    #ax2 = axes[1]
+    colors_orders = ("#000000", "#000000")
+    style_orders = ("", "", "d")
+    style_thetas = ("--", "-", ":")
+    label = [r"Constant $\alpha$, $\theta =$ ",r"Linearized, $\theta =$",r"Non-linear, $\theta =$"]
+    for order, col_order in zip((0,2), colors_orders):
+        for theta, style_theta in zip((1., 1.5), style_thetas):
+            B_k = memoised(bulk_schwarz_simulator, builder, T=T, NUMBER_IT=11,
+                    steady_state=nonlinear_steadystate, order=order, theta=theta,
+                    C_D=C_D, steady_jump_solution=steady_jump_solution)
+
+            ax.semilogy(np.linalg.norm(B_k, axis=-1), style_orders[order] + style_theta, color=col_order, markersize=6, fillstyle='none', label=label[order]+str(theta))
+            #ax2.semilogy(np.linalg.norm(B_k, axis=-1, ord=float('inf')), style_orders[order]+style_theta, color=col_order, fillstyle='none', markersize=6)
+
+            norme2_evol = np.linalg.norm(B_k, axis=-1)
+            norme_inf_evol = np.linalg.norm(B_k, axis=-1, ord=float('inf'))
+            if order == 0:
+                print("linear:", norme2_evol[4] / norme2_evol[3], np.abs((1 - theta + ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))
+                ax.semilogy(norme2_evol[1]*(np.abs((1 - theta + ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))**np.array(range(-1, 11)), style_orders[order] + style_theta, color='grey', markersize=6, fillstyle='none')
+                #ax2.semilogy(norme_inf_evol[1]*(np.abs((1 - theta + ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))**np.array(range(-1, 11)), style_orders[order] + style_theta, color='grey', markersize=6, fillstyle='none')
+            else:
+                ax.semilogy(norme2_evol[1]*(np.abs((1.5 - theta + 1.5*ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))**np.array(range(-1, 11)), \
+                    style_orders[order] + style_theta, color='grey', markersize=6, fillstyle='none')
+                #ax2.semilogy(norme_inf_evol[1]*(np.abs((1.5 - theta + 1.5*ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))**np.array(range(-1, 11)), \
+                #    style_orders[order] + style_theta, color='grey', markersize=6, fillstyle='none')
+
+
+    ax.set_ylim(ymin=1e-6, ymax=1.)
+    #ax2.set_ylim(ymin=4e-8, ymax=4e-2)
+    ax.set_ylabel(r"Error $||\cdot||_2$")
+
+    ax.set_xlabel("Iteration")
+    #ax2.set_ylabel(r"Error $||\cdot||_\infty$")
+
+
+
+    #axes[1].set_xlim(xmin=1, xmax=10)
+    axes.set_xlim(xmin=1, xmax=10)
+    #axes[1].grid(color='k', linestyle=':', linewidth=.2)
+    axes.grid(color='k', linestyle=':', linewidth=.2)
+            
+
+    import matplotlib.patches as mpatches
+    grey_patch = mpatches.Patch(color='grey')
+    h, l = ax.get_legend_handles_labels()
+    ax.legend(h + [grey_patch], l + [r"Corresponding $\xi_0^k$"])
+    show_or_save("fig_evolution_err_nonlinear")
+
+def fig_contour_linear_theta():
+    """
+        plots the linear convergence rate over frequencies and theta
+    """
+    levels = np.array((.005, 0.04, 0.08, 0.12, 0.16, 0.2, 0.24))
+    contour_theta(nonlinear=False, levels=levels)
+    show_or_save("fig_contour_linear_theta")
+
+def fig_contour_nonlinear_theta():
+    """
+        plots the non-linear convergence rate over frequencies and theta
+    """
+    levels = np.array((0.05, 0.1, .16, 0.2, 0.3, 0.45, 0.6))
+    contour_theta(nonlinear=True, levels=levels)
+    show_or_save("fig_contour_nonlinear_theta")
+
+def contour_theta(nonlinear, levels):
+    """
+        plots the convergence rate over frequencies and theta
+    """
+    from nonlinear_simulator import bulk_schwarz_spinup, bulk_frequency_simulation, linear_steadystate
+    builder = Builder()
+    dt_spinup = builder.DT = 6000000. # a lot of min
+    T_spinup = 10*dt_spinup
+    C_D = 1.2e-3
+    nonlinear_steadystate = memoised(bulk_schwarz_spinup, builder,
+                T=T_spinup, NUMBER_IT=40, nonlinear=True, theta=2., C_D=C_D)
+    if nonlinear:
+        steady_state =  nonlinear_steadystate
+    else:
+        steady_state = linear_steadystate(builder, C_D)
+
+    u_atm_NL, _, u_ocean_NL, _ = nonlinear_steadystate
+    steady_jump_solution = u_atm_NL[0] - u_ocean_NL[-1]
+    alpha_linear = C_D * np.abs(steady_jump_solution)
+
+    dt = builder.DT = 600. # 10 minute
+    T = 10*24*60*60. # 10 day
+    axis_freq = get_discrete_freq(int(T/dt), dt, avoid_zero=True)
+    N = int(T/dt)
+    all_thetas = np.linspace(1., 2.5, 10)
+    #linear case:
+    if not nonlinear:
+        all_thetas = np.linspace(0.5, 1.5, 10)
+
+    ret = []
+    X = axis_freq[N//2:]
+    for theta in all_thetas:
+        if not nonlinear:
+            ret += [theory_cv_bulk(builder, w=X, theta=theta, alpha=alpha_linear)]
+            # B_k = memoised(bulk_frequency_simulation, builder, number_samples=8, T=T, NUMBER_IT=2,
+            #         steady_state=nonlinear_steadystate, order=1, theta=theta, C_D=C_D, steady_jump_solution=steady_jump_solution)[:,N//2:]
+            # ret += [B_k[2]/B_k[1]]
+        else:
+            B_k = memoised(bulk_frequency_simulation, builder, number_samples=8, T=T, NUMBER_IT=2,
+                    steady_state=steady_state, order=2, theta=theta, C_D=C_D, steady_jump_solution=steady_jump_solution)[:,N//2:]
+            ret += [B_k[2]/B_k[1]]
+
+    Y = all_thetas
+    Z = np.vstack(ret)
+    fig, ax = plt.subplots()
+    CS = ax.contour(X, Y, Z)#, levels=levels)
+    #manual_locations = [(1.1e-3, 1.35), (3.8e-4, 1.25), (2e-4, 1.2), (2e-4, 1.1), (1.6e-4, 1.0), (1e-2, 1.55)]
+    ax.clabel(CS, inline=True, fontsize=9, manual=False, fmt='%1.2f', colors='k')
+    # fig.colorbar(CS)
+
+    if nonlinear:
+        ax.set_title('Convergence rate: Bulk, non-linear case')
+    else:
+        ax.set_title('Convergence rate')#: Bulk, linear case')
+    ax.set_xlabel(r'Frequency $\omega$ (${\rm s^{-1}}$)')
+    ax.set_ylabel(r'Free parameter $\theta$')
+
+
+def fig_first_test_bulk():
+    from nonlinear_simulator import bulk_frequency_simulation
+    builder = Builder()
+    dt = builder.DT = 60. # 1 minute
+    builder.R = 1e-4j
+    builder.D1=3e-3
+    builder.D2=1.
+    builder.M1=1000
+    builder.M2=1000
+    builder.SIZE_DOMAIN_1=10000
+    builder.SIZE_DOMAIN_2=1000
+    T = 24*60*dt
+
+    axis_freq = get_discrete_freq(int(T/dt), dt, avoid_zero=True)
+    for theta in (1.3,):
+        ret = memoised(bulk_frequency_simulation, builder, number_samples=1, T=T, NUMBER_IT=3,
+                nonlinear=False, theta=theta, ignore_cached=True)
+        plt.loglog(axis_freq, np.abs(ret[2]/ret[1]), label=r"$\theta="+str(theta)+"$")
+        theoretical_cv = theory_cv_bulk(builder, w=axis_freq, theta=theta)
+        plt.loglog(axis_freq, theoretical_cv, "--", label=r"validation with " + str(theta))
+    plt.legend()
+    show_or_save("fig_first_test_bulk")
+
+def theory_cv_bulk_linearised(builder, w, theta):
+    z = np.exp(w * 1j * builder.DT)
+    s = (z - 1) / z / builder.DT
+    ratio_densities = 1e-3
+    C_D = 1.2e-3
+    h_a = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    h_o = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
+    #return explicit_part/((1+implicit_part))
+    chi_o = (s+builder.R) * h_o**2/builder.D1
+    chi_a = (s+builder.R) * h_a**2/builder.D2
+    lam_a = (chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4.))/2
+    lam_o = (chi_o - np.sqrt(chi_o)*np.sqrt(chi_o+4.))/2
+    assert (np.abs(1+lam_o) <= 1).all()
+    assert (np.abs(1+lam_a) <= 1).all()
+    rho_a = 1.
+    ua_g = 10.
+    uo_g = .1
+    nu_a = builder.D2
+    nu_o = builder.D1
+    DIRECTION = (ua_g - uo_g) / np.conj(ua_g - uo_g)
+    alpha = rho_a * C_D * (ua_g - uo_g)
+    def m_expl():
+        res = []
+        for part in (1., 1j): # real part then imaginary part of B_{k-1}
+            ua_km1 = nu_a*(lam_a - 1)/((s+builder.R)*h_a)*part
+            uo_k = nu_o*(lam_o - 1)/((s+builder.R)*h_o)*ratio_densities * nu_a/nu_o * part
+            res += [alpha*(ua_g + 3/2 * (ua_g - (1-theta)*ua_km1) + DIRECTION/2 * np.conj(ua_g - (1-theta)*ua_km1) \
+                    - (uo_g + 3/2 * (uo_g - uo_k) + DIRECTION/2 * np.conj(uo_g - uo_k)))]
+        return res
+    def m_impl():
+        res = []
+        for part in (1., 1j): # real part then imaginary part of B_{k-1}
+            ua_km1 = nu_a*(lam_a - 1)/((s+builder.R)*h_a)*part
+            res += [part + 3*alpha*theta*ua_km1 / 2 + np.conj(ua_km1)*DIRECTION*alpha*theta/2]
+        return res
+
+    implicit = m_impl()
+    explicit = m_expl()
+    to_inverse = np.array(((np.real(implicit[0]), np.real(implicit[1])),(np.imag(implicit[0]), np.imag(implicit[1]))))
+    mat_expl = np.array(((np.real(explicit[0]), np.real(explicit[1])),(np.imag(explicit[0]), np.imag(explicit[1]))))
+    ret = [(np.linalg.solve(to_inverse[:,:,w], mat_expl[:,:,w])) for w in range(to_inverse.shape[2])]
+    return np.array(ret)
+
+def theory_cv_bulk(builder, w, theta, alpha=None):
+    z = np.exp(w * 1j * builder.DT)
+    s = (z - 1) / z / builder.DT
+    ratio_densities = 1e-3
+    h_a = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    h_o = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
+    #return explicit_part/((1+implicit_part))
+    chi_o = (s+builder.R) * h_o**2/builder.D1
+    chi_a = (s+builder.R) * h_a**2/builder.D2
+    lam_a = (chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4.))/2
+    lam_o = (chi_o - np.sqrt(chi_o)*np.sqrt(chi_o+4.))/2
+    assert (np.abs(1+lam_o) <= 1).all()
+    assert (np.abs(1+lam_a) <= 1).all()
+    eps = ratio_densities * h_a/h_o
+    if alpha is None:
+        alpha = 1.2e-3 * (10 - .1)
+    return (np.abs(1 - theta + eps * lam_o/lam_a)/np.abs((s+builder.R)*h_a/(alpha*lam_a) - theta))
+
+
+def fig_compare_theory_asymptote():
+    builder = Builder()
+    ratio_densities = 1e-3
+    dt = builder.DT = 600. # 10 minutes
     builder.LAMBDA_1 = 0.
     builder.LAMBDA_2 = 0.
-    builder.M1 = 100
-    builder.M2 = 100
-    builder.SIZE_DOMAIN_1 = 100
-    builder.SIZE_DOMAIN_2 = 1000
-    builder.D1 = 5.
-    builder.D2 = 5.
-    builder.R = 1e-4j
-    N = 300 # N=30 -> 5 hours
-    dt = builder.DT*60.*10. # 10 minutes time step
-    builder.DT = dt
+    builder.R = 0#1e-4j
+    builder.D1=5e-4
+    builder.D2=5.
+    builder.M1=1000
+    builder.M2=1000
+    builder.SIZE_DOMAIN_1=10000
+    builder.SIZE_DOMAIN_2=1000
+    T = 24*6000*dt
+    w = get_discrete_freq(int(T/dt), dt, avoid_zero=True)
+    h_a = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    h_o = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
+    eps = ratio_densities * h_a/h_o
+    max_theoretical_cv = []
+    asymptote = []
+    all_theta = np.linspace(.1, 1.2, 100)
+    for theta in all_theta:
+        max_theoretical_cv += [np.max(theory_cv_bulk(builder, w, theta=theta))]
+        asymptote += [np.abs(1 - theta + eps*np.sqrt(builder.D2/builder.D1)*h_o/h_a)/theta]
+        if max_theoretical_cv[-1] > asymptote[-1]:
+            plt.semilogx(w, theory_cv_bulk(builder, w, theta=theta))
+            plt.show()
+    plt.semilogx(all_theta, asymptote, "--")
 
-    axis_freq = get_discrete_freq(N, dt)
-    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
+        #asymptote +=[theory_cv_bulk(builder, w=0., theta=theta)]
 
-    #from discretizations.BE_FD_bulk import be_fd_bulk
-    from discretizations.BE_FD_bulk import be_fd_bulk
-    theta=0.
-    ratio_density=1e-3
-    alpha=1e-1
-    for theta in (1.,):
-        for ratio_density in (1e-3, ):
-            dis =  be_fd_bulk(alpha=alpha, theta=theta, ratio_density=ratio_density,
-                    A=builder.A, C=builder.R,
-                                      D1=builder.D1, D2=builder.D2,
-                                      M1=builder.M1, M2=builder.M2,
-                                      SIZE_DOMAIN_1=builder.SIZE_DOMAIN_1,
-                                      SIZE_DOMAIN_2=builder.SIZE_DOMAIN_2,
-                                      LAMBDA_1=builder.LAMBDA_1,
-                                      LAMBDA_2=builder.LAMBDA_2,
-                                      DT=builder.DT)
+    plt.semilogx(all_theta, max_theoretical_cv)
+    plt.semilogx(all_theta, asymptote, "--")
+    plt.show()
 
-            alpha_w = memoised(frequency_simulation, dis, N=N, number_samples=8, NUMBER_IT=3, ignore_cached=False)
-
-            convergence_factor = np.abs(alpha_w[2] / alpha_w[1])
-            axes.loglog(axis_freq * dt, convergence_factor, "--", label="validation theta="+str(theta))
-                
-            axes.loglog(axis_freq * dt, np.abs(dis.convergence_rate(axis_freq)), label="convergence rate, $\\alpha$="+str(alpha)+", $\\theta$="+str(theta)+", $\\rho_2/\\rho_1$="+ str(ratio_density)+ ", $h_2/h_1=$"+str(builder.M1/builder.M2))
-
-            #axes.loglog(axis_freq * dt, convergence_factor, "--", label="convergence rate, $\\alpha=C_D||u_2-u_1||$, $\\theta$="+str(theta)+", $\\rho_2/\\rho_1$="+ str(ratio_density)+ ", $h_2/h_1=$"+str(M1/M2))
-
-    #axes.loglog(axis_freq * dt, np.ones_like(convergence_factor), "m--", label="limit of convergence")
-
-    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
-    axes.set_ylabel("Convergence factor $\\rho$")
-    axes.set_title("Convergence rate with flux prescription $\\phi=\\alpha(\\Delta u)$")
-    axes.legend()
-    show_or_save("fig_firstBulkAnalysis")
-
-
-def fig_validatePadeAnalysisFDRR():
-    from discretizations.space.FD_naive import FiniteDifferencesNaive
-    from discretizations.space.FD_corr import FiniteDifferencesCorr
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    from discretizations.space.fourth_order_fv import FourthOrderFV
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.time.theta_method import ThetaMethod
-    from discretizations.time.RK2 import RK2
-    from discretizations.time.RK4 import RK4
-    from discretizations.time.Manfredi import Manfredi
-    from cv_factor_pade import rho_Pade_FD_corr0
-    from cv_factor_pade import rho_Pade_FD_extra
-    from cv_factor_pade import rho_Pade_c
-    # parameters of the schemes are given to the builder:
+def fig_debug_stationnary():
     builder = Builder()
-    builder.LAMBDA_1 = 1.11 # optimal parameters for corr=0, N=3000
-    builder.LAMBDA_2 = -0.76
-    builder.M1 = 200
-    builder.M2 = 200
-    builder.D1 = 1.
-    builder.D2 = 2.
-    builder.R = 0.5
-    N = 300
-    dt = builder.DT
-    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-    print("Courant parabolic number :", builder.D1*dt/h**2)
-
-    time_scheme = Manfredi
-        
-    discretizations = {}
-
-    #discretizations["FV2"] = (time_scheme, QuadSplinesFV)
-    #discretizations["FV4"] = (time_scheme, FourthOrderFV)
-    discretizations["FD(corr=0)"] = (time_scheme, FiniteDifferencesNaive)
-    # discretizations["FD(extra)"] = (time_scheme, FiniteDifferencesExtra)
-
-    axis_freq = get_discrete_freq(N, dt)
-    fig, axes = plt.subplots(1, 1, figsize=[6.4, 4.8])
-
-    dis_cont = builder.build(time_scheme, FiniteDifferencesNaive) # any discretisation would do 
-    continuous = dis_cont.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=0, order_operators=0,
-                    order_equations=0)
-    axes.semilogx(axis_freq * dt, continuous, label="$\\rho^{\\rm c, c}$")
-
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        dis = builder.build(time_dis, space_dis)
-        theorical_convergence_factor = \
-                dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=0, order_operators=float('inf'),
-                        order_equations=float('inf'))
-        axes.semilogx(axis_freq * dt, theorical_convergence_factor,
-                label="$\\rho^{\\rm c, "+name + "}$")
-
-        theorical_convergence_factor = \
-                dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=4, order_operators=float('inf'),
-                        order_equations=float('inf'))
-        axes.semilogx(axis_freq * dt, theorical_convergence_factor,
-                label="$\\rho^{\\rm modified, "+name + "}$")
-
-
-    axes.semilogx(axis_freq * dt, rho_Pade_FD_corr0(builder, axis_freq),
-            label="$\\rho^{\\rm Pade, FD(corr=0)}$")
-    axes.semilogx(axis_freq * dt, rho_Pade_FD_extra(builder, axis_freq),
-            label="$\\rho^{\\rm Pade, FD(extra)}$")
-    axes.semilogx(axis_freq * dt, rho_Pade_c(builder, axis_freq),
-            label="$\\rho^{\\rm Pade, c}$")
-
-    ###########
-    # for each discretization, a simulation
-    ###########
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder,
-                time_dis, space_dis, N=N, number_samples=5, NUMBER_IT=4)
-        k = 1
-        convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
-        axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
-        # k = 2
-        # convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
-        # axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
-        # k = 3
-        # convergence_factor = np.abs(alpha_w[k+1] / alpha_w[k])
-        # axes.semilogx(axis_freq * dt, convergence_factor, "--", label=name)
-
-    axes.set_xlabel("Frequency variable $\\omega \\delta t$")
-    axes.set_ylabel("Convergence factor $\\rho$")
-    axes.set_title("Validation of finite differences discrete analysis")
-    axes.legend()
-    show_or_save("fig_validatePadeAnalysisFDRR")
-
-def fig_optimized_rho():
-    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
-    discrete_factor = rho_Pade_c
-    setting = Builder()
-    setting.M1 = 200
-    setting.M2 = 200
-    setting.D1 = 1.
-    setting.D2 = 2.
-    setting.R = 0.5
-    setting.DT /= 100
-    N = 3000
-    axis_freq = get_discrete_freq(N, setting.DT)
-    def convergence_factor(lam):
-        builder = setting.copy()
-        builder.LAMBDA_1 = lam[0]
-        builder.LAMBDA_2 = lam[1]
-        return np.max(discrete_factor(builder, axis_freq))
-
-    def convergence_factor(lam):
-        builder = setting.copy()
-        builder.LAMBDA_1 = lam
-        builder.LAMBDA_2 = -lam
-        return np.max(discrete_factor(builder, axis_freq))
-
-    from scipy.optimize import minimize_scalar, minimize
-    optimal_lam = minimize_scalar(fun=convergence_factor)
-    print(optimal_lam)
-    setting.LAMBDA_1 = optimal_lam.x
-    setting.LAMBDA_2 = -optimal_lam.x
-    plt.semilogx(axis_freq * setting.DT, discrete_factor(setting, axis_freq),
-            label="$\\rho^{\\rm Pade, FD(corr=0)}$")
-
-    show_or_save("fig_optimized_rho")
-
-def fig_compare_discrete_modif():
-    from discretizations.time.Manfredi import Manfredi as Pade
-    from discretizations.time.backward_euler import BackwardEuler as BE
-    from discretizations.space.FD_naive import FiniteDifferencesNaive as FD
-    from discretizations.space.FD_extra import FiniteDifferencesExtra as FD
-    from discretizations.space.quad_splines_fv import QuadSplinesFV as FV
-    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
-    fig, axes = plt.subplots(2, 2, figsize=[6.4, 4.4], sharex=False, sharey=True)
-    plt.subplots_adjust(left=.11, bottom=.11, right=.98, top=.92, wspace=0.1, hspace=0.15)
-    COLOR_CONT = '#888888FF'
-    COLOR_CONT_FD = '#555555FF'
-    COLOR_MODIF = '#000000FF'
-
-    for r, axes in ((0, axes[0,:]), (.1, axes[1,:])):
-        setting = Builder()
-        setting.R = r
-
-        setting.LAMBDA_1 = 1. # optimal parameters for corr=0, N=3000
-        setting.LAMBDA_2 = -1.
-        setting.M1 = 200
-        setting.M2 = 200
-        setting.D1 = 1.
-        setting.D2 = 1.
-        dt = setting.DT
-        # N = 30
-        # axis_freq = get_discrete_freq(N, setting.DT)
-        axis_freq = np.exp(np.linspace(-5, np.log(pi), 10000))/dt
-
-        #########################################################
-        # LEFT CANVA: TIME COMPARISON
-        #########################################################
-
-        space_dis = FD
-        dis = setting.build(Pade, space_dis)
-
-        cont_time = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=0) #continuous in time
-        modif_time = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=2, order_equations=0, order_operators=0) # modified in time
-
-        b = 1+1/np.sqrt(2)
-        def gamma_order2(z):
-            return z - b*(z-1) - b/2 * (z-1)**2
-
-        def gamma_order1(z):
-            return z - b*(z-1)
-
-        ######################
-        # TIME SCHEME : GAMMA ORDER 2:
-        ######################
-
-        full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order2) # disccrete in time
-        labelg2 = r"P2: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (P2,c)}\right|/\left|\rho_{\rm RR}^{\rm (P2,c)}\right|$" + "\n" + r"$\gamma = z - b (z-1) - \frac{b^2}{2}(z-1)^2$"
-        lineg2, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_MODIF, linestyle='solid')
-        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_CONT, linestyle='solid')
-
-        ######################
-        # TIME SCHEME : GAMMA ORDER 1:
-        ######################
-
-        full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order1) # disccrete in time
-
-        labelg1 = r"P2: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (P2,c)}\right|/\left|\rho_{\rm RR}^{\rm (P2,c)}\right|$" + "\n" + r"$\gamma = z - b (z-1)$"
-        lineg1, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_MODIF, linestyle='dashed')
-        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_CONT, linestyle='dashed')
-
-        ########################
-        # TIME SCHEME : Backward Euler
-        #########################
-        dis = setting.build(BE, space_dis)
-
-        modif_time = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=2, order_equations=0, order_operators=0) # modified in time
-        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=float('inf'), order_equations=0, order_operators=0) # discrete in time
-
-        labelbe = r"BE: $\left|\rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (BE,c)}\right|/\left|\rho_{\rm RR}^{\rm (BE,c)}\right|$"
-        linebe, = axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete),
-                color=COLOR_MODIF, linestyle=':', linewidth="2.3")
-        axes[0].semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete),
-                color=COLOR_CONT, linestyle=':', linewidth="2.3")
-
-        axes[0].grid()
-        axes[0].set_xlim(left=0.9e-2, right=.7)
-        #axes[0].set_ylim(top=0.1, bottom=0.) #sharey activated : see axes[1].set_xlim
-        Title = r'Relative error of $\rho_{\rm RR}^{\rm (\cdot,c)}$'
-        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
-        axes[0].set_ylabel(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
-        if r == 0:
-            axes[0].legend((lineg2, ), (labelg2, ))
-            axes[0].set_title(Title)
-            #print(axes[0].ticks)
-            axes[0].set_xticklabels([])
-        else:
-            axes[0].legend((lineg1, linebe), (labelg1, labelbe))
-            axes[0].set_xlabel(r'$\omega\Delta t$')
-
-        #########################################################
-        # RIGHT CANVA: SPACE COMPARISON
-        #########################################################
-        time_dis = BE # we don't really care, since everything is continuous in time now
-
-        ######################
-        # SPACE SCHEME : FV
-        ######################
-        dis = setting.build(time_dis, FV)
-
-        cont_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=0) #continuous in time
-
-        modif_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=2, order_operators=0) # modified in time
-
-        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=float('inf'), order_operators=0)
-
-
-        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_MODIF, linestyle='solid',
-                label=r"FV: $\left|\rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c,FV)}\right|/\left|\rho_{\rm RR}^{\rm (c,FV)}\right|$")
-        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_CONT, linestyle='solid')
-
-        ######################
-        # SPACE SCHEME : FD
-        ######################
-        dis = setting.build(time_dis, FD)
-
-        cont_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=0) #continuous in time
-
-        modif_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=2, order_operators=0) # modified in time
-
-        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=float('inf'), order_operators=0)
-
-        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_MODIF, linestyle='dashed',
-                label=r"FD: $\left|\rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c,FD)}\right|/\left|\rho_{\rm RR}^{\rm (c,FD)}\right|$")
-        axes[1].semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_CONT_FD, linestyle='dashed')
-
-        axes[1].grid()
-        axes[1].set_xlim(left=2e-2, right=3)
-        axes[1].set_ylim(top=0.03, bottom=0.)
-        Title = r'Relative error of $\rho_{\rm RR}^{\rm (c, \cdot)}$'
-        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (c, \cdot)} - \rho_{\rm RR}^{\rm (c, Discrete)}\right|/\left|\rho_{\rm RR}^{\rm (c, Discrete)}\right| $'
-        if r == 0:
-            axes[1].legend()
-            axes[1].set_title(Title)
-            axes[1].set_xticklabels([])
-        else:
-            axes[1].set_xlabel(r'$\omega\Delta t$')
-
-    show_or_save("fig_compare_discrete_modif")
-
-def fig_optimized_rho_BE_FV():
-    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.time.RK2 import RK2
-    from discretizations.space.fourth_order_fv import FourthOrderFV
-    time_dis = BackwardEuler
-    space_dis = FourthOrderFV
-    setting = Builder()
-    setting.R = .0
-    #setting.DT /= 10
-    N = 3000
-    axis_freq = get_discrete_freq(N, setting.DT)
-    def convergence_factor(lam):
-        builder = setting.copy()
-        builder.LAMBDA_1 = lam[0]
-        builder.LAMBDA_2 = lam[1]
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-            order_time=float('inf'), order_equations=float('inf'), order_operators=float('inf'))
-
-    def to_minimize(lam):
-        return np.max(np.abs(convergence_factor(lam)))
-
-    from scipy.optimize import minimize_scalar, minimize
-    optimal_lam = minimize(fun=to_minimize, x0=(.5, -.5))
-    print(optimal_lam)
-    plt.semilogx(axis_freq * setting.DT, convergence_factor(optimal_lam.x),
-            label="$\\rho^{\\rm Pade, FD(corr=0)}$")
-
-    show_or_save("fig_optimized_rho_BE_FV")
-
-def fig_impact_DT_pade_DN():
-    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
-    setting = Builder()
-    setting.R = .0
-    setting.D2 = 2.
-    N = 300
-    axis_freq = get_discrete_freq(N, setting.DT)
-
-    plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
-            label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt1")
-    setting.R += .1
-    axis_freq = get_discrete_freq(N, setting.DT)
-    plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
-            "--", label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt2")
-    setting.R += 1.
-    axis_freq = get_discrete_freq(N, setting.DT)
-    plt.semilogx(axis_freq * setting.DT, rho_Pade_c(setting, axis_freq),
-            "k-.", label="$\\rho^{\\rm Pade, FD(corr=0)}$, dt3")
-
-    show_or_save("fig_optimized_rho")
-
-
-def fig_compareSettingsDirichletNeumann():
-    from discretizations.space.FD_naive import FiniteDifferencesNaive
-    from discretizations.space.FD_corr import FiniteDifferencesCorr
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    from discretizations.space.fourth_order_fv import FourthOrderFV
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.time.theta_method import ThetaMethod
-    from discretizations.time.RK2 import RK2
-    from discretizations.time.RK4 import RK4
-    from discretizations.time.Manfredi import Manfredi
-    # parameters of the schemes are given to the builder:
-    builder = Builder()
-    builder.LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
-    builder.LAMBDA_2 = 0. # lambda=0 is a Neumann condition
-    builder.D1 = 1.
-    builder.D2 = 2.
-    builder.R = 0.4
-    dt = builder.DT
-    assert builder.R * builder.DT < 1
-        
-
-
-    discretizations = {}
-    time_scheme = Manfredi
-
-    discretizations["FV2"] = (time_scheme, QuadSplinesFV)
-    discretizations["FV4"] = (time_scheme, FourthOrderFV)
-    discretizations["FD, extra"] = (time_scheme, FiniteDifferencesExtra)
-    discretizations["FD, corr=0"] = (time_scheme, FiniteDifferencesNaive)
-    #discretizations["FD, corr=1"] = (time_scheme, FiniteDifferencesCorr)
-
-    convergence_factors = {}
-    theorical_convergence_factors = {}
-
-    N = 300
-    axis_freq = get_discrete_freq(N, builder.DT)
-
-    kwargs_label_simu = {'label':"Validation by simulation"}
-    fig, axes = plt.subplots(1, 2, figsize=[6.4 * 1.7, 4.8], sharey=True)
-    ###########
-    # for each discretization, a simulation
-    ###########
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N=N, number_samples=5)
-        k = 1
-        convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
-
-        dis = builder.build(time_dis, space_dis)
-        theorical_convergence_factors[name] = \
-                dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=0, order_operators=float('inf'),
-                        order_equations=float('inf'))
-        # continuous = dis.analytic_robin_robin_modified(w=axis_freq,
-        #                 order_time=0, order_operators=float('inf'),
-        #                 order_equations=float('inf'))
-        # plt.plot(axis_freq * dt, continuous, "--", label="Continuous Theorical " + name)
-        #axes[0].semilogx(axis_freq * dt, convergence_factors[name], "k--", **kwargs_label_simu)
-        axes[0].semilogx(axis_freq * dt, convergence_factors[name], label=name)
-        if kwargs_label_simu: # We only want the legend to be present once
-            kwargs_label_simu = {}
-        #axes[0].semilogx(axis_freq * dt, theorical_convergence_factors[name], label=name+ " theorical")
-    w, rho_theoric = wAndRhoPadeRR(builder)
-    axes[0].semilogx(w*builder.DT, rho_theoric, "k--", label="theoric")
-
-    axes[0].set_xlabel("Frequency variable $\\omega \\delta t$")
-    axes[0].set_ylabel("Convergence factor $\\rho$")
-    axes[0].set_title("Various space discretizations with " + time_scheme.__name__)
-
-    axes[1].set_xlabel("Frequency variable $\\omega \\delta t$")
-    axes[1].set_ylabel("Convergence factor $\\rho$")
-    axes[1].set_title("Various time discretizations with Finite Differences, Corr=0")
-
-    space_scheme = FiniteDifferencesNaive
-    discretizations = {}
-
-    discretizations["BackwardEuler"] = (BackwardEuler, space_scheme)
-    discretizations["ThetaMethod"] = (ThetaMethod, space_scheme)
-    # discretizations["RK2"] = (RK2, space_scheme)
-    # discretizations["RK4"] = (RK4, space_scheme)
-    discretizations["Manfredi"] = (Manfredi, space_scheme)
-
-    kwargs_label_simu = {'label':"Validation by simulation"}
-
-    for name in discretizations:
-        time_dis, space_dis = discretizations[name]
-        alpha_w = memoised(Builder.frequency_cv_factor, builder, time_dis, space_dis, N=N, number_samples=5)
-        k = 1
-        convergence_factors[name] = alpha_w[k+1] / alpha_w[k]
-
-        dis = builder.build(time_dis, space_dis)
-        theorical_convergence_factors[name] = \
-                dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=0, order_operators=float('inf'),
-                        order_equations=float('inf'))
-        # continuous = dis.analytic_robin_robin_modified(w=axis_freq,
-        #                 order_time=0, order_operators=float('inf'),
-        #                 order_equations=float('inf'))
-        # plt.plot(axis_freq * dt, continuous, "--", label="Continuous Theorical " + name)
-        axes[1].semilogx(axis_freq * dt, convergence_factors[name], label=name)
-
-    axes[0].legend()
-    axes[1].legend()
-    show_or_save("fig_compareSettingsDirichletNeumann")
-
-def fig_rootsManfrediFD():
-    import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(1, 2, figsize=[9.6, 2.])
-    plt.subplots_adjust(left=.07, bottom=.28, right=.97, top=.85)
-    builder = Builder()
-
-    ###########################
-    # equation: (\Gamma_{a,j} = a*dt*nu/h^2, \Gamma_{b,j} = b*dt*nu/h^2)
-    #        (z-1+r\Delta t + z r^2 \Delta t b)\lambda_i^2 + 
-    #        \left(\Gamma_a - 2z\Gamma_b(1+r\Delta t b)\right) \lambda \left(\lambda-1\right)^2 + 
-    #        2\Gamma_b^2 \left(\lambda-1\right)^4 = 0
-    # rewrite it for wolframAlpha: f* x^2 + g*x(x-1)^2 + (x-1)^4 = 0
-    # where x = \lambda
-    # where f = (z-1+r\Delta t + z*r^2 \Delta t b) / (2\Gamma_b^2)
-    # and g = (\Gamma_a - 2z\Gamma_b) / (2\Gamma_b^2)
-    ##########################"
-    a = 1+np.sqrt(2)
-    b = 1+1/np.sqrt(2)
-    dt= builder.DT
-    r = builder.R
+    builder.DT = 100000000.
+    T_spinup = 50*builder.DT
+    from nonlinear_simulator import bulk_schwarz_spinup, bulk_frequency_simulation
+
+    u_atm, phi_atm, u_ocean, phi_ocean = memoised(bulk_schwarz_spinup, builder, T=T_spinup, NUMBER_IT=40, theta=2., nonlinear=True)
+    # now we have our stationnary values:
+    # First, verify our formulas:
+    #print("errors:")
+
+    ratio_densities = 1e-3
+    C_D = 1.2e-3
+    h_a = builder.SIZE_DOMAIN_2/(builder.M2-1)
+    h_o = builder.SIZE_DOMAIN_1/(builder.M1-1)
+    R = 1e-4j
+    s=0
     nu_1 = builder.D1
     nu_2 = builder.D2
-    L1 = builder.LAMBDA_1
-    L2 = builder.LAMBDA_2
-    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-
-    def get_z(w):
-        return np.exp(-1j*w*dt)
-
-    def Gamma(ab, nu):
-        return ab*dt*nu/h**2
-
-    def get_f_g(w, nu):
-        z = get_z(w)
-        Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
-        return (z - 1 + r*dt + z*r**2*dt*b) / (2*Gamma_b**2), \
-                (Gamma_a - 2*z*Gamma_b*(1 + r*dt*b)) / (2*Gamma_b**2)
-
-    def square_root_interior(f, g):
-        return np.sqrt(-(4*(g-4)*(f-2*g+6) - (g-4)**3 - 8*(g-4))/(2*np.sqrt(g**2 - 4*f)) \
-                - f + (g-4)**2/2 + 2*g - 8)/2
-
-    def lambda_pp(w, nu):
-        f, g = get_f_g(w, nu)
-        return 1 - g/4 + 1j*np.sqrt(4*f - g**2)/4 + square_root_interior(f, g)
-
-    def lambda_pm(w, nu):
-        f, g = get_f_g(w, nu)
-        return 1 - g/4 + 1j* np.sqrt(4*f - g**2)/4 - square_root_interior(f, g)
-
-    def lambda_mp(w, nu):
-        f, g = get_f_g(w, nu)
-        return 1 - g/4 - 1j* (np.sqrt(4*f - g**2)/4 + square_root_interior(f, g))
-
-    def lambda_mm(w, nu):
-        f, g = get_f_g(w, nu)
-        return 1 - g/4 - 1j* (np.sqrt(4*f - g**2)/4 - square_root_interior(f, g))
-
-    N = 30000
-    w = get_discrete_freq(N, dt)
-
-    sigma_1 = np.log(lambda_pm(w, nu_1)) / h
-    sigma_2 = np.log(lambda_mp(w, nu_1)) / h
-    sigma_3 = np.log(lambda_pp(w, nu_1)) / h
-    sigma_4 = np.log(lambda_mm(w, nu_1)) / h
-
-    axes[0].semilogx(w, np.real(sigma_1), label="$\\sigma_1$")
-
-    axes[0].semilogx(w, np.real(sigma_2), label="$\\sigma_2$")
-    axes[0].semilogx(w, np.real(sigma_3), label="$\\sigma_3$")
-    axes[0].semilogx(w, np.real(sigma_4), label="$\\sigma_4$")
-
-    axes[0].semilogx(w, np.abs(np.real(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
-    axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w)/nu_1))), "k--")
-    axes[0].set_xlabel("$\\Delta t\\omega$")
-    axes[0].set_ylabel("$\\mathfrak{R}(\\sigma)$")
-    axes[0].set_title("Real part $\\mathfrak{R}(\\sigma)$")
-    axes[0].grid()
-
-    axes[1].semilogx(w, np.imag(sigma_1), label="$\\sigma_1$")
-
-    axes[1].semilogx(w, np.imag(sigma_2), label="$\\sigma_2$")
-    axes[1].semilogx(w, np.imag(sigma_3), label="$\\sigma_3$")
-    axes[1].semilogx(w, np.imag(sigma_4), label="$\\sigma_4$")
-
-    axes[1].semilogx(w, np.imag(np.sqrt((r+1j*w)/nu_1)), "k--", label="$\\sigma_j$ continuous")
-    axes[1].semilogx(w, np.imag(-np.sqrt((r+1j*w)/nu_1)), "k--")
-    axes[1].set_xlabel("$\\Delta t\\omega$")
-    axes[1].set_ylabel("$Im(\\sigma)$")
-    axes[1].set_title("Imaginary part $Im(\\sigma)$")
-    axes[1].grid()
-
-    plt.legend()
-    show_or_save("fig_rootsManfrediFD")
-
-def wAndRhoPadeRR(builder):
-    a = 1+np.sqrt(2)
-    b = 1+1/np.sqrt(2)
-    dt= builder.DT
-    r = builder.R
-    nu_1 = builder.D1
-    nu_2 = builder.D2
-    L1 = builder.LAMBDA_1
-    L2 = builder.LAMBDA_2
-
-    def get_z_s(w):
-        z = np.exp(-1j*w*dt)
-        return z, (z - 1)/(z*dt)
-
-    def gamma(w):
-        z, _ = get_z_s(w)
-        return z - b*(z-1) - b/2 * (z-1)**2
-
-    def square_root_interior(w):
-        z, s = get_z_s(w)
-        return 1j*np.sqrt(-1*(1+(a*dt*s)**2 - (a**2+1)*dt*s))
-
-    def sigma_plus(w, nu):
-        z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s +a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
-
-    def sigma_minus(w, nu):
-        z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
-
-    N = 300
-    w = get_discrete_freq(N, dt)
-
-    sigma_1 = sigma_minus(w, nu_1)
-    sigma_2 = - sigma_minus(w, nu_2)
-    sigma_3 = sigma_plus(w, nu_1)
-    sigma_4 = -sigma_plus(w, nu_2)
-    assert (np.real(sigma_1) > 0).all()
-    assert (np.real(sigma_2) < 0).all()
-    assert (np.real(sigma_3) > 0).all()
-    assert (np.real(sigma_4) < 0).all()
-
-    z, s = get_z_s(w)
-    mu_1 = z*(1 + r*dt*b - b*dt*nu_1*sigma_1**2)
-    mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2)
-    mu_3 = z*(1 + r*dt*b - b*dt*nu_1*sigma_3**2)
-    mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
-    assert (np.linalg.norm(mu_1 - mu_2) < 1e-10) # mu_1 == mu_2
-    assert (np.linalg.norm(mu_3 - mu_4) < 1e-10) # mu_3 == mu_4
-    gamma_t = (mu_1 - gamma(w))/(mu_1 - mu_3)
-
-    varrho = ((L1 + nu_2*sigma_2)/(L2 + nu_2*sigma_2) * (1 - gamma_t) + \
-             (L1 + nu_2*sigma_4)/(L2 + nu_2*sigma_4) * gamma_t) * \
-             ((L2 + nu_1*sigma_1)/(L1 + nu_1*sigma_1) * (1 - gamma_t) + \
-             (L2 + nu_1*sigma_3)/(L1 + nu_1*sigma_3) * gamma_t)
-
-    return w, np.abs(varrho)
-
-def fig_rhoDNPade():
-    import matplotlib.pyplot as plt
-    w, varrho = wAndRhoPadeRR()
-    plt.semilogx(w*DEFAULT.DT, np.abs(varrho), label="$\\rho_{DN}^{Pade, c}$")
-    plt.title("Convergence rate of Pade scheme") 
-    plt.grid()
-    plt.legend()
-    show_or_save("fig_gammaTilde")
-
-def fig_gammaTilde():
-    import matplotlib.pyplot as plt
-    dt=1.
-    a = 1+np.sqrt(2)
-    b = 1+1/np.sqrt(2)
-    r=.0
-    assert r == 0.
-    def mu_plus(w):
-        z = np.exp(-1j*w*dt)
-        s = (z - 1)/z
-        return z*(1/np.sqrt(2) * (1-s) + \
-                1j*(-b/a**2)*np.sqrt((1+a**2*s**2 - 2*dt*a**2*r/z - (a**2+1)*s)/(-1)))
-    def mu_minus(w):
-        z = np.exp(-1j*w*dt)
-        s = (z - 1)/z
-        return z*(1/np.sqrt(2) * (1-s) - \
-                1j*(-b/a**2)*np.sqrt((1+a**2*s**2 - 2*dt*a**2*r/z - (a**2+1)*s)/(-1)))
-
-    def gamma(w):
-        z = np.exp(-1j*w*dt)
-        return z - b*(z-1) - b/2 * (z-1)**2
-    w = np.linspace(0,pi, 1000)
-    plt.plot(w, np.real((mu_minus(w) - gamma(w))/(mu_plus(w) - mu_minus(w))), label="Real part of $\\tilde{\\gamma}$")
-    plt.plot(w, np.imag((mu_minus(w) - gamma(w))/(mu_plus(w) - mu_minus(w))), label="Imaginary part of $\\tilde{\\gamma}$")
-    # plt.plot(w, np.abs(1-(mu_minus(w) - gamma(w))/(mu_plus(w) - mu_minus(w))), label="modulus of gamma")
-    plt.title("Value of $\\tilde{\\gamma}$")
-    plt.grid()
-    plt.legend()
-    show_or_save("fig_gammaTilde")
-
-def fig_rootsManfredi():
-    import matplotlib.pyplot as plt
-    fig, axes = plt.subplots(1, 2, figsize=[9.6, 2.])
-    plt.subplots_adjust(left=.07, bottom=.28, right=.97, top=.85)
-
-
-    dt=1.
-    a = 1+np.sqrt(2)
-    r=.5
-    nu_1 = 1.
-    nu_2 = 2.
-    #assert r == 0.
-    def get_z_s(w):
-        z = np.exp(-1j*w*dt)
-        return z, (z - 1)/(z*dt)
-
-    def square_root_interior(w):
-        z, s = get_z_s(w)
-        return 1j*np.sqrt(-1*(1+(a*dt*s)**2 - (a**2+1)*dt*s))
-
-    def sigma_plus(w, nu):
-        z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s + a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
-
-    def sigma_minus(w, nu):
-        z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s + a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
-
-    w = np.exp(np.linspace(-8, np.log(pi), 1000))[:-1]
-    ref =(np.real(sigma_minus(w, nu_1)))
-
-    axes[0].semilogx(w, (np.real(sigma_minus(w, nu_1))), label="$\\sigma_1$")
-
-    axes[0].semilogx(w, np.abs(np.real(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
-    axes[0].semilogx(w, (np.real(sigma_plus(w, nu_1))), label="$\\sigma_3$")
-    axes[0].semilogx(w, np.abs(np.real(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
-
-    axes[0].loglog(w, np.abs(np.real(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
-    axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w)/nu_2))), "k--")
-
-    #axes[0].loglog(w, np.abs(np.real(np.sqrt((r+1j*w + (4+3*np.sqrt(2))* (w*1j)**3 * dt**2/6)/nu_1) - ref)), label="$\\sigma_j$ modified")
-    #axes[0].semilogx(w, np.abs(np.real(-np.sqrt((r+1j*w+ (4+3*np.sqrt(2))* (w*1j)**3 * dt**2/6)/nu_2))), "k--")
-
-
-
-    axes[0].set_xlabel("$\\Delta t\\omega$")
-    axes[0].set_ylabel("$\\mathfrak{R}(\\sigma)$")
-    axes[0].set_title("Real part $|\\mathfrak{R}(\\sigma)|$")
-    axes[0].grid()
-
-    axes[1].loglog(w, np.abs(np.imag(sigma_minus(w, nu_1))), label="$\\sigma_1$")
-
-    axes[1].loglog(w, np.abs(np.imag(-sigma_minus(w, nu_2))), label="$\\sigma_2$")
-    axes[1].loglog(w, np.abs(np.imag(sigma_plus(w, nu_1))), label="$\\sigma_3$")
-    axes[1].loglog(w, np.abs(np.imag(-sigma_plus(w, nu_2))), label="$\\sigma_4$")
-
-    axes[1].loglog(w, np.abs(np.imag(np.sqrt((r+1j*w)/nu_1))), "k--", label="$\\sigma_j$ continuous")
-    axes[1].loglog(w, np.abs(np.imag(-np.sqrt((r+1j*w)/nu_2))), "k--")
-    axes[1].set_xlabel("$\\Delta t\\omega$")
-    axes[1].set_ylabel("$Im(\\sigma)$")
-    axes[1].set_title("Imaginary part $|Im(\\sigma)|$")
-    axes[1].grid()
-
-    plt.legend()
-    show_or_save("fig_rootsManfredi")
-
-def old_compare_rho_discrete_semidiscrete(axes, builder, N=3000):
-    a = 1+np.sqrt(2)
-    b = 1+1/np.sqrt(2)
-    dt= builder.DT
-    r = builder.R
-    nu_1 = builder.D1
-    nu_2 = builder.D2
-    L1 = builder.LAMBDA_1
-    L2 = builder.LAMBDA_2
-
-    def get_z(w):
-        return np.exp(-1j*w*dt)
-
-    def gamma(w):
-        z, _ = get_z_s(w)
-        return z - b*(z-1) - b/2 * (z-1)**2
-
-    w = get_discrete_freq(N, dt)
-
-    ##################################
-    # CONTINUOUS CASE, discrete in time ofc
-    ##################################
-
-    def get_z_s(w):
-        z = get_z(w)
-        return z, (z - 1)/(z*dt)
-
-    def square_root_interior(w):
-        z, s = get_z_s(w)
-        return np.sqrt(1 - dt*s) * np.sqrt(1 - a**2*dt*s)
-
-    def sigma_plus(w, nu):
-        z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s +a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
-
-    def sigma_minus(w, nu):
-        z, s = get_z_s(w)
-        return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
-
-    sigma_1 = sigma_minus(w, nu_1)
-    sigma_2 = - sigma_minus(w, nu_2)
-    sigma_3 = sigma_plus(w, nu_1)
-    sigma_4 = -sigma_plus(w, nu_2)
-
-    ##################################
-    # DISCRETE CASE, discrete in time ofc
-    ##################################
-
-    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-
-    def sqrt_g2_4f(w, nu):
-        """
-            computes the value sqrt(g^2 - 4f).
-            This value must be carefully computed because
-            it is the square root of a complex:
-            a factorization of (g^2-4f) is needed.
-        """
-        z = get_z(w)
-        # f is (q + d / z)/Gamma_b^2
-        # g is (v / z - c)/Gamma_b
-        q = (1 + r * dt * b)**2
-        d = - 1 - a*r*dt
-        v = a / b
-        c = 2*(1+r*dt*b)
-        Gamma_b = Gamma(b, nu)
-        # now we have g^2-4f = (pol_a /z^2 + pol_b / z + pol_c)/Gamma_b^2
-        pol_a = v**2
-        pol_b = - (4*d + 2*c*v)
-        pol_c = c**2 - 4*q
-
-        first_term = np.sqrt((1/z - (-pol_b + np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
-        second_term = np.sqrt((1/z - (-pol_b - np.sqrt(pol_b**2 - 4*pol_a*pol_c))/(2*pol_a)))
-
-        return np.sqrt(pol_a) * first_term * second_term / Gamma_b
-
-    def Gamma(ab, nu):
-        return ab*dt*nu/h**2
-
-    def get_f_g(w, nu):
-        z = get_z(w)
-        Gamma_a, Gamma_b = Gamma(a, nu), Gamma(b, nu)
-        return ((1+b*r*dt)**2 - (1+a*r*dt)/z) / (Gamma_b**2), \
-                (Gamma_a - 2*z*Gamma_b*(1 + r*dt*b)) / (z*Gamma_b**2)
-
-    def lambda_pp(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 + sqrt_g2_4f(w, nu)/4 + np.sqrt((-(g-4)*(sqrt_g2_4f(w, nu) -g)/2 - f))/2
-
-    def lambda_pm(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 + sqrt_g2_4f(w, nu)/4 - np.sqrt((-(g-4)*(sqrt_g2_4f(w, nu) -g)/2 - f))/2
-
-    def lambda_mp(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (sqrt_g2_4f(w, nu)/4 + np.sqrt(((g-4)*(sqrt_g2_4f(w, nu) +g)/2 - f))/2)
-
-    def lambda_mm(w, nu):
-        f, g = get_f_g(w, nu)
-        return (4 -g)/4 - (sqrt_g2_4f(w, nu)/4 - np.sqrt(((g-4)*(sqrt_g2_4f(w, nu) +g)/2 - f))/2)
-
-    lambda_1 = lambda_mp(w, nu_1) # bon en fait normalement on pourrait utiliser pp et mm
-    lambda_2 = lambda_mp(w, nu_2) # mais faudrait utiliser partout lambda_1^{-1} au lieu
-    lambda_3 = lambda_pm(w, nu_1) # de lambda_1. Ca vaut pas vraiment le coup
-    lambda_4 = lambda_pm(w, nu_2)
-
-    sigma_1FD = np.log(lambda_1) / h
-    sigma_2FD = np.log(lambda_2) / h
-    sigma_3FD = np.log(lambda_3) / h
-    sigma_4FD = np.log(lambda_4) / h
-
-    chi_1 = h**2 * (r+1j*w)/nu_1
-    chi_2 = h**2 * (r+1j*w)/nu_2
-    lambda1_c = 1+chi_1/2 - np.sqrt(chi_1*(chi_1+4))/2 # Je comprends pas pourquoi c'est pas un +
-    lambda2_c = 1+chi_2/2 - np.sqrt(chi_2*(chi_2+4))/2
-
-    """
-    axes.semilogx(w*dt, -sigma_1FD, label="$\\sigma_1$ FD")
-    axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
-    axes.semilogx(w*dt, sigma_1, "--", label="$\\sigma_1$ sd time")
-
-    axes.semilogx(w*dt, sigma_2, "--", label="$\\sigma_2$ sd time")
-    axes.semilogx(w*dt, -np.log(lambda1_c)/h, label="$\\sigma_1$ sd space")
-    axes.semilogx(w*dt, np.sqrt((1j*w + r)/nu_1), label="$\\sigma_1$ continuous")
-    axes.semilogx(w*dt, np.log(lambda2_c)/h, label="$\\sigma_2$ time continuous")
-
-    axes.semilogx(w*dt, sigma_1FD, label="$\\sigma_1$ FD")
-    axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
-
-    axes.semilogx(w*dt, sigma_3, "--", label="$\\sigma_3$ continuous")
-    axes.semilogx(w*dt, sigma_4, "--", label="$\\sigma_4$ continuous")
-    """
-    #axes.semilogx(w*dt, sigma_1FD, label="$\\sigma_1$ FD")
-    #axes.semilogx(w*dt, sigma_2FD, label="$\\sigma_2$ FD")
-    # axes.semilogx(w*dt, sigma_3FD, label="$\\sigma_3$ FD")
-    # axes.semilogx(w*dt, sigma_4FD, label="$\\sigma_4$ FD")
-    #axes.semilogx(w*dt, sigma_1, "k--", label="$\\sigma_1$ continuous")
-    #axes.semilogx(w*dt, sigma_2, "k--", label="$\\sigma_1$ continuous")
-    # axes.semilogx(w*dt, sigma_3, "k--", label="$\\sigma_3$ continuous")
-    # axes.semilogx(w*dt, sigma_4, "k--", label="$\\sigma_3$ continuous")
-
-    z = get_z(w)
-    mu_1 = z*(1 + r*dt*b - b*dt*nu_1*sigma_1**2)
-    mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2)
-    #z = get_z(-w)
-    mu_3 = z*(1 + r*dt*b - b*dt*nu_1*sigma_3**2)
-    mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
-
-    def mu_FD(w, nu_i, lambda_i):
-        z = get_z(w)
-        return z*(1 + r*dt*b - Gamma(b, nu_i)*(lambda_i - 2 + 1/lambda_i))
-
-    # Comparing mu in continuous and discrete cases:
-    # axes.plot(w*dt, mu_1, label="mu_1")
-    # #axes.plot(w*dt, mu_2, "k--", label="mu_2")
-    # axes.plot(w*dt, mu_3, label="mu_3")
-    # #axes.plot(w*dt, mu_4, "k--", label="mu_4")
-
-    # axes.plot(w*dt, mu_FD(w, nu_1, lambda_1), "k--", label="mu_1 FD")
-    # axes.plot(w*dt, mu_FD(w, nu_2, lambda_2), "k-.", label="mu_2 FD")
-
-    # axes.plot(w*dt, mu_FD(w, nu_1, lambda_3), label="mu_3 FD")
-    # axes.plot(w*dt, mu_FD(w, nu_2, lambda_4), label="mu_4 FD")
-
-    mu_1FD = mu_FD(w, nu_1, lambda_1)
-    mu_2FD = mu_FD(w, nu_2, lambda_2)
-    mu_3FD = mu_FD(w, nu_1, lambda_3)
-    mu_4FD = mu_FD(w, nu_2, lambda_4)
-
-    gamma_t1 = (mu_1FD - gamma(w))/(mu_1FD - mu_3FD)
-    gamma_t2 = (mu_2FD - gamma(w))/(mu_2FD - mu_4FD)
-    gamma_t = (mu_1 - gamma(w))/(mu_1 - mu_3)
-
-    # comparing \\Tilde{gamma} to gamma_t1, gamma_t2
-    # axes.loglog(w*dt, np.abs(np.imag(gamma_t1)), "k--", label="gammat1")
-    # axes.loglog(w*dt, np.abs(np.imag(gamma_t2)), "k-.", label="gammat2")
-    # axes.loglog(w*dt, np.abs(np.imag((mu_1 - gamma(w))/(mu_1 - mu_3))), label="gamma")
-    # axes.loglog(w*dt, np.abs(np.real(gamma_t1)), "k--", label="gammat1r")
-    # axes.loglog(w*dt, np.abs(np.real(gamma_t2)), "k-.", label="gammat2r")
-    # axes.loglog(w*dt, (np.real((mu_1 - gamma(w))/(mu_1 - mu_3))), label="gammar")
-
-    eta_22 = nu_2 * sigma_2
-    eta_24 = nu_2 * sigma_4
-    eta_11 = nu_1 * sigma_1
-    eta_13 = nu_1 * sigma_3
-
-    # DN: varrho_cont = ((1 - gamma_t) * eta_11 + gamma_t * eta_13) * ((1 - gamma_t) / eta_22 + gamma_t / eta_24)
-    varrho_cont = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t) + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t)) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t) + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t))
-    axes.semilogx(w*dt, np.abs((varrho_cont)), label="$\\rho^{\\rm Pade, c}$")
-
-    # naive interface:
-    eta_22 = nu_2 * (lambda_2-1)/h
-    eta_24 = nu_2 * (lambda_4-1)/h
-    eta_11 = nu_1 * (1-lambda_1)/h
-    eta_13 = nu_1 * (1-lambda_3)/h
-
-    #DN :
-    varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
-    # RR:
-    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
-
-    #DN: axes.semilogx(w*dt, np.abs(nu_1/nu_2*(lambda1_c - 1)/(lambda2_c - 1)), "--", label="rho_sd_space")
-    axes.semilogx(w*dt, np.abs((varrho)), label="$\\rho^{\\rm Pade, FD(corr=0)}$")
-
-
-    # extrapolation:
-    eta_11 = -nu_1/h * (lambda_1 - 1) * (3/2 - lambda_1/2)
-    eta_13 = -nu_1/h * (lambda_3 - 1) * (3/2 - lambda_3/2)
-    eta_22 = nu_2/h * (lambda_2 - 1) * (3/2 - lambda_2/2)
-    eta_24 = nu_2/h * (lambda_4 - 1) * (3/2 - lambda_4/2)
-    # DN: varrho = ((1 - gamma_t1) * eta_11 + gamma_t1 * eta_13) * ((1 - gamma_t2) / eta_22 + gamma_t2 / eta_24)
-    # RR:
-    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
-
-    axes.semilogx(w*dt, np.abs((varrho)), label="$\\rho^{\\rm Pade, FD(extra)}$")
-
-    axes.set_xlim(left=0)
-    axes.legend()
-
+    #return explicit_part/((1+implicit_part))
+    chi_o = (s+R) * h_o**2/nu_1
+    chi_a = (s+R) * h_a**2/nu_2
+    lam_a = (chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4.))/2
+    lam_o = (chi_o - np.sqrt(chi_o)*np.sqrt(chi_o+4.))/2
+    assert abs(nu_2*lam_a/ (R*h_a) * phi_atm[0] + 10. - u_atm[0]) < 1e-10
+    assert abs(-nu_1*lam_o/ (R*h_o) * phi_ocean[-1] + 0.1 - u_ocean[-1]) < 1e-10
+
+    assert abs((lam_o + 1) * phi_ocean[-1] - phi_ocean[-2]) < 1e-10
+    assert abs((lam_a + 1) * phi_atm[0] - phi_atm[1]) < 1e-10
+
+    assert abs(1e3*nu_1*phi_ocean[-1] - nu_2*phi_atm[0]) < 1e-10
+    bulk_interface_k = 1.2e-3 * np.abs(u_atm[0] - u_ocean[-1])*(u_atm[0] - u_ocean[-1])
+
+    assert abs(bulk_interface_k - nu_2*phi_atm[0]) < 1e-10
+    # 1e3*nu_1*phi_ocean[-1] = 1.2e-3 * np.abs(u_atm[0] - u_ocean[-1])*(
+    assert abs((u_atm[0] - u_ocean[-1]) -( 1e3 * nu_1*lam_a/ (R*h_a) * phi_ocean[-1] + 10. + nu_1*lam_o/ (R*h_o) * phi_ocean[-1] - 0.1)) < 1e-12
+
+    tilde_d = (1e3 * nu_1*lam_a/ (R*h_a)  + nu_1*lam_o/ (R*h_o))
+    g = 10 - 0.1
+    ua_m_uo = ( tilde_d * phi_ocean[-1] + g)
+    assert abs((np.abs(ua_m_uo) *ua_m_uo) - (phi_ocean[-1] / C_D * nu_1 * 1e3 )) < 1e-10
+    # change of variable: we look for X = phi_ocean[-1] / C_D * nu_1 * 1e3
+    X = tilde_d*phi_ocean[-1]+g
+    c = 1e3*nu_1/C_D
+
+    d = tilde_d / c
+    g = 10 - .1
+    assert abs((X-g) - d*np.abs(X)*X) < 1e-10
+    tilde_a = np.real(d)
+    b = np.imag(d)
+    x, tilde_y = np.real(X), np.imag(X)
+    t = b/g
+    a = tilde_a * t
+    y = np.cbrt(tilde_y/t)
+    print(y)
+    print(b**2*(1 - t**2 * y**4) - (t*y - a*y**2 )**2)
+
+
+def fig_validate_initialisation():
+    builder = Builder()
+    builder.DT = 100000000.
+    T_spinup = 50*builder.DT
+    from nonlinear_simulator import bulk_schwarz_spinup, bulk_frequency_simulation
+
+    steady_state = memoised(bulk_schwarz_spinup, builder, T=T_spinup, NUMBER_IT=40, theta=2., nonlinear=True, ignore_cached=True)
+
+    T = 1000*builder.DT
+
+    #alpha_w = memoised(bulk_frequency_simulation, builder, number_samples=10, steady_state=steady_state, T=T, NUMBER_IT=2, theta=2., C_D=1.2e-3, nonlinear=True)
+    #plt.plot(alpha_w[2]/alpha_w[1])
+    # plt.plot(np.array(u_a), label="u_a")
+    # plt.plot(np.array(u_a0), "--", label="u_a0")
+    #plt.plot(np.array(u_o0) - np.array(u_o), label="u_o err")
+    #plt.plot(np.array(phi_a0) - np.array(phi_a), label="phi_a err")
+    #plt.plot(np.array(phi_o0) - np.array(phi_o), label="phi_o err")
+    #plt.show()
 
 ######################################################
 # Utilities for analysing, representing discretizations
@@ -1090,44 +706,14 @@ class Builder():
     """
     def __init__(self): # changing defaults will result in needing to recompute all cache
         self.COURANT_NUMBER = 1.
-        self.M1 = 200
-        self.M2 = 200
-        self.SIZE_DOMAIN_1 = 200
-        self.SIZE_DOMAIN_2 = 200
-        self.D1 = 1.
-        self.D2 = 1.
+        self.R = 1e-4j
+        self.D1=3e-3
+        self.D2=1.
+        self.M1=1000
+        self.M2=100
+        self.SIZE_DOMAIN_1=2000
+        self.SIZE_DOMAIN_2=2000
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
-        self.A = 0.
-        self.R = 0.
-        self.LAMBDA_1 = 1e9
-        self.LAMBDA_2 = 0.
-
-    def build(self, time_discretization, space_discretization):
-        """
-            Given two abstract classes of a time and space discretization,
-            build a scheme.
-        """
-        class AnonymousScheme(time_discretization, space_discretization):
-            def __init__(self, *args, **kwargs):
-                space_discretization.__init__(self, *args, **kwargs)
-                time_discretization.__init__(self, *args, **kwargs)
-
-        return AnonymousScheme(A=self.A, C=self.R,
-                              D1=self.D1, D2=self.D2,
-                              M1=self.M1, M2=self.M2,
-                              SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,
-                              SIZE_DOMAIN_2=self.SIZE_DOMAIN_2,
-                              LAMBDA_1=self.LAMBDA_1,
-                              LAMBDA_2=self.LAMBDA_2,
-                              DT=self.DT)
-
-    def frequency_cv_factor(self, time_discretization, space_discretization, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        return frequency_simulation(discretization, **kwargs)
-
-    def robin_robin_theorical_cv_factor(self, time_discretization, space_discretization, *args, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        return discretization.analytic_robin_robin_modified(*args, **kwargs)
 
     def copy(self):
         ret = Builder()
