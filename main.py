@@ -21,9 +21,10 @@ def main():
     import sys
 
     if len(sys.argv) == 1:
-        print("Usage: ./main.py figsave [X]")
+        print("to launch tests, use \"python3 main.py test\"")
+        print("Usage: main.py {test, graph, optimize, debug, analytic}")
     else:
-        #  example of use : ./main.py figure 2
+        #  example of use : ./main.py figure 17
         if sys.argv[1] == "figure":
             from label_to_figure import ALL_LABELS
             if len(sys.argv) == 2:
@@ -56,30 +57,23 @@ def main():
                     print("id does not exist. Please use one of:")
                     print(list(ALL_LABELS.keys()))
 
-        #  example of use : ./main.py all_figures
-        # WARNING THIS TAKES MULTIPLE HOURS IF YOUR CACHE IS EMPTY
-        elif sys.argv[1] == "all_figures":
-            try:
-                from label_to_figure import ALL_LABELS
-                import concurrent.futures
-                if len(sys.argv) > 2:
-                    with concurrent.futures.ProcessPoolExecutor() as executor:
-                        list(executor.map(global_launch_figsave, list(ALL_LABELS.keys())))
+        elif sys.argv[1] == "figsavepgf":
+            # Does not work yet.
+            figures.set_save_to_pgf()
+            from label_to_figure import ALL_LABELS
+            if len(sys.argv) == 2:
+                print("Please enter the id of the figure in the paper.")
+                print("The following ids are allowed:")
+                print(list(ALL_LABELS.keys()))
+            else:
+                if sys.argv[2] in ALL_LABELS:
+                    print("Function found. Plotting figure...")
+                    import matplotlib
+                    matplotlib.use('Agg')
+                    figures.all_figures[ALL_LABELS[sys.argv[2]]]()
                 else:
-                    print("sequentially exporting all figures.")
-                    # I prefer doing it sequentially
-                    list(map(global_launch_figsave, list(ALL_LABELS.keys())))
-
-            except:
-                raise
-                # We cannot plot them in parallel...
-                # matplotlib won't work if you import it only once :/
-                # if you want to do all figures in parallel,
-                # you'll need an external script
-                from label_to_figure import ALL_LABELS
-                figures.set_save_to_png()
-                for fig in ALL_LABELS.values():
-                    figures.all_figures[fig]()
+                    print("id does not exist. Please use one of:")
+                    print(list(ALL_LABELS.keys()))
 
         #  example of use : ./main.py figname fig_rho_robin_neumann
         elif sys.argv[1] == "figname":
@@ -104,11 +98,35 @@ def main():
             memoisation.clean()
             print("Memoisation folder cleaned.")
 
+        # Verify installation, and run non-regression tests
+        # example of use : ./main.py test
+        elif sys.argv[1] == "test":
+            if len(sys.argv) > 2:
+                print("Unknown second argument.")
+            else:
+                from tests import launch_all_tests
+                launch_all_tests()
+
+            import label_to_figure
+            for val in label_to_figure.ALL_LABELS.values():
+                try:
+                    assert val in figures.all_figures
+                except AssertionError:
+                    print(val, "is not in figures.all_figures.")
+                    raise
+            print("All labels are reffering to an existing function.")
+
         # example of use : ./main.py debug 1
+        # don't overuse this.
+        # It is here to tests things with default parameters,
+        # not to export figures
         elif sys.argv[1] == "debug":
             """ You can now test any function here, without impacting the program."""
-            pass
-
+            if len(sys.argv) > 2:
+                if sys.argv[2] == "FD":
+                    pass
+        else:
+            print("What ? I did not understand your query.")
 
 def global_launch_figsave(number_fig):
     """
