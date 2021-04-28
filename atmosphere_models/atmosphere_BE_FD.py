@@ -22,9 +22,12 @@ class AtmosphereBEFD():
     def size_u(self):
         return self.M
 
-    def interface_values(self, prognosed, diagnosed):
-        u_interface = prognosed[0]
-        phi_interface = diagnosed[0]
+    def interface_values(self, prognosed, diagnosed, overlap):
+        if self.k_c != 0 and overlap != 0:
+            raise # indeed, the correction is not done at the right place
+            # and it makes no sense to use the correction with overlapping domains
+        u_interface = prognosed[overlap]
+        phi_interface = diagnosed[overlap]
         return u_interface, phi_interface
 
     def integrate_in_time(self, prognosed, diagnosed, interface_robin, forcing, boundary):
@@ -83,7 +86,7 @@ class AtmosphereBEFD():
         u_np1 = solve_banded(l_and_u=(1, 1), ab=matrix_to_inverse, b=rhs_step)
         phi_np1 = np.diff(u_np1)/h
 
-        #slight modification of phi[0] if corrective term:
+        #slight modification of phi[0] if corrective term (makes sense only if overlap=0):
         derivative_u0 = (u_np1[0] - u_n[0])/(dt)
         phi_np1[0] -= self.h/2 * self.k_c/nu * derivative_u0
 

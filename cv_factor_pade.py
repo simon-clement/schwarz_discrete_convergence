@@ -12,7 +12,7 @@ def default_gamma(z):
     b = 1+1/np.sqrt(2)
     return z - b*(z-1)# - b/2 * (z-1)**2
 
-def rho_Pade_FV(builder, w, gamma=default_gamma):
+def rho_Pade_FV(builder, w, gamma=default_gamma, overlap_M=0):
     L1 = builder.LAMBDA_1
     L2 = builder.LAMBDA_2
     nu_1 = builder.D1
@@ -66,16 +66,18 @@ def rho_Pade_FV(builder, w, gamma=default_gamma):
     mu_4 = z  * ( 1 + b * dt * r - Gamma(b, nu_2) * (lambda_2_j2 - 2 + 1/lambda_2_j2)) \
                 / (1 + (lambda_2_j2 - 2 + 1/lambda_2_j2)/6)
 
+    overl1, overl3 = lambda_1_j1**overlap_M, lambda_2_j1**overlap_M
+    overl2, overl4 = lambda_1_j2**overlap_M, lambda_2_j2**overlap_M
     # zeta_{A,B} is the matrix multiplying (A_k, A_k'),(B_k, B_k') when they are prognosed (mu).
     # psi_{B,A} is the matrix multiplying (B_k, B_k'), (A_k, A_k') when they are diagnosed (gamma).
-    zeta_1 = np.array((( L1*eta1    +nu_1*sigma_1,      L1*eta3    +nu_1*sigma_3),
+    zeta_1 = np.array((( L1*eta1    +nu_1*sigma_1, L1*eta3    +nu_1*sigma_3),
                         (L1*eta1star+nu_1*sigma_1*mu_1, L1*eta3star+nu_1*sigma_3*mu_3)))
     zeta_2 = np.array((( L2*eta2    +nu_2*sigma_2,      L2*eta4    +nu_2*sigma_4),
                         (L2*eta2star+nu_2*sigma_2*mu_2, L2*eta4star+nu_2*sigma_4*mu_4)))
-    psi_1 = np.array((( L1*eta2    +nu_2*sigma_2,      L1*eta4    +nu_2*sigma_4),
-                        ((L1*eta2+nu_2*sigma_2)*gamma(z), (L1*eta4+nu_2*sigma_4)*gamma(z))))
-    psi_2 = np.array((( L2*eta1    +nu_1*sigma_1,        L2*eta3   +nu_1*sigma_3),
-                      ((L2*eta1    +nu_1*sigma_1)*gamma(z),(L2*eta3   +nu_1*sigma_3)*gamma(z))))
+    psi_1 = np.array((( overl2*(L1*eta2    +nu_2*sigma_2), overl4*(L1*eta4    +nu_2*sigma_4)),
+                        (overl2*(L1*eta2+nu_2*sigma_2)*gamma(z), overl4*(L1*eta4+nu_2*sigma_4)*gamma(z))))
+    psi_2 = np.array((( overl1*(L2*eta1    +nu_1*sigma_1), overl3*(L2*eta3   +nu_1*sigma_3)),
+                      (overl1*(L2*eta1    +nu_1*sigma_1)*gamma(z),overl3*(L2*eta3   +nu_1*sigma_3)*gamma(z))))
 
     zeta_1 = zeta_1.transpose((2,0,1))
     zeta_2 = zeta_2.transpose((2,0,1))
@@ -87,7 +89,7 @@ def rho_Pade_FV(builder, w, gamma=default_gamma):
     cv_rate = matrix_transition[:,0,0] + gamma(z) * matrix_transition[:,0,1]
     return cv_rate
 
-def rho_Pade_FD_corr0(builder, w, gamma=default_gamma):
+def rho_Pade_FD_corr0(builder, w, gamma=default_gamma, overlap_M=0):
     L1 = builder.LAMBDA_1
     L2 = builder.LAMBDA_2
     nu_1 = builder.D1
@@ -102,14 +104,14 @@ def rho_Pade_FD_corr0(builder, w, gamma=default_gamma):
     eta_13 = nu_1 * (1-lambda_3)/h
 
     # RR:
-    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2)) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1))
+    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) * lambda_2**overlap_M + \
+             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2) * lambda_4**overlap_M) * \
+             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) * lambda_1**overlap_M + \
+             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1) * lambda_3**overlap_M)
 
     return np.abs(varrho)
 
-def rho_Pade_c(builder, w, gamma=default_gamma):
+def rho_Pade_c(builder, w, gamma=default_gamma, overlap_L=0.):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
     dt= builder.DT
@@ -153,14 +155,15 @@ def rho_Pade_c(builder, w, gamma=default_gamma):
     assert (np.linalg.norm(mu_3 - mu_4) < 1e-10) # mu_3 == mu_4
     gamma_t = (mu_1 - gamma(z))/(mu_1 - mu_3)
 
-    varrho = ((L1 + nu_2*sigma_2)/(L2 + nu_2*sigma_2) * (1 - gamma_t) + \
-             (L1 + nu_2*sigma_4)/(L2 + nu_2*sigma_4) * gamma_t) * \
-             ((L2 + nu_1*sigma_1)/(L1 + nu_1*sigma_1) * (1 - gamma_t) + \
-             (L2 + nu_1*sigma_3)/(L1 + nu_1*sigma_3) * gamma_t)
+    L = overlap_L
+    varrho = ((L1 + nu_2*sigma_2)/(L2 + nu_2*sigma_2) * (1 - gamma_t) * np.exp(L*sigma_2) + \
+             (L1 + nu_2*sigma_4)/(L2 + nu_2*sigma_4) * gamma_t * np.exp(L*sigma_4)) * \
+             ((L2 + nu_1*sigma_1)/(L1 + nu_1*sigma_1) * (1 - gamma_t) * np.exp(-L*sigma_1) + \
+             (L2 + nu_1*sigma_3)/(L1 + nu_1*sigma_3) * gamma_t * np.exp(-L*sigma_2))
 
     return np.abs(varrho)
 
-def rho_Pade_FD_corr1(builder, w, gamma=default_gamma):
+def rho_Pade_FD_corr1(builder, w, gamma=default_gamma, overlap_M=0):
     """ avoid using ! """
     L1 = builder.LAMBDA_1
     L2 = builder.LAMBDA_2
@@ -213,14 +216,15 @@ def rho_Pade_FD_corr1(builder, w, gamma=default_gamma):
     psi_23 = nu_1 * (1 - lambda_3) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
     psi_24 = nu_2 * (1 - lambda_4) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
 
+    overl1, overl3 = lambda_1**overlap_M, lambda_3**overlap_M
+    overl2, overl4 = lambda_2**overlap_M, lambda_4**overlap_M
     #warning of the axis: matrices of arrays...
-    bold_psi1 = np.array( [ [psi_11 + L1 * (b*gamma(z)-a), psi_13 + L1 * (b*gamma(z)-a)],
-            [psi_21 + L1, psi_23 + L1]])
+    bold_psi1 = np.array( [ [(psi_11 + L1 * (b*gamma(z)-a))*overl1, (psi_13 + L1 * (b*gamma(z)-a))*overl3],
+            [(psi_21 + L1)*overl1, (psi_23 + L1)*overl3]])
     # The index on bold matrix is for L1 or L2
     bold_psi2 = np.array([
-            [-psi_12 + L2 * (b*gamma(z)-a), - psi_14 + L2 * (b*gamma(z)-a)],
-            [- psi_22 + L2, -psi_24 + L2]])
-
+            [(-psi_12 + L2 * (b*gamma(z)-a))*overl2, (- psi_14 + L2 * (b*gamma(z)-a))*overl4],
+            [(- psi_22 + L2)*overl2, (-psi_24 + L2)*overl4]])
 
     bold_zeta1 = np.array(
         [[zeta_12 + L1 * (b*mu_2-a), zeta_14 + L1 * (b*mu_4-a)],

@@ -28,9 +28,9 @@ class OceanPadeFD():
     def size_u(self):
         return self.M
 
-    def interface_values(self, prognosed, diagnosed):
-        u_interface = prognosed[0]
-        phi_interface = diagnosed[0]
+    def interface_values(self, prognosed, diagnosed, overlap):
+        u_interface = prognosed[overlap]
+        phi_interface = diagnosed[overlap]
         return u_interface, phi_interface
 
     def integrate_in_time(self, prognosed, diagnosed, interface_robin, forcing, boundary):

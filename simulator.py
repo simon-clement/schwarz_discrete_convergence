@@ -20,7 +20,7 @@ def frequency_simulation(atmosphere, ocean, number_samples=100, laplace_real_par
     import concurrent.futures
     from numpy.fft import fft, fftshift
     # we put two times the same discretization, the code is evolutive
-    to_map = functools.partial(schwarz_simulator_pade_fv, atmosphere, ocean, **kwargs)
+    to_map = functools.partial(schwarz_simulator, atmosphere, ocean, **kwargs)
 
     from progressbar import ProgressBar
     progressbar = ProgressBar(maxval=number_samples)
@@ -49,7 +49,7 @@ def frequency_simulation(atmosphere, ocean, number_samples=100, laplace_real_par
 
     return np.std(freq_err, axis=0)
 
-def schwarz_simulator_pade_fv(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="white"):
+def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="white", overlap=0):
     """
         Returns errors at interface from beginning (first guess) until the end.
         Coupling is made between "atmosphere" (instanciated from atmosphere_models)
@@ -60,11 +60,13 @@ def schwarz_simulator_pade_fv(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3,
         We only look at the errors around the solution.
         the equations are then homogenous equation.
         init must be in { "white", "dirac", "GP" }
+        overlap is the (non-negative integer) number of grid points that overlap
     """
     # number of time steps in each model:
     N_ocean = int(np.round(T/ocean.dt))
     N_atm = int(np.round(T/atmosphere.dt)) # atm stands for atmosphere in the following
     assert N_ocean == N_atm # different time steps are not supported yet
+    assert ocean.M == atmosphere.M and abs(ocean.size_domain - atmosphere.size_domain)<1e-10
     p1, p2 = ocean.Lambda, atmosphere.Lambda
 
     def f_ocean(t): # Size of u, whether it is diagnostic or prognostic variable
@@ -110,7 +112,7 @@ def schwarz_simulator_pade_fv(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3,
             prognosed, diagnosed = atmosphere.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,
                     interface_robin=robin, forcing=forcing, boundary=(0,0,0))
 
-            u_interface, phi_interface = atmosphere.interface_values(prognosed, diagnosed)
+            u_interface, phi_interface = atmosphere.interface_values(prognosed, diagnosed, overlap)
             interface_atm += [p1*u_interface + atmosphere.nu*phi_interface]
 
         # integration in time of the ocean model:
@@ -124,7 +126,7 @@ def schwarz_simulator_pade_fv(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3,
             forcing = give_tuple_star(f_ocean((n-1)*atmosphere.dt), f_ocean(n*atmosphere.dt))
             prognosed, diagnosed = ocean.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,
                     interface_robin=robin, forcing=forcing, boundary=(0., 0., 0.))
-            u_interface, phi_interface = ocean.interface_values(prognosed, diagnosed)
+            u_interface, phi_interface = ocean.interface_values(prognosed, diagnosed, overlap)
             interface_ocean += [p2*u_interface + ocean.nu * phi_interface]
 
         all_interface_atm += [interface_atm]
