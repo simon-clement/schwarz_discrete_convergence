@@ -27,6 +27,12 @@ def rho_c_FV(builder, w, overlap_M=0):
 def rho_c_FD(builder, w, k_c=0, overlap_M=0):
     return rho_FD_s(builder, 1j*w, k_c, overlap_M=overlap_M)
 
+def DNWR_c_FD(builder, w, theta):
+    return DNWR_s_FD(builder, 1j*w, theta)
+
+def DNWR_BE_FD(builder, w, theta):
+    return DNWR_s_FD(builder, BE_s(builder.DT, w), theta)
+
 #######################################################################
 # Internal functions
 #######################################################################
@@ -73,6 +79,17 @@ def rho_FV_s(builder, s, overlap_M):
             rho_RR(eta_1_dir=eta_1_dir, eta_1_neu=eta_1_neu,
             eta_2_dir=eta_2_dir, eta_2_neu=eta_2_neu,
             p1=builder.LAMBDA_1, p2=builder.LAMBDA_2)
+
+def DNWR_s_FD(builder, s, theta):
+    h1 = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
+    h2 = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
+    chi_1 = h1**2 * (builder.R + s) / builder.D1
+    chi_2 = h2**2 * (builder.R + s) / builder.D2
+    lam1 = (chi_1 - sqrt(chi_1)*sqrt(chi_1 + 4))/2
+    lam2 = (chi_2 - sqrt(chi_2)*sqrt(chi_2 + 4))/2
+    return 1 - theta - theta * lam1/lam2 * builder.D1 / builder.D2
+
+
 
 def BE_s(dt, w):
     z = exp(-1j*w*dt)

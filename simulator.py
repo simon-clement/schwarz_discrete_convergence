@@ -99,6 +99,7 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
 
 
     all_interface_atm = [interface_atm]
+    relaxing_ocean = interface_atm
 
     # Beginning of schwarz iterations:
     for k in range(NUMBER_IT+1):
@@ -114,13 +115,15 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
                     interface_robin=robin, forcing=forcing, boundary=(0,0,0))
 
             u_interface, phi_interface = atmosphere.interface_values(prognosed, diagnosed, overlap)
-            interface_atm += [p1*u_interface + atmosphere.nu*phi_interface]
+            interface_atm += [relaxation*(p1*u_interface + atmosphere.nu*phi_interface) \
+                    + (1 - relaxation) * relaxing_ocean[n]]
 
         # integration in time of the ocean model:
         diagnosed = np.zeros(ocean.M - 1)
         prognosed = np.zeros(ocean.M)
 
         interface_ocean = [0]
+        relaxing_ocean = [0]
 
         for n in range(1, N_ocean+1):
             robin = give_tuple_star(interface_atm[n-1], interface_atm[n])
@@ -129,6 +132,7 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
                     interface_robin=robin, forcing=forcing, boundary=(0., 0., 0.))
             u_interface, phi_interface = ocean.interface_values(prognosed, diagnosed, overlap)
             interface_ocean += [p2*u_interface + ocean.nu * phi_interface]
+            relaxing_ocean += [p1*u_interface + ocean.nu*phi_interface]
 
         all_interface_atm += [interface_atm]
 

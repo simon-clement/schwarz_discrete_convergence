@@ -163,6 +163,71 @@ def rho_Pade_c(builder, w, gamma=default_gamma, overlap_L=0.):
 
     return np.abs(varrho)
 
+def DNWR_Pade_c(builder, w, theta, gamma=default_gamma):
+    a = 1+np.sqrt(2)
+    b = 1+1/np.sqrt(2)
+    dt= builder.DT
+    r = builder.R
+    nu_1 = builder.D1
+    nu_2 = builder.D2
+
+    def get_z_s(w):
+        z = np.exp(-1j*w*dt)
+        return z, (z - 1)/(z*dt)
+
+    def square_root_interior(w):
+        z, s = get_z_s(w)
+        return 1j*np.sqrt(-1*(1+(a*dt*s)**2 - (a**2+1)*dt*s))
+
+    def sigma_plus(w, nu):
+        z, s = get_z_s(w)
+        return np.sqrt(1+a*dt*s +a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
+
+    def sigma_minus(w, nu):
+        z, s = get_z_s(w)
+        return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
+
+    sigma_1 = sigma_minus(w, nu_1)
+    sigma_2 = - sigma_minus(w, nu_2)
+    sigma_3 = sigma_plus(w, nu_1)
+    sigma_4 = -sigma_plus(w, nu_2)
+    assert (np.real(sigma_1) > 0).all()
+    assert (np.real(sigma_2) < 0).all()
+    assert (np.real(sigma_3) > 0).all()
+    assert (np.real(sigma_4) < 0).all()
+
+    z, s = get_z_s(w)
+    mu_1 = z*(1 + r*dt*b - b*dt*nu_1*sigma_1**2)
+    mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2)
+    mu_3 = z*(1 + r*dt*b - b*dt*nu_1*sigma_3**2)
+    mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
+    assert (np.linalg.norm(mu_1 - mu_2) < 1e-10) # mu_1 == mu_2
+    assert (np.linalg.norm(mu_3 - mu_4) < 1e-10) # mu_3 == mu_4
+    gamma_t = (mu_1 - gamma(z))/(mu_1 - mu_3)
+    rho = 1 - theta + theta * ((1-gamma_t)/sigma_2 + gamma_t/sigma_4) \
+            * nu_1/nu_2 *(sigma_1*(1-gamma_t) + sigma_3*gamma_t)
+    return rho
+
+def DNWR_Pade_FD(builder, w, theta, gamma=default_gamma):
+    L1 = builder.LAMBDA_1
+    L2 = builder.LAMBDA_2
+    nu_1 = builder.D1
+    nu_2 = builder.D2
+    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w, gamma=gamma)
+
+    # naive interface:
+    eta_22 = nu_2 * (lambda_2-1)/h
+    eta_24 = nu_2 * (lambda_4-1)/h
+    eta_11 = nu_1 * (1-lambda_1)/h
+    eta_13 = nu_1 * (1-lambda_3)/h
+
+    # RR:
+    varrho = 1 - theta + theta * ((1-gamma_t2)/(L2 + eta_22) + (gamma_t2)/(L2 + eta_24)) * \
+             (eta_11 * (1-gamma_t1) + eta_13 * gamma_t1)
+
+    return np.abs(varrho)
+
 def rho_Pade_FD_corr1(builder, w, gamma=default_gamma, overlap_M=0):
     """ avoid using ! """
     L1 = builder.LAMBDA_1
