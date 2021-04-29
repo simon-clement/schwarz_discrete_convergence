@@ -358,7 +358,7 @@ class Builder():
         self.LAMBDA_2=-0. # <= 0
         self.SIZE_DOMAIN_1=200
         self.SIZE_DOMAIN_2=200
-        self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
+        self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / (self.M1-1))**2 / self.D1
 
     def copy(self):
         ret = Builder()

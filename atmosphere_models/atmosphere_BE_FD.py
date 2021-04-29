@@ -46,7 +46,7 @@ class AtmosphereBEFD():
                 -Robin(t)=interface_robin(t) at interface
 
             scheme is:
-                -Noting Y = 1+delta_x^2/6, b=1+1/sqrt(2), a=1+sqrt(2)
+                -Noting Y = Id,
                 -Noting R = r*dt, Gamma = nu*dt/h^2
 
                     (Y + (R Y - Gamma delta_x^2))phi_np1 = Y phi_n
