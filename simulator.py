@@ -49,7 +49,7 @@ def frequency_simulation(atmosphere, ocean, number_samples=100, laplace_real_par
 
     return np.std(freq_err, axis=0)
 
-def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="white", overlap=0):
+def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="white", overlap=0, relaxation=1.):
     """
         Returns errors at interface from beginning (first guess) until the end.
         Coupling is made between "atmosphere" (instanciated from atmosphere_models)
@@ -61,6 +61,8 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
         the equations are then homogenous equation.
         init must be in { "white", "dirac", "GP" }
         overlap is the (non-negative integer) number of grid points that overlap
+        relaxation, if different from 1, is used as: 
+            u1^k = relaxation*u2^k + (1-relaxation)*u1^{k-1}
     """
     # number of time steps in each model:
     N_ocean = int(np.round(T/ocean.dt))
@@ -94,7 +96,6 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
         interface_atm = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_atm-1)))
     else:
         raise
-
 
 
     all_interface_atm = [interface_atm]

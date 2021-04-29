@@ -11,7 +11,7 @@ from simulator import frequency_simulation
 
 REAL_FIG = True
 
-def fig_validate_overlap():
+def fig_validate_DNWR():
     from ocean_models.ocean_BE_FV import OceanBEFV
     from atmosphere_models.atmosphere_BE_FV import AtmosphereBEFV
     from cv_factor_onestep import rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD, rho_c_FV, rho_c_FD
@@ -26,43 +26,72 @@ def fig_validate_overlap():
     axis_freq = get_discrete_freq(N, setting.DT)
     ocean, atmosphere = setting.build(OceanBEFV, AtmosphereBEFV)
     alpha_w = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0, relaxation=1.)
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
+
+    alpha_w_relaxed = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0, relaxation=0.5)
+    ax.semilogx(axis_freq, np.abs(alpha_w_relaxed[2]/alpha_w_relaxed[1]), "--")
+
+    # ax.semilogx(axis_freq, np.abs(rho_BE_FV(setting, axis_freq, overlap_M=1)), "--", label="M=1")
+    # ax.semilogx(axis_freq, np.abs(rho_BE_FV(setting, axis_freq, overlap_M=0)), "--", label="M=0")
+    ax.set_title("BE")
+    ax.legend()
+    ax.set_xlabel(r"$\omega$")
+    show_or_save("fig_validate_DNWR")
+
+def fig_validate_overlap():
+    from ocean_models.ocean_BE_FD import OceanBEFD
+    from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
+    from cv_factor_onestep import rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD, rho_c_FV, rho_c_FD
+    setting = Builder()
+    # setting.D1 = setting.D2
+    setting.SIZE_DOMAIN_1 *= 10
+    setting.SIZE_DOMAIN_2 *= 10
+    N = 10000
+    fig, axes = plt.subplots(1, 2)
+
+    ax = axes[0]
+    axis_freq = get_discrete_freq(N, setting.DT)
+    ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD)
+    alpha_w = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0)
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
-    alpha_w_overlap = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=1)
-    ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
-    alpha_w_overlap = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=2)
-    ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
+    # alpha_w_overlap = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
+    #         laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=1)
+    # ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
+    # alpha_w_overlap = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
+    #         laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=2)
+    # ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
 
-    ax.semilogx(axis_freq, np.abs(rho_BE_FV(setting, axis_freq, overlap_M=2)), "--", label="M=2")
-    ax.semilogx(axis_freq, np.abs(rho_BE_FV(setting, axis_freq, overlap_M=1)), "--", label="M=1")
-    ax.semilogx(axis_freq, np.abs(rho_BE_FV(setting, axis_freq, overlap_M=0)), "--", label="M=0")
+    # ax.semilogx(axis_freq, np.abs(rho_BE_FD(setting, axis_freq, overlap_M=2)), "--", label="M=2")
+    # ax.semilogx(axis_freq, np.abs(rho_BE_FD(setting, axis_freq, overlap_M=1)), "--", label="M=1")
+    ax.semilogx(axis_freq, np.abs(rho_BE_FD(setting, axis_freq, overlap_M=0)), "--", label="M=0")
     ax.set_title("BE")
     ax.legend()
     ax.set_xlabel(r"$\omega$")
 
-    from ocean_models.ocean_Pade_FD import OceanPadeFD
-    from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
-    from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD_corr0
+    # from ocean_models.ocean_Pade_FD import OceanPadeFD
+    # from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
+    # from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD_corr0
 
-    ax = axes[1]
-    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0)
-    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
-    alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=1)
-    ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
-    alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=2)
-    ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
+    # ax = axes[1]
+    # ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
+    # alpha_w = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
+    #         laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0)
+    # ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
+    # alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
+    #         laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=1)
+    # ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
+    # alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
+    #         laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=2)
+    # ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
 
-    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=2)), "--", label="M=2")
-    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=1)), "--", label="M=1")
-    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", label="M=0")
+    # ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=2)), "--", label="M=2")
+    # ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=1)), "--", label="M=1")
+    # ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", label="M=0")
 
-    ax.set_title("Pade")
+    # ax.set_title("Pade")
     ax.set_xlabel(r"$\omega$")
     ax.legend()
     show_or_save("fig_validate_overlap")
@@ -321,12 +350,12 @@ class Builder():
     def __init__(self): # changing defaults will result in needing to recompute all cache
         self.COURANT_NUMBER = 1.
         self.R = 0.#1e-4j
-        self.D1=3e-3
+        self.D1=.5
         self.D2=1.
         self.M1=100
         self.M2=100
-        self.LAMBDA_1=0.
-        self.LAMBDA_2=1e9
+        self.LAMBDA_1=1e10 # >=0
+        self.LAMBDA_2=-0. # <= 0
         self.SIZE_DOMAIN_1=200
         self.SIZE_DOMAIN_2=200
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
