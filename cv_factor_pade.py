@@ -10,7 +10,9 @@ import numpy as np
 #########################################################################
 def default_gamma(z):
     b = 1+1/np.sqrt(2)
-    return z - b*(z-1)# - b/2 * (z-1)**2
+    c = (-2 - 3 * np.sqrt(2)) / 4
+    # return (b+c-1)/z + (- b - 2*c + 2) + c*z 
+    return z - b*(z-1) - b/2 * (z-1)**2
 
 def rho_Pade_FV(builder, w, gamma=default_gamma, overlap_M=0):
     L1 = builder.LAMBDA_1

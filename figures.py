@@ -11,6 +11,239 @@ from simulator import frequency_simulation
 
 REAL_FIG = True
 
+def optimal_DNWR_parameter(builder, func, w):
+    from scipy.optimize import minimize_scalar
+    def to_optimize(x0):
+        return np.max(np.abs(func(builder, w, x0)))
+    optimal_lam = minimize_scalar(to_optimize)
+    return optimal_lam.x
+
+def optimal_robin_parameter(builder, func, w, x0, **kwargs):
+    from scipy.optimize import minimize_scalar, minimize
+    def to_optimize(x0):
+        setting = builder.copy()
+        setting.LAMBDA_1 = x0[0]
+        setting.LAMBDA_2 = x0[1]
+        return np.max(np.abs(func(setting, w, **kwargs)))
+    optimal_lam = minimize(method='Nelder-Mead', fun=to_optimize, x0=x0)
+    return optimal_lam.x
+
+def fig_modif_time():
+    from cv_factor_onestep import rho_s_c, rho_c_c
+    from cv_factor_pade import rho_Pade_c, rho_Pade_FD_corr0
+    setting = Builder()
+    setting.M1 = 10
+    setting.M2 = 10
+    setting.SIZE_DOMAIN_1 = 100
+    setting.SIZE_DOMAIN_2 = 100
+    setting.R = 1e-3
+    setting.DT = 100.
+    N = 1000
+    overlap_M = 0
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+    axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+
+    setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
+            rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
+
+    fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5, 2.4])
+    fig.subplots_adjust(right=0.80,wspace=0.35, left=0.09, bottom=0.35)
+    ax = axes[0]
+
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    dt = setting.DT
+
+    # Finite differences:
+    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+    s_modified1 = s_c - (4 + 3*np.sqrt(2)) * dt**2/6 * 1j * axis_freq**3
+    s_modified2 = s_c - (4 + 3*np.sqrt(2)) * dt**2/6 * 1j * axis_freq**3
+
+    discrete = np.abs(rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h))
+    continuous = np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h))
+    modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
+    ax.semilogx(axis_freq, continuous, "k")
+    ax.semilogx(axis_freq, discrete, "r")
+    ax.semilogx(axis_freq, modified_in_space, "g--")
+    ax.set_title("RR Without overlap")
+    ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
+
+
+    overlap_M = 1
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+    setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
+            rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
+
+    ax = axes[1]
+    # Finite differences:
+    discrete = np.abs(rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h))
+    continuous = np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h))
+    modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
+    ax.semilogx(axis_freq, continuous, "k")
+    ax.semilogx(axis_freq, discrete, "r")
+    ax.semilogx(axis_freq, modified_in_space, "g--")
+    ax.set_title("RR With overlap")
+    ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
+
+    overlap_M = 0
+    setting.D1 = 0.5
+    from cv_factor_pade import DNWR_Pade_c
+    from cv_factor_onestep import DNWR_c_c, DNWR_s_c
+    theta = optimal_DNWR_parameter(setting, DNWR_Pade_c, axis_freq)
+
+    ax = axes[2]
+    # Finite differences:
+    discrete = np.abs(DNWR_Pade_c(setting, axis_freq, theta=theta))
+    continuous = np.abs(DNWR_c_c(setting, axis_freq, theta=theta))
+    modified_in_space = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta))
+    ax.semilogx(axis_freq, continuous, "k", label="Continuous")
+    ax.semilogx(axis_freq, discrete, "r", label="Semi-Discrete in time")
+    ax.semilogx(axis_freq, modified_in_space, "g--", label="Modified in time")
+    ax.set_title("DNWR")
+    ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
+    fig.legend()
+
+    show_or_save("fig_modif_time")
+
+
+def fig_modif_space():
+    from cv_factor_onestep import rho_c_FD, rho_s_c
+    setting = Builder()
+    setting.DT = 100.
+    setting.R = 1e-3
+    setting.M1 = 10
+    setting.M2 = 10
+    setting.SIZE_DOMAIN_1 = 100
+    setting.SIZE_DOMAIN_2 = 100
+    N = 10000
+    overlap_M = 0
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+
+    setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
+            rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
+
+    fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5, 2.4])
+    fig.subplots_adjust(right=0.80,wspace=0.35, left=0.09, bottom=0.35)
+    ax = axes[0]
+    ax.semilogx(axis_freq, np.abs(rho_s_c(setting, 1j*axis_freq, 1j*axis_freq,
+        overlap_L=overlap_M*h, continuous_interface_op=False)),
+        "k")
+
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    dt = setting.DT
+    D1, D2 = setting.D1, setting.D2
+    Gamma_1 = dt * D1 / h**2
+    Gamma_2 = dt * D2 / h**2
+
+    # Finite differences:
+    d1 = 1/12
+    d2 = 1/360
+    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+
+    modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h, continuous_interface_op=False))
+    ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), "r")
+    ax.semilogx(axis_freq, modified_in_space, "g--")
+
+    ax.set_title("RR Without overlap")
+    ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
+
+
+    ax = axes[1]
+    setting = Builder()
+    setting.R = 1e-3
+    setting.M1 = 10
+    setting.M2 = 10
+    setting.SIZE_DOMAIN_1 = 100
+    setting.SIZE_DOMAIN_2 = 100
+    overlap_M = 1
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+
+    setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
+            rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
+
+    ax.semilogx(axis_freq, np.abs(rho_s_c(setting, 1j*axis_freq, 1j*axis_freq,
+        overlap_L=overlap_M*h, continuous_interface_op=False)),
+        "k")
+
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    dt = setting.DT
+    D1, D2 = setting.D1, setting.D2
+    Gamma_1 = dt * D1 / h**2
+    Gamma_2 = dt * D2 / h**2
+
+    # Finite differences:
+    d1 = 1/12
+    d2 = 1/360
+    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+
+    modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h, continuous_interface_op=False))
+    ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), "r")
+    ax.semilogx(axis_freq, modified_in_space, "g--")
+
+    ax.set_title("RR With overlap")
+    ax.set_xlabel(r"$\omega$")
+
+    from cv_factor_onestep import DNWR_s_c, DNWR_c_FD
+    ax = axes[2]
+    setting = Builder()
+    setting.R = 1e-3
+    setting.M1 = 10
+    setting.M2 = 10
+    setting.SIZE_DOMAIN_1 = 100
+    setting.SIZE_DOMAIN_2 = 100
+    overlap_M = 0
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+
+    theta = optimal_DNWR_parameter(setting, DNWR_c_FD, axis_freq)
+
+    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, 1j*axis_freq, 1j*axis_freq, theta, continuous_interface_op=False)), "k", label="Continuous")
+
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    dt = setting.DT
+    D1, D2 = setting.D1, setting.D2
+    Gamma_1 = dt * D1 / h**2
+    Gamma_2 = dt * D2 / h**2
+
+    # Finite differences:
+    d1 = 1/12
+    d2 = 1/360
+    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+
+    modified_in_space = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False))
+    ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), "r", label="Semi-discrete in space")
+    ax.semilogx(axis_freq, modified_in_space, "g--", label="Modified in space")
+
+    ax.set_title("DNWR")
+    ax.set_xlabel(r"$\omega$")
+    fig.legend()
+    show_or_save("fig_modif_space")
+
 def fig_validate_DNWR():
     from ocean_models.ocean_BE_FD import OceanBEFD
     from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
@@ -65,15 +298,12 @@ def fig_validate_overlap():
     setting = Builder()
     setting.R = 1e-3
     setting.D1 = setting.D2
-    N = 1000
+    N = 10000
     fig, axes = plt.subplots(1, 2)
 
     ax = axes[0]
     axis_freq = get_discrete_freq(N, setting.DT)
     ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD)
-    alpha_w = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0)
-    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
     alpha_w_overlap = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=1)
     ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
@@ -83,7 +313,12 @@ def fig_validate_overlap():
 
     ax.semilogx(axis_freq, np.abs(rho_BE_FD(setting, axis_freq, overlap_M=2)), "--", label="M=2")
     ax.semilogx(axis_freq, np.abs(rho_BE_FD(setting, axis_freq, overlap_M=1)), "--", label="M=1")
-    ax.semilogx(axis_freq, np.abs(rho_BE_FD(setting, axis_freq, overlap_M=0)), "--", label="M=0")
+
+    ocean.nu = setting.D1 = 0.5
+    alpha_w = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0)
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
+    ax.semilogx(axis_freq, np.abs(rho_BE_FD(setting, axis_freq, overlap_M=0)), "--", label=r"M=0, $\nu_1 \neq \nu_2$")
     ax.set_title("BE")
     ax.legend()
     ax.set_xlabel(r"$\omega$")
@@ -94,21 +329,24 @@ def fig_validate_overlap():
 
     ax = axes[1]
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0)
-    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
-    alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=1)
+    alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white", overlap=1)
     ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
-    alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=2)
+    alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white", overlap=2)
     ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
 
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=2)), "--", label="M=2")
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=1)), "--", label="M=1")
-    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", label="M=0")
 
-    ax.set_title("Pade")
+    setting.D1 = 0.5
+    ocean.nu = 0.5
+    alpha_w = frequency_simulation(atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white", overlap=0)
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
+    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", label=r"M=0, $\nu_1 \neq \nu_2$")
+
+    ax.set_title(r"Pade, white needed when $\gamma$ uses future times")
     ax.set_xlabel(r"$\omega$")
     ax.legend()
     show_or_save("fig_validate_overlap")

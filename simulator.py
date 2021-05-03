@@ -76,10 +76,16 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
     def f_atm(t): # Size of u, whether it is diagnostic or prognostic variable
         return np.zeros(atmosphere.size_u())
 
-    def get_star(val_n, val_np1):
-        return val_np1 + (1+1/np.sqrt(2))*(val_n - val_np1)
-    def give_tuple_star(val_n, val_np1):
-        return val_n, get_star(val_n, val_np1), val_np1
+    # see https://www.wolframalpha.com/input/?i=series+z+-+z%2F+%282+b%29+*+%281+-+sqrt%281+%2B+4+b+%281+-+b%29+%28z+-+1%29+%29+%29+at+z%3D1
+    # for the approximation of z * gamma^{gamma_t=0}.
+    # instead, we approximate gamma^{gamma_t=0}, which gives better DNWR performances.
+    def get_star(val_n, val_np1, val_np2):
+        b =  1+1/np.sqrt(2)
+        # we instead take gamma(z) = z - b*(z-1) - b/2 * (z-1)**2:
+        return val_np1 - b*(val_np1 - val_n) - b/2 * (val_np2 - 2*val_np1 + val_n)
+
+    def give_tuple_star(val_n, val_np1, val_np2):
+        return val_n, get_star(val_n, val_np1, val_np2), val_np1
 
     # random initialization of the interface: we excite the high frequencies with white noise
     np.random.seed(seed)
@@ -97,7 +103,6 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
     else:
         raise
 
-
     all_interface_atm = [interface_atm]
     relaxing_ocean = interface_atm
 
@@ -109,8 +114,8 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
 
         interface_atm = [0]
         for n in range(1, N_atm+1):
-            robin = give_tuple_star(interface_ocean[n-1], interface_ocean[n])
-            forcing = give_tuple_star(f_atm((n-1)*atmosphere.dt), f_atm(n*atmosphere.dt))
+            robin = give_tuple_star(interface_ocean[n-1], interface_ocean[n], interface_ocean[(n+1)%(N_atm+1)])
+            forcing = give_tuple_star(f_atm((n-1)*atmosphere.dt), f_atm(n*atmosphere.dt), f_atm((n+1)*atmosphere.dt))
             prognosed, diagnosed = atmosphere.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,
                     interface_robin=robin, forcing=forcing, boundary=(0,0,0))
 
@@ -126,8 +131,8 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
         relaxing_ocean = [0]
 
         for n in range(1, N_ocean+1):
-            robin = give_tuple_star(interface_atm[n-1], interface_atm[n])
-            forcing = give_tuple_star(f_ocean((n-1)*atmosphere.dt), f_ocean(n*atmosphere.dt))
+            robin = give_tuple_star(interface_atm[n-1], interface_atm[n], interface_atm[(n+1)%(N_ocean+1)])
+            forcing = give_tuple_star(f_ocean((n-1)*ocean.dt), f_ocean((n)*ocean.dt), f_ocean((n+1)*ocean.dt))
             prognosed, diagnosed = ocean.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,
                     interface_robin=robin, forcing=forcing, boundary=(0., 0., 0.))
             u_interface, phi_interface = ocean.interface_values(prognosed, diagnosed, overlap)
