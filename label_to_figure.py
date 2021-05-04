@@ -6,4 +6,6 @@ FIGURE = {}
 FIGURE["1"] = "fig_modif_space"
 FIGURE["2"] = "fig_modif_time"
 FIGURE["3"] = "fig_combinedRate"
+FIGURE["4"] = "fig_dependency_maxrho_modified"
+FIGURE["5"] = "fig_dependency_maxrho_combined"
 ALL_LABELS = FIGURE

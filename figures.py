@@ -11,6 +11,235 @@ from simulator import frequency_simulation
 
 REAL_FIG = True
 
+def fig_DNWR_why_not_optimal():
+    setting = Builder()
+    setting.M1 = 10
+    setting.M2 = 10
+    setting.SIZE_DOMAIN_1 = 100
+    setting.SIZE_DOMAIN_2 = 100
+    setting.R = 1e-3
+    setting.DT = 100.
+    N = 10000
+    overlap_M = 0
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+    axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+
+    fig, axes = plt.subplots(2, 2)
+    fig.delaxes(ax= axes[1,1])
+
+    dt = setting.DT
+
+    D1, D2 = setting.D1, setting.D2
+    Gamma_1 = dt * D1 / h**2
+    Gamma_2 = dt * D2 / h**2
+    # Finite differences:
+    d1 = 1/12
+    d2 = 1/360
+    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+
+    from cv_factor_onestep import DNWR_c_c, DNWR_s_c, DNWR_c_FD
+    all_theta = np.linspace(0.61,0.65,300)
+    for ax, theta in zip((axes[0,0], axes[0,1], axes[1,0]), (0.632, 0.633, 0.6345)):
+        ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), label="discrete")
+        ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_c, s_c, theta=theta, continuous_interface_op=False)), label="continuous")
+        ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False)), "--", label="modified")
+    fig.legend(loc='lower right')
+    ax.set_title("DNWR")
+    show_or_save("fig_DNWR_why_not_optimal")
+
+def fig_dependency_maxrho_combined():
+    setting = Builder()
+    setting.M1 = 100
+    setting.M2 = 100
+    setting.SIZE_DOMAIN_1 = 200
+    setting.SIZE_DOMAIN_2 = 200
+    setting.D1 = .5
+    setting.D2 = 1.
+    setting.R = 1e-3
+    setting.DT = 100.
+    N = 3000
+    overlap_M = 0
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+    axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+
+    fig, axes = plt.subplots(2, 2)
+    fig.delaxes(ax= axes[1,1])
+
+    dt = setting.DT
+
+    D1, D2 = setting.D1, setting.D2
+    Gamma_1 = dt * D1 / h**2
+    Gamma_2 = dt * D2 / h**2
+    # Finite differences:
+    d1 = 1/12
+    d2 = 1/360
+    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+
+    from cv_factor_onestep import rho_c_FD, rho_c_c, DNWR_c_c, DNWR_c_FD
+    from cv_factor_pade import rho_Pade_c, rho_Pade_FD_corr0, DNWR_Pade_c, DNWR_Pade_FD
+
+    def combined_Pade(setting, overlap_M):
+        combined = - rho_c_c(setting, axis_freq, overlap_L=overlap_M*h) \
+                    + rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h) \
+                    + rho_c_FD(setting, axis_freq, overlap_M=overlap_M)
+        return np.abs(combined)
+    def combined_Pade_DNWR(setting, axis_freq, theta):
+        builder = setting.copy()
+        combined = - DNWR_c_c(builder, axis_freq, theta=theta) \
+                    + DNWR_Pade_c(builder, axis_freq, theta=theta) \
+                    + DNWR_c_FD(builder, axis_freq, theta=theta)
+        return np.abs(combined)
+
+    ax = axes[0,1]
+    all_theta = np.linspace(0.5,0.68,300)
+
+    semidiscrete_space = [np.max(np.abs(DNWR_c_FD(setting, axis_freq, theta))) for theta in all_theta]
+    semidiscrete_time = [np.max(np.abs(DNWR_Pade_c(setting, axis_freq, theta))) for theta in all_theta]
+    discrete= [np.max(np.abs(DNWR_Pade_FD(setting, axis_freq, theta))) for theta in all_theta]
+    continuous = [np.max(np.abs(DNWR_c_c(setting, axis_freq, theta))) for theta in all_theta]
+    combined = [np.max(np.abs(combined_Pade_DNWR(setting, axis_freq, theta))) for theta in all_theta]
+    ax.plot(all_theta, continuous, "--")
+    ax.plot(all_theta, semidiscrete_space, "--")
+    ax.plot(all_theta, semidiscrete_time, "--")
+    ax.plot(all_theta, discrete)
+    ax.plot(all_theta, combined)
+    ax.set_title("DNWR")
+
+    from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
+    def maxrho(func, p, **kwargs):
+        builder = setting.copy()
+        builder.LAMBDA_1, builder.LAMBDA_2 = p, -p
+        return np.max(np.abs(func(builder, **kwargs)))
+
+    ax = axes[0, 0]
+    all_p1 = np.linspace(0.01,.1,300)
+    discrete = [maxrho(rho_Pade_FD_corr0, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
+    semidiscrete_time = [maxrho(rho_Pade_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
+    semidiscrete_space = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
+    continuous = [maxrho(rho_c_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
+    combined = [maxrho(combined_Pade, p, overlap_M=overlap_M) for p in all_p1]
+
+    ax.plot(all_p1, continuous, "--")
+    ax.plot(all_p1, semidiscrete_space, "--")
+    ax.plot(all_p1, semidiscrete_time, "--")
+    ax.plot(all_p1, discrete)
+    ax.plot(all_p1, combined)
+    ax.set_title("RR without overlap")
+
+    ax = axes[1, 0]
+    overlap_M = 1
+    setting.D1 = setting.D2
+
+    discrete = [maxrho(rho_Pade_FD_corr0, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
+    semidiscrete_time = [maxrho(rho_Pade_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
+    semidiscrete_space = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
+    continuous = [maxrho(rho_c_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
+    combined = [maxrho(combined_Pade, p, overlap_M=overlap_M) for p in all_p1]
+    ax.plot(all_p1, continuous, "--", label="continuous")
+    ax.plot(all_p1, semidiscrete_space, "--", label="semi-discrete space")
+    ax.plot(all_p1, semidiscrete_time, "--", label="semi-discrete time")
+    ax.plot(all_p1, discrete, label="discrete")
+    ax.plot(all_p1, combined, label="combined")
+    ax.set_title("RR with overlap")
+
+    fig.legend(loc='lower right')
+    show_or_save("fig_dependency_theta_maxrho")
+
+def fig_dependency_maxrho_modified():
+    setting = Builder()
+    setting.M1 = 10
+    setting.M2 = 10
+    setting.SIZE_DOMAIN_1 = 100
+    setting.SIZE_DOMAIN_2 = 100
+    setting.R = 1e-3
+    setting.DT = 100.
+    N = 10000
+    overlap_M = 0
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+    axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+
+    fig, axes = plt.subplots(2, 2)
+    fig.delaxes(ax= axes[1,1])
+
+    dt = setting.DT
+
+    D1, D2 = setting.D1, setting.D2
+    Gamma_1 = dt * D1 / h**2
+    Gamma_2 = dt * D2 / h**2
+    # Finite differences:
+    d1 = 1/12
+    d2 = 1/360
+    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+
+    from cv_factor_onestep import DNWR_c_c, DNWR_s_c, DNWR_c_FD
+    ax = axes[0,1]
+    all_theta = np.linspace(0.61,0.65,300)
+    discrete = [np.max(np.abs(DNWR_c_FD(setting, axis_freq, theta=theta))) for theta in all_theta]
+    continuous = [np.max(np.abs(DNWR_s_c(setting, s_c, s_c,
+        theta=theta, continuous_interface_op=False))) for theta in all_theta]
+    modified_in_space = [np.max(np.abs(DNWR_s_c(setting, s_modified1, s_modified2,
+        theta=theta, continuous_interface_op=False))) for theta in all_theta]
+    ax.plot(all_theta, discrete, label="discrete")
+    ax.plot(all_theta, modified_in_space, label="modified")
+    ax.plot(all_theta, continuous, "--", label="continuous")
+    ax.set_title("DNWR")
+
+    from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
+    ax = axes[0, 0]
+    all_p1 = np.linspace(0.03,.045,300)
+    def maxrho(func, p, **kwargs):
+        builder = setting.copy()
+        builder.LAMBDA_1, builder.LAMBDA_2 = p, -p
+        return np.max(np.abs(func(builder, **kwargs)))
+
+    discrete = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
+    continuous = [maxrho(rho_s_c, p, s_1=s_c, s_2=s_c,
+        overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
+    modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2,
+        overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
+    ax.plot(all_p1, discrete, label="discrete")
+    ax.plot(all_p1, modified_in_space, label="modified")
+    ax.plot(all_p1, continuous, "--", label="continuous")
+    ax.set_title("RR with overlap")
+
+    ax = axes[1, 0]
+    overlap_M = 1
+    setting.D1 = setting.D2
+
+    discrete = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
+    continuous = [maxrho(rho_s_c, p, s_1=s_c, s_2=s_c,
+        overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
+    modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2,
+        overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
+    ax.plot(all_p1, discrete, label="discrete")
+    ax.plot(all_p1, modified_in_space, label="modified")
+    ax.plot(all_p1, continuous, "--", label="continuous")
+    ax.set_title("RR with overlap")
+
+    fig.legend(loc='lower right')
+    show_or_save("fig_dependency_theta_maxrho")
+
 def optimal_DNWR_parameter(builder, func, w):
     from scipy.optimize import minimize_scalar
     def to_optimize(x0):
@@ -56,17 +285,16 @@ def fig_modif_time():
 
     dt = setting.DT
 
-    # Finite differences:
     s_c = 1j*axis_freq # BE_s(dt, axis_freq)
     s_modified1 = s_c - (4 + 3*np.sqrt(2)) * dt**2/6 * 1j * axis_freq**3
     s_modified2 = s_c - (4 + 3*np.sqrt(2)) * dt**2/6 * 1j * axis_freq**3
 
     discrete = np.abs(rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h))
     continuous = np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h))
-    modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
+    modified_in_time = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
     ax.semilogx(axis_freq, continuous, "k")
     ax.semilogx(axis_freq, discrete, "r")
-    ax.semilogx(axis_freq, modified_in_space, "g--")
+    ax.semilogx(axis_freq, modified_in_time, "g--")
     ax.set_title("RR Without overlap")
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
@@ -79,13 +307,12 @@ def fig_modif_time():
             rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
 
     ax = axes[1]
-    # Finite differences:
     discrete = np.abs(rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h))
     continuous = np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h))
-    modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
+    modified_in_time = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
     ax.semilogx(axis_freq, continuous, "k")
     ax.semilogx(axis_freq, discrete, "r")
-    ax.semilogx(axis_freq, modified_in_space, "g--")
+    ax.semilogx(axis_freq, modified_in_time, "g--")
     ax.set_title("RR With overlap")
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
@@ -97,13 +324,12 @@ def fig_modif_time():
     theta = optimal_DNWR_parameter(setting, DNWR_Pade_c, axis_freq)
 
     ax = axes[2]
-    # Finite differences:
     discrete = np.abs(DNWR_Pade_c(setting, axis_freq, theta=theta))
     continuous = np.abs(DNWR_c_c(setting, axis_freq, theta=theta))
-    modified_in_space = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta))
+    modified_in_time = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta))
     ax.semilogx(axis_freq, continuous, "k", label="Continuous")
     ax.semilogx(axis_freq, discrete, "r", label="Semi-Discrete in time")
-    ax.semilogx(axis_freq, modified_in_space, "g--", label="Modified in time")
+    ax.semilogx(axis_freq, modified_in_time, "g--", label="Modified in time")
     ax.set_title("DNWR")
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
