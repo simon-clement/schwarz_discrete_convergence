@@ -244,13 +244,130 @@ def fig_modif_space():
     fig.legend()
     show_or_save("fig_modif_space")
 
+def fig_combinedRate():
+    setting = Builder()
+    setting.M1 = 100
+    setting.M2 = 100
+    setting.SIZE_DOMAIN_1 = 200
+    setting.SIZE_DOMAIN_2 = 200
+    setting.D1 = .5
+    setting.D2 = 1.
+    setting.R = 1e-3
+    setting.DT = 100.
+    N = 3000
+    setting.LAMBDA_1 = 0.14
+    setting.LAMBDA_2 = -0.5
+    w = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+    overlap_M=0
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+
+    fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5, 2.4], sharex=True, sharey=True)
+    # fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5*2, 2.4*4])
+    fig.subplots_adjust(right=0.80,wspace=0.35, left=0.09, bottom=0.35)
+    ax = axes[0]
+
+    from cv_factor_onestep import rho_c_FD, rho_c_c, DNWR_c_c, DNWR_c_FD
+    from cv_factor_pade import rho_Pade_c, rho_Pade_FD_corr0, DNWR_Pade_c, DNWR_Pade_FD
+    def combined_Pade(builder, w, overlap_M):
+        combined = - rho_c_c(builder, w, overlap_L=overlap_M*h) \
+                    + rho_Pade_c(builder, w, overlap_L=overlap_M*h) \
+                    + rho_c_FD(builder, w, overlap_M=overlap_M)
+        return combined
+
+    def to_minimize_Pade(LAMBDAS, overlap_M):
+        builder = setting.copy()
+        builder.LAMBDA_1 = LAMBDAS[0]
+        builder.LAMBDA_2 = LAMBDAS[1]
+        return np.max(np.abs(rho_Pade_FD_corr0(builder, w, overlap_M=overlap_M)))
+
+    def to_minimize_combined(LAMBDAS, overlap_M):
+        builder = setting.copy()
+        builder.LAMBDA_1 = LAMBDAS[0]
+        builder.LAMBDA_2 = LAMBDAS[1]
+        return np.max(np.abs(combined_Pade(builder, w, overlap_M=overlap_M)))
+
+    from scipy.optimize import minimize
+    # ret = minimize(method='Nelder-Mead', fun=to_minimize_combined, x0=np.array((0.15, -0.15)), args=overlap_M)
+    ret = minimize(method='Nelder-Mead', fun=to_minimize_Pade, x0=np.array((0.15, -0.15)), args=overlap_M)
+
+    setting.LAMBDA_1 = ret.x[0]
+    setting.LAMBDA_2 = ret.x[1]
+
+    ax.semilogx(w, np.abs(rho_Pade_FD_corr0(setting, w, overlap_M=overlap_M)), "k")
+    ax.semilogx(w, np.abs(combined_Pade(setting, w, overlap_M=overlap_M)), "r")
+    ax.semilogx(w, np.abs(rho_c_FD(setting, w, overlap_M=overlap_M)), "--", dashes=[7,9])
+    ax.semilogx(w, np.abs(rho_c_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[3,5])
+    ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9])
+
+    ax.set_xlabel(r"$\omega \Delta t$")
+    ax.set_ylabel(r"$\rho$")
+    ax.set_ylim(top=0.15, bottom=0.) # all axis are shared
+    ax.set_title("RR without overlap")
+
+    ax = axes[1]
+    overlap_M = 1
+    setting.D1 = setting.D2
+    ret = minimize(method='Nelder-Mead', fun=to_minimize_Pade, x0=np.array((0.15, -0.15)), args=overlap_M)
+
+    setting.LAMBDA_1 = ret.x[0]
+    setting.LAMBDA_2 = ret.x[1]
+
+    ax.semilogx(w, np.abs(rho_Pade_FD_corr0(setting, w, overlap_M=overlap_M)), "k")
+    ax.semilogx(w, np.abs(combined_Pade(setting, w, overlap_M=overlap_M)), "r")
+    ax.semilogx(w, np.abs(rho_c_FD(setting, w, overlap_M=overlap_M)), "--", dashes=[7,9])
+    ax.semilogx(w, np.abs(rho_c_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[3,5])
+    ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9])
+    ax.set_xlabel(r"$\omega \Delta t$")
+    ax.set_ylim(top=0.15, bottom=0.) # all axis are shared
+    ax.set_title("RR with overlap")
+
+    ax = axes[2]
+    overlap_M = 0
+    setting.D1 = .5
+
+
+    # setting.M1 = 100
+    # setting.M2 = 100
+    # setting.D1 = .5
+    # setting.D2 = 1.
+    # setting.R = 1e-3
+    # setting.DT = 100.
+    # N = 3000
+
+    def combined_Pade_DNWR(builder, w, theta):
+        combined = - DNWR_c_c(builder, w, theta=theta) \
+                    + DNWR_Pade_c(builder, w, theta=theta) \
+                    + DNWR_c_FD(builder, w, theta=theta)
+        return combined
+
+    def to_minimize_Pade_DNWR(theta):
+        return np.max(np.abs(DNWR_Pade_FD(setting, w, theta=theta)))
+
+    def to_minimize_combined_DNWR(theta):
+        return np.max(np.abs(combined_Pade_DNWR(setting, w, theta=theta)))
+
+    from scipy.optimize import minimize_scalar
+    theta = minimize_scalar(fun=to_minimize_Pade_DNWR).x
+
+    ax.semilogx(w, np.abs(DNWR_Pade_FD(setting, w, theta)), "k", label=r"$\rho^{\rm (Pade, FD)}$")
+    ax.semilogx(w, np.abs(combined_Pade_DNWR(setting, w, theta)), "r", label=r"$\rho^{\rm (Pade, FD)}_{\rm combined}$")
+    ax.semilogx(w, np.abs(DNWR_c_FD(setting, w, theta)), "--", label=r"$\rho^{\rm (c, FD)}$", dashes=[7,9])
+    ax.semilogx(w, np.abs(DNWR_c_c(setting, w, theta)), "--", label=r"$\rho^{\rm (c, c)}$", dashes=[3,5])
+    ax.semilogx(w, np.abs(DNWR_Pade_c(setting, w, theta)), "--", label=r"$\rho^{\rm (Pade, c)}$", dashes=[7,9])
+    ax.set_xlabel(r"$\omega \Delta t$")
+
+
+    ax.set_title("DNWR")
+    fig.legend()
+    show_or_save("fig_combinedRate")
+
 def fig_validate_DNWR():
     from ocean_models.ocean_BE_FD import OceanBEFD
     from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
     from cv_factor_onestep import rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD, rho_c_FV, rho_c_FD, DNWR_BE_FD
     setting = Builder()
     setting.R = 1e-3
-    N = 1000
+    N = 3000
     fig, axes = plt.subplots(1, 2)
 
     ax = axes[0]
@@ -275,11 +392,11 @@ def fig_validate_DNWR():
 
     ax = axes[1]
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", relaxation=.7)
+    alpha_w = frequency_simulation(atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white", relaxation=.7)
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
-    alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=1, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="dirac", relaxation=.5)
+    alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white", relaxation=.5)
     ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
 
     ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=0.7)), "--", label=r"\theta=1.")
@@ -611,8 +728,8 @@ class Builder():
         self.M2=100
         self.LAMBDA_1=1e10 # >=0
         self.LAMBDA_2=-0. # <= 0
-        self.SIZE_DOMAIN_1=200
-        self.SIZE_DOMAIN_2=200
+        self.SIZE_DOMAIN_1=100
+        self.SIZE_DOMAIN_2=100
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / (self.M1-1))**2 / self.D1
 
     def copy(self):

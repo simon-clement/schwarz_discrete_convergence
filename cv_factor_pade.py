@@ -124,7 +124,7 @@ def rho_Pade_c(builder, w, gamma=default_gamma, overlap_L=0.):
     L2 = builder.LAMBDA_2
 
     def get_z_s(w):
-        z = np.exp(-1j*w*dt)
+        z = np.exp(1j*w*dt)
         return z, (z - 1)/(z*dt)
 
     def square_root_interior(w):
@@ -161,9 +161,9 @@ def rho_Pade_c(builder, w, gamma=default_gamma, overlap_L=0.):
     varrho = ((L1 + nu_2*sigma_2)/(L2 + nu_2*sigma_2) * (1 - gamma_t) * np.exp(L*sigma_2) + \
              (L1 + nu_2*sigma_4)/(L2 + nu_2*sigma_4) * gamma_t * np.exp(L*sigma_4)) * \
              ((L2 + nu_1*sigma_1)/(L1 + nu_1*sigma_1) * (1 - gamma_t) * np.exp(-L*sigma_1) + \
-             (L2 + nu_1*sigma_3)/(L1 + nu_1*sigma_3) * gamma_t * np.exp(-L*sigma_2))
+             (L2 + nu_1*sigma_3)/(L1 + nu_1*sigma_3) * gamma_t * np.exp(-L*sigma_3))
 
-    return np.abs(varrho)
+    return varrho
 
 def DNWR_Pade_c(builder, w, theta, gamma=default_gamma):
     a = 1+np.sqrt(2)
@@ -211,8 +211,6 @@ def DNWR_Pade_c(builder, w, theta, gamma=default_gamma):
     return rho
 
 def DNWR_Pade_FD(builder, w, theta, gamma=default_gamma):
-    L1 = builder.LAMBDA_1
-    L2 = builder.LAMBDA_2
     nu_1 = builder.D1
     nu_2 = builder.D2
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
@@ -225,10 +223,10 @@ def DNWR_Pade_FD(builder, w, theta, gamma=default_gamma):
     eta_13 = nu_1 * (1-lambda_3)/h
 
     # RR:
-    varrho = 1 - theta + theta * ((1-gamma_t2)/(L2 + eta_22) + (gamma_t2)/(L2 + eta_24)) * \
+    varrho = 1 - theta + theta * ((1-gamma_t2)/eta_22 + gamma_t2/eta_24) * \
              (eta_11 * (1-gamma_t1) + eta_13 * gamma_t1)
 
-    return np.abs(varrho)
+    return varrho
 
 def rho_Pade_FD_corr1(builder, w, gamma=default_gamma, overlap_M=0):
     """ avoid using ! """

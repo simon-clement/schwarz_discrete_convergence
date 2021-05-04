@@ -5,4 +5,5 @@ You can then look for this function name in the file figures.py """
 FIGURE = {}
 FIGURE["1"] = "fig_modif_space"
 FIGURE["2"] = "fig_modif_time"
+FIGURE["3"] = "fig_combinedRate"
 ALL_LABELS = FIGURE
