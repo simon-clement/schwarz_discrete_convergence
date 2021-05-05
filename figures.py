@@ -75,7 +75,9 @@ def fig_dependency_maxrho_combined():
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
 
     fig, axes = plt.subplots(2, 2)
+    fig.subplots_adjust(right=0.97, hspace=0.65, wspace=0.28)
     fig.delaxes(ax= axes[1,1])
+    lw_important = 2.1
 
     dt = setting.DT
 
@@ -112,11 +114,13 @@ def fig_dependency_maxrho_combined():
     discrete= [np.max(np.abs(DNWR_Pade_FD(setting, axis_freq, theta))) for theta in all_theta]
     continuous = [np.max(np.abs(DNWR_c_c(setting, axis_freq, theta))) for theta in all_theta]
     combined = [np.max(np.abs(combined_Pade_DNWR(setting, axis_freq, theta))) for theta in all_theta]
-    ax.plot(all_theta, continuous, "--")
+    ax.plot(all_theta, continuous, lw=lw_important)
+    ax.plot(all_theta, discrete, lw=lw_important)
+    ax.plot(all_theta, combined, "--", lw=lw_important)
     ax.plot(all_theta, semidiscrete_space, "--")
     ax.plot(all_theta, semidiscrete_time, "--")
-    ax.plot(all_theta, discrete)
-    ax.plot(all_theta, combined)
+    ax.set_xlabel(r"$\theta$")
+    ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("DNWR")
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
@@ -133,11 +137,13 @@ def fig_dependency_maxrho_combined():
     continuous = [maxrho(rho_c_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
     combined = [maxrho(combined_Pade, p, overlap_M=overlap_M) for p in all_p1]
 
-    ax.plot(all_p1, continuous, "--")
+    ax.plot(all_p1, continuous, lw=lw_important)
+    ax.plot(all_p1, discrete, lw=lw_important)
+    ax.plot(all_p1, combined, "--", lw=lw_important)
     ax.plot(all_p1, semidiscrete_space, "--")
     ax.plot(all_p1, semidiscrete_time, "--")
-    ax.plot(all_p1, discrete)
-    ax.plot(all_p1, combined)
+    ax.set_xlabel(r"$p_1 = -p_2$")
+    ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("RR without overlap")
 
     ax = axes[1, 0]
@@ -149,15 +155,17 @@ def fig_dependency_maxrho_combined():
     semidiscrete_space = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
     continuous = [maxrho(rho_c_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
     combined = [maxrho(combined_Pade, p, overlap_M=overlap_M) for p in all_p1]
-    ax.plot(all_p1, continuous, "--", label="continuous")
+    ax.plot(all_p1, continuous, label="continuous", lw=lw_important)
+    ax.plot(all_p1, discrete, label="discrete", lw=lw_important)
+    ax.plot(all_p1, combined, "--", label="combined", lw=lw_important)
     ax.plot(all_p1, semidiscrete_space, "--", label="semi-discrete space")
     ax.plot(all_p1, semidiscrete_time, "--", label="semi-discrete time")
-    ax.plot(all_p1, discrete, label="discrete")
-    ax.plot(all_p1, combined, label="combined")
+    ax.set_xlabel(r"$p_1 = -p_2$")
+    ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("RR with overlap")
 
-    fig.legend(loc='lower right')
-    show_or_save("fig_dependency_theta_maxrho")
+    fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
+    show_or_save("fig_dependency_maxrho_combined")
 
 def fig_dependency_maxrho_modified():
     setting = Builder()
@@ -178,7 +186,9 @@ def fig_dependency_maxrho_modified():
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
 
     fig, axes = plt.subplots(2, 2)
+    fig.subplots_adjust(right=0.97, hspace=0.65, wspace=0.28)
     fig.delaxes(ax= axes[1,1])
+    lw_important = 2.1
 
     dt = setting.DT
 
@@ -200,9 +210,11 @@ def fig_dependency_maxrho_modified():
         theta=theta, continuous_interface_op=False))) for theta in all_theta]
     modified_in_space = [np.max(np.abs(DNWR_s_c(setting, s_modified1, s_modified2,
         theta=theta, continuous_interface_op=False))) for theta in all_theta]
-    ax.plot(all_theta, discrete, label="discrete")
-    ax.plot(all_theta, modified_in_space, label="modified")
-    ax.plot(all_theta, continuous, "--", label="continuous")
+    ax.plot(all_theta, continuous, lw=lw_important)
+    ax.plot(all_theta, discrete, lw=lw_important)
+    ax.plot(all_theta, modified_in_space, "--", lw=lw_important)
+    ax.set_xlabel(r"$\theta$")
+    ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("DNWR")
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
@@ -218,9 +230,11 @@ def fig_dependency_maxrho_modified():
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
     modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2,
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
-    ax.plot(all_p1, discrete, label="discrete")
-    ax.plot(all_p1, modified_in_space, label="modified")
-    ax.plot(all_p1, continuous, "--", label="continuous")
+    ax.plot(all_p1, continuous, lw=lw_important)
+    ax.plot(all_p1, discrete, lw=lw_important)
+    ax.plot(all_p1, modified_in_space, "--", lw=lw_important)
+    ax.set_xlabel(r"$p_1 = -p_2$")
+    ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("RR with overlap")
 
     ax = axes[1, 0]
@@ -232,13 +246,15 @@ def fig_dependency_maxrho_modified():
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
     modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2,
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
-    ax.plot(all_p1, discrete, label="discrete")
-    ax.plot(all_p1, modified_in_space, label="modified")
-    ax.plot(all_p1, continuous, "--", label="continuous")
+    ax.plot(all_p1, continuous, label="continuous", lw=lw_important)
+    ax.plot(all_p1, discrete, label="discrete", lw=lw_important)
+    ax.plot(all_p1, modified_in_space, "--", label="modified", lw=lw_important)
+    ax.set_xlabel(r"$p_1 = -p_2$")
+    ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("RR with overlap")
 
-    fig.legend(loc='lower right')
-    show_or_save("fig_dependency_theta_maxrho")
+    fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
+    show_or_save("fig_dependency_maxrho_modified")
 
 def optimal_DNWR_parameter(builder, func, w):
     from scipy.optimize import minimize_scalar
@@ -277,9 +293,11 @@ def fig_modif_time():
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
 
-    fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5, 2.4])
-    fig.subplots_adjust(right=0.80,wspace=0.35, left=0.09, bottom=0.35)
-    ax = axes[0]
+    #fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5, 2.4])
+    fig, axes = plt.subplots(2, 2)
+    fig.delaxes(ax= axes[1,1])
+    fig.subplots_adjust(right=0.97, hspace=0.65)
+    ax = axes[0,0]
 
     assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
 
@@ -306,7 +324,7 @@ def fig_modif_time():
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
 
-    ax = axes[1]
+    ax = axes[1,0]
     discrete = np.abs(rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h))
     continuous = np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h))
     modified_in_time = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
@@ -323,7 +341,7 @@ def fig_modif_time():
     from cv_factor_onestep import DNWR_c_c, DNWR_s_c
     theta = optimal_DNWR_parameter(setting, DNWR_Pade_c, axis_freq)
 
-    ax = axes[2]
+    ax = axes[0,1]
     discrete = np.abs(DNWR_Pade_c(setting, axis_freq, theta=theta))
     continuous = np.abs(DNWR_c_c(setting, axis_freq, theta=theta))
     modified_in_time = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta))
@@ -333,8 +351,7 @@ def fig_modif_time():
     ax.set_title("DNWR")
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
-    fig.legend()
-
+    fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_modif_time")
 
 
@@ -358,9 +375,10 @@ def fig_modif_space():
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
 
-    fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5, 2.4])
-    fig.subplots_adjust(right=0.80,wspace=0.35, left=0.09, bottom=0.35)
-    ax = axes[0]
+    fig, axes = plt.subplots(2, 2)
+    fig.delaxes(ax= axes[1,1])
+    fig.subplots_adjust(right=0.97, hspace=0.65)
+    ax = axes[0,0]
     ax.semilogx(axis_freq, np.abs(rho_s_c(setting, 1j*axis_freq, 1j*axis_freq,
         overlap_L=overlap_M*h, continuous_interface_op=False)),
         "k")
@@ -388,7 +406,7 @@ def fig_modif_space():
     ax.set_ylabel(r"$\rho$")
 
 
-    ax = axes[1]
+    ax = axes[1, 0]
     setting = Builder()
     setting.R = 1e-3
     setting.M1 = 10
@@ -430,7 +448,7 @@ def fig_modif_space():
     ax.set_xlabel(r"$\omega$")
 
     from cv_factor_onestep import DNWR_s_c, DNWR_c_FD
-    ax = axes[2]
+    ax = axes[0,1]
     setting = Builder()
     setting.R = 1e-3
     setting.M1 = 10
@@ -467,7 +485,7 @@ def fig_modif_space():
 
     ax.set_title("DNWR")
     ax.set_xlabel(r"$\omega$")
-    fig.legend()
+    fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_modif_space")
 
 def fig_combinedRate():
@@ -487,10 +505,10 @@ def fig_combinedRate():
     overlap_M=0
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
 
-    fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5, 2.4], sharex=True, sharey=True)
-    # fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5*2, 2.4*4])
-    fig.subplots_adjust(right=0.80,wspace=0.35, left=0.09, bottom=0.35)
-    ax = axes[0]
+    fig, axes = plt.subplots(2, 2)
+    fig.delaxes(ax= axes[1,1])
+    fig.subplots_adjust(right=0.97, hspace=0.65)
+    ax = axes[0,0]
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, DNWR_c_c, DNWR_c_FD
     from cv_factor_pade import rho_Pade_c, rho_Pade_FD_corr0, DNWR_Pade_c, DNWR_Pade_FD
@@ -530,7 +548,7 @@ def fig_combinedRate():
     ax.set_ylim(top=0.15, bottom=0.) # all axis are shared
     ax.set_title("RR without overlap")
 
-    ax = axes[1]
+    ax = axes[1, 0]
     overlap_M = 1
     setting.D1 = setting.D2
     ret = minimize(method='Nelder-Mead', fun=to_minimize_Pade, x0=np.array((0.15, -0.15)), args=overlap_M)
@@ -547,7 +565,7 @@ def fig_combinedRate():
     ax.set_ylim(top=0.15, bottom=0.) # all axis are shared
     ax.set_title("RR with overlap")
 
-    ax = axes[2]
+    ax = axes[0,1]
     overlap_M = 0
     setting.D1 = .5
 
@@ -584,7 +602,7 @@ def fig_combinedRate():
 
 
     ax.set_title("DNWR")
-    fig.legend()
+    fig.legend(loc="upper left", bbox_to_anchor=(0.65, 0.45))
     show_or_save("fig_combinedRate")
 
 def fig_validate_DNWR():
