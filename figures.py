@@ -6,6 +6,9 @@
 """
 import numpy as np
 from memoisation import memoised
+import matplotlib as mpl
+mpl.rc('text', usetex=True)
+mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
 import matplotlib.pyplot as plt
 from simulator import frequency_simulation
 
