@@ -44,31 +44,35 @@ def fig_introDiscreteAnalysis():
     from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD_corr0, DNWR_Pade_c, DNWR_Pade_FD
 
     ax = axes[0,1]
-    setting.LAMBDA_1=1e10 # >=0
-    setting.LAMBDA_2=-0. # <= 0
-    ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=0.7)), lw=lw_important)
-    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
-            laplace_real_part=0, T=N*setting.DT, init="white", relaxation=.632)
-    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
-    ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=0.632)), "--", lw=lw_important)
-    ax.set_title("DNWR")
-    ax.set_xlabel(r"$\omega$")
 
     setting.LAMBDA_1=1e10 # >=0
     setting.LAMBDA_2=-0. # <= 0
+    theta = optimal_DNWR_parameter(setting, DNWR_c_c, axis_freq)
+    ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=theta)), lw=lw_important)
+    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white", relaxation=theta)
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
+    ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=theta)), "--", lw=lw_important)
+    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
+    ax.set_xlabel(r"$\omega$")
+
     ax = axes[0,0]
+    setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
+            rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
     alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white")
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", lw=lw_important)
-    ax.set_title("RR Without overlap")
+    ax.set_title(r"$RR^{M=0}, "+ ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
 
     overlap_M=1
     ax = axes[1,0]
+    setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
+            rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h)), lw=lw_important,
             label="Continuous convergence rate")
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
@@ -77,7 +81,7 @@ def fig_introDiscreteAnalysis():
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), label="Numerical simulation")
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=overlap_M)),
             "--", lw=lw_important, label="Discrete convergence rate")
-    ax.set_title("RR With overlap")
+    ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
 
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
@@ -124,7 +128,7 @@ def fig_DNWR_why_not_optimal():
         ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_c, s_c, theta=theta, continuous_interface_op=False)), label="continuous")
         ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False)), "--", label="modified")
     fig.legend(loc='lower right')
-    ax.set_title("DNWR")
+    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
     show_or_save("fig_DNWR_why_not_optimal")
 
 def fig_dependency_maxrho_combined():
@@ -217,7 +221,7 @@ def fig_dependency_maxrho_combined():
     ax.plot(all_p1, semidiscrete_time, "--")
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
-    ax.set_title("RR without overlap")
+    ax.set_title(r"$RR^{M=0}$")
 
     ax = axes[1, 0]
     overlap_M = 1
@@ -235,7 +239,7 @@ def fig_dependency_maxrho_combined():
     ax.plot(all_p1, semidiscrete_time, "--", label="semi-discrete time")
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
-    ax.set_title("RR with overlap")
+    ax.set_title(r"$RR^{M=1}$")
 
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_dependency_maxrho_combined")
@@ -308,7 +312,7 @@ def fig_dependency_maxrho_modified():
     ax.plot(all_p1, modified_in_space, "--", lw=lw_important)
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
-    ax.set_title("RR with overlap")
+    ax.set_title(r"$RR^{M=0}$")
 
     ax = axes[1, 0]
     overlap_M = 1
@@ -324,7 +328,7 @@ def fig_dependency_maxrho_modified():
     ax.plot(all_p1, modified_in_space, "--", label="modified", lw=lw_important)
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
-    ax.set_title("RR with overlap")
+    ax.set_title(r"$RR^{M=1}$")
 
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_dependency_maxrho_modified")
@@ -386,7 +390,7 @@ def fig_modif_time():
     ax.semilogx(axis_freq, continuous, "k")
     ax.semilogx(axis_freq, discrete, "r")
     ax.semilogx(axis_freq, modified_in_time, "g--")
-    ax.set_title("RR Without overlap")
+    ax.set_title(r"$RR^{M=0}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
 
@@ -404,7 +408,7 @@ def fig_modif_time():
     ax.semilogx(axis_freq, continuous, "k")
     ax.semilogx(axis_freq, discrete, "r")
     ax.semilogx(axis_freq, modified_in_time, "g--")
-    ax.set_title("RR With overlap")
+    ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
 
@@ -421,7 +425,7 @@ def fig_modif_time():
     ax.semilogx(axis_freq, continuous, "k", label="Continuous")
     ax.semilogx(axis_freq, discrete, "r", label="Semi-Discrete in time")
     ax.semilogx(axis_freq, modified_in_time, "g--", label="Modified in time")
-    ax.set_title("DNWR")
+    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
@@ -474,7 +478,7 @@ def fig_modif_space():
     ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), "r")
     ax.semilogx(axis_freq, modified_in_space, "g--")
 
-    ax.set_title("RR Without overlap")
+    ax.set_title(r"$RR^{M=0}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
 
@@ -517,7 +521,7 @@ def fig_modif_space():
     ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), "r")
     ax.semilogx(axis_freq, modified_in_space, "g--")
 
-    ax.set_title("RR With overlap")
+    ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
 
     from cv_factor_onestep import DNWR_s_c, DNWR_c_FD
@@ -556,7 +560,7 @@ def fig_modif_space():
     ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), "r", label="Semi-discrete in space")
     ax.semilogx(axis_freq, modified_in_space, "g--", label="Modified in space")
 
-    ax.set_title("DNWR")
+    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
     ax.set_xlabel(r"$\omega$")
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_modif_space")
@@ -619,7 +623,7 @@ def fig_combinedRate():
     ax.set_xlabel(r"$\omega \Delta t$")
     ax.set_ylabel(r"$\rho$")
     ax.set_ylim(top=0.15, bottom=0.) # all axis are shared
-    ax.set_title("RR without overlap")
+    ax.set_title(r"$RR^{M=0}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
 
     ax = axes[1, 0]
     overlap_M = 1
@@ -636,7 +640,7 @@ def fig_combinedRate():
     ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9])
     ax.set_xlabel(r"$\omega \Delta t$")
     ax.set_ylim(top=0.15, bottom=0.) # all axis are shared
-    ax.set_title("RR with overlap")
+    ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
 
     ax = axes[0,1]
     overlap_M = 0
@@ -674,7 +678,7 @@ def fig_combinedRate():
     ax.set_xlabel(r"$\omega \Delta t$")
 
 
-    ax.set_title("DNWR")
+    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
     fig.legend(loc="upper left", bbox_to_anchor=(0.65, 0.45))
     show_or_save("fig_combinedRate")
 
