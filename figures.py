@@ -14,6 +14,76 @@ from simulator import frequency_simulation
 
 REAL_FIG = True
 
+def fig_introDiscreteAnalysis():
+    setting = Builder()
+    setting.M1 = 100
+    setting.M2 = 100
+    setting.SIZE_DOMAIN_1 = 200
+    setting.SIZE_DOMAIN_2 = 200
+    setting.D1 = .5
+    setting.D2 = 1.
+    setting.R = 1e-3
+    setting.DT = 100.
+    N = 3000
+    overlap_M = 0
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+    axis_freq = get_discrete_freq(N, setting.DT)
+
+    fig, axes = plt.subplots(2, 2)
+    fig.subplots_adjust(right=0.97, hspace=0.65, wspace=0.28)
+    fig.delaxes(ax= axes[1,1])
+    lw_important = 2.1
+    from cv_factor_onestep import rho_c_c, rho_c_FV, rho_c_FD, DNWR_c_c
+    from ocean_models.ocean_Pade_FD import OceanPadeFD
+    from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
+    from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD_corr0, DNWR_Pade_c, DNWR_Pade_FD
+
+    ax = axes[0,1]
+    setting.LAMBDA_1=1e10 # >=0
+    setting.LAMBDA_2=-0. # <= 0
+    ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=0.7)), lw=lw_important)
+    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white", relaxation=.632)
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
+    ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=0.632)), "--", lw=lw_important)
+    ax.set_title("DNWR")
+    ax.set_xlabel(r"$\omega$")
+
+    setting.LAMBDA_1=1e10 # >=0
+    setting.LAMBDA_2=-0. # <= 0
+    ax = axes[0,0]
+    ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important)
+    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white")
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
+    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", lw=lw_important)
+    ax.set_title("RR Without overlap")
+    ax.set_xlabel(r"$\omega$")
+
+    overlap_M=1
+    ax = axes[1,0]
+    ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h)), lw=lw_important,
+            label="Continuous convergence rate")
+    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+            laplace_real_part=0, T=N*setting.DT, init="white", overlap=1)
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), label="Numerical simulation")
+    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=overlap_M)),
+            "--", lw=lw_important, label="Discrete convergence rate")
+    ax.set_title("RR With overlap")
+    ax.set_xlabel(r"$\omega$")
+
+    fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
+    show_or_save("fig_introDiscreteAnalysis")
+
+
 def fig_DNWR_why_not_optimal():
     setting = Builder()
     setting.M1 = 10
