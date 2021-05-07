@@ -53,6 +53,13 @@ def main():
                     import matplotlib
                     matplotlib.use('Agg')
                     figures.all_figures[ALL_LABELS[sys.argv[2]]]()
+                elif sys.argv[2] == "all":
+                    print("Plotting all figures...")
+                    import matplotlib
+                    matplotlib.use('Agg')
+                    for label in ALL_LABELS:
+                        print("Fig. {}".format(label))
+                        figures.all_figures[ALL_LABELS[label]]()
                 else:
                     print("id does not exist. Please use one of:")
                     print(list(ALL_LABELS.keys()))

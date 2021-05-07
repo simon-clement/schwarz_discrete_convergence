@@ -16,15 +16,7 @@ REAL_FIG = True
 
 def fig_introDiscreteAnalysis():
     setting = Builder()
-    setting.M1 = 100
-    setting.M2 = 100
-    setting.SIZE_DOMAIN_1 = 200
-    setting.SIZE_DOMAIN_2 = 200
-    setting.D1 = .5
-    setting.D2 = 1.
-    setting.R = 1e-3
-    setting.DT = 100.
-    N = 3000
+    N = 10000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
@@ -50,7 +42,7 @@ def fig_introDiscreteAnalysis():
     theta = optimal_DNWR_parameter(setting, DNWR_c_c, axis_freq)
     ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=theta)), lw=lw_important)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=32, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white", relaxation=theta)
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
     ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=theta)), "--", lw=lw_important)
@@ -62,7 +54,7 @@ def fig_introDiscreteAnalysis():
             rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=32, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white")
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", lw=lw_important)
@@ -76,7 +68,7 @@ def fig_introDiscreteAnalysis():
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h)), lw=lw_important,
             label="Continuous convergence rate")
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=32, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white", overlap=1)
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), label="Numerical simulation")
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=overlap_M)),
@@ -87,61 +79,46 @@ def fig_introDiscreteAnalysis():
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_introDiscreteAnalysis")
 
-
-def fig_DNWR_why_not_optimal():
-    setting = Builder()
-    setting.M1 = 10
-    setting.M2 = 10
-    setting.SIZE_DOMAIN_1 = 100
-    setting.SIZE_DOMAIN_2 = 100
-    setting.R = 1e-3
-    setting.DT = 100.
-    N = 10000
-    overlap_M = 0
-
-    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
-    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
-
-    if overlap_M > 0:
-        setting.D1 = setting.D2
-    axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
-
-    fig, axes = plt.subplots(2, 2)
-    fig.delaxes(ax= axes[1,1])
-
-    dt = setting.DT
-
-    D1, D2 = setting.D1, setting.D2
-    Gamma_1 = dt * D1 / h**2
-    Gamma_2 = dt * D2 / h**2
-    # Finite differences:
-    d1 = 1/12
-    d2 = 1/360
-    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
-    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
-    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
-
-    from cv_factor_onestep import DNWR_c_c, DNWR_s_c, DNWR_c_FD
-    all_theta = np.linspace(0.61,0.65,300)
-    for ax, theta in zip((axes[0,0], axes[0,1], axes[1,0]), (0.632, 0.633, 0.6345)):
-        ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), label="discrete")
-        ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_c, s_c, theta=theta, continuous_interface_op=False)), label="continuous")
-        ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False)), "--", label="modified")
-    fig.legend(loc='lower right')
-    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
-    show_or_save("fig_DNWR_why_not_optimal")
+# def fig_DNWR_why_not_optimal():
+#     setting = Builder()
+#     N = 10000
+#     overlap_M = 0
+# 
+#     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+#     assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+# 
+#     if overlap_M > 0:
+#         setting.D1 = setting.D2
+#     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+# 
+#     fig, axes = plt.subplots(2, 2)
+#     fig.delaxes(ax= axes[1,1])
+# 
+#     dt = setting.DT
+# 
+#     D1, D2 = setting.D1, setting.D2
+#     Gamma_1 = dt * D1 / h**2
+#     Gamma_2 = dt * D2 / h**2
+#     # Finite differences:
+#     d1 = 1/12
+#     d2 = 1/360
+#     s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+#     s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+#     s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+# 
+#     from cv_factor_onestep import DNWR_c_c, DNWR_s_c, DNWR_c_FD
+#     all_theta = np.linspace(0.61,0.65,300)
+#     for ax, theta in zip((axes[0,0], axes[0,1], axes[1,0]), (0.632, 0.633, 0.6345)):
+#         ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), label="discrete")
+#         ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_c, s_c, theta=theta, continuous_interface_op=False)), label="continuous")
+#         ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False)), "--", label="modified")
+#     fig.legend(loc='lower right')
+#     ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
+#     show_or_save("fig_DNWR_why_not_optimal")
 
 def fig_dependency_maxrho_combined():
     setting = Builder()
-    setting.M1 = 100
-    setting.M2 = 100
-    setting.SIZE_DOMAIN_1 = 200
-    setting.SIZE_DOMAIN_2 = 200
-    setting.D1 = .5
-    setting.D2 = 1.
-    setting.R = 1e-3
-    setting.DT = 100.
-    N = 3000
+    N = 10000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
@@ -207,7 +184,7 @@ def fig_dependency_maxrho_combined():
         return np.max(np.abs(func(builder, **kwargs)))
 
     ax = axes[0, 0]
-    all_p1 = np.linspace(0.01,.1,300)
+    all_p1 = np.linspace(0.05,.17,300)
     discrete = [maxrho(rho_Pade_FD_corr0, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
     semidiscrete_time = [maxrho(rho_Pade_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
     semidiscrete_space = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
@@ -246,20 +223,12 @@ def fig_dependency_maxrho_combined():
 
 def fig_dependency_maxrho_modified():
     setting = Builder()
-    setting.M1 = 10
-    setting.M2 = 10
-    setting.SIZE_DOMAIN_1 = 100
-    setting.SIZE_DOMAIN_2 = 100
-    setting.R = 1e-3
-    setting.DT = 100.
     N = 10000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
     assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
 
-    if overlap_M > 0:
-        setting.D1 = setting.D2
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
 
     fig, axes = plt.subplots(2, 2)
@@ -281,7 +250,7 @@ def fig_dependency_maxrho_modified():
 
     from cv_factor_onestep import DNWR_c_c, DNWR_s_c, DNWR_c_FD
     ax = axes[0,1]
-    all_theta = np.linspace(0.61,0.65,300)
+    all_theta = np.linspace(0.6,0.64,300)
     discrete = [np.max(np.abs(DNWR_c_FD(setting, axis_freq, theta=theta))) for theta in all_theta]
     continuous = [np.max(np.abs(DNWR_s_c(setting, s_c, s_c,
         theta=theta, continuous_interface_op=False))) for theta in all_theta]
@@ -296,7 +265,7 @@ def fig_dependency_maxrho_modified():
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
     ax = axes[0, 0]
-    all_p1 = np.linspace(0.03,.045,300)
+    all_p1 = np.linspace(0.12,.14,300)
     def maxrho(func, p, **kwargs):
         builder = setting.copy()
         builder.LAMBDA_1, builder.LAMBDA_2 = p, -p
@@ -315,6 +284,7 @@ def fig_dependency_maxrho_modified():
     ax.set_title(r"$RR^{M=0}$")
 
     ax = axes[1, 0]
+    all_p1 = np.linspace(0.09,.1,300)
     overlap_M = 1
     setting.D1 = setting.D2
 
@@ -354,17 +324,9 @@ def fig_modif_time():
     from cv_factor_onestep import rho_s_c, rho_c_c
     from cv_factor_pade import rho_Pade_c, rho_Pade_FD_corr0
     setting = Builder()
-    setting.M1 = 10
-    setting.M2 = 10
-    setting.SIZE_DOMAIN_1 = 100
-    setting.SIZE_DOMAIN_2 = 100
-    setting.R = 1e-3
-    setting.DT = 100.
-    N = 1000
+    N = 10000
     overlap_M = 0
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
-    if overlap_M > 0:
-        setting.D1 = setting.D2
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
 
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
@@ -394,14 +356,28 @@ def fig_modif_time():
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
 
+    ax = axes[0,1]
+    from cv_factor_pade import DNWR_Pade_c
+    from cv_factor_onestep import DNWR_c_c, DNWR_s_c
+    theta = optimal_DNWR_parameter(setting, DNWR_Pade_c, axis_freq)
 
+    discrete = np.abs(DNWR_Pade_c(setting, axis_freq, theta=theta))
+    continuous = np.abs(DNWR_c_c(setting, axis_freq, theta=theta))
+    modified_in_time = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta))
+    ax.semilogx(axis_freq, continuous, "k", label="Continuous")
+    ax.semilogx(axis_freq, discrete, "r", label="Semi-Discrete in time")
+    ax.semilogx(axis_freq, modified_in_time, "g--", label="Modified in time")
+    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
+    ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
+
+    ax = axes[1,0]
     overlap_M = 1
-    if overlap_M > 0:
-        setting.D1 = setting.D2
+    setting.D1 = setting.D2
+
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
 
-    ax = axes[1,0]
     discrete = np.abs(rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h))
     continuous = np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h))
     modified_in_time = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
@@ -412,22 +388,6 @@ def fig_modif_time():
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
 
-    overlap_M = 0
-    setting.D1 = 0.5
-    from cv_factor_pade import DNWR_Pade_c
-    from cv_factor_onestep import DNWR_c_c, DNWR_s_c
-    theta = optimal_DNWR_parameter(setting, DNWR_Pade_c, axis_freq)
-
-    ax = axes[0,1]
-    discrete = np.abs(DNWR_Pade_c(setting, axis_freq, theta=theta))
-    continuous = np.abs(DNWR_c_c(setting, axis_freq, theta=theta))
-    modified_in_time = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta))
-    ax.semilogx(axis_freq, continuous, "k", label="Continuous")
-    ax.semilogx(axis_freq, discrete, "r", label="Semi-Discrete in time")
-    ax.semilogx(axis_freq, modified_in_time, "g--", label="Modified in time")
-    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
-    ax.set_xlabel(r"$\omega$")
-    ax.set_ylabel(r"$\rho$")
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_modif_time")
 
@@ -435,16 +395,9 @@ def fig_modif_time():
 def fig_modif_space():
     from cv_factor_onestep import rho_c_FD, rho_s_c
     setting = Builder()
-    setting.DT = 100.
-    setting.R = 1e-3
-    setting.M1 = 10
-    setting.M2 = 10
-    setting.SIZE_DOMAIN_1 = 100
-    setting.SIZE_DOMAIN_2 = 100
+    setting.M1 = setting.M2 = 11 # warning, we change the parameter to highlight the differences
     N = 10000
     overlap_M = 0
-    if overlap_M > 0:
-        setting.D1 = setting.D2
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
@@ -482,19 +435,23 @@ def fig_modif_space():
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
 
+    from cv_factor_onestep import DNWR_s_c, DNWR_c_FD
+    ax = axes[0,1]
+    overlap_M = 0
+
+    theta = optimal_DNWR_parameter(setting, DNWR_c_FD, axis_freq)
+
+    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, 1j*axis_freq, 1j*axis_freq, theta, continuous_interface_op=False)), "k", label="Continuous")
+    modified_in_space = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False))
+    ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), "r", label="Semi-discrete in space")
+    ax.semilogx(axis_freq, modified_in_space, "g--", label="Modified in space")
+
+    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
+    ax.set_xlabel(r"$\omega$")
 
     ax = axes[1, 0]
-    setting = Builder()
-    setting.R = 1e-3
-    setting.M1 = 10
-    setting.M2 = 10
-    setting.SIZE_DOMAIN_1 = 100
-    setting.SIZE_DOMAIN_2 = 100
     overlap_M = 1
-    if overlap_M > 0:
-        setting.D1 = setting.D2
-
-    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    setting.D1 = setting.D2
 
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
@@ -503,20 +460,6 @@ def fig_modif_space():
         overlap_L=overlap_M*h, continuous_interface_op=False)),
         "k")
 
-    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
-
-    dt = setting.DT
-    D1, D2 = setting.D1, setting.D2
-    Gamma_1 = dt * D1 / h**2
-    Gamma_2 = dt * D2 / h**2
-
-    # Finite differences:
-    d1 = 1/12
-    d2 = 1/360
-    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
-    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
-    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
-
     modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h, continuous_interface_op=False))
     ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), "r")
     ax.semilogx(axis_freq, modified_in_space, "g--")
@@ -524,60 +467,12 @@ def fig_modif_space():
     ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
 
-    from cv_factor_onestep import DNWR_s_c, DNWR_c_FD
-    ax = axes[0,1]
-    setting = Builder()
-    setting.R = 1e-3
-    setting.M1 = 10
-    setting.M2 = 10
-    setting.SIZE_DOMAIN_1 = 100
-    setting.SIZE_DOMAIN_2 = 100
-    overlap_M = 0
-    if overlap_M > 0:
-        setting.D1 = setting.D2
-
-    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
-
-    theta = optimal_DNWR_parameter(setting, DNWR_c_FD, axis_freq)
-
-    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, 1j*axis_freq, 1j*axis_freq, theta, continuous_interface_op=False)), "k", label="Continuous")
-
-    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
-
-    dt = setting.DT
-    D1, D2 = setting.D1, setting.D2
-    Gamma_1 = dt * D1 / h**2
-    Gamma_2 = dt * D2 / h**2
-
-    # Finite differences:
-    d1 = 1/12
-    d2 = 1/360
-    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
-    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
-    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
-
-    modified_in_space = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False))
-    ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), "r", label="Semi-discrete in space")
-    ax.semilogx(axis_freq, modified_in_space, "g--", label="Modified in space")
-
-    ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
-    ax.set_xlabel(r"$\omega$")
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_modif_space")
 
 def fig_combinedRate():
     setting = Builder()
-    setting.M1 = 100
-    setting.M2 = 100
-    setting.SIZE_DOMAIN_1 = 200
-    setting.SIZE_DOMAIN_2 = 200
-    setting.D1 = .5
-    setting.D2 = 1.
-    setting.R = 1e-3
-    setting.DT = 100.
-    N = 3000
-    setting.LAMBDA_1 = 0.14
-    setting.LAMBDA_2 = -0.5
+    N = 10000
     w = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
     overlap_M=0
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
@@ -622,38 +517,10 @@ def fig_combinedRate():
 
     ax.set_xlabel(r"$\omega \Delta t$")
     ax.set_ylabel(r"$\rho$")
-    ax.set_ylim(top=0.15, bottom=0.) # all axis are shared
+    ax.set_ylim(bottom=0., top=0.5) # all axis are shared
     ax.set_title(r"$RR^{M=0}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
 
-    ax = axes[1, 0]
-    overlap_M = 1
-    setting.D1 = setting.D2
-    ret = minimize(method='Nelder-Mead', fun=to_minimize_Pade, x0=np.array((0.15, -0.15)), args=overlap_M)
-
-    setting.LAMBDA_1 = ret.x[0]
-    setting.LAMBDA_2 = ret.x[1]
-
-    ax.semilogx(w, np.abs(rho_Pade_FD_corr0(setting, w, overlap_M=overlap_M)), "k")
-    ax.semilogx(w, np.abs(combined_Pade(setting, w, overlap_M=overlap_M)), "r")
-    ax.semilogx(w, np.abs(rho_c_FD(setting, w, overlap_M=overlap_M)), "--", dashes=[7,9])
-    ax.semilogx(w, np.abs(rho_c_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[3,5])
-    ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9])
-    ax.set_xlabel(r"$\omega \Delta t$")
-    ax.set_ylim(top=0.15, bottom=0.) # all axis are shared
-    ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
-
     ax = axes[0,1]
-    overlap_M = 0
-    setting.D1 = .5
-
-
-    # setting.M1 = 100
-    # setting.M2 = 100
-    # setting.D1 = .5
-    # setting.D2 = 1.
-    # setting.R = 1e-3
-    # setting.DT = 100.
-    # N = 3000
 
     def combined_Pade_DNWR(builder, w, theta):
         combined = - DNWR_c_c(builder, w, theta=theta) \
@@ -676,9 +543,25 @@ def fig_combinedRate():
     ax.semilogx(w, np.abs(DNWR_c_c(setting, w, theta)), "--", label=r"$\rho^{\rm (c, c)}$", dashes=[3,5])
     ax.semilogx(w, np.abs(DNWR_Pade_c(setting, w, theta)), "--", label=r"$\rho^{\rm (Pade, c)}$", dashes=[7,9])
     ax.set_xlabel(r"$\omega \Delta t$")
-
-
     ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
+
+    ax = axes[1, 0]
+    overlap_M = 1
+    setting.D1 = setting.D2
+    ret = minimize(method='Nelder-Mead', fun=to_minimize_Pade, x0=np.array((0.15, -0.15)), args=overlap_M)
+
+    setting.LAMBDA_1 = ret.x[0]
+    setting.LAMBDA_2 = ret.x[1]
+
+    ax.semilogx(w, np.abs(rho_Pade_FD_corr0(setting, w, overlap_M=overlap_M)), "k")
+    ax.semilogx(w, np.abs(combined_Pade(setting, w, overlap_M=overlap_M)), "r")
+    ax.semilogx(w, np.abs(rho_c_FD(setting, w, overlap_M=overlap_M)), "--", dashes=[7,9])
+    ax.semilogx(w, np.abs(rho_c_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[3,5])
+    ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9])
+    ax.set_xlabel(r"$\omega \Delta t$")
+    ax.set_ylim(bottom=0.) # all axis are shared
+    ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
+
     fig.legend(loc="upper left", bbox_to_anchor=(0.65, 0.45))
     show_or_save("fig_combinedRate")
 
@@ -687,8 +570,7 @@ def fig_validate_DNWR():
     from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
     from cv_factor_onestep import rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD, rho_c_FV, rho_c_FD, DNWR_BE_FD
     setting = Builder()
-    setting.R = 1e-3
-    N = 3000
+    N = 10000
     fig, axes = plt.subplots(1, 2)
 
     ax = axes[0]
@@ -734,7 +616,6 @@ def fig_validate_overlap():
     from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
     from cv_factor_onestep import rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD, rho_c_FV, rho_c_FD
     setting = Builder()
-    setting.R = 1e-3
     setting.D1 = setting.D2
     N = 10000
     fig, axes = plt.subplots(1, 2)
@@ -790,237 +671,6 @@ def fig_validate_overlap():
     show_or_save("fig_validate_overlap")
 
 
-def fig_first_guess_N():
-    from ocean_models.ocean_BE_FD import OceanBEFD
-    from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
-    fig, axes = plt.subplots(1, 3, figsize=[6.4*1.4, 4.4], sharex=True, sharey=True)
-    setting = Builder()
-    setting.M1 = 100
-    setting.SIZE_DOMAIN_1= 100
-    setting.M2 = 100
-    setting.SIZE_DOMAIN_2= 100
-    setting.D1 = .5
-    setting.D2 = 1.
-    setting.R = 1e-3
-    setting.DT = 1.
-    setting.LAMBDA_1 = 1e9
-    setting.LAMBDA_2 = 0.
-
-    for N, ax in zip((10, 100, 1000), axes):
-        axis_freq = get_discrete_freq(N, setting.DT)
-        ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD)
-        for init in ("GP", "white", "dirac"):
-            alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=16, NUMBER_IT=1,
-                    laplace_real_part=0, T=N*setting.DT, init=init)
-            ax.semilogx(axis_freq, alpha_w[2]/alpha_w[1], label=init)
-        ax.set_title(str(N) + "time steps")
-        ax.set_xlabel(r"$\omega$")
-
-    axes[0].set_ylabel("$\\widehat{\\rho}$")
-    h, l = axes[1].get_legend_handles_labels()
-    axes[1].legend(h[:3], l[:3])
-    show_or_save("fig_first_guess_N")
-
-def fig_first_guess_DT():
-    from ocean_models.ocean_BE_FD import OceanBEFD
-    from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
-    fig, axes = plt.subplots(1, 3, figsize=[6.4*1.4, 4.4], sharex=True, sharey=True)
-    setting = Builder()
-    setting.M1 = 100
-    setting.SIZE_DOMAIN_1= 100
-    setting.M2 = 100
-    setting.SIZE_DOMAIN_2= 100
-    setting.D1 = .5
-    setting.D2 = 1.
-    setting.R = 1e-3
-    setting.LAMBDA_1 = 1e9
-    setting.LAMBDA_2 = 0.
-
-    for dt, N, ax in zip((1., 10., 100.), (1000, 100, 10), axes):
-        setting.DT = dt
-        axis_freq = get_discrete_freq(N, setting.DT)
-        ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD)
-        for init in ("GP", "white", "dirac"):
-            alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=32, NUMBER_IT=1,
-                    laplace_real_part=0, T=N*setting.DT, init=init)
-            ax.semilogx(axis_freq, alpha_w[2]/alpha_w[1], label=init)
-        ax.set_title("Time steps of " + str(dt) + " s")
-        ax.set_xlabel(r"$\omega$")
-
-    axes[0].set_ylabel("$\\widehat{\\rho}$")
-    # interface_info = schwarz_simulator(atmosphere, ocean, seed=1, T=N*setting.DT,
-    #         NUMBER_IT=1, init="GP")
-    # plt.plot(interface_info[0])
-    h, l = axes[1].get_legend_handles_labels()
-    axes[1].legend(h[:3], l[:3])
-    show_or_save("fig_first_guess_DT")
-
-def fig_plot_initialisation():
-    from ocean_models.ocean_BE_FD import OceanBEFD
-    from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
-    fig, ax = plt.subplots(1, 1, figsize=[6.4, 2.4])
-    setting = Builder()
-    setting.M1 = 100
-    setting.SIZE_DOMAIN_1= 100
-    setting.M2 = 100
-    setting.SIZE_DOMAIN_2= 100
-    setting.D1 = .5
-    setting.D2 = 1.
-    setting.R = 1e-3
-    setting.DT = 10.
-    setting.LAMBDA_1 = 1e9
-    setting.LAMBDA_2 = 0.
-    N = 500
-
-    axis_freq = get_discrete_freq(N, setting.DT)
-    ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD)
-    for init, col in zip(("white", "dirac","GP"),("r--","g","b")):
-        if init == "white":
-            interface_ocean = ((np.concatenate(([0], 2 * (np.random.rand(N) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N) - 0.5)))))
-        elif init == "GP":
-            cov = np.array([[ np.exp(-.1*np.abs(i-j)) for i in range(N)] for j in range(N)])
-            rand1, rand2 = np.random.default_rng().multivariate_normal(np.zeros(N), cov, 2)
-            interface_ocean = np.concatenate(([0], rand2))
-        elif init == "dirac":
-            interface_ocean = np.concatenate(([0, 2], np.zeros(N-1)))
-        ax.plot(interface_ocean, col, label=init)
-    ax.set_ylabel("first guess (error)")
-    ax.set_xlabel("time step")
-    ax.legend()
-    show_or_save("fig_plot_initialisation")
-
-def fig_optiRates():
-    import matplotlib as mpl
-    mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
-    fig, axes = plt.subplots(1, 2, figsize=[6.4*1.4, 4.4], sharex=True, sharey=True)
-    axes[0].grid()
-    axes[1].grid()
-    #axes[1].set_ylim(bottom=0.095, top=0.3) # all axis are shared
-
-    caracs = {}
-    caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
-    caracs["semi-discrete"] = {'color':'#FF0000', 'width':.9, 'nb_+':15}
-    caracs["discrete, FV"] = {'color':'#000000', 'width':.9, 'nb_+':15}
-    caracs["discrete, FD"] = {'color':'#0000FF', 'width':.9, 'nb_+':15}
-
-
-    fig.suptitle("Optimized convergence rates with different methods")
-    fig.subplots_adjust(left=0.07, bottom=0.15, right=0.98, top=0.92, wspace=0.13, hspace=0.16)
-    #############################################
-    # BE
-    #######################################
-
-    from ocean_models.ocean_BE_FD import OceanBEFD
-    from ocean_models.ocean_BE_FV import OceanBEFV
-    from atmosphere_models.atmosphere_BE_FV import AtmosphereBEFV
-    from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
-    from cv_factor_onestep import rho_c_c, rho_BE_c, rho_BE_FD, rho_BE_FV
-
-    all_rates = rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD
-    all_ocean = OceanBEFV, OceanBEFV, OceanBEFV, OceanBEFD
-    all_atmosphere = AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFD
-    
-    optiRatesGeneral(axes[0], all_rates, all_ocean, all_atmosphere, "BE", caracs=caracs)
-
-    ###########################
-    # Pade
-    ##########################
-
-    from ocean_models.ocean_Pade_FD import OceanPadeFD
-    from ocean_models.ocean_Pade_FV import OceanPadeFV
-    from atmosphere_models.atmosphere_Pade_FV import AtmospherePadeFV
-    from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
-    from cv_factor_pade import rho_Pade_c, rho_Pade_FD_corr0, rho_Pade_FV
-
-    all_rates = rho_c_c, rho_Pade_c, rho_Pade_FV, rho_Pade_FD_corr0
-    all_ocean = OceanPadeFV, OceanPadeFV, OceanPadeFV, OceanPadeFD
-    all_atmosphere = AtmospherePadeFV, AtmospherePadeFV, AtmospherePadeFV, AtmospherePadeFD
-    optiRatesGeneral(axes[1], all_rates, all_ocean, all_atmosphere, "P2", caracs=caracs)
-
-
-    from matplotlib.lines import Line2D
-    custom_lines = [Line2D([0], [0], color=caracs["continuous"]["color"], lw=caracs["continuous"]["width"]),
-                    Line2D([0], [0], color=caracs["semi-discrete"]["color"], lw=caracs["semi-discrete"]["width"]),
-                    Line2D([0], [0], color=caracs["discrete, FV"]["color"], lw=caracs["discrete, FV"]["width"]),
-                    Line2D([0], [0], color=caracs["discrete, FD"]["color"], lw=caracs["discrete, FD"]["width"]),
-                    Line2D([0], [0], marker="^", markersize=6., linewidth=0.,
-                        color="000000") ]
-    custom_labels = ["Continuous", "Semi-discrete", "Discrete, FV", "Discrete, FD", "Theoretical prediction"]
-    fig.legend(custom_lines, custom_labels, loc=(0.1, 0.), ncol=5, handlelength=2)
-    show_or_save("fig_optiRates")
-
-def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere, name_method="Unknown discretization", caracs={}, **args_for_discretization):
-    """
-        Creates a figure comparing analysis methods for a discretization.
-    """
-
-    setting = Builder()
-    setting.M1 = 100
-    setting.SIZE_DOMAIN_1= 100
-    setting.M2 = 100
-    setting.SIZE_DOMAIN_2= 100
-    setting.D1 = .5
-    setting.D2 = 1.
-    setting.R = 1e-3
-    setting.DT = .5
-    N = 1000000
-    axis_freq = get_discrete_freq(N, setting.DT)
-
-    axes.set_xlabel("$\\omega \\Delta t$")
-    axes.set_ylabel(r"${\rho}_{RR}^{"+name_method+r"}$")
-
-    def rate_onesided(lam):
-        builder = setting.copy()
-        builder.LAMBDA_1 = lam
-        builder.LAMBDA_2 = -lam
-        return np.max(np.abs(all_rates[0](builder, axis_freq)))
-
-    from scipy.optimize import minimize_scalar, minimize
-    optimal_lam = minimize_scalar(fun=rate_onesided)
-    x0_opti = (optimal_lam.x, -optimal_lam.x)
-
-    for discrete_factor, oce_class, atm_class, names in zip(all_rates,
-            all_ocean, all_atmosphere, caracs):
-        def rate_twosided(lam):
-            builder = setting.copy()
-            builder.LAMBDA_1 = lam[0]
-            builder.LAMBDA_2 = lam[1]
-            return np.max(np.abs(discrete_factor(builder, axis_freq)))
-
-        optimal_lam = minimize(method='Nelder-Mead',
-                fun=rate_twosided, x0=x0_opti)
-        if names == "continuous":
-            x0_opti = optimal_lam.x
-        setting.LAMBDA_1 = optimal_lam.x[0]
-        setting.LAMBDA_2 = optimal_lam.x[1]
-
-        builder = setting.copy()
-        ocean, atmosphere = builder.build(oce_class, atm_class)
-        if REAL_FIG:
-            alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=10, NUMBER_IT=1, laplace_real_part=0, T=N*builder.DT)
-            convergence_factor = np.abs((alpha_w[2] / alpha_w[1]))
-        else:
-            convergence_factor = np.abs(ocean.discrete_rate(setting, axis_freq))
-
-
-        axis_freq_predicted = np.exp(np.linspace(np.log(min(np.abs(axis_freq))), np.log(axis_freq[-1]), caracs[names]["nb_+"]))
-
-        # LESS IMPORTANT CURVE : WHAT IS PREDICTED
-
-        axes.semilogx(axis_freq * setting.DT, convergence_factor, linewidth=caracs[names]["width"], label= "$p_1, p_2 =$ ("+ str(optimal_lam.x[0])[:4] +", "+ str(optimal_lam.x[1])[:5] + ")", color=caracs[names]["color"]+"90")
-        if names =="discrete":
-            axes.semilogx(axis_freq_predicted * setting.DT, np.abs(discrete_factor(setting, axis_freq_predicted)), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])# , label="prediction")
-        else:
-            axes.semilogx(axis_freq_predicted * setting.DT, np.abs(discrete_factor(setting, axis_freq_predicted)), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])
-
-        #axes.semilogx(axis_freq * setting.DT, np.ones_like(axis_freq)*max(convergence_factor), linestyle="dashed", linewidth=caracs[names]["width"], color=caracs[names]["color"]+"90")
-
-
-    axes.legend( loc=(0., 0.), ncol=1 )
-    #axes.set_xlim(left=1e-3, right=3.4)
-    #axes.set_ylim(bottom=0)
-
 ######################################################
 # Utilities for analysing, representing discretizations
 ######################################################
@@ -1042,15 +692,17 @@ class Builder():
     """
     def __init__(self): # changing defaults will result in needing to recompute all cache
         self.COURANT_NUMBER = 1.
-        self.R = 0.#1e-4j
-        self.D1=.5
-        self.D2=1.
-        self.M1=100
-        self.M2=100
+        self.SIZE_DOMAIN_1 = 100
+        self.SIZE_DOMAIN_2 = 100
+        self.M1 = 101 # to have h=1 the number of points M_j must be 101
+        self.M2 = 101
+        self.D1 = .5
+        self.D2 = 1.
+        self.R = 1e-3
+        self.DT = 120.
+
         self.LAMBDA_1=1e10 # >=0
         self.LAMBDA_2=-0. # <= 0
-        self.SIZE_DOMAIN_1=100
-        self.SIZE_DOMAIN_2=100
         self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / (self.M1-1))**2 / self.D1
 
     def copy(self):
