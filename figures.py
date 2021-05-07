@@ -42,7 +42,7 @@ def fig_introDiscreteAnalysis():
     theta = optimal_DNWR_parameter(setting, DNWR_c_c, axis_freq)
     ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=theta)), lw=lw_important)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=32, NUMBER_IT=1,
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white", relaxation=theta)
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
     ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=theta)), "--", lw=lw_important)
@@ -54,7 +54,7 @@ def fig_introDiscreteAnalysis():
             rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=32, NUMBER_IT=1,
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white")
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", lw=lw_important)
@@ -68,7 +68,7 @@ def fig_introDiscreteAnalysis():
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h)), lw=lw_important,
             label="Continuous convergence rate")
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
-    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=32, NUMBER_IT=1,
+    alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white", overlap=1)
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), label="Numerical simulation")
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=overlap_M)),
@@ -395,7 +395,7 @@ def fig_modif_time():
 def fig_modif_space():
     from cv_factor_onestep import rho_c_FD, rho_s_c
     setting = Builder()
-    setting.M1 = setting.M2 = 11 # warning, we change the parameter to highlight the differences
+    setting.M1 = setting.M2 = 21 # warning, we change the parameter to highlight the differences
     N = 10000
     overlap_M = 0
 
@@ -692,10 +692,10 @@ class Builder():
     """
     def __init__(self): # changing defaults will result in needing to recompute all cache
         self.COURANT_NUMBER = 1.
-        self.SIZE_DOMAIN_1 = 100
-        self.SIZE_DOMAIN_2 = 100
-        self.M1 = 101 # to have h=1 the number of points M_j must be 101
-        self.M2 = 101
+        self.SIZE_DOMAIN_1 = 200
+        self.SIZE_DOMAIN_2 = 200
+        self.M1 = 201 # to have h=1 the number of points M_j must be 101
+        self.M2 = 201
         self.D1 = .5
         self.D2 = 1.
         self.R = 1e-3
