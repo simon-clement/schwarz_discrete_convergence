@@ -9,8 +9,9 @@ from numpy import sqrt, exp
 # THEORIC PART : RETURN RATES YIELDED BY ANALYSIS IN FREQUENTIAL DOMAIN #
 #########################################################################
 
-def rho_c_c(builder, w, overlap_L=0):
-    return rho_s_c(builder, 1j*w,1j*w, overlap_L=overlap_L)
+def rho_c_c(builder, w, overlap_L=0, continuous_interface_op=True):
+    return rho_s_c(builder, 1j*w,1j*w, overlap_L=overlap_L,
+            continuous_interface_op=continuous_interface_op)
 
 def rho_BE_c(builder, w, overlap_L=0):
     return rho_s_c(builder, BE_s(builder.DT, w),BE_s(builder.DT, w), overlap_L=overlap_L)

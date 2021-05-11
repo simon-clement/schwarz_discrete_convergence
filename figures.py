@@ -9,6 +9,22 @@ from memoisation import memoised
 import matplotlib as mpl
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+mpl.rcParams["figure.figsize"] = (8.4, 4.8)
+col = {}
+col["blue"] = "#332288"
+col["green"] = "#117733"
+col["cyan"] = "#77DDCC"
+col["yellow"] = "#DDCC77"
+col["red"] = "#CC6677"
+col["purple"] = "#882255"
+col["grey"] = "#BBBBBB"
+col_discrete=col["red"]
+col_sdspace = col["green"]
+col_sdtime = col["cyan"]
+col_cont = col["yellow"]
+col_combined=col["blue"]
+col_modified=col["purple"]
+col_numeric = col["grey"]
 import matplotlib.pyplot as plt
 from simulator import frequency_simulation
 
@@ -40,41 +56,44 @@ def fig_introDiscreteAnalysis():
     setting.LAMBDA_1=1e10 # >=0
     setting.LAMBDA_2=-0. # <= 0
     theta = optimal_DNWR_parameter(setting, DNWR_c_c, axis_freq)
-    ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=theta)), lw=lw_important)
+    ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=theta)), lw=lw_important, color=col_cont)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
     alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white", relaxation=theta)
-    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
-    ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=theta)), "--", lw=lw_important)
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), color=col_numeric)
+    ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=theta)), "--", lw=lw_important, color=col_discrete)
     ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
     ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
 
     ax = axes[0,0]
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
-    ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important)
+    ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important, color=col_cont)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
     alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white")
-    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
-    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", lw=lw_important)
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), color=col_numeric)
+    ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=0)), "--", lw=lw_important, color=col_discrete)
     ax.set_title(r"$RR^{M=0}, "+ ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
 
     overlap_M=1
     ax = axes[1,0]
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h)), lw=lw_important,
-            label="Continuous convergence rate")
+            label="Continuous convergence rate", color=col_cont)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
     alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white", overlap=1)
-    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), label="Numerical simulation")
+    ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), label="Numerical simulation", color=col_numeric)
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD_corr0(setting, axis_freq, overlap_M=overlap_M)),
-            "--", lw=lw_important, label="Discrete convergence rate")
+            "--", lw=lw_important, label="Discrete convergence rate", color=col_discrete)
     ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
 
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_introDiscreteAnalysis")
@@ -107,14 +126,221 @@ def fig_introDiscreteAnalysis():
 #     s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
 # 
 #     from cv_factor_onestep import DNWR_c_c, DNWR_s_c, DNWR_c_FD
-#     all_theta = np.linspace(0.61,0.65,300)
-#     for ax, theta in zip((axes[0,0], axes[0,1], axes[1,0]), (0.632, 0.633, 0.6345)):
+#     for ax, theta in zip((axes[0,0], axes[0,1], axes[1,0]), (0.6, 0.65, 0.7)):
 #         ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), label="discrete")
 #         ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_c, s_c, theta=theta, continuous_interface_op=False)), label="continuous")
 #         ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False)), "--", label="modified")
 #     fig.legend(loc='lower right')
 #     ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
 #     show_or_save("fig_DNWR_why_not_optimal")
+
+def fig_RobinTwoSided():
+    symb_cont = "o"
+    symb_sdspace = "^"
+    symb_sdtime = "p"
+    symb_combined = "s"
+    symb_modified = "o"
+    symb_discrete = "P"
+
+    setting = Builder()
+    N = 10000
+    overlap_M = 0
+    res_x = 60
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+    axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+
+    fig, axes = plt.subplots(2, 2)
+    fig.subplots_adjust(left=0.1, bottom=0.09, right=0.97, hspace=0.43, wspace=0.27)
+
+    dt = setting.DT
+
+    D1, D2 = setting.D1, setting.D2
+    # Finite differences:
+    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+
+    from cv_factor_onestep import rho_c_FD, rho_c_c
+    from cv_factor_pade import rho_Pade_c, rho_Pade_FD_corr0
+
+    def combined_Pade(setting, axis_freq, overlap_M=0):
+        combined = - rho_c_c(setting, axis_freq, overlap_L=overlap_M*h) \
+                    + rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h) \
+                    + rho_c_FD(setting, axis_freq, overlap_M=overlap_M)
+        return np.abs(combined)
+
+    def optimal_robin_parameter(builder, func, w, x0, **kwargs):
+        from scipy.optimize import minimize_scalar, minimize
+        def to_optimize(x0):
+            setting = builder.copy()
+            setting.LAMBDA_1 = x0[0]
+            setting.LAMBDA_2 = x0[1]
+            return np.max(np.abs(func(setting, w, **kwargs)))
+        optimal_lam = minimize(method='Nelder-Mead', fun=to_optimize, x0=x0)
+        return optimal_lam
+
+
+    def discrete_robin(builder, func, w, p1, p2, **kwargs):
+        setting = builder.copy()
+        setting.LAMBDA_1 = p1
+        setting.LAMBDA_2 = p2
+        return np.max(np.abs(func(setting, w, **kwargs)))
+
+    ax = axes[0,0]
+    p1min, p1max = 0.03, 1.
+    p2min, p2max = -.4, -.01
+    p1_range = np.arange(p1min, p1max, (p1max - p1min)/res_x)
+    p2_range = np.arange(p2min, p2max, (p2max - p2min)/res_x)
+    Z = [[discrete_robin(setting, rho_Pade_FD_corr0, axis_freq, p1, p2, overlap_M=0)
+            for p2 in p2_range] for p1 in p1_range]
+    p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
+    p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
+    fig.colorbar(ax.contour(p1_arr, p2_arr, Z), ax=ax)
+
+    def callrho(fun, p1p2, **kwargs):
+        return discrete_robin(setting, fun, axis_freq, p1p2[0], p1p2[1], **kwargs)
+
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1))
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1))
+    s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq, (0.1, -0.1))
+    discrete = optimal_robin_parameter(setting, rho_Pade_FD_corr0, axis_freq, (0.1, -0.1))
+    combined = optimal_robin_parameter(setting, combined_Pade, axis_freq, (0.1, -0.1))
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=120, c=col_cont,
+            label="Continuous: {:.3f}".format(callrho(rho_Pade_FD_corr0,
+                cont.x, overlap_M=overlap_M)))
+    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=100, c=col_sdspace,
+            label="S-d space: {:.3f}".format(callrho(rho_Pade_FD_corr0,
+                s_d_space.x, overlap_M=overlap_M)))
+    ax.scatter(*s_d_time.x, marker=symb_sdtime, alpha=1., s=100, c=col_sdtime,
+            label="S-d time: {:.3f}".format(callrho(rho_Pade_FD_corr0,
+                s_d_time.x, overlap_M=overlap_M)))
+    ax.scatter(*combined.x, marker=symb_combined, alpha=1., s=200,
+            edgecolors=col_combined, facecolors="none", linewidth=2.,
+            label="Combined: {:.3f}".format(callrho(rho_Pade_FD_corr0,
+                combined.x, overlap_M=overlap_M)))
+    ax.scatter(*discrete.x, marker=symb_discrete, alpha=1., s=100, c=col_discrete,
+            label="Discrete: {:.3f}".format(discrete.fun))
+    ax.set_xlabel(r"$p_1$")
+    ax.set_ylabel(r"$p_2$")
+    ax.legend()
+    ax.set_title("Combined without overlap")
+
+    from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
+    def maxrho(func, p, **kwargs):
+        builder = setting.copy()
+        builder.LAMBDA_1, builder.LAMBDA_2 = p, -p
+        return np.max(np.abs(func(builder, **kwargs)))
+
+    ax = axes[1,0]
+    p1min, p1max = 0.03, .15
+    p2min, p2max = -.3, -.15
+    p1_range = np.arange(p1min, p1max, (p1max - p1min)/res_x)
+    p2_range = np.arange(p2min, p2max, (p2max - p2min)/res_x)
+    Z = [[discrete_robin(setting, rho_c_FD, axis_freq, p1, p2, overlap_M=0)
+            for p2 in p2_range] for p1 in p1_range]
+    p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
+    p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
+    fig.colorbar(ax.contour(p1_arr, p2_arr, Z), ax=ax)
+
+    def modified_FD(builder, axis_freq, overlap_L):
+        Gamma_1 = builder.DT * builder.D1 / h**2
+        Gamma_2 = builder.DT * builder.D2 / h**2
+        # Finite differences:
+        d1 = 1/12
+        d2 = 1/360
+
+        s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+        s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+        s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+        return np.abs(rho_s_c(builder, s_modified1, s_modified2, overlap_L=overlap_L,
+            continuous_interface_op=False))
+
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), continuous_interface_op=False)
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1))
+    modified = optimal_robin_parameter(setting, modified_FD, axis_freq, (0.1, -0.1), overlap_L=0)
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=120, c=col_cont,
+            label="Continuous: {:.3f}".format(callrho(rho_c_FD,
+                cont.x, overlap_M=overlap_M)))
+    ax.scatter(*modified.x, marker=symb_modified, alpha=1., s=200, edgecolors=col_modified, facecolors="none", linewidth=2.,
+            label="Modified: {:.3f}".format(callrho(rho_c_FD,
+                modified.x, overlap_M=overlap_M)))
+    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=200, c=col_sdspace,
+            label="S-d space: {:.3f}".format(s_d_space.fun))
+    ax.set_xlabel(r"$p_1$")
+    ax.set_ylabel(r"$p_2$")
+    ax.legend()
+    ax.set_title("Modified without overlap")
+
+    overlap_M = 1
+    setting.D1 = setting.D2
+    ax = axes[0,1]
+    p1min, p1max = 0.03, 0.3
+    p2min, p2max = -.3, -.03
+    p1_range = np.arange(p1min, p1max, (p1max - p1min)/res_x)
+    p2_range = np.arange(p2min, p2max, (p2max - p2min)/res_x)
+    Z = [[discrete_robin(setting, rho_Pade_FD_corr0, axis_freq, p1, p2, overlap_M=overlap_M)
+            for p2 in p2_range] for p1 in p1_range]
+    p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
+    p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
+    fig.colorbar(ax.contour(p1_arr, p2_arr, Z), ax=ax)
+
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
+    s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
+    discrete = optimal_robin_parameter(setting, rho_Pade_FD_corr0, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
+    combined = optimal_robin_parameter(setting, combined_Pade, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=120, c=col_cont,
+            label="Continuous: {:.3f}".format(callrho(rho_Pade_FD_corr0,
+                cont.x, overlap_M=overlap_M)))
+    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=100, c=col_sdspace,
+            label="S-d space: {:.3f}".format(callrho(rho_Pade_FD_corr0,
+                s_d_space.x, overlap_M=overlap_M)))
+    ax.scatter(*s_d_time.x, marker=symb_sdtime, alpha=1., s=100, c=col_sdtime,
+            label="S-d time: {:.3f}".format(callrho(rho_Pade_FD_corr0,
+                s_d_time.x, overlap_M=overlap_M)))
+    ax.scatter(*combined.x, marker=symb_combined, alpha=1., s=200,
+            edgecolors=col_combined, facecolors="none", linewidth=2.,
+            label="Combined: {:.3f}".format(callrho(rho_Pade_FD_corr0,
+                combined.x, overlap_M=overlap_M)))
+    ax.scatter(*discrete.x, marker=symb_discrete, alpha=1., s=100, c=col_discrete,
+            label="Discrete: {:.3f}".format(discrete.fun))
+    ax.set_xlabel(r"$p_1$")
+    ax.set_ylabel(r"$p_2$")
+    ax.legend()
+    ax.set_title("Combined with overlap")
+
+
+
+    ax = axes[1,1]
+    p1min, p1max = 0.03, 0.3
+    p2min, p2max = -.2, -.03
+    p1_range = np.arange(p1min, p1max, (p1max - p1min)/res_x)
+    p2_range = np.arange(p2min, p2max, (p2max - p2min)/res_x)
+    Z = [[discrete_robin(setting, rho_c_FD, axis_freq, p1, p2, overlap_M=1)
+            for p2 in p2_range] for p1 in p1_range]
+    p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
+    p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
+    fig.colorbar(ax.contour(p1_arr, p2_arr, Z), ax=ax)
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h, continuous_interface_op=False)
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
+    modified = optimal_robin_parameter(setting, modified_FD, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=120, c=col_cont,
+            label="Continuous: {:.3f}".format(callrho(rho_c_FD,
+                cont.x, overlap_M=overlap_M)))
+    ax.scatter(*modified.x, marker=symb_modified, alpha=1., s=200, edgecolors=col_modified, facecolors="none", linewidth=2.,
+            label="Modified: {:.3f}".format(callrho(rho_c_FD,
+                modified.x, overlap_M=overlap_M)))
+    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=200, c=col_sdspace,
+            label="S-d space: {:.3f}".format(s_d_space.fun))
+    ax.set_xlabel(r"$p_1$")
+    ax.set_ylabel(r"$p_2$")
+    ax.legend()
+    ax.set_title("Modified with overlap")
+
+    show_or_save("fig_RobinTwoSided")
 
 def fig_dependency_maxrho_combined():
     setting = Builder()
@@ -132,18 +358,6 @@ def fig_dependency_maxrho_combined():
     fig.subplots_adjust(right=0.97, hspace=0.65, wspace=0.28)
     fig.delaxes(ax= axes[1,1])
     lw_important = 2.1
-
-    dt = setting.DT
-
-    D1, D2 = setting.D1, setting.D2
-    Gamma_1 = dt * D1 / h**2
-    Gamma_2 = dt * D2 / h**2
-    # Finite differences:
-    d1 = 1/12
-    d2 = 1/360
-    s_c = 1j*axis_freq # BE_s(dt, axis_freq)
-    s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
-    s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, DNWR_c_c, DNWR_c_FD
     from cv_factor_pade import rho_Pade_c, rho_Pade_FD_corr0, DNWR_Pade_c, DNWR_Pade_FD
@@ -168,11 +382,11 @@ def fig_dependency_maxrho_combined():
     discrete= [np.max(np.abs(DNWR_Pade_FD(setting, axis_freq, theta))) for theta in all_theta]
     continuous = [np.max(np.abs(DNWR_c_c(setting, axis_freq, theta))) for theta in all_theta]
     combined = [np.max(np.abs(combined_Pade_DNWR(setting, axis_freq, theta))) for theta in all_theta]
-    ax.plot(all_theta, continuous, lw=lw_important)
-    ax.plot(all_theta, discrete, lw=lw_important)
-    ax.plot(all_theta, combined, "--", lw=lw_important)
-    ax.plot(all_theta, semidiscrete_space, "--")
-    ax.plot(all_theta, semidiscrete_time, "--")
+    ax.plot(all_theta, continuous, lw=lw_important, color=col_cont)
+    ax.plot(all_theta, discrete, lw=lw_important, color=col_discrete)
+    ax.plot(all_theta, combined, "--", lw=lw_important, color=col_combined)
+    ax.plot(all_theta, semidiscrete_space, "--", color=col_sdspace)
+    ax.plot(all_theta, semidiscrete_time, "--", color=col_sdtime)
     ax.set_xlabel(r"$\theta$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("DNWR")
@@ -191,11 +405,11 @@ def fig_dependency_maxrho_combined():
     continuous = [maxrho(rho_c_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
     combined = [maxrho(combined_Pade, p, overlap_M=overlap_M) for p in all_p1]
 
-    ax.plot(all_p1, continuous, lw=lw_important)
-    ax.plot(all_p1, discrete, lw=lw_important)
-    ax.plot(all_p1, combined, "--", lw=lw_important)
-    ax.plot(all_p1, semidiscrete_space, "--")
-    ax.plot(all_p1, semidiscrete_time, "--")
+    ax.plot(all_p1, continuous, lw=lw_important, color=col_cont)
+    ax.plot(all_p1, discrete, lw=lw_important, color=col_discrete)
+    ax.plot(all_p1, combined, "--", lw=lw_important, color=col_combined)
+    ax.plot(all_p1, semidiscrete_space, "--", color=col_sdspace)
+    ax.plot(all_p1, semidiscrete_time, "--", color=col_sdtime)
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title(r"$RR^{M=0}$")
@@ -209,11 +423,11 @@ def fig_dependency_maxrho_combined():
     semidiscrete_space = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M) for p in all_p1]
     continuous = [maxrho(rho_c_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
     combined = [maxrho(combined_Pade, p, overlap_M=overlap_M) for p in all_p1]
-    ax.plot(all_p1, continuous, label="continuous", lw=lw_important)
-    ax.plot(all_p1, discrete, label="discrete", lw=lw_important)
-    ax.plot(all_p1, combined, "--", label="combined", lw=lw_important)
-    ax.plot(all_p1, semidiscrete_space, "--", label="semi-discrete space")
-    ax.plot(all_p1, semidiscrete_time, "--", label="semi-discrete time")
+    ax.plot(all_p1, continuous, label="Continuous", lw=lw_important, color=col_cont)
+    ax.plot(all_p1, discrete, label="Discrete", lw=lw_important, color=col_discrete)
+    ax.plot(all_p1, combined, "--", label="Combined", lw=lw_important, color=col_combined)
+    ax.plot(all_p1, semidiscrete_space, "--", label="S-d space", color=col_sdspace)
+    ax.plot(all_p1, semidiscrete_time, "--", label="S-d time", color=col_sdtime)
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title(r"$RR^{M=1}$")
@@ -256,9 +470,9 @@ def fig_dependency_maxrho_modified():
         theta=theta, continuous_interface_op=False))) for theta in all_theta]
     modified_in_space = [np.max(np.abs(DNWR_s_c(setting, s_modified1, s_modified2,
         theta=theta, continuous_interface_op=False))) for theta in all_theta]
-    ax.plot(all_theta, continuous, lw=lw_important)
-    ax.plot(all_theta, discrete, lw=lw_important)
-    ax.plot(all_theta, modified_in_space, "--", lw=lw_important)
+    ax.plot(all_theta, continuous, lw=lw_important, color=col_cont)
+    ax.plot(all_theta, discrete, lw=lw_important, color=col_sdspace)
+    ax.plot(all_theta, modified_in_space, "--", lw=lw_important, color=col_modified)
     ax.set_xlabel(r"$\theta$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("DNWR")
@@ -276,9 +490,9 @@ def fig_dependency_maxrho_modified():
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
     modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2,
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
-    ax.plot(all_p1, continuous, lw=lw_important)
-    ax.plot(all_p1, discrete, lw=lw_important)
-    ax.plot(all_p1, modified_in_space, "--", lw=lw_important)
+    ax.plot(all_p1, continuous, lw=lw_important, color=col_cont)
+    ax.plot(all_p1, discrete, lw=lw_important, color=col_sdspace)
+    ax.plot(all_p1, modified_in_space, "--", lw=lw_important, color=col_modified)
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title(r"$RR^{M=0}$")
@@ -293,9 +507,9 @@ def fig_dependency_maxrho_modified():
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
     modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2,
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
-    ax.plot(all_p1, continuous, label="continuous", lw=lw_important)
-    ax.plot(all_p1, discrete, label="discrete", lw=lw_important)
-    ax.plot(all_p1, modified_in_space, "--", label="modified", lw=lw_important)
+    ax.plot(all_p1, continuous, label="Continuous", lw=lw_important, color=col_cont)
+    ax.plot(all_p1, discrete, label="S-d space", lw=lw_important, color=col_sdspace)
+    ax.plot(all_p1, modified_in_space, "--", label="Modified", lw=lw_important, color=col_modified)
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title(r"$RR^{M=1}$")
@@ -332,7 +546,6 @@ def fig_modif_time():
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
 
-    #fig, axes = plt.subplots(1, 3, figsize=[6.4*1.5, 2.4])
     fig, axes = plt.subplots(2, 2)
     fig.delaxes(ax= axes[1,1])
     fig.subplots_adjust(right=0.97, hspace=0.65)
@@ -349,9 +562,9 @@ def fig_modif_time():
     discrete = np.abs(rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h))
     continuous = np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h))
     modified_in_time = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
-    ax.semilogx(axis_freq, continuous, "k")
-    ax.semilogx(axis_freq, discrete, "r")
-    ax.semilogx(axis_freq, modified_in_time, "g--")
+    ax.semilogx(axis_freq, continuous, color=col_cont)
+    ax.semilogx(axis_freq, discrete, color=col_sdtime)
+    ax.semilogx(axis_freq, modified_in_time, "--", color=col_modified)
     ax.set_title(r"$RR^{M=0}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
@@ -364,9 +577,9 @@ def fig_modif_time():
     discrete = np.abs(DNWR_Pade_c(setting, axis_freq, theta=theta))
     continuous = np.abs(DNWR_c_c(setting, axis_freq, theta=theta))
     modified_in_time = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta))
-    ax.semilogx(axis_freq, continuous, "k", label="Continuous")
-    ax.semilogx(axis_freq, discrete, "r", label="Semi-Discrete in time")
-    ax.semilogx(axis_freq, modified_in_time, "g--", label="Modified in time")
+    ax.semilogx(axis_freq, continuous, label="Continuous", color=col_cont)
+    ax.semilogx(axis_freq, discrete, label="Semi-Discrete in time", color=col_sdtime)
+    ax.semilogx(axis_freq, modified_in_time, "--", label="Modified in time", color=col_modified)
     ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
@@ -381,9 +594,9 @@ def fig_modif_time():
     discrete = np.abs(rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h))
     continuous = np.abs(rho_c_c(setting, axis_freq, overlap_L=overlap_M*h))
     modified_in_time = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h))
-    ax.semilogx(axis_freq, continuous, "k")
-    ax.semilogx(axis_freq, discrete, "r")
-    ax.semilogx(axis_freq, modified_in_time, "g--")
+    ax.semilogx(axis_freq, continuous, color=col_cont)
+    ax.semilogx(axis_freq, discrete, color=col_sdtime)
+    ax.semilogx(axis_freq, modified_in_time, "--", color=col_modified)
     ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
@@ -411,7 +624,7 @@ def fig_modif_space():
     ax = axes[0,0]
     ax.semilogx(axis_freq, np.abs(rho_s_c(setting, 1j*axis_freq, 1j*axis_freq,
         overlap_L=overlap_M*h, continuous_interface_op=False)),
-        "k")
+        color=col_cont)
 
     assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
 
@@ -428,8 +641,8 @@ def fig_modif_space():
     s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
 
     modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h, continuous_interface_op=False))
-    ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), "r")
-    ax.semilogx(axis_freq, modified_in_space, "g--")
+    ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), color=col_sdspace)
+    ax.semilogx(axis_freq, modified_in_space, "--", color=col_modified)
 
     ax.set_title(r"$RR^{M=0}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
@@ -441,13 +654,14 @@ def fig_modif_space():
 
     theta = optimal_DNWR_parameter(setting, DNWR_c_FD, axis_freq)
 
-    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, 1j*axis_freq, 1j*axis_freq, theta, continuous_interface_op=False)), "k", label="Continuous")
+    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, 1j*axis_freq, 1j*axis_freq, theta, continuous_interface_op=False)), label="Continuous", color=col_cont)
     modified_in_space = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False))
-    ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), "r", label="Semi-discrete in space")
-    ax.semilogx(axis_freq, modified_in_space, "g--", label="Modified in space")
+    ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), label="Semi-discrete in space", color=col_sdspace)
+    ax.semilogx(axis_freq, modified_in_space, "--", label="Modified in space", color=col_modified)
 
     ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
     ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
 
     ax = axes[1, 0]
     overlap_M = 1
@@ -458,14 +672,15 @@ def fig_modif_space():
 
     ax.semilogx(axis_freq, np.abs(rho_s_c(setting, 1j*axis_freq, 1j*axis_freq,
         overlap_L=overlap_M*h, continuous_interface_op=False)),
-        "k")
+        color=col_cont)
 
     modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h, continuous_interface_op=False))
-    ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), "r")
-    ax.semilogx(axis_freq, modified_in_space, "g--")
+    ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), color=col_sdspace)
+    ax.semilogx(axis_freq, modified_in_space, "--", color=col_modified)
 
     ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
+    ax.set_ylabel(r"$\rho$")
 
     fig.legend(loc="upper left", bbox_to_anchor=(0.6, 0.4))
     show_or_save("fig_modif_space")
@@ -509,11 +724,11 @@ def fig_combinedRate():
     setting.LAMBDA_1 = ret.x[0]
     setting.LAMBDA_2 = ret.x[1]
 
-    ax.semilogx(w, np.abs(rho_Pade_FD_corr0(setting, w, overlap_M=overlap_M)), "k")
-    ax.semilogx(w, np.abs(combined_Pade(setting, w, overlap_M=overlap_M)), "r")
-    ax.semilogx(w, np.abs(rho_c_FD(setting, w, overlap_M=overlap_M)), "--", dashes=[7,9])
-    ax.semilogx(w, np.abs(rho_c_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[3,5])
-    ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9])
+    ax.semilogx(w, np.abs(rho_Pade_FD_corr0(setting, w, overlap_M=overlap_M)), color=col_discrete)
+    ax.semilogx(w, np.abs(combined_Pade(setting, w, overlap_M=overlap_M)), color=col_combined)
+    ax.semilogx(w, np.abs(rho_c_FD(setting, w, overlap_M=overlap_M)), "--", dashes=[7,9], color=col_sdspace)
+    ax.semilogx(w, np.abs(rho_c_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[3,5], color=col_cont)
+    ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9], color=col_sdtime)
 
     ax.set_xlabel(r"$\omega \Delta t$")
     ax.set_ylabel(r"$\rho$")
@@ -537,12 +752,13 @@ def fig_combinedRate():
     from scipy.optimize import minimize_scalar
     theta = minimize_scalar(fun=to_minimize_Pade_DNWR).x
 
-    ax.semilogx(w, np.abs(DNWR_Pade_FD(setting, w, theta)), "k", label=r"$\rho^{\rm (Pade, FD)}$")
-    ax.semilogx(w, np.abs(combined_Pade_DNWR(setting, w, theta)), "r", label=r"$\rho^{\rm (Pade, FD)}_{\rm combined}$")
-    ax.semilogx(w, np.abs(DNWR_c_FD(setting, w, theta)), "--", label=r"$\rho^{\rm (c, FD)}$", dashes=[7,9])
-    ax.semilogx(w, np.abs(DNWR_c_c(setting, w, theta)), "--", label=r"$\rho^{\rm (c, c)}$", dashes=[3,5])
-    ax.semilogx(w, np.abs(DNWR_Pade_c(setting, w, theta)), "--", label=r"$\rho^{\rm (Pade, c)}$", dashes=[7,9])
+    ax.semilogx(w, np.abs(DNWR_Pade_FD(setting, w, theta)), label=r"$\rho^{\rm (Pade, FD)}$", color=col_discrete)
+    ax.semilogx(w, np.abs(combined_Pade_DNWR(setting, w, theta)), label=r"$\rho^{\rm (Pade, FD)}_{\rm combined}$", color=col_combined)
+    ax.semilogx(w, np.abs(DNWR_c_FD(setting, w, theta)), "--", label=r"$\rho^{\rm (c, FD)}$", dashes=[7,9], color=col_sdspace)
+    ax.semilogx(w, np.abs(DNWR_c_c(setting, w, theta)), "--", label=r"$\rho^{\rm (c, c)}$", dashes=[3,5], color=col_cont)
+    ax.semilogx(w, np.abs(DNWR_Pade_c(setting, w, theta)), "--", label=r"$\rho^{\rm (Pade, c)}$", dashes=[7,9], color=col_sdtime)
     ax.set_xlabel(r"$\omega \Delta t$")
+    ax.set_ylabel(r"$\rho$")
     ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
 
     ax = axes[1, 0]
@@ -553,12 +769,13 @@ def fig_combinedRate():
     setting.LAMBDA_1 = ret.x[0]
     setting.LAMBDA_2 = ret.x[1]
 
-    ax.semilogx(w, np.abs(rho_Pade_FD_corr0(setting, w, overlap_M=overlap_M)), "k")
-    ax.semilogx(w, np.abs(combined_Pade(setting, w, overlap_M=overlap_M)), "r")
-    ax.semilogx(w, np.abs(rho_c_FD(setting, w, overlap_M=overlap_M)), "--", dashes=[7,9])
-    ax.semilogx(w, np.abs(rho_c_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[3,5])
-    ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9])
+    ax.semilogx(w, np.abs(rho_Pade_FD_corr0(setting, w, overlap_M=overlap_M)), color=col_discrete)
+    ax.semilogx(w, np.abs(combined_Pade(setting, w, overlap_M=overlap_M)), color=col_combined)
+    ax.semilogx(w, np.abs(rho_c_FD(setting, w, overlap_M=overlap_M)), "--", dashes=[7,9], color=col_sdspace)
+    ax.semilogx(w, np.abs(rho_c_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[3,5], color=col_cont)
+    ax.semilogx(w, np.abs(rho_Pade_c(setting, w, overlap_L=overlap_M*h)), "--", dashes=[7,9], color=col_sdtime)
     ax.set_xlabel(r"$\omega \Delta t$")
+    ax.set_ylabel(r"$\rho$")
     ax.set_ylim(bottom=0.) # all axis are shared
     ax.set_title(r"$RR^{M=1}, " + ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
 
