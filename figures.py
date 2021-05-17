@@ -145,6 +145,7 @@ def fig_RobinTwoSided():
     symb_combined = "s"
     symb_modified = "o"
     symb_discrete = "P"
+    size_symb = 80
 
     setting = Builder()
     N = 10000
@@ -202,7 +203,7 @@ def fig_RobinTwoSided():
             for p2 in p2_range] for p1 in p1_range]
     p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
     p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
-    fig.colorbar(ax.contour(p1_arr, p2_arr, Z), ax=ax)
+    fig.colorbar(ax.contour(p1_arr, p2_arr, Z, zorder=-1), ax=ax)
 
     def callrho(fun, p1p2, **kwargs):
         return discrete_robin(setting, fun, axis_freq, p1p2[0], p1p2[1], **kwargs)
@@ -212,21 +213,21 @@ def fig_RobinTwoSided():
     s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq, (0.1, -0.1))
     discrete = optimal_robin_parameter(setting, rho_Pade_FD_corr0, axis_freq, (0.1, -0.1))
     combined = optimal_robin_parameter(setting, combined_Pade, axis_freq, (0.1, -0.1))
-    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=120, c=col_cont,
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont,
             label="Continuous: {:.3f}".format(callrho(rho_Pade_FD_corr0,
                 cont.x, overlap_M=overlap_M)))
-    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=100, c=col_sdspace,
+    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=size_symb, c=col_sdspace,
             label="S-d space: {:.3f}".format(callrho(rho_Pade_FD_corr0,
                 s_d_space.x, overlap_M=overlap_M)))
-    ax.scatter(*s_d_time.x, marker=symb_sdtime, alpha=1., s=100, c=col_sdtime,
+    ax.scatter(*s_d_time.x, marker=symb_sdtime, alpha=1., s=size_symb, c=col_sdtime,
             label="S-d time: {:.3f}".format(callrho(rho_Pade_FD_corr0,
                 s_d_time.x, overlap_M=overlap_M)))
-    ax.scatter(*combined.x, marker=symb_combined, alpha=1., s=200,
+    ax.scatter(*discrete.x, marker=symb_discrete, alpha=1., s=size_symb, c=col_discrete,
+            label="Discrete: {:.3f}".format(discrete.fun))
+    ax.scatter(*combined.x, marker=symb_combined, alpha=1., s=size_symb,
             edgecolors=col_combined, facecolors="none", linewidth=2.,
             label="Combined: {:.3f}".format(callrho(rho_Pade_FD_corr0,
                 combined.x, overlap_M=overlap_M)))
-    ax.scatter(*discrete.x, marker=symb_discrete, alpha=1., s=100, c=col_discrete,
-            label="Discrete: {:.3f}".format(discrete.fun))
     ax.set_xlabel(r"$p_1$")
     ax.set_ylabel(r"$p_2$")
     ax.legend()
@@ -247,7 +248,7 @@ def fig_RobinTwoSided():
             for p2 in p2_range] for p1 in p1_range]
     p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
     p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
-    fig.colorbar(ax.contour(p1_arr, p2_arr, Z), ax=ax)
+    fig.colorbar(ax.contour(p1_arr, p2_arr, Z, zorder=-1), ax=ax)
 
     def modified_FD(builder, axis_freq, overlap_L):
         Gamma_1 = builder.DT * builder.D1 / h**2
@@ -265,14 +266,14 @@ def fig_RobinTwoSided():
     cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), continuous_interface_op=False)
     s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1))
     modified = optimal_robin_parameter(setting, modified_FD, axis_freq, (0.1, -0.1), overlap_L=0)
-    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=120, c=col_cont,
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont,
             label="Continuous: {:.3f}".format(callrho(rho_c_FD,
                 cont.x, overlap_M=overlap_M)))
-    ax.scatter(*modified.x, marker=symb_modified, alpha=1., s=200, edgecolors=col_modified, facecolors="none", linewidth=2.,
+    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=size_symb, c=col_sdspace,
+            label="S-d space: {:.3f}".format(s_d_space.fun))
+    ax.scatter(*modified.x, marker=symb_modified, alpha=1., s=size_symb, edgecolors=col_modified, facecolors="none", linewidth=2.,
             label="Modified: {:.3f}".format(callrho(rho_c_FD,
                 modified.x, overlap_M=overlap_M)))
-    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=200, c=col_sdspace,
-            label="S-d space: {:.3f}".format(s_d_space.fun))
     ax.set_xlabel(r"$p_1$")
     ax.set_ylabel(r"$p_2$")
     ax.legend()
@@ -289,28 +290,28 @@ def fig_RobinTwoSided():
             for p2 in p2_range] for p1 in p1_range]
     p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
     p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
-    fig.colorbar(ax.contour(p1_arr, p2_arr, Z), ax=ax)
+    fig.colorbar(ax.contour(p1_arr, p2_arr, Z, zorder=-1), ax=ax)
 
     cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
     s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
     s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
     discrete = optimal_robin_parameter(setting, rho_Pade_FD_corr0, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
     combined = optimal_robin_parameter(setting, combined_Pade, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
-    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=120, c=col_cont,
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont,
             label="Continuous: {:.3f}".format(callrho(rho_Pade_FD_corr0,
                 cont.x, overlap_M=overlap_M)))
-    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=100, c=col_sdspace,
+    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=size_symb, c=col_sdspace,
             label="S-d space: {:.3f}".format(callrho(rho_Pade_FD_corr0,
                 s_d_space.x, overlap_M=overlap_M)))
-    ax.scatter(*s_d_time.x, marker=symb_sdtime, alpha=1., s=100, c=col_sdtime,
+    ax.scatter(*s_d_time.x, marker=symb_sdtime, alpha=1., s=size_symb, c=col_sdtime,
             label="S-d time: {:.3f}".format(callrho(rho_Pade_FD_corr0,
                 s_d_time.x, overlap_M=overlap_M)))
-    ax.scatter(*combined.x, marker=symb_combined, alpha=1., s=200,
+    ax.scatter(*discrete.x, marker=symb_discrete, alpha=1., s=size_symb, c=col_discrete,
+            label="Discrete: {:.3f}".format(discrete.fun))
+    ax.scatter(*combined.x, marker=symb_combined, alpha=1., s=size_symb,
             edgecolors=col_combined, facecolors="none", linewidth=2.,
             label="Combined: {:.3f}".format(callrho(rho_Pade_FD_corr0,
                 combined.x, overlap_M=overlap_M)))
-    ax.scatter(*discrete.x, marker=symb_discrete, alpha=1., s=100, c=col_discrete,
-            label="Discrete: {:.3f}".format(discrete.fun))
     ax.set_xlabel(r"$p_1$")
     ax.set_ylabel(r"$p_2$")
     ax.legend()
@@ -327,21 +328,21 @@ def fig_RobinTwoSided():
             for p2 in p2_range] for p1 in p1_range]
     p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
     p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
-    fig.colorbar(ax.contour(p1_arr, p2_arr, Z), ax=ax)
+    fig.colorbar(ax.contour(p1_arr, p2_arr, Z, zorder=-1), ax=ax)
     cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h, continuous_interface_op=False)
     s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
     modified = optimal_robin_parameter(setting, modified_FD, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
-    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=120, c=col_cont,
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont,
             label="Continuous: {:.3f}".format(callrho(rho_c_FD,
                 cont.x, overlap_M=overlap_M)))
-    ax.scatter(*modified.x, marker=symb_modified, alpha=1., s=200, edgecolors=col_modified, facecolors="none", linewidth=2.,
+    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=size_symb, c=col_sdspace,
+            label="S-d space: {:.3f}".format(s_d_space.fun))
+    ax.scatter(*modified.x, marker=symb_modified, alpha=1., s=size_symb, edgecolors=col_modified, facecolors="none", linewidth=2.,
             label="Modified: {:.3f}".format(callrho(rho_c_FD,
                 modified.x, overlap_M=overlap_M)))
-    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=200, c=col_sdspace,
-            label="S-d space: {:.3f}".format(s_d_space.fun))
     ax.set_xlabel(r"$p_1$")
     ax.set_ylabel(r"$p_2$")
-    ax.legend()
+    ax.legend(loc="lower right")
     ax.set_title("Modified with overlap")
 
     show_or_save("fig_RobinTwoSided")
