@@ -19,6 +19,7 @@ col["blue"] = "#332288"
 col["green"] = "#117733"
 col["cyan"] = "#77DDCC"
 col["yellow"] = "#DDCC77"
+col["orange"] = "#D29977"
 col["red"] = "#CC6677"
 col["purple"] = "#882255"
 col["grey"] = "#BBBBBB"
@@ -26,6 +27,7 @@ col_discrete=col["red"]
 col_sdspace = col["green"]
 col_sdtime = col["cyan"]
 col_cont = col["yellow"]
+col_cont_discop = col["orange"]
 col_combined=col["blue"]
 col_modified=col["purple"]
 col_numeric = col["grey"]
@@ -266,8 +268,8 @@ def fig_RobinTwoSided():
     cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), continuous_interface_op=False)
     s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1))
     modified = optimal_robin_parameter(setting, modified_FD, axis_freq, (0.1, -0.1), overlap_L=0)
-    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont,
-            label="Continuous: {:.3f}".format(callrho(rho_c_FD,
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont_discop,
+            label="Continuous (disc. op.): {:.3f}".format(callrho(rho_c_FD,
                 cont.x, overlap_M=overlap_M)))
     ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=size_symb, c=col_sdspace,
             label="S-d space: {:.3f}".format(s_d_space.fun))
@@ -332,8 +334,8 @@ def fig_RobinTwoSided():
     cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h, continuous_interface_op=False)
     s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1), overlap_M=overlap_M)
     modified = optimal_robin_parameter(setting, modified_FD, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
-    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont,
-            label="Continuous: {:.3f}".format(callrho(rho_c_FD,
+    ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont_discop,
+            label="Continuous (disc. op.): {:.3f}".format(callrho(rho_c_FD,
                 cont.x, overlap_M=overlap_M)))
     ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=size_symb, c=col_sdspace,
             label="S-d space: {:.3f}".format(s_d_space.fun))
@@ -500,13 +502,13 @@ def fig_dependency_maxrho_modified():
         theta=theta, continuous_interface_op=False))) for theta in all_theta]
     modified_in_space = [np.max(np.abs(DNWR_s_c(setting, s_modified1, s_modified2,
         theta=theta, continuous_interface_op=False))) for theta in all_theta]
-    ax.plot(all_theta, continuous, lw=lw_important, color=col_cont)
+    ax.plot(all_theta, continuous, lw=lw_important, color=col_cont_discop)
     ax.plot(all_theta, discrete, lw=lw_important, color=col_sdspace)
     ax.plot(all_theta, modified_in_space, "--", lw=lw_important, color=col_modified)
     ax.set_xlabel(r"$\theta$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     minima_indices = [np.argmin(discrete), np.argmin(continuous), np.argmin(modified_in_space)]
-    col_minimas = [col_sdspace, col_cont, col_modified]
+    col_minimas = [col_sdspace, col_cont_discop, col_modified]
     ymin, ymax = ax.get_ylim()
     ax.vlines(x=all_theta[minima_indices], ymin=ymin, ymax=ymax, colors=col_minimas, linestyle="dotted")
     # xmin, xmax = ax.get_xlim()[0], all_theta[minima_indices]
@@ -527,11 +529,11 @@ def fig_dependency_maxrho_modified():
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
     modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2,
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
-    ax.plot(all_p1, continuous, lw=lw_important, color=col_cont)
+    ax.plot(all_p1, continuous, lw=lw_important, color=col_cont_discop)
     ax.plot(all_p1, discrete, lw=lw_important, color=col_sdspace)
     ax.plot(all_p1, modified_in_space, "--", lw=lw_important, color=col_modified)
     minima_indices = [np.argmin(discrete), np.argmin(continuous), np.argmin(modified_in_space)]
-    col_minimas = [col_sdspace, col_cont, col_modified]
+    col_minimas = [col_sdspace, col_cont_discop, col_modified]
     ymin, ymax = ax.get_ylim()
     ax.vlines(x=all_p1[minima_indices], ymin=ymin, ymax=ymax, colors=col_minimas, linestyle="dotted")
     # xmin, xmax = ax.get_xlim()[0], all_p1[minima_indices]
@@ -551,11 +553,11 @@ def fig_dependency_maxrho_modified():
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
     modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2,
         overlap_L=overlap_M*h, continuous_interface_op=False) for p in all_p1]
-    ax.plot(all_p1, continuous, label="Continuous", lw=lw_important, color=col_cont)
+    ax.plot(all_p1, continuous, label="Continuous (disc. op.)", lw=lw_important, color=col_cont_discop)
     ax.plot(all_p1, discrete, label="S-d space", lw=lw_important, color=col_sdspace)
     ax.plot(all_p1, modified_in_space, "--", label="Modified", lw=lw_important, color=col_modified)
     minima_indices = [np.argmin(discrete), np.argmin(continuous), np.argmin(modified_in_space)]
-    col_minimas = [col_sdspace, col_cont, col_modified]
+    col_minimas = [col_sdspace, col_cont_discop, col_modified]
     ymin, ymax = ax.get_ylim()
     ax.vlines(x=all_p1[minima_indices], ymin=ymin, ymax=ymax, colors=col_minimas, linestyle="dotted")
     # xmin, xmax = ax.get_xlim()[0], all_p1[minima_indices]
@@ -675,7 +677,7 @@ def fig_modif_space():
     ax = axes[0,0]
     ax.semilogx(axis_freq, np.abs(rho_s_c(setting, 1j*axis_freq, 1j*axis_freq,
         overlap_L=overlap_M*h, continuous_interface_op=False)),
-        color=col_cont)
+        color=col_cont_discop)
 
     assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
 
@@ -705,7 +707,7 @@ def fig_modif_space():
 
     theta = optimal_DNWR_parameter(setting, DNWR_c_FD, axis_freq)
 
-    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, 1j*axis_freq, 1j*axis_freq, theta, continuous_interface_op=False)), label="Continuous", color=col_cont)
+    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, 1j*axis_freq, 1j*axis_freq, theta, continuous_interface_op=False)), label="Continuous (disc. op.)", color=col_cont_discop)
     modified_in_space = np.abs(DNWR_s_c(setting, s_modified1, s_modified2, theta=theta, continuous_interface_op=False))
     ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta)), label="Semi-discrete in space", color=col_sdspace)
     ax.semilogx(axis_freq, modified_in_space, "--", label="Modified in space", color=col_modified)
@@ -723,7 +725,7 @@ def fig_modif_space():
 
     ax.semilogx(axis_freq, np.abs(rho_s_c(setting, 1j*axis_freq, 1j*axis_freq,
         overlap_L=overlap_M*h, continuous_interface_op=False)),
-        color=col_cont)
+        color=col_cont_discop)
 
     modified_in_space = np.abs(rho_s_c(setting, s_modified1, s_modified2, overlap_L=overlap_M*h, continuous_interface_op=False))
     ax.semilogx(axis_freq, np.abs(rho_c_FD(setting, axis_freq, overlap_M=overlap_M)), color=col_sdspace)
