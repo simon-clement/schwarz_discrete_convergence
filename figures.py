@@ -961,7 +961,6 @@ class Builder():
         The comparison is thus then quite easy
     """
     def __init__(self): # changing defaults will result in needing to recompute all cache
-        self.COURANT_NUMBER = 1.
         self.SIZE_DOMAIN_1 = 200
         self.SIZE_DOMAIN_2 = 200
         self.M1 = 201 # to have h=1 the number of points M_j must be 101
@@ -969,11 +968,11 @@ class Builder():
         self.D1 = .5
         self.D2 = 1.
         self.R = 1e-3
-        self.DT = 120.
+        self.DT = 2.
 
         self.LAMBDA_1=1e10 # >=0
         self.LAMBDA_2=-0. # <= 0
-        self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / (self.M1-1))**2 / self.D1
+        self.COURANT_NUMBER = self.D1 * self.DT / (self.SIZE_DOMAIN_1 / (self.M1-1))**2
 
     def copy(self):
         ret = Builder()
