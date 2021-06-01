@@ -57,7 +57,7 @@ def bulk_frequency_simulation(builder, number_samples=100, steady_state=None, C_
 
     return np.std(freq_err, axis=0)
 
-def bulk_schwarz_simulator(builder, seed=9380, T=3600, NUMBER_IT=3, C_D=1.2e-3, theta=1., order=2, steady_state=None, steady_jump_solution=None):
+def bulk_schwarz_simulator(builder, seed=9380, T=3600, NUMBER_IT=3, C_D=1.2e-3, theta=1., order=2, steady_state=None, steady_jump_solution=None, init="white"):
     """
         Returns errors at interface from beginning (first guess) until the end.
         Coupling is made between AtmoFdBeFlux and OceanFdBeFlux models.
@@ -95,8 +95,11 @@ def bulk_schwarz_simulator(builder, seed=9380, T=3600, NUMBER_IT=3, C_D=1.2e-3, 
     rho_ocean = 1e3 # ratio of the densities matters rho(atmosphere) / rho(ocean)
 
     def f_ocean(t): # Ocean is mainly forced by the interface with atmosphere but we use the (small) geostrophic speed
+        # the latter does not appear here as we look at the errors around the equilibrium "steady_state".
+        # The change of the forcing only changes steady_state and steady_jump_solution
         return np.zeros(ocean.M - 1)
-    def f_atm(t): # geostrophic forcing of atmosphere
+    def f_atm(t): # geostrophic forcing of atmosphere: it is zero because
+        # we look at the errors around the equilibrium "steady_state" (see remark in f_ocean()).
         return np.zeros(atmosphere.M - 1)
 
     u_atm0, phi_atm0, u_ocean0, phi_ocean0 = steady_state if steady_state is not None else linear_steadystate(builder, C_D)
@@ -105,10 +108,25 @@ def bulk_schwarz_simulator(builder, seed=9380, T=3600, NUMBER_IT=3, C_D=1.2e-3, 
     # to make it right, maybe we should look around the solution after spin-up instead of the
     # steady state of the linear problem ?
     np.random.seed(seed)
-    u_ocean_interface = ((np.concatenate(([0], 2 * (np.random.rand(N_ocean) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_ocean) - 0.5)))))/40
-    phi_ocean_interface = ((np.concatenate(([0], 2 * (np.random.rand(N_ocean) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_ocean) - 0.5)))))/40
-    u_atm_interface = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))/40
-    phi_atm_interface = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))/40
+    if init == "white":
+        u_ocean_interface = ((np.concatenate(([0], 2 * (np.random.rand(N_ocean) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_ocean) - 0.5)))))
+        phi_ocean_interface = ((np.concatenate(([0], 2 * (np.random.rand(N_ocean) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_ocean) - 0.5)))))
+        u_atm_interface = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))
+        phi_atm_interface = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))
+    elif init == "GP":
+        cov = np.array([[ np.exp(-.1*np.abs(i-j)) for i in range(N_atm)] for j in range(N_atm)])
+        rand1, rand2, rand3, rand4 = np.random.default_rng().multivariate_normal(np.zeros(N_atm), cov, 4)
+        u_atm_interface = np.concatenate(([0], rand1))
+        u_ocean_interface = np.concatenate(([0], rand2))
+        phi_atm_interface = np.concatenate(([0], rand3))
+        phi_ocean_interface = np.concatenate(([0], rand4))
+    elif init == "dirac":
+        u_ocean_interface = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_ocean-1)))
+        u_atm_interface = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_atm-1)))
+        phi_ocean_interface = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_ocean-1)))
+        phi_atm_interface = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_atm-1)))
+    else:
+        raise
 
     all_u_atm_interface = [u_atm_interface]
     all_phi_atm_interface = [phi_atm_interface]
@@ -250,7 +268,7 @@ def validate_result(ocean, phi, u, T):
     # input()
 
 
-def bulk_schwarz_spinup(builder, T=3600, NUMBER_IT=5, C_D=1.2e-3, theta=1., nonlinear=True, initial_conditions=None):
+def bulk_schwarz_spinup(builder, T=3600, NUMBER_IT=5, C_D=1.2e-3, theta=1., nonlinear=True, initial_conditions=None, geostrophy=(10.,0.1)):
     """
         Spin-up function, designed for the nonlinear model. 
         Coupling is made between AtmoFdBeFlux and OceanFdBeFlux models.
@@ -271,16 +289,15 @@ def bulk_schwarz_spinup(builder, T=3600, NUMBER_IT=5, C_D=1.2e-3, theta=1., nonl
             M=builder.M1, SIZE_DOMAIN=builder.SIZE_DOMAIN_1, DT = builder.DT)
 
     # large scale, geostrophic speeds are used to create a forcing
-    atm_geostrophic_speed = 10.
-    ocean_geostrophic_speed = 0.1
+    atm_geostrophic_speed, ocean_geostrophic_speed = geostrophy
     u_atm_geostrophic = atm_geostrophic_speed * np.ones(atmosphere.M - 1) # 10 m.s^(-1)
     u_ocean_geostrophic = ocean_geostrophic_speed * np.ones(ocean.M - 1) # .1 m.s^(-1)
 
     # number of time steps in each model:
     N_ocean = int(np.round(T/ocean.dt))
     N_atm = int(np.round(T/atmosphere.dt)) # atm stands for atmosphere in the following
-    rho_atm = 1.
-    rho_ocean = 1e3 # ratio of the densities, rho(atmosphere) / rho(ocean)
+    rho_atm = 1. # densities
+    rho_ocean = 1e3
 
     def f_ocean(t): # Ocean is mainly forced by the interface with atmosphere but we use the (small) geostrophic speed
         return ocean.r * u_ocean_geostrophic

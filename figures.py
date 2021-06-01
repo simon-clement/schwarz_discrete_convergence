@@ -7,6 +7,13 @@
 import numpy as np
 from memoisation import memoised
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rc('text', usetex=True)
+mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+mpl.rcParams["axes.grid"] = True
+mpl.rcParams["grid.linestyle"] = ':'
+mpl.rcParams["grid.alpha"] = '0.5'
+mpl.rcParams["grid.linewidth"] = '0.5'
 
 def biggest_eig_linearized(theta = 1.):
     from nonlinear_simulator import bulk_schwarz_spinup
@@ -223,21 +230,22 @@ def fig_profile_stationnaire_bug():
     axes[0,0].legend(loc="upper left")
 
     plt.show()
+
 def fig_profile_stationnaire():
     from nonlinear_simulator import bulk_schwarz_spinup, nonlinear_steadystate
     builder = Builder()
-    big_domain_factor = 10
-    builder.SIZE_DOMAIN_1 = 5*big_domain_factor
-    builder.SIZE_DOMAIN_2 = 25*big_domain_factor
-    builder.M2 = 1+5*big_domain_factor
-    builder.M1 = 1+5*big_domain_factor
-    builder.R = 4e-8j
+    h_a = 20
+    h_o = 2
+    builder.M2 = 100
+    builder.M1 = 100
+    builder.SIZE_DOMAIN_1 = (builder.M1 - 1) * h_o
+    builder.SIZE_DOMAIN_2 = (builder.M2 - 1) * h_a
 
     dt_spinup = builder.DT = 1e30 # a lot of min
     T_spinup = 10*dt_spinup
     C_D = 1.2e-3
-    fig, axes = plt.subplots(ncols=2, nrows=2)
-    plt.subplots_adjust(wspace=0.3)
+    fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(3.4,3.4))
+    plt.subplots_adjust(wspace=0.3, hspace=0.5, left=0.3, top=0.93, bottom=0.12)
 
     nonlinear_steady_analytic = nonlinear_steadystate(builder, C_D)
     nonlinear_steady = memoised(bulk_schwarz_spinup, builder,
@@ -250,28 +258,56 @@ def fig_profile_stationnaire():
     u_atm_NL, _, u_ocean_NL, _ = nonlinear_steady
     u_atm_NL_analytic, _, u_ocean_NL_analytic, _ = nonlinear_steady_analytic
 
-    fig.suptitle("Stationnary profile of u, close to the limit of conditions")
-    axes[0,0].plot(np.real(u_atm_NL), height_u2, label="Result of 40 Schwarz iterations")
-    axes[0,0].plot(np.real(u_atm_NL_analytic), height_u2, "--", label="Theoretical")
-    axes[0,0].set_yscale('symlog')
-    axes[1,0].plot(np.real(u_ocean_NL), depth_u1)
-    axes[1,0].plot(np.real(u_ocean_NL_analytic), depth_u1, "--")
-    axes[1,0].set_yscale('symlog')
-    axes[0,1].plot(np.imag(u_atm_NL), height_u2)
-    axes[0,1].plot(np.imag(u_atm_NL_analytic), height_u2, "--")
-    axes[0,1].set_yscale('symlog')
-    axes[1,1].plot(np.imag(u_ocean_NL), depth_u1)
-    axes[1,1].plot(np.imag(u_ocean_NL_analytic), depth_u1, "--")
-    axes[1,1].set_yscale('symlog')
+    axes[0].plot(np.real(u_atm_NL), height_u2, "k", label="Real part (u)")
+    axes[0].plot(np.imag(u_atm_NL), height_u2, "grey", label="Imaginary part (v)")
+    axes[0].xaxis.tick_top()
+    axes[1].plot(np.real(u_ocean_NL), depth_u1, "k")
+    axes[1].plot(np.imag(u_ocean_NL), depth_u1, "grey")
 
-    axes[0,0].set_ylabel("z")
-    axes[1,0].set_ylabel("z")
+    axes[0].grid(color='k', linestyle=':', linewidth=.15, which="minor")
+    axes[0].grid(color='k', linestyle=':', linewidth=.2)
+    axes[1].grid(color='k', linestyle=':', linewidth=.15, which="minor")
+    axes[1].grid(color='k', linestyle=':', linewidth=.2)
 
-    axes[1,0].set_xlabel("Real part")
-    axes[1,1].set_xlabel("Imaginary part")
-    axes[0,0].legend(loc="upper left")
+    axes[0].set_yscale('symlog')
+    axes[1].set_yscale('symlog')
+    from matplotlib.ticker import LogLocator, AutoLocator
+    axes[0].yaxis.set_minor_locator(LogLocator(subs=np.arange(2, 10)))
 
-    plt.show()
+    def gen_tick_positions(scale_start=100, scale_max=10000):
+        start, finish = np.floor(np.log10((scale_start, scale_max)))
+        finish += 1
+        majors = [10 ** x for x in np.arange(start, finish)]
+        minors = []
+        for idx, major in enumerate(majors[:-1]):
+            minor_list = np.arange(majors[idx], majors[idx+1], major)
+            minors.extend(minor_list[1:])
+        return minors, majors
+
+    axes[0].set_yticks([10, 100, 1000])
+    axes[0].set_yticklabels([r'$\delta_{a}=10 \, {\rm m}$', r'$100 \, {\rm m}$',r'$1000 \, {\rm m}$'])
+    axes[0].set_xticks([-1.25, 0., 1.25, 2.5, 3.75, 5., 6.25, 7.5, 8.75, 10.], minor=True)
+    axes[0].set_xticks([0., 2.5, 5., 7.5, 10.], minor=False)
+    axes[1].set_xticks([-0.05, 0., 0.05, 0.1, 0.15])
+    axes[1].set_xticks([-0.05, -0.025, 0., 0.025, 0.05, 0.075, 0.1, 0.125, 0.15], minor=True)
+
+
+    axes[1].set_yticks([-200, -100, -90, -80, -70, -60, -50, -40, -30,
+        -20, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -0.9], minor=True)
+    axes[1].set_yticks([-100,-10,-1])
+    axes[1].set_yticklabels([r'$-100 \, {\rm m}$',r'$-10 \, {\rm m}$',r'$\delta_{o}=-1 \, {\rm m}$'])
+
+
+
+    axes[0].set_ylabel(r"$z$")
+    axes[1].set_ylabel(r"$z$")
+
+    axes[1].set_xlabel(r"$u, v$")
+    axes[0].legend(loc="upper center")
+    show_or_save("fig_profile_stationnaire")
+
+def fig_test():
+    pass
 
 def fig_is_it_linear_enough():
     from nonlinear_simulator import bulk_schwarz_spinup, bulk_frequency_simulation, linear_steadystate
@@ -355,37 +391,32 @@ def fig_evolution_err_nonlinear():
 
     builder.DT = 60. # 1 minute
     T = 1*24*60*60. # 1 day
-    fig, axes = plt.subplots(1,1, sharex=True)
+    N = int(T / builder.DT)
+    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(6.2,3.0))
+    plt.subplots_adjust(left=0.11, right=0.69, bottom=0.15)
     order = 0
     theta = 1
     labels = (r"constant $\alpha$", "nonlinear", "linearized")
 
-    ax = axes#[0]
-    #ax2 = axes[1]
     colors_orders = ("#000000", "#000000")
     style_orders = ("", "", "d")
     style_thetas = ("--", "-", ":")
-    label = [r"Constant $\alpha$, $\theta =$ ",r"Linearized, $\theta =$",r"Non-linear, $\theta =$"]
+    label = [r"Constant $\alpha$, $\theta =$ ",r"Linearized, $\theta =$",r"Nonlinear, $\theta =$"]
     for order, col_order in zip((0,2), colors_orders):
         for theta, style_theta in zip((1., 1.5), style_thetas):
             B_k = memoised(bulk_schwarz_simulator, builder, T=T, NUMBER_IT=11,
                     steady_state=nonlinear_steadystate, order=order, theta=theta,
                     C_D=C_D, steady_jump_solution=steady_jump_solution)
 
-            ax.semilogy(np.linalg.norm(B_k, axis=-1), style_orders[order] + style_theta, color=col_order, markersize=6, fillstyle='none', label=label[order]+str(theta))
-            #ax2.semilogy(np.linalg.norm(B_k, axis=-1, ord=float('inf')), style_orders[order]+style_theta, color=col_order, fillstyle='none', markersize=6)
+            ax.semilogy(np.linalg.norm(B_k, axis=-1)/np.sqrt(N), style_orders[order] + style_theta, color=col_order, markersize=6, fillstyle='none', label=label[order]+str(theta))
 
-            norme2_evol = np.linalg.norm(B_k, axis=-1)
-            norme_inf_evol = np.linalg.norm(B_k, axis=-1, ord=float('inf'))
+            norme2_evol = np.linalg.norm(B_k, axis=-1)/np.sqrt(N)
             if order == 0:
                 print("linear:", norme2_evol[4] / norme2_evol[3], np.abs((1 - theta + ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))
                 ax.semilogy(norme2_evol[1]*(np.abs((1 - theta + ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))**np.array(range(-1, 11)), style_orders[order] + style_theta, color='grey', markersize=6, fillstyle='none')
-                #ax2.semilogy(norme_inf_evol[1]*(np.abs((1 - theta + ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))**np.array(range(-1, 11)), style_orders[order] + style_theta, color='grey', markersize=6, fillstyle='none')
             else:
                 ax.semilogy(norme2_evol[1]*(np.abs((1.5 - theta + 1.5*ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))**np.array(range(-1, 11)), \
                     style_orders[order] + style_theta, color='grey', markersize=6, fillstyle='none')
-                #ax2.semilogy(norme_inf_evol[1]*(np.abs((1.5 - theta + 1.5*ratio_densities*np.sqrt(builder.D2/builder.D1))/theta))**np.array(range(-1, 11)), \
-                #    style_orders[order] + style_theta, color='grey', markersize=6, fillstyle='none')
 
 
     ax.set_ylim(ymin=1e-6, ymax=1.)
@@ -397,17 +428,101 @@ def fig_evolution_err_nonlinear():
 
 
 
-    #axes[1].set_xlim(xmin=1, xmax=10)
-    axes.set_xlim(xmin=1, xmax=10)
-    #axes[1].grid(color='k', linestyle=':', linewidth=.2)
-    axes.grid(color='k', linestyle=':', linewidth=.2)
+    ax.set_xlim(xmin=1, xmax=10)
+    ax.grid(color='k', linestyle=':', linewidth=.2)
             
 
     import matplotlib.patches as mpatches
     grey_patch = mpatches.Patch(color='grey')
     h, l = ax.get_legend_handles_labels()
-    ax.legend(h + [grey_patch], l + [r"Corresponding $\xi_0^k$"])
+    fig.legend(h + [grey_patch], l + [r"Corresponding $\xi_0^k$"], loc='center right')
     show_or_save("fig_evolution_err_nonlinear")
+
+def fig_robustesse_evolution_err_nonlinear():
+    from nonlinear_simulator import bulk_schwarz_spinup, bulk_schwarz_simulator
+    fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(6.2,3.0))
+    plt.subplots_adjust(left=0.11, right=0.69, bottom=0.15)
+    builder = Builder()
+    setups = [{}] # {} = first experiment with no changes
+    setups += [{'D2' : .1 }] # instead of 1
+    setups += [{'D1' : 1e-4}] # instead of 3e-3
+    setups += [{'R'  : 1e-5j}]# instead of 1e-4j
+    labels = [
+            r'NL',
+            r'L',
+            r'NL, $\nu_2=0.1\; {\rm m^2}\;{\rm s}^{-1}$',
+            r'L, $\nu_2=0.1\; {\rm m^2}\;{\rm s}^{-1}$',
+            r'NL, $\nu_1=10^{-4}\; {\rm m^2}\;{\rm s}^{-1}$',
+            r'L, $\nu_1=10^{-4}\; {\rm m^2}\;{\rm s}^{-1}$',
+            r'NL, $f=10^{-5}\; {\rm s}^{-1}$',
+            r'L, $f=10^{-5}\; {\rm s}^{-1}$',
+            ]
+    styles_setups_NL = ("-", "--", "-.", ":")
+    styles_setups_L = ("+", "x", "p", "*")
+    lines = [] # for style
+    from matplotlib.lines import Line2D
+
+    for changes, style_NL, style_L in zip(setups, styles_setups_NL, styles_setups_L):
+        builder = Builder()
+        C_D = 1.2e-3
+        for key in changes:
+            builder.__dict__[key] = changes[key]
+
+        dt_spinup = builder.DT = 1e12 # almost infinite
+        T_spinup = 10*dt_spinup
+        nonlinear_steadystate = memoised(bulk_schwarz_spinup, builder,
+                    T=T_spinup, NUMBER_IT=40, nonlinear=True, theta=1.5, C_D=C_D, geostrophy=(10,1.))
+
+        u_atm_NL, _, u_ocean_NL, _ = nonlinear_steadystate
+        steady_jump_solution = u_atm_NL[0] - u_ocean_NL[-1]
+
+        builder.DT = 60. # 1 minute
+        T = 1*24*60*60. # 1 day
+
+        N = int(T / builder.DT)
+
+        interface_values_L = memoised(bulk_schwarz_simulator, builder, T=T, NUMBER_IT=11,
+                steady_state=nonlinear_steadystate, order=1, theta=1.5,
+                C_D=C_D, steady_jump_solution=steady_jump_solution, init="white")
+
+        ax.semilogy(np.linalg.norm(interface_values_L, axis=-1)/np.sqrt(N),
+                style_L, fillstyle='none', color='k', markersize=7.2)
+
+        interface_values_NL = memoised(bulk_schwarz_simulator, builder, T=T, NUMBER_IT=11,
+                steady_state=nonlinear_steadystate, order=2, theta=1.5,
+                C_D=C_D, steady_jump_solution=steady_jump_solution, init="white")
+        ax.semilogy(np.linalg.norm(interface_values_NL, axis=-1)/np.sqrt(N),
+                style_NL, color='k')
+
+        interface_values_NL_theta1 = memoised(bulk_schwarz_simulator, builder, T=T, NUMBER_IT=11,
+                steady_state=nonlinear_steadystate, order=2, theta=1.,
+                C_D=C_D, steady_jump_solution=steady_jump_solution, init="white")
+        ax.semilogy(np.linalg.norm(interface_values_NL_theta1, axis=-1)/np.sqrt(N),
+                style_NL, color='grey', lw=0.8)
+        interface_values_L_theta1 = memoised(bulk_schwarz_simulator, builder, T=T, NUMBER_IT=11,
+                steady_state=nonlinear_steadystate, order=1, theta=1.,
+                C_D=C_D, steady_jump_solution=steady_jump_solution, init="white")
+        ax.semilogy(np.linalg.norm(interface_values_L_theta1, axis=-1)/np.sqrt(N),
+                style_L, fillstyle='none', markersize=7.2, color='grey', lw=0.8)
+        lines += [Line2D([0], [0], linestyle=style_NL, color="k")]
+        lines += [Line2D([0], [0], marker=style_L, lw=0, color="k")]
+
+    ax.set_ylabel(r"Error $||\cdot||_2$")
+
+    ax.set_xlabel("Iteration")
+
+    ax.set_ylim(ymin=1e-6, ymax=1.)
+    ax.set_xlim(xmin=1, xmax=10)
+    ax.grid(color='k', linestyle=':', linewidth=.2)
+            
+    import matplotlib.patches as mpatches
+    h, l = ax.get_legend_handles_labels()
+
+    grey_patch = mpatches.Patch(color='grey')
+
+    labels += [r"NL and L, $\theta = 1$"]
+    fig.legend(h + lines + [grey_patch], l + labels, loc="center right")
+    show_or_save("fig_robustesse_evolution_err_nonlinear")
 
 def fig_contour_linear_theta():
     """
