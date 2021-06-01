@@ -12,7 +12,7 @@ mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
 mpl.rcParams["axes.grid"] = True
 mpl.rcParams["grid.linestyle"] = ':'
-mpl.rcParams["grid.alpha"] = '0.5'
+mpl.rcParams["grid.alpha"] = '0.7'
 mpl.rcParams["grid.linewidth"] = '0.5'
 
 def biggest_eig_linearized(theta = 1.):
@@ -429,13 +429,13 @@ def fig_evolution_err_nonlinear():
 
 
     ax.set_xlim(xmin=1, xmax=10)
-    ax.grid(color='k', linestyle=':', linewidth=.2)
             
 
     import matplotlib.patches as mpatches
     grey_patch = mpatches.Patch(color='grey')
     h, l = ax.get_legend_handles_labels()
     fig.legend(h + [grey_patch], l + [r"Corresponding $\xi_0^k$"], loc='center right')
+    ax.grid(color='k', linestyle=':')
     show_or_save("fig_evolution_err_nonlinear")
 
 def fig_robustesse_evolution_err_nonlinear():
@@ -513,15 +513,17 @@ def fig_robustesse_evolution_err_nonlinear():
 
     ax.set_ylim(ymin=1e-6, ymax=1.)
     ax.set_xlim(xmin=1, xmax=10)
-    ax.grid(color='k', linestyle=':', linewidth=.2)
+    ax.grid(color='k', linestyle=':')
             
     import matplotlib.patches as mpatches
     h, l = ax.get_legend_handles_labels()
 
     grey_patch = mpatches.Patch(color='grey')
+    black_patch = mpatches.Patch(color='k')
 
-    labels += [r"NL and L, $\theta = 1$"]
-    fig.legend(h + lines + [grey_patch], l + labels, loc="center right")
+    labels += [r"$\theta = 1.5$"]
+    labels += [r"$\theta = 1$"]
+    fig.legend(h + lines + [black_patch, grey_patch], l + labels, loc="center right")
     show_or_save("fig_robustesse_evolution_err_nonlinear")
 
 def fig_contour_linear_theta():
