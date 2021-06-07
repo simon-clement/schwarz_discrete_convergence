@@ -244,8 +244,8 @@ def fig_profile_stationnaire():
     dt_spinup = builder.DT = 1e30 # a lot of min
     T_spinup = 10*dt_spinup
     C_D = 1.2e-3
-    fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(3.4,3.4))
-    plt.subplots_adjust(wspace=0.3, hspace=0.5, left=0.3, top=0.93, bottom=0.12)
+    fig, axes = plt.subplots(ncols=1, nrows=2, figsize=(3.4,2.9))
+    plt.subplots_adjust(wspace=0.3, hspace=0.42, left=0.3, top=0.89, bottom=0.16)
 
     nonlinear_steady_analytic = nonlinear_steadystate(builder, C_D)
     nonlinear_steady = memoised(bulk_schwarz_spinup, builder,
@@ -302,7 +302,7 @@ def fig_profile_stationnaire():
     axes[0].set_ylabel(r"$z$")
     axes[1].set_ylabel(r"$z$")
 
-    axes[1].set_xlabel(r"$u, v$")
+    axes[1].set_xlabel(r"$u, v$ (${\rm m}\;{\rm s}^{-1}$)")
     axes[0].legend(loc="upper center")
     show_or_save("fig_profile_stationnaire")
 
@@ -450,10 +450,10 @@ def fig_robustesse_evolution_err_nonlinear():
     labels = [
             r'NL',
             r'L',
-            r'NL, $\nu_2=0.1\; {\rm m^2}\;{\rm s}^{-1}$',
-            r'L, $\nu_2=0.1\; {\rm m^2}\;{\rm s}^{-1}$',
-            r'NL, $\nu_1=10^{-4}\; {\rm m^2}\;{\rm s}^{-1}$',
-            r'L, $\nu_1=10^{-4}\; {\rm m^2}\;{\rm s}^{-1}$',
+            r'NL, $\nu_a=0.1\; {\rm m^2}\;{\rm s}^{-1}$',
+            r'L, $\nu_a=0.1\; {\rm m^2}\;{\rm s}^{-1}$',
+            r'NL, $\nu_o=10^{-4}\; {\rm m^2}\;{\rm s}^{-1}$',
+            r'L, $\nu_o=10^{-4}\; {\rm m^2}\;{\rm s}^{-1}$',
             r'NL, $f=10^{-5}\; {\rm s}^{-1}$',
             r'L, $f=10^{-5}\; {\rm s}^{-1}$',
             ]
