@@ -30,6 +30,78 @@ class AtmosphereBEFD():
         phi_interface = diagnosed[overlap]
         return u_interface, phi_interface
 
+    def integrate_large_window(self, interface,
+            initial_prognostic=None, initial_diagnostic=None,
+            forcing=None, boundary=None, DEBUG_LAST_VAL=False): 
+        """
+            Given the information, returns the interface information after integration in time.
+
+            Parameters:
+            interface: Robin condition given to the model, array of size N+1
+                (N being the number of time steps, the first value can be generally set to 0)
+            The following parameters are set to 0 if not prescribed:
+                initial_prognostic (prognosed variable, solution), (size M)
+                initial_diagnostic (diagnosed variable, space derivative of solution), (size M-1)
+                forcing: function [0,T] -> C^M used as forcing in the diffusion-reaction equation
+                boundary: array of size N+1
+
+            Returns:
+            Tuple solution, derivative where solution and derivative are (N+1) 1D arrays
+
+            scheme is:
+                -Noting Y = Id,
+                -Noting R = r*dt, Gamma = nu*dt/h^2
+
+                    (Y + (R Y - Gamma delta_x^2))phi_np1 = Y phi_n
+                See pdf for the implementation.
+        """
+        # global initialisation, defining matrices and variables
+        initial_prognostic = np.zeros(self.M) if initial_prognostic is None else initial_prognostic
+        initial_diagnostic = np.zeros(self.M-1) if initial_diagnostic is None else initial_diagnostic
+        forcing = (lambda _: np.zeros(self.M)) if forcing is None else forcing
+        boundary = np.zeros_like(interface) if boundary is None else boundary
+        Gamma = self.nu * self.dt / self.h**2
+        R = self.r * self.dt
+        h, dt, nu = self.h, self.dt, self.nu
+        tilde_p = -self.Lambda
+        Y_FD = np.vstack((np.concatenate(([1e100], np.zeros(self.M-1))),#up_diag
+            np.concatenate(([h/2*self.k_c], np.ones(self.M-2), [0])), # diag
+            np.concatenate((np.zeros(self.M-1), [1e100]))))# low_diag
+        D_FD = np.vstack((np.concatenate(([1e100,h], np.ones(self.M-2))),#up_diag
+            np.concatenate(([-h-h**2/nu*tilde_p], -2*np.ones(self.M-2), [-h**2/nu])), # diag
+            np.concatenate((np.ones(self.M-2), [0, 1e100]))))# low_diag
+        def prod_banded(tridiag_mat, x):
+            ret = tridiag_mat[1]*x
+            ret[:-1] += tridiag_mat[0,1:]*x[1:]
+            ret[1:] += tridiag_mat[2,:-1]*x[:-1]
+            return ret
+        matrix_to_inverse = (1+R)*Y_FD - Gamma*D_FD
+
+        # initialisation of the main loop of integration
+        u_current = initial_prognostic
+        solution = [initial_prognostic[0]]
+        derivative = [initial_diagnostic[0]]
+        # actual integration:
+        for n in range(interface.shape[0]-1):
+            f_n = forcing((n+1)*dt)
+            rhs_c = dt * np.concatenate(([[-interface[n+1] + h/2*self.k_c*f_n[0]],
+                f_n[1:-1], [boundary[n+1]]]))
+            rhs_step = prod_banded(Y_FD, u_current) + rhs_c
+            u_next = solve_banded(l_and_u=(1, 1), ab=matrix_to_inverse, b=rhs_step)
+
+            solution += [u_next[0]]
+            derivative += [(u_next[1] - u_next[0])/h]
+            # corrective term:
+            derivative_u0 = (u_next[0] - u_current[0])/(dt)
+            derivative[-1] -= self.h/2 * self.k_c/nu * derivative_u0
+
+            # preparing next step
+            u_current = u_next
+
+        if DEBUG_LAST_VAL:
+            return u_next
+        return solution, derivative
+
     def integrate_in_time(self, prognosed, diagnosed, interface_robin, forcing, boundary):
         """
             Given the information, returns the tuple (prognosed^{n+1}, diagnosed^{n+1})
@@ -69,7 +141,7 @@ class AtmosphereBEFD():
             return ret
 
         #c_n = np.concatenate(([[-robin_n], f_n[1:-1], [bd_n]]))
-        c_np1 = np.concatenate(([[-robin_np1], f_np1[1:-1], [bd_np1]]))
+        c_np1 = np.concatenate(([[-robin_np1 + h/2*self.k_c*f_np1[0]], f_np1[1:-1], [bd_np1]]))
         rhs_c = dt*c_np1
 
         Y_FD = np.vstack((np.concatenate(([1e100], np.zeros(self.M-1))),#up_diag

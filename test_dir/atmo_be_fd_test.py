@@ -1,12 +1,12 @@
 import numpy as np
-from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
+from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
 
 def main():
+    sinus_test_large_window_kc1()
     linear_test_large_window()
     sinus_test_large_window()
     linear_test()
     sinus_test()
-    sinus_test_large_window_kc1()
 
 def linear_test_large_window():
     size_domain = 200
@@ -24,10 +24,10 @@ def linear_test_large_window():
         T = 1
         nu = 1e-1
         r = 1e-1j
-        dt = .01
+        dt = .001
         LAMBDA=1e8
         N = int(T/dt)
-        atmo_integrator = AtmospherePadeFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
+        atmo_integrator = AtmosphereBEFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
         h = atmo_integrator.h
 
         x_u = np.linspace(0,size_domain, M)
@@ -45,10 +45,9 @@ def linear_test_large_window():
                 initial_prognostic=u_n, initial_diagnostic=phi_n,
                 forcing=forcing, boundary=np.zeros_like(total_interface),
                 DEBUG_LAST_VAL=True)
-
         error += [np.linalg.norm(u_real(x=x_u, t=N*dt) - u_N)/np.sqrt(M-1)]
     for err in error:
-        assert abs(err - 0.0013) < 1e-3
+        assert abs(err - 0.04) < 1e-2
 
     error = []
     for dt in (0.1, 0.05):
@@ -57,7 +56,7 @@ def linear_test_large_window():
         nu = 1e-1
         r = 1j*1e-1
         N = int(T/dt)
-        atmo_integrator = AtmospherePadeFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
+        atmo_integrator = AtmosphereBEFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
         h = atmo_integrator.h
 
         x_u = np.linspace(0,size_domain, M)
@@ -76,19 +75,19 @@ def linear_test_large_window():
                 forcing=forcing, boundary=np.zeros_like(total_interface),
                 DEBUG_LAST_VAL=True)
         error += [np.linalg.norm(u_real(x=x_u, t=N*dt) - u_N)/np.sqrt(M-1)]
-    assert abs(4. - error[0]/error[1]) < 0.4 # divided dt by 2, dividing error by ~4
+    assert abs(2. - error[0]/error[1]) < 0.4 # divided dt by 2, dividing error by ~4
 
 def sinus_test_large_window():
     size_domain = 2
     error = []
-    for M in (20, 41):
+    for M in (8, 17):
         T = 1
         nu = 1e-1
         r = 0.#1e-1
         LAMBDA=0.
-        dt = .001
+        dt = .0001
         N = int(T/dt)
-        atmo_integrator = AtmospherePadeFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
+        atmo_integrator = AtmosphereBEFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
         h = atmo_integrator.h
 
         x_u = np.linspace(0,size_domain, M)
@@ -133,10 +132,10 @@ def linear_test():
         T = 1
         nu = 1e-1
         r = 1e-1j
-        dt = .01
+        dt = .001
         LAMBDA=1e8
         N = int(T/dt)
-        atmo_integrator = AtmospherePadeFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
+        atmo_integrator = AtmosphereBEFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
         h = atmo_integrator.h
 
         x_u = np.linspace(0,size_domain, M)
@@ -157,7 +156,7 @@ def linear_test():
                     interface_robin=interface_robin, forcing=forcing, boundary=(0,0,0))
         error += [np.linalg.norm(u_real(x=x_u, t=N*dt) - u_n)/np.sqrt(M-1)]
     for err in error:
-        assert abs(err - 0.0063) < 1e-3
+        assert abs(err - 0.04) < 1e-2
 
     error = []
     for dt in (0.1, 0.05):
@@ -166,7 +165,7 @@ def linear_test():
         nu = 1e-1
         r = 1j*1e-1
         N = int(T/dt)
-        atmo_integrator = AtmospherePadeFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
+        atmo_integrator = AtmosphereBEFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
         h = atmo_integrator.h
 
         x_u = np.linspace(0,size_domain, M)
@@ -186,19 +185,19 @@ def linear_test():
             u_n, phi_n = atmo_integrator.integrate_in_time(diagnosed=phi_n, prognosed=u_n,
                     interface_robin=interface_robin, forcing=forcing, boundary=(0,0,0))
         error += [np.linalg.norm(u_real(x=x_u, t=N*dt) - u_n)/np.sqrt(M-1)]
-    assert abs(4. - error[0]/error[1]) < 0.4 # divided dt by 2, dividing error by ~4
+    assert abs(2. - error[0]/error[1]) < 0.4 # divided dt by 2, dividing error by ~4
 
 def sinus_test():
     size_domain = 2
     error = []
-    for M in (20, 41):
+    for M in (8, 17):
         T = 1
         nu = 1e-1
         r = 0.#1e-1
         LAMBDA=0.
-        dt = .001
+        dt = .0001
         N = int(T/dt)
-        atmo_integrator = AtmospherePadeFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
+        atmo_integrator = AtmosphereBEFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=0)
         h = atmo_integrator.h
 
         x_u = np.linspace(0,size_domain, M)
@@ -231,20 +230,20 @@ def sinus_test():
 def sinus_test_large_window_kc1():
     size_domain = 2
     error = []
-    for M in (20, 41):
+    for M in (8, 17):
         T = 1
         nu = 1e-1
         r = 0.#1e-1
         LAMBDA=0.
-        dt = .001
+        dt = .0001
         N = int(T/dt)
-        atmo_integrator = AtmospherePadeFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=1)
+        atmo_integrator = AtmosphereBEFD(r=r, nu=nu, M=M, SIZE_DOMAIN=size_domain, LAMBDA=LAMBDA, DT=dt, K_c=1)
         h = atmo_integrator.h
 
         x_u = np.linspace(0,size_domain, M)
         x_phi = np.linspace(h/2,size_domain - h/2, M - 1)
 
-        # we choose u to be cos (x+t).
+        # we choose u to be sin(H-x) cos (t).
         def u_real(x,t):
             return np.sin(size_domain - x)*np.cos(t)
         def phi_real(x,t): # du / dx
