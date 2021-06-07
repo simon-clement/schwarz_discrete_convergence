@@ -23,6 +23,8 @@ class AtmospherePadeFD():
         return self.M
 
     def interface_values(self, prognosed, diagnosed, overlap):
+        if self.k_c == 1:
+            raise
         u_interface = prognosed[overlap]
         phi_interface = diagnosed[overlap]
         return u_interface, phi_interface
