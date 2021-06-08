@@ -96,7 +96,7 @@ class OceanBEFD():
             derivative[-1] += self.h/2 * self.k_c/nu * derivative_u0
             u_current = u_next
 
-        return solution, derivative
+        return np.array(solution), np.array(derivative)
 
     def integrate_in_time(self, prognosed, diagnosed, interface_robin, forcing, boundary):
         """

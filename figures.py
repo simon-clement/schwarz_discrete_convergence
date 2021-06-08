@@ -38,7 +38,7 @@ REAL_FIG = True
 
 def fig_introDiscreteAnalysis():
     setting = Builder()
-    N = 10000
+    N = 1000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)

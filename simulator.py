@@ -109,36 +109,13 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
     # Beginning of schwarz iterations:
     for k in range(NUMBER_IT+1):
         # integration in time of the atmosphere model:
-        diagnosed = np.zeros(atmosphere.M - 1)
-        prognosed = np.zeros(atmosphere.M)
+        sol_atm, deriv_atm = atmosphere.integrate_large_window(interface=interface_ocean)
+        interface_atm = relaxation * (p1*sol_atm + atmosphere.nu * deriv_atm) + \
+                    (1 - relaxation) * relaxing_ocean
 
-        interface_atm = [0]
-        for n in range(1, N_atm+1):
-            robin = give_tuple_star(interface_ocean[n-1], interface_ocean[n], interface_ocean[(n+1)%(N_atm+1)])
-            forcing = give_tuple_star(f_atm((n-1)*atmosphere.dt), f_atm(n*atmosphere.dt), f_atm((n+1)*atmosphere.dt))
-            prognosed, diagnosed = atmosphere.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,
-                    interface_robin=robin, forcing=forcing, boundary=(0,0,0))
-
-            u_interface, phi_interface = atmosphere.interface_values(prognosed, diagnosed, overlap)
-            interface_atm += [relaxation*(p1*u_interface + atmosphere.nu*phi_interface) \
-                    + (1 - relaxation) * relaxing_ocean[n]]
-
-        # integration in time of the ocean model:
-        diagnosed = np.zeros(ocean.M - 1)
-        prognosed = np.zeros(ocean.M)
-
-        interface_ocean = [0]
-        relaxing_ocean = [0]
-
-        for n in range(1, N_ocean+1):
-            robin = give_tuple_star(interface_atm[n-1], interface_atm[n], interface_atm[(n+1)%(N_ocean+1)])
-            forcing = give_tuple_star(f_ocean((n-1)*ocean.dt), f_ocean((n)*ocean.dt), f_ocean((n+1)*ocean.dt))
-            prognosed, diagnosed = ocean.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,
-                    interface_robin=robin, forcing=forcing, boundary=(0., 0., 0.))
-            u_interface, phi_interface = ocean.interface_values(prognosed, diagnosed, overlap)
-            interface_ocean += [p2*u_interface + ocean.nu * phi_interface]
-            relaxing_ocean += [p1*u_interface + ocean.nu*phi_interface]
-
+        sol_ocean, deriv_ocean = ocean.integrate_large_window(interface=interface_atm)
+        interface_ocean = p2 * sol_ocean + ocean.nu * deriv_ocean
+        relaxing_ocean = p1 * sol_ocean + ocean.nu * deriv_ocean
         all_interface_atm += [interface_atm]
 
     return np.array(all_interface_atm)

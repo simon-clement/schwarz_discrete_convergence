@@ -26,7 +26,7 @@ class OceanPadeFD():
             from cv_factor_pade import rho_Pade_FD_corr1
             self.discrete_rate = rho_Pade_FD_corr1
         self.gamma_start = GAMMA_START
-        self.gamma_coefs = np.array(GAMMA_COEFFS)
+        self.gamma_coefs = tuple(GAMMA_COEFFS) # tuples can be compared easily
 
     def size_u(self):
         return self.M
@@ -72,7 +72,7 @@ class OceanPadeFD():
         h, dt, nu = self.h, self.dt, self.nu
         N = interface.shape[0] - 1
         tilde_p = self.Lambda
-        gcoefs = self.gamma_coefs
+        gcoefs = np.array(self.gamma_coefs)
         gorder = gcoefs.shape[0]
         gstart = self.gamma_start
         Y_FD = np.vstack((np.concatenate(([1e100], np.zeros(self.M-1))),#up_diag
@@ -136,7 +136,7 @@ class OceanPadeFD():
 
         if DEBUG_LAST_VAL:
             return u_next
-        return solution, derivative
+        return np.array(solution), np.array(derivative)
 
     def integrate_in_time(self, prognosed, diagnosed, interface_robin, forcing, boundary):
         """

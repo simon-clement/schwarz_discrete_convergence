@@ -101,7 +101,7 @@ class OceanBEFV():
             phi_current = phi_next
             u_current = u_next
 
-        return solution, derivative
+        return np.array(solution), np.array(derivative)
 
     def integrate_in_time(self, prognosed, diagnosed, interface_robin, forcing, boundary):
         """

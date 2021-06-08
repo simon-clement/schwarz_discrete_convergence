@@ -21,7 +21,7 @@ class OceanPadeFV():
         from cv_factor_pade import rho_Pade_FV
         self.discrete_rate = rho_Pade_FV
         self.gamma_start = GAMMA_START
-        self.gamma_coefs = np.array(GAMMA_COEFFS)
+        self.gamma_coefs = tuple(GAMMA_COEFFS)
 
     def size_u(self):
         return self.M - 1
@@ -68,7 +68,7 @@ class OceanPadeFV():
         h, dt, nu = self.h, self.dt, self.nu
         N = interface.shape[0] - 1
         tilde_p = self.Lambda
-        gcoefs = self.gamma_coefs
+        gcoefs = np.array(self.gamma_coefs)
         gorder = gcoefs.shape[0]
         gstart = self.gamma_start
         Y_FV = 1/6*np.vstack((np.concatenate(([1e100, tilde_p], np.ones(self.M-2))),#up_diag
@@ -134,7 +134,7 @@ class OceanPadeFV():
 
         if DEBUG_LAST_VAL:
             return u_next
-        return solution, derivative
+        return np.array(solution), np.array(derivative)
 
     def integrate_in_time(self, prognosed, diagnosed, interface_robin, forcing, boundary):
         """
