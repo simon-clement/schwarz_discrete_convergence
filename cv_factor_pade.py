@@ -211,36 +211,57 @@ def DNWR_Pade_c(builder, w, theta, gamma=default_gamma):
             * nu_1/nu_2 *(sigma_1*(1-gamma_t) + sigma_3*gamma_t)
     return rho
 
-def DNWR_Pade_FD(builder, w, theta, gamma=default_gamma):
+def DNWR_Pade_FD(builder, w, theta, k_c=1, gamma=default_gamma):
     nu_1 = builder.D1
     nu_2 = builder.D2
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
+    dt, r = builder.DT, builder.R
+    a, b = 1+np.sqrt(2), 1+1/np.sqrt(2)
+
+    def get_z_s(w):
+        z = np.exp(-1j*w*dt)
+        return z, (z - 1)/(z*dt)
+
+    def square_root_interior(w):
+        z, s = get_z_s(w)
+        return 1j*np.sqrt(-1*(1+(a*dt*s)**2 - (a**2+1)*dt*s))
+
+    def sigma_plus(w, nu):
+        z, s = get_z_s(w)
+        return np.sqrt(1+a*dt*s +a**2*dt*r + square_root_interior(w))/(a*np.sqrt(dt*nu))
+
+    def sigma_minus(w, nu):
+        z, s = get_z_s(w)
+        return np.sqrt(1+a*dt*s +a**2*dt*r - square_root_interior(w))/(a*np.sqrt(dt*nu))
     lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w, gamma=gamma)
 
-    # naive interface:
-    eta_22 = nu_2 * (lambda_2-1)/h
-    eta_24 = nu_2 * (lambda_4-1)/h
-    eta_11 = nu_1 * (1-lambda_1)/h
-    eta_13 = nu_1 * (1-lambda_3)/h
+    z = np.exp(-1j*w*dt)
+    mu_2 = z*(1 + r*dt*b - b*dt*nu_2/h**2*(lambda_2 - 2 + 1/lambda_2))
+    mu_4 = z*(1 + r*dt*b - b*dt*nu_2/h**2*(lambda_4 - 2 + 1/lambda_4))
+    eta2_star = nu_2/h * (b*mu_2-a)*(lambda_2 - 1) - h/2 * k_c*((1+b*r*dt)*mu_2 - 1 - a*r*dt) / dt
+    eta4_star = nu_2/h * (b*mu_4-a)*(lambda_4 - 1) - h/2 * k_c*((1+b*r*dt)*mu_4 - 1 - a*r*dt) / dt
+    eta2 = nu_2 / h * (lambda_2 - 1) - h/2 * k_c*(1+r*b*dt - mu_2/z) / dt / b
+    eta4 = nu_2 / h * (lambda_4 - 1) - h/2 * k_c*(1+r*b*dt - mu_4/z) / dt / b
 
-    # RR:
-    varrho = 1 - theta + theta * ((1-gamma_t2)/eta_22 + gamma_t2/eta_24) * \
-             (eta_11 * (1-gamma_t1) + eta_13 * gamma_t1)
+    first_part_with_eta = (eta2*(b*gamma(z) - a) - eta2_star) \
+            / (eta2 * eta4_star - eta2_star * eta4)
+    # should be equiv to (b*gamma-a) gamma_t2/sig4 of s-d time in low freq
+    second_part_with_eta = (eta4_star - eta4*(b*gamma(z)-a)) \
+            / (eta2 * eta4_star - eta2_star * eta4)
+    # equiv to (1-gamma_t2)/sig2 of s-d time in low freq
 
+    varrho = 1 - theta + theta* (first_part_with_eta + second_part_with_eta) * \
+            (nu_1*(1 - (1 - gamma_t1)*lambda_1 - lambda_3*gamma_t1)/h + \
+            k_c*h * (z**2 + 2*z*r*dt - 1)/(4*z*dt))
     return varrho
 
-def rho_Pade_FD_corr1(builder, w, gamma=default_gamma, overlap_M=0):
-    """ avoid using ! """
-    L1 = builder.LAMBDA_1
-    L2 = builder.LAMBDA_2
-    nu_1 = builder.D1
-    nu_2 = builder.D2
-    dt = builder.DT
+def rho_Pade_FD(builder, w, gamma=default_gamma, k_c=1, overlap_M=0):
+    p1, p2 = builder.LAMBDA_1, builder.LAMBDA_2
+    nu_1, nu_2 = builder.D1, builder.D2
+    dt, r = builder.DT, builder.R
     z = np.exp(-1j*w*dt)
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-    r = builder.R
-    b = 1 + 1/np.sqrt(2)
-    a = 1 + np.sqrt(2)
+    a, b = 1+np.sqrt(2), 1 + 1/np.sqrt(2)
 
     lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w, gamma=gamma)
 
@@ -252,60 +273,25 @@ def rho_Pade_FD_corr1(builder, w, gamma=default_gamma, overlap_M=0):
     mu_3 = mu_FD(nu_1, lambda_3)
     mu_4 = mu_FD(nu_2, lambda_4)
 
-    # naive interface:
-    eta_22 = nu_2 * (lambda_2-1)/h
-    eta_24 = nu_2 * (lambda_4-1)/h
-    eta_11 = nu_1 * (1-lambda_1)/h
-    eta_13 = nu_1 * (1-lambda_3)/h
+    varsigma_1 = nu_1*(1-lambda_1)/h + p1 + k_c* h/2 * ((1 - mu_1/z) / dt / b + r)
+    varsigma_3 = nu_1*(1-lambda_3)/h + p1 + k_c*h/2 * ((1 - mu_3/z) / dt / b + r)
+    varsigma_2 = nu_2*(lambda_2 - 1)/h + p2 - k_c*h/2 * ((1 - mu_2/z) / dt / b + r)
+    varsigma_4 = nu_2*(lambda_4 - 1)/h + p2 - k_c*h/2 * ((1 - mu_4/z) / dt / b + r)
 
-    #is always the same h, and not h and -h !
-    # the sign is taken into account in the matrix inversion.
+    varsigma_1_star = (nu_1*(1-lambda_1)/h + p1 + k_c*h*r/2)*(b*mu_1 - a) + k_c*h / 2 * (mu_1 - 1)/dt
+    varsigma_3_star = (nu_1*(1-lambda_3)/h + p1 + k_c*h*r/2)*(b*mu_3 - a) + k_c*h / 2 * (mu_3 - 1)/dt
+    varsigma_2_star = (nu_2*(lambda_2-1)/h + p2 - k_c*h*r/2)*(b*mu_2 - a) - k_c*h / 2 * (mu_2 - 1)/dt
+    varsigma_4_star = (nu_2*(lambda_4-1)/h + p2 - k_c*h*r/2)*(b*mu_4 - a) - k_c*h / 2 * (mu_4 - 1)/dt
+    g1 = (nu_1*(1-lambda_1)/h + k_c*h/2*((z**2 - 1)/(2*z*dt)+r) + p2, nu_1*(1-lambda_3)/h + k_c*h/2*((z**2 - 1)/(2*z*dt)+r) + p2)
+    g2 = (nu_2*(lambda_2-1)/h - k_c*h/2*((z**2 - 1)/(2*z*dt) + r) + p1, nu_2*(lambda_4-1)/h - k_c*h/2*((z**2 - 1)/(2*z*dt)+r) + p1)
 
-    zeta_11 = nu_1 * (b*mu_1 - a) * (lambda_1 - 1) / h - h / 2 * ((mu_1 - 1) / dt + r*(b*mu_1 - a))
-    zeta_12 = nu_2 * (b*mu_2 - a) * (lambda_2 - 1) / h - h / 2 * ((mu_2 - 1) / dt + r*(b*mu_2 - a))
-    zeta_13 = nu_1 * (b*mu_3 - a) * (lambda_3 - 1) / h - h / 2 * ((mu_3 - 1) / dt + r*(b*mu_3 - a))
-    zeta_14 = nu_2 * (b*mu_4 - a) * (lambda_4 - 1) / h - h / 2 * ((mu_4 - 1) / dt + r*(b*mu_4 - a))
+    first_term = (g1[0] * (varsigma_3_star - varsigma_3*(b*gamma(z)-a)) + g1[1] * (varsigma_1 * (b*gamma(z)-a) - varsigma_1_star)) \
+                     / (varsigma_3_star*varsigma_1 - varsigma_1_star*varsigma_3)
 
-    zeta_21 = nu_1 * (lambda_1 - 1) / h - h / 2 * ((z - mu_1) / (z*b*dt) + r)
-    zeta_22 = nu_2 * (lambda_2 - 1) / h - h / 2 * ((z - mu_2) / (z*b*dt) + r)
-    zeta_23 = nu_1 * (lambda_3 - 1) / h - h / 2 * ((z - mu_3) / (z*b*dt) + r)
-    zeta_24 = nu_2 * (lambda_4 - 1) / h - h / 2 * ((z - mu_4) / (z*b*dt) + r)
+    second_term =(g2[0] * (varsigma_4_star - varsigma_4*(b*gamma(z)-a)) + g2[1] * (varsigma_2 * (b*gamma(z)-a) - varsigma_2_star)) \
+                     / (varsigma_4_star*varsigma_2 - varsigma_2_star*varsigma_4)
 
-
-    psi_11 = nu_1 * (b*gamma(z) - a) *(1 - lambda_1) / h + h/2 * ((gamma(z) - 1)/dt + r*(b*gamma(z) - a))
-    psi_12 = nu_2 * (b*gamma(z) - a) *(1 - lambda_2) / h + h/2 * ((gamma(z) - 1)/dt + r*(b*gamma(z) - a))
-    psi_13 = nu_1 * (b*gamma(z) - a) *(1 - lambda_3) / h + h/2 * ((gamma(z) - 1)/dt + r*(b*gamma(z) - a))
-    psi_14 = nu_2 * (b*gamma(z) - a) *(1 - lambda_4) / h + h/2 * ((gamma(z) - 1)/dt + r*(b*gamma(z) - a))
-
-    psi_21 = nu_1 * (1 - lambda_1) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
-    psi_22 = nu_2 * (1 - lambda_2) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
-    psi_23 = nu_1 * (1 - lambda_3) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
-    psi_24 = nu_2 * (1 - lambda_4) / h + h/2 * ((z - gamma(z))/(z*b*dt) + r)
-
-    overl1, overl3 = lambda_1**overlap_M, lambda_3**overlap_M
-    overl2, overl4 = lambda_2**overlap_M, lambda_4**overlap_M
-    #warning of the axis: matrices of arrays...
-    bold_psi1 = np.array( [ [(psi_11 + L1 * (b*gamma(z)-a))*overl1, (psi_13 + L1 * (b*gamma(z)-a))*overl3],
-            [(psi_21 + L1)*overl1, (psi_23 + L1)*overl3]])
-    # The index on bold matrix is for L1 or L2
-    bold_psi2 = np.array([
-            [(-psi_12 + L2 * (b*gamma(z)-a))*overl2, (- psi_14 + L2 * (b*gamma(z)-a))*overl4],
-            [(- psi_22 + L2)*overl2, (-psi_24 + L2)*overl4]])
-
-    bold_zeta1 = np.array(
-        [[zeta_12 + L1 * (b*mu_2-a), zeta_14 + L1 * (b*mu_4-a)],
-        [zeta_22 + L1, zeta_24 + L1]])
-    bold_zeta2 = np.array(
-        [[-zeta_11 + L2 * (b*mu_1-a), -zeta_13 + L2 * (b*mu_3-a)],
-        [-zeta_21 + L2, -zeta_23 + L2]])
-
-    bold_zeta1 = bold_zeta1.transpose((2,0,1))
-    bold_zeta2 = bold_zeta2.transpose((2,0,1))
-    bold_psi1 = bold_psi1.transpose((2,0,1))
-    bold_psi2 = bold_psi2.transpose((2,0,1))
-    print("warning: this convergence rate was not tested")
-    ret = np.linalg.inv(bold_zeta2) @ bold_psi1 @ np.linalg.inv(bold_zeta1) @ bold_psi2
-    return np.linalg.eig(ret)[0].transpose() # returns couple of two arrays of eigenvalues
+    return first_term * second_term
 
 def select_small_modulus(lam1, lam2, lam3, lam4):
     """
@@ -431,6 +417,9 @@ def lambda_gamma_Pade_FD(builder, w, gamma=default_gamma):
     lambda_2 = lambda_mp(w, nu_2) # mais faudrait utiliser partout lambda_1^{-1} au lieu
     lambda_3 = lambda_pm(w, nu_1) # de lambda_1. Ca vaut pas vraiment le coup
     lambda_4 = lambda_pm(w, nu_2)
+    z = get_z(w)
+    #assert (np.linalg.norm(lambda_2**2 * (z-1) + (Gamma(a, nu_2) - 2*z*Gamma(b, nu_2))*lambda_2 * (lambda_2-1)**2 + z*Gamma(b, nu_2)**2*(lambda_2-1)**4)) < 1e-10
+    #assert (np.linalg.norm(lambda_4**2 * (z-1) + (Gamma(a, nu_2) - 2*z*Gamma(b, nu_2))*lambda_4 * (lambda_4-1)**2 + z*Gamma(b, nu_2)**2*(lambda_4-1)**4)) < 1e-10
 
     def mu_FD(w, nu_i, lambda_i):
         z = get_z(w)

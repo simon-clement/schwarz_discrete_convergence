@@ -20,11 +20,8 @@ class OceanPadeFD():
         assert abs(K_c)<1e-10 or abs(K_c - 1) < 1e-10
         self.k_c = 0 if abs(K_c) < 1e-10 else 1
         self.h = SIZE_DOMAIN / (M - 1)
-        from cv_factor_pade import rho_Pade_FD_corr0
-        self.discrete_rate = rho_Pade_FD_corr0
-        if self.k_c == 1:
-            from cv_factor_pade import rho_Pade_FD_corr1
-            self.discrete_rate = rho_Pade_FD_corr1
+        from cv_factor_pade import rho_Pade_FD
+        self.discrete_rate = rho_Pade_FD
         self.gamma_start = GAMMA_START
         self.gamma_coefs = tuple(GAMMA_COEFFS) # tuples can be compared easily
 
@@ -127,7 +124,7 @@ class OceanPadeFD():
                 # slight modification of previous derivative:
                 # 2nd order centered scheme for time derivative in corrective term:
                 derivative_u0 = self.r*solution[-2] + (solution[-1] - solution[-3])/(2*dt)
-                derivative[0] += self.h/2 *self.k_c/nu * derivative_u0
+                derivative[-2] += self.h/2 *self.k_c/nu * derivative_u0
 
         # 2nd order off centered scheme for time derivative in corrective term:
         derivative_last_u0 = self.r*solution[-1] + \

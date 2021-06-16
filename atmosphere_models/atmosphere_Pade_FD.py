@@ -64,10 +64,10 @@ class AtmospherePadeFD():
         initial_diagnostic = np.zeros(self.M-1) if initial_diagnostic is None else initial_diagnostic
         forcing = (lambda _: np.zeros(self.M)) if forcing is None else forcing
         boundary = np.zeros_like(interface) if boundary is None else boundary
-        Gamma = self.nu * self.dt / self.h**2
         R = self.r * self.dt
         b = 1+1/np.sqrt(2)
         h, dt, nu = self.h, self.dt, self.nu
+        Gamma = nu * dt / h**2
         N = interface.shape[0] - 1
         tilde_p = -self.Lambda
         gcoefs = np.array(self.gamma_coefs)
