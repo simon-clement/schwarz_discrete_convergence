@@ -4,15 +4,14 @@
     provide functions to observe real convergence rate.
 """
 from numpy import sqrt, exp
-k_c = 1
 
 #########################################################################
 # THEORIC PART : RETURN RATES YIELDED BY ANALYSIS IN FREQUENTIAL DOMAIN #
 #########################################################################
 
-def rho_c_c(builder, w, overlap_L=0, continuous_interface_op=True):
+def rho_c_c(builder, w, overlap_L=0, continuous_interface_op=True, k_c=None):
     return rho_s_c(builder, 1j*w,1j*w, overlap_L=overlap_L,
-            continuous_interface_op=continuous_interface_op)
+            w=w, continuous_interface_op=continuous_interface_op, k_c=k_c)
 
 def rho_BE_c(builder, w, overlap_L=0):
     return rho_s_c(builder, BE_s(builder.DT, w),BE_s(builder.DT, w), overlap_L=overlap_L)
@@ -20,23 +19,23 @@ def rho_BE_c(builder, w, overlap_L=0):
 def rho_BE_FV(builder, w, overlap_M=0):
     return rho_s_FV(builder, BE_s(builder.DT, w),BE_s(builder.DT, w), overlap_M=overlap_M)
 
-def rho_BE_FD(builder, w, k_c=1, overlap_M=0):
+def rho_BE_FD(builder, w, k_c, overlap_M=0):
     return rho_s_FD(builder, BE_s(builder.DT, w),BE_s(builder.DT, w), k_c, overlap_M=overlap_M)
 
 def rho_c_FV(builder, w, overlap_M=0):
     return rho_s_FV(builder, 1j*w,1j*w, overlap_M=overlap_M)
 
-def rho_c_FD(builder, w, k_c=1, overlap_M=0):
+def rho_c_FD(builder, w, k_c, overlap_M=0):
     return rho_s_FD(builder, 1j*w,1j*w, k_c, overlap_M=overlap_M)
 
 def DNWR_c_c(builder, w, theta):
     return DNWR_s_c(builder, 1j*w,1j*w, theta)
 
-def DNWR_c_FD(builder, w, theta):
-    return DNWR_s_FD(builder, 1j*w,1j*w, theta)
+def DNWR_c_FD(builder, w, theta, k_c):
+    return DNWR_s_FD(builder, 1j*w,1j*w, theta, k_c=k_c)
 
-def DNWR_BE_FD(builder, w, theta):
-    return DNWR_s_FD(builder, BE_s(builder.DT, w),BE_s(builder.DT, w), theta)
+def DNWR_BE_FD(builder, w, theta, k_c):
+    return DNWR_s_FD(builder, BE_s(builder.DT, w),BE_s(builder.DT, w), theta, k_c=k_c)
 
 def DNWR_BE_c(builder, w, theta):
     return DNWR_s_c(builder, BE_s(builder.DT, w),BE_s(builder.DT, w), theta)
@@ -50,7 +49,7 @@ def rho_RR(eta_1_dir,eta_1_neu, eta_2_dir, eta_2_neu, p1, p2):
     return (eta_2_neu + p1*eta_2_dir) / (eta_1_neu + p1*eta_1_dir) \
             * (eta_1_neu + p2*eta_1_dir) / (eta_2_neu + p2*eta_2_dir)
 
-def rho_s_c(builder, s_1, s_2, overlap_L, k_c=1, continuous_interface_op=True):
+def rho_s_c(builder, s_1, s_2, overlap_L, w=None, k_c=None, continuous_interface_op=True):
     h = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
     assert abs(h - builder.SIZE_DOMAIN_2 / (builder.M2 - 1)) < 1e-10
     sigma1 = sqrt((builder.R + s_1)/builder.D1)
@@ -58,8 +57,14 @@ def rho_s_c(builder, s_1, s_2, overlap_L, k_c=1, continuous_interface_op=True):
     if continuous_interface_op:
         eta_1_neu, eta_2_neu = builder.D1 * sigma1, -builder.D2 * sigma2
     else:
-        eta_1_neu = builder.D1 * (1 - exp(-h*sigma1))/h + k_c*h/2 * (builder.R+s_1)
-        eta_2_neu = builder.D2 * (exp(-h*sigma2) - 1)/h - k_c*h/2 * (builder.R+s_2)
+        if w is None:
+            print("using wrong frequency for corrective term !")
+            w = -1j*(s_1+s_2)/2
+        if k_c is None:
+            print("YOU FORGOT k_c")
+            raise
+        eta_1_neu = builder.D1 * (1 - exp(-h*sigma1))/h + k_c*h/2 * (builder.R+1j*w)
+        eta_2_neu = builder.D2 * (exp(-h*sigma2) - 1)/h - k_c*h/2 * (builder.R+1j*w)
     overlap_term = exp(-overlap_L * (sigma1 + sigma2))
     return overlap_term * rho_RR(eta_1_dir=1, eta_1_neu=eta_1_neu,
             eta_2_dir=1, eta_2_neu=eta_2_neu,
@@ -94,18 +99,16 @@ def rho_s_FV(builder, s_1, s_2, overlap_M):
             eta_2_dir=eta_2_dir, eta_2_neu=eta_2_neu,
             p1=builder.LAMBDA_1, p2=builder.LAMBDA_2)
 
-def DNWR_s_FD(builder, s_1, s_2, theta):
+def DNWR_s_FD(builder, s_1, s_2, theta, k_c):
     h1 = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
     h2 = builder.SIZE_DOMAIN_2 / (builder.M2 - 1)
-    chi_1 = h1**2 * (builder.R + s_1) / builder.D1
-    chi_2 = h2**2 * (builder.R + s_2) / builder.D2
-    lam1 = (chi_1 - sqrt(chi_1)*sqrt(chi_1 + 4))/2
-    lam2 = (chi_2 - sqrt(chi_2)*sqrt(chi_2 + 4))/2
-    assert k_c == 1
-    return 1 - theta - theta * sqrt(builder.D1 / builder.D2) \
-            * sqrt((chi_1+2)/(chi_2+2))
+    chi_1 = h1**2 * (builder.R + s_1) / (2*builder.D1)
+    chi_2 = h2**2 * (builder.R + s_2) / (2*builder.D2)
+    return 1 - theta + theta*builder.D1 / builder.D2 * \
+            (chi_1*(k_c-1) + sqrt(chi_1)*sqrt(chi_1+2))/ \
+            (chi_2*(1-k_c) - sqrt(chi_2)*sqrt(chi_2+2))
 
-def DNWR_s_c(builder, s_1, s_2, theta, continuous_interface_op=True):
+def DNWR_s_c(builder, s_1, s_2, theta, k_c=None, w=None, continuous_interface_op=True):
     sigma1 = sqrt((builder.R+s_1)/builder.D1)
     sigma2 = sqrt((builder.R+s_2)/builder.D2)
     h = builder.SIZE_DOMAIN_1 / (builder.M1 - 1)
@@ -114,8 +117,14 @@ def DNWR_s_c(builder, s_1, s_2, theta, continuous_interface_op=True):
         # here eta_neu stands for the derivative, not the flux
         eta_1_neu, eta_2_neu = sigma1, -sigma2
     else:
-        eta_1_neu = (1 - exp(-h*sigma1))/h + k_c*h/2 * (builder.R+s_1)/builder.D1
-        eta_2_neu = (exp(-h*sigma2) - 1)/h - k_c*h/2 * (builder.R+s_2)/builder.D2
+        if w is None:
+            print("using wrong frequency for corrective term !")
+            w = -1j*(s_1+s_2)/2
+        if k_c is None:
+            print("Please specify k_c")
+            raise
+        eta_1_neu = (1 - exp(-h*sigma1))/h + k_c*h/2 * (builder.R+1j*w)/builder.D1
+        eta_2_neu = (exp(-h*sigma2) - 1)/h - k_c*h/2 * (builder.R+1j*w)/builder.D2
 
     return 1 - theta + theta * eta_1_neu/eta_2_neu * builder.D1 / builder.D2
 

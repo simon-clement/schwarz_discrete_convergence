@@ -92,28 +92,6 @@ def rho_Pade_FV(builder, w, gamma=default_gamma, overlap_M=0):
     cv_rate = matrix_transition[:,0,0] + gamma(z) * matrix_transition[:,0,1]
     return cv_rate
 
-def rho_Pade_FD_corr0(builder, w, gamma=default_gamma, overlap_M=0):
-    L1 = builder.LAMBDA_1
-    L2 = builder.LAMBDA_2
-    nu_1 = builder.D1
-    nu_2 = builder.D2
-    h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
-    lambda_1, lambda_2, lambda_3, lambda_4, gamma_t1, gamma_t2 = lambda_gamma_Pade_FD(builder, w, gamma=gamma)
-
-    # naive interface:
-    eta_22 = nu_2 * (lambda_2-1)/h
-    eta_24 = nu_2 * (lambda_4-1)/h
-    eta_11 = nu_1 * (1-lambda_1)/h
-    eta_13 = nu_1 * (1-lambda_3)/h
-
-    # RR:
-    varrho = ((L1 + eta_22)/(L2 + eta_22) * (1-gamma_t2) * lambda_2**overlap_M + \
-             (L1 + eta_24)/(L2 + eta_24) * (gamma_t2) * lambda_4**overlap_M) * \
-             ((L2 + eta_11)/(L1 + eta_11) * (1-gamma_t1) * lambda_1**overlap_M + \
-             (L2 + eta_13)/(L1 + eta_13) * (gamma_t1) * lambda_3**overlap_M)
-
-    return np.abs(varrho)
-
 def rho_Pade_c(builder, w, gamma=default_gamma, overlap_L=0.):
     a = 1+np.sqrt(2)
     b = 1+1/np.sqrt(2)
@@ -151,11 +129,10 @@ def rho_Pade_c(builder, w, gamma=default_gamma, overlap_L=0.):
 
     z, s = get_z_s(w)
     mu_1 = z*(1 + r*dt*b - b*dt*nu_1*sigma_1**2)
-    mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2)
+    # mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2) # mu_2==mu_1
     mu_3 = z*(1 + r*dt*b - b*dt*nu_1*sigma_3**2)
-    mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
-    assert (np.linalg.norm(mu_1 - mu_2) < 1e-10) # mu_1 == mu_2
-    assert (np.linalg.norm(mu_3 - mu_4) < 1e-10) # mu_3 == mu_4
+    # mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2) # mu_4==mu_3
+
     gamma_t = (mu_1 - gamma(z))/(mu_1 - mu_3)
 
     L = overlap_L
@@ -204,14 +181,12 @@ def DNWR_Pade_c(builder, w, theta, gamma=default_gamma):
     mu_2 = z*(1 + r*dt*b - b*dt*nu_2*sigma_2**2)
     mu_3 = z*(1 + r*dt*b - b*dt*nu_1*sigma_3**2)
     mu_4 = z*(1 + r*dt*b - b*dt*nu_2*sigma_4**2)
-    assert (np.linalg.norm(mu_1 - mu_2) < 1e-10) # mu_1 == mu_2
-    assert (np.linalg.norm(mu_3 - mu_4) < 1e-10) # mu_3 == mu_4
     gamma_t = (mu_1 - gamma(z))/(mu_1 - mu_3)
     rho = 1 - theta + theta * ((1-gamma_t)/sigma_2 + gamma_t/sigma_4) \
             * nu_1/nu_2 *(sigma_1*(1-gamma_t) + sigma_3*gamma_t)
     return rho
 
-def DNWR_Pade_FD(builder, w, theta, k_c=1, gamma=default_gamma):
+def DNWR_Pade_FD(builder, w, theta, k_c, gamma=default_gamma):
     nu_1 = builder.D1
     nu_2 = builder.D2
     h = builder.SIZE_DOMAIN_1 / (builder.M1-1)
@@ -255,7 +230,7 @@ def DNWR_Pade_FD(builder, w, theta, k_c=1, gamma=default_gamma):
             k_c*h * (z**2 + 2*z*r*dt - 1)/(4*z*dt))
     return varrho
 
-def rho_Pade_FD(builder, w, gamma=default_gamma, k_c=1, overlap_M=0):
+def rho_Pade_FD(builder, w, k_c, gamma=default_gamma, overlap_M=0):
     p1, p2 = builder.LAMBDA_1, builder.LAMBDA_2
     nu_1, nu_2 = builder.D1, builder.D2
     dt, r = builder.DT, builder.R
