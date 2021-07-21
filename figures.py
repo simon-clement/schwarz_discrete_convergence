@@ -290,6 +290,8 @@ def fig_dependency_maxrho_combined():
     ax.set_xlabel(r"$\theta$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("DNWR")
+    print("thetas: continuous: {}, discrete :{}, combined:{}, s-d space:{}, s-d time:{}".format(*all_theta[minima_indices]))
+    print("rho_DNWR: continuous: {}, discrete :{}, combined:{}, s-d space:{}, s-d time:{}".format(*np.array(discrete)[minima_indices]))
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
     def maxrho(func, p, **kwargs):
@@ -321,6 +323,9 @@ def fig_dependency_maxrho_combined():
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title(r"$RR$")
+
+    print("p1: continuous: {}, discrete :{}, combined:{}, s-d space:{}, s-d time:{}".format(*all_p1[minima_indices]))
+    print("rho_RR: continuous: {}, discrete :{}, combined:{}, s-d space:{}, s-d time:{}".format(*np.array(discrete)[minima_indices]))
 
     # ax = axes[1, 0]
     # overlap_M = 1
@@ -400,6 +405,8 @@ def fig_dependency_maxrho_modified():
     # ax.hlines(y=discrete[minima_indices], xmin=xmin, xmax=xmax,
     #         colors=col_minimas, linestyle='dashed')
     ax.set_title("DNWR")
+    print("thetas: s-d space: {}, continuous :{}, modified:{}".format(*all_theta[minima_indices]))
+    print("rho_DNWR: s-d space: {}, continuous :{}, modified:{}".format(*np.array(discrete)[minima_indices]))
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
     ax = axes[0]
@@ -427,6 +434,8 @@ def fig_dependency_maxrho_modified():
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title(r"$RR$")
+    print("p1: s-d space: {}, continuous :{}, modified:{}".format(*all_p1[minima_indices]))
+    print("rho_RR: s-d space: {}, continuous :{}, modified:{}".format(*np.array(discrete)[minima_indices]))
 
     # ax = axes[1, 0]
     # all_p1 = np.linspace(0.09,.1,300)
@@ -693,11 +702,11 @@ def fig_combinedRate():
     from scipy.optimize import minimize_scalar
     theta = minimize_scalar(fun=to_minimize_Pade_DNWR).x
 
-    ax.semilogx(w, np.abs(DNWR_Pade_FD(setting, w, theta, k_c=k_c)), label=r"$\rho^{\rm (Pade, FD)}$", color=col_discrete)
-    ax.semilogx(w, np.abs(combined_Pade_DNWR(setting, w, theta, k_c=k_c)), label=r"$\rho^{\rm (Pade, FD)}_{\rm combined}$", color=col_combined)
+    ax.semilogx(w, np.abs(DNWR_Pade_FD(setting, w, theta, k_c=k_c)), label=r"$\rho^{\rm (DIRK, FD)}$", color=col_discrete)
+    ax.semilogx(w, np.abs(combined_Pade_DNWR(setting, w, theta, k_c=k_c)), label=r"$\rho^{\rm (DIRK, FD)}_{\rm combined}$", color=col_combined)
     ax.semilogx(w, np.abs(DNWR_c_FD(setting, w, theta, k_c=k_c)), "--", label=r"$\rho^{\rm (c, FD)}$", dashes=[7,9], color=col_sdspace)
     ax.semilogx(w, np.abs(DNWR_c_c(setting, w, theta)), "--", label=r"$\rho^{\rm (c, c)}$", dashes=[3,5], color=col_cont)
-    ax.semilogx(w, np.abs(DNWR_Pade_c(setting, w, theta)), "--", label=r"$\rho^{\rm (Pade, c)}$", dashes=[7,9], color=col_sdtime)
+    ax.semilogx(w, np.abs(DNWR_Pade_c(setting, w, theta)), "--", label=r"$\rho^{\rm (DIRK, c)}$", dashes=[7,9], color=col_sdtime)
     ax.set_xlabel(r"$\omega \Delta t$")
     ax.set_ylabel(r"$\rho$")
     ax.set_title("DNWR, " + (r"$\theta={:.3f}$").format(theta))
