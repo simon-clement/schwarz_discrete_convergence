@@ -104,8 +104,9 @@ def main():
             if len(sys.argv) > 2:
                 print("Unknown second argument.")
             else:
-                from tests import launch_all_tests
-                launch_all_tests()
+                # from tests import launch_all_tests
+                # launch_all_tests()
+                pass
 
             import label_to_figure
             for val in label_to_figure.ALL_LABELS.values():
