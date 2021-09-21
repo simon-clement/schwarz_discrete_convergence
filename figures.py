@@ -91,21 +91,6 @@ def norm2_lastschwarz_iter(theta, order):
             C_D=C_D, steady_jump_solution=steady_jump_solution, laplace_real_part=1e-3)[:,N//2:]
     return np.linalg.norm(B_k[-1])
 
-def fig_eigenvalues_linearized():
-    fig, ax = plt.subplots()
-    from scipy.optimize import minimize_scalar
-
-    print(minimize_scalar(biggest_eig_linearized))
-    print(minimize_scalar(norm2_linearized))
-    print(minimize_scalar(norm2_nonlinear))
-    # B_k = memoised(bulk_frequency_simulation, builder, number_samples=1, T=T, NUMBER_IT=18,
-    #         steady_state=nonlinear_steadystate, order=1, theta=theta,
-    #         C_D=C_D, steady_jump_solution=steady_jump_solution, laplace_real_part=laplace_real_part)[0:]
-
-    # ax.loglog(w, np.abs(B_k[2])/np.abs(B_k[1]))
-    # ax.loglog(w, np.abs(B_k[3])/np.abs(B_k[2]))
-    #show_or_save("fig_is_it_linear_enough")
-
 def fig_validation_linearized():
     from nonlinear_simulator import bulk_schwarz_spinup
     builder = Builder()
@@ -183,12 +168,14 @@ def fig_validation_linearized():
 def fig_profile_stationnaire_bug():
     from nonlinear_simulator import bulk_schwarz_spinup, nonlinear_steadystate
     builder = Builder()
+    nonlinear_steady_analytic = nonlinear_steadystate(builder, 1.3e-3)
     infinite_domain_assumption_factor = 1
+
     builder.SIZE_DOMAIN_1 = 400*infinite_domain_assumption_factor
     builder.SIZE_DOMAIN_2 = 1000*infinite_domain_assumption_factor
     builder.M2 = 1+50*infinite_domain_assumption_factor
     builder.M1 = 1+200*infinite_domain_assumption_factor
-    builder.R = 5e-15j
+    builder.R = 1e-4
 
     dt_spinup = builder.DT = 1e30 # a lot of min
     T_spinup = 10*dt_spinup
@@ -305,9 +292,6 @@ def fig_profile_stationnaire():
     axes[1].set_xlabel(r"$u, v$ (${\rm m}\;{\rm s}^{-1}$)")
     axes[0].legend(loc="upper center")
     show_or_save("fig_profile_stationnaire")
-
-def fig_test():
-    pass
 
 def fig_is_it_linear_enough():
     from nonlinear_simulator import bulk_schwarz_spinup, bulk_frequency_simulation, linear_steadystate
@@ -580,7 +564,7 @@ def contour_theta(nonlinear, levels):
             #         steady_state=nonlinear_steadystate, order=1, theta=theta, C_D=C_D, steady_jump_solution=steady_jump_solution)[:,N//2:]
             # ret += [B_k[2]/B_k[1]]
         else:
-            B_k = memoised(bulk_frequency_simulation, builder, number_samples=8, T=T, NUMBER_IT=2,
+            B_k = memoised(bulk_frequency_simulation, builder, number_samples=80, T=T, NUMBER_IT=2,
                     steady_state=steady_state, order=2, theta=theta, C_D=C_D, steady_jump_solution=steady_jump_solution)[:,N//2:]
             ret += [B_k[2]/B_k[1]]
 
@@ -598,30 +582,6 @@ def contour_theta(nonlinear, levels):
         ax.set_title('Convergence rate')#: Bulk, linear case')
     ax.set_xlabel(r'Frequency $\omega$ (${\rm s^{-1}}$)')
     ax.set_ylabel(r'Free parameter $\theta$')
-
-
-def fig_first_test_bulk():
-    from nonlinear_simulator import bulk_frequency_simulation
-    builder = Builder()
-    dt = builder.DT = 60. # 1 minute
-    builder.R = 1e-4j
-    builder.D1=3e-3
-    builder.D2=1.
-    builder.M1=1000
-    builder.M2=1000
-    builder.SIZE_DOMAIN_1=10000
-    builder.SIZE_DOMAIN_2=1000
-    T = 24*60*dt
-
-    axis_freq = get_discrete_freq(int(T/dt), dt, avoid_zero=True)
-    for theta in (1.3,):
-        ret = memoised(bulk_frequency_simulation, builder, number_samples=1, T=T, NUMBER_IT=3,
-                nonlinear=False, theta=theta, ignore_cached=True)
-        plt.loglog(axis_freq, np.abs(ret[2]/ret[1]), label=r"$\theta="+str(theta)+"$")
-        theoretical_cv = theory_cv_bulk(builder, w=axis_freq, theta=theta)
-        plt.loglog(axis_freq, theoretical_cv, "--", label=r"validation with " + str(theta))
-    plt.legend()
-    show_or_save("fig_first_test_bulk")
 
 def theory_cv_bulk_linearised(builder, w, theta):
     z = np.exp(w * 1j * builder.DT)
@@ -711,6 +671,7 @@ def fig_compare_theory_asymptote():
         asymptote += [np.abs(1 - theta + eps*np.sqrt(builder.D2/builder.D1)*h_o/h_a)/theta]
         if max_theoretical_cv[-1] > asymptote[-1]:
             plt.semilogx(w, theory_cv_bulk(builder, w, theta=theta))
+            plt.semilogx(w, asymptote[-1]*np.ones_like(w))
             plt.show()
     plt.semilogx(all_theta, asymptote, "--")
 
@@ -719,64 +680,6 @@ def fig_compare_theory_asymptote():
     plt.semilogx(all_theta, max_theoretical_cv)
     plt.semilogx(all_theta, asymptote, "--")
     plt.show()
-
-def fig_debug_stationnary():
-    builder = Builder()
-    builder.DT = 100000000.
-    T_spinup = 50*builder.DT
-    from nonlinear_simulator import bulk_schwarz_spinup, bulk_frequency_simulation
-
-    u_atm, phi_atm, u_ocean, phi_ocean = memoised(bulk_schwarz_spinup, builder, T=T_spinup, NUMBER_IT=40, theta=2., nonlinear=True)
-    # now we have our stationnary values:
-    # First, verify our formulas:
-    #print("errors:")
-
-    ratio_densities = 1e-3
-    C_D = 1.2e-3
-    h_a = builder.SIZE_DOMAIN_2/(builder.M2-1)
-    h_o = builder.SIZE_DOMAIN_1/(builder.M1-1)
-    R = 1e-4j
-    s=0
-    nu_1 = builder.D1
-    nu_2 = builder.D2
-    #return explicit_part/((1+implicit_part))
-    chi_o = (s+R) * h_o**2/nu_1
-    chi_a = (s+R) * h_a**2/nu_2
-    lam_a = (chi_a - np.sqrt(chi_a)*np.sqrt(chi_a+4.))/2
-    lam_o = (chi_o - np.sqrt(chi_o)*np.sqrt(chi_o+4.))/2
-    assert abs(nu_2*lam_a/ (R*h_a) * phi_atm[0] + 10. - u_atm[0]) < 1e-10
-    assert abs(-nu_1*lam_o/ (R*h_o) * phi_ocean[-1] + 0.1 - u_ocean[-1]) < 1e-10
-
-    assert abs((lam_o + 1) * phi_ocean[-1] - phi_ocean[-2]) < 1e-10
-    assert abs((lam_a + 1) * phi_atm[0] - phi_atm[1]) < 1e-10
-
-    assert abs(1e3*nu_1*phi_ocean[-1] - nu_2*phi_atm[0]) < 1e-10
-    bulk_interface_k = 1.2e-3 * np.abs(u_atm[0] - u_ocean[-1])*(u_atm[0] - u_ocean[-1])
-
-    assert abs(bulk_interface_k - nu_2*phi_atm[0]) < 1e-10
-    # 1e3*nu_1*phi_ocean[-1] = 1.2e-3 * np.abs(u_atm[0] - u_ocean[-1])*(
-    assert abs((u_atm[0] - u_ocean[-1]) -( 1e3 * nu_1*lam_a/ (R*h_a) * phi_ocean[-1] + 10. + nu_1*lam_o/ (R*h_o) * phi_ocean[-1] - 0.1)) < 1e-12
-
-    tilde_d = (1e3 * nu_1*lam_a/ (R*h_a)  + nu_1*lam_o/ (R*h_o))
-    g = 10 - 0.1
-    ua_m_uo = ( tilde_d * phi_ocean[-1] + g)
-    assert abs((np.abs(ua_m_uo) *ua_m_uo) - (phi_ocean[-1] / C_D * nu_1 * 1e3 )) < 1e-10
-    # change of variable: we look for X = phi_ocean[-1] / C_D * nu_1 * 1e3
-    X = tilde_d*phi_ocean[-1]+g
-    c = 1e3*nu_1/C_D
-
-    d = tilde_d / c
-    g = 10 - .1
-    assert abs((X-g) - d*np.abs(X)*X) < 1e-10
-    tilde_a = np.real(d)
-    b = np.imag(d)
-    x, tilde_y = np.real(X), np.imag(X)
-    t = b/g
-    a = tilde_a * t
-    y = np.cbrt(tilde_y/t)
-    print(y)
-    print(b**2*(1 - t**2 * y**4) - (t*y - a*y**2 )**2)
-
 
 def fig_validate_initialisation():
     builder = Builder()
