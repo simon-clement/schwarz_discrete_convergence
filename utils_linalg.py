@@ -55,6 +55,13 @@ def multiply_interior(Y, u):
     return Y[0] * u[:-2] + Y[1] * u[1:-1] + Y[2] * u[2:]
 
 def solve_linear(Y, f):
+    """
+        solve linear system in the form:
+        (lower diagonal, diagonal, upper diagonal)
+        there can be additional upper or lower diagonal
+        the position of diagonal is diagnosed from the shape
+        of the numpy arrays
+    """
     k = 0
     for i in range(1, len(Y)):
         if Y[i].shape[0] > Y[i-1].shape[0]:
