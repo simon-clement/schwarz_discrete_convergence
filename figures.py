@@ -17,27 +17,40 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 
 def fig_stationary_test():
     import simulator
-    NUMBER_OF_LEVELS = 100
-    H = 100
-    H_cfl = 10
-    NUMBER_ITERATION = 2000
-    z = np.linspace(0, 100, NUMBER_OF_LEVELS)
+    NUMBER_OF_LEVELS = 1000
+    H = 1200.
+    H_cfl = 50.
+    H_bl = 1000.
+    NUMBER_ITERATION = 1000000
+    z = np.linspace(0, H, NUMBER_OF_LEVELS)
 
-    errors, profile, viscosity = simulator.stationary_case(z, NUMBER_ITERATION=NUMBER_ITERATION)
+    errors, profile, viscosity, l = simulator.stationary_case_MOST(z, H_cfl=H_cfl, H_bl=H_bl, NUMBER_ITERATION=NUMBER_ITERATION)
     # print(errors)
-    fig, axes = plt.subplots(1,3, figsize=(5.5, 2.5))
+    fig, axes = plt.subplots(1,4, figsize=(7.5, 2.5))
     fig.subplots_adjust(wspace=0.53, left=0.22, bottom=0.22)
-    axes[0].semilogy(range(0, len(errors), 100), np.array(errors)[::100] / np.sqrt(NUMBER_OF_LEVELS) * np.sqrt(H), "k+")
+    skip_iterations = 1000
+    axes[0].semilogy(range(0, len(errors), skip_iterations),
+            np.array(errors)[::skip_iterations] / np.sqrt(NUMBER_OF_LEVELS) * np.sqrt(H), "k+")
     axes[0].set_xlabel("iteration")
     axes[0].set_ylabel(r"$||u_{n+1} - u_n||_2$")
+    axes[1].axhline(H_cfl, color="k", linestyle="dashed")
+    axes[1].axhline(H_bl, color="grey", linestyle="dashed")
     axes[1].plot(np.real(profile), z, label="u")
     axes[1].plot(np.imag(profile), z, label="v")
-    axes[1].legend(loc="upper right")
+    axes[1].legend(loc="center")
     axes[1].set_xlabel("u(z), v(z)")
     axes[1].set_ylabel("z")
+    axes[2].axhline(H_cfl, linestyle="dashed", color="black", label=r"$\delta_{cfl}$")
+    axes[2].axhline(H_bl, linestyle="dashed", color="grey", label=r"$H_{bl}$")
     axes[2].plot(viscosity, (z[1:] + z[:-1])/2)
     axes[2].set_xlabel("K(z)")
     axes[2].set_ylabel("z")
+    axes[2].legend(loc="center")
+    axes[3].axhline(H_cfl, linestyle="dashed", color="black")
+    axes[3].axhline(H_bl, linestyle="dashed", color="grey")
+    axes[3].plot(l, (z[1:] + z[:-1])/2)
+    axes[3].set_xlabel(r"$l_m(z)$")
+    axes[3].set_ylabel("z")
     show_or_save("fig_stationary_test")
 
 def get_discrete_freq(N, dt, avoid_zero=True):
