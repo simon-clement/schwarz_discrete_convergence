@@ -9,11 +9,86 @@ from memoisation import memoised
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 mpl.rc('text', usetex=True)
-mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
 mpl.rcParams["axes.grid"] = True
 mpl.rcParams["grid.linestyle"] = ':'
 mpl.rcParams["grid.alpha"] = '0.7'
 mpl.rcParams["grid.linewidth"] = '0.5'
+
+def fig_integration_1dekman():
+    from simu1DEkman import Simu1dEkman
+    z_levels= np.linspace(0, np.sqrt(1200), 100)**2
+    M = z_levels.shape[0] - 1
+    h_cl = 1000.
+    dt = 10.
+    N = 1000
+    N2 = 10000
+    N3 = 100000
+    simulator = Simu1dEkman(z_levels=z_levels,
+            h_cl=h_cl, dt=dt, u_geostrophy=5.,
+            K_mol=1e-7, C_D=1e-3, f=1e-4)
+    u_0 = 10 - 7*np.linspace(1, 0, 100)**3
+    dirichlet = 3*np.ones(N+1)
+    forcing = np.zeros((N+1, M + 1))
+
+    u_N1 = simulator.FD_KPP(u_t0=u_0,
+            u_firstlevel=dirichlet,
+            forcing=forcing)
+
+    phi_0 = np.diff(u_0, append=10) / np.diff(z_levels, append=1300)
+
+    u_FV = simulator.FV_KPP(u_t0=u_0[:-1], phi_t0=phi_0,
+            u_firstlevel=dirichlet,
+            forcing=forcing[:, :-1])
+
+    fig, axes = plt.subplots(1,1, figsize=(7.5, 6.5))
+    axes.plot(np.real(u_0), z_levels, label="$u_0$")
+    axes.plot(np.real(u_N1), z_levels, label="$u_{N1}$")
+    axes.plot(np.real(u_FV), z_levels[:-1], label="$u_{N2}$")
+    #axes.plot(np.real(u_N3), z_levels, label="$u_{N3}$")
+    axes.set_xlabel("wind speed ($m.s^{-1}$)")
+    axes.set_ylabel("height (m)")
+    axes.legend()
+    show_or_save("fig_integration_1dekman")
+
+
+def fig_stationary_compare():
+    import simulator
+    NUMBER_OF_LEVELS = 100
+    H = 1200.
+    H_cfl = 50.
+    H_bl = 1000.
+    NUMBER_ITERATION = 3000
+    skip_iterations = 10
+    z = np.linspace(1, H, NUMBER_OF_LEVELS)
+
+    errors, profile, viscosity = simulator.stationary_case_KPP(z, H_cfl=H_cfl, H_bl=H_bl, NUMBER_ITERATION=NUMBER_ITERATION)
+    # print(errors)
+    fig, axes = plt.subplots(1,3, figsize=(7.5, 2.5))
+    fig.subplots_adjust(wspace=0.53, left=0.22, bottom=0.22)
+    axes[0].semilogy(range(0, len(errors), skip_iterations),
+            np.array(errors)[::skip_iterations] / np.sqrt(NUMBER_OF_LEVELS) * np.sqrt(H), "k+")
+    axes[0].set_xlabel("iteration")
+    axes[0].set_ylabel(r"$||u_{n+1} - u_n||_2$")
+    axes[1].axhline(H_cfl, color="k", linestyle="dashed")
+    axes[1].axhline(H_bl, color="grey", linestyle="dashed")
+    axes[1].plot(np.real(profile), z, label="u")
+    axes[1].plot(np.imag(profile), z, label="v")
+    axes[1].legend(loc="center")
+    axes[1].set_xlabel("u(z), v(z)")
+    axes[1].set_ylabel("z")
+    axes[2].axhline(H_cfl, linestyle="dashed", color="black", label=r"$\delta_{cfl}$")
+    axes[2].axhline(H_bl, linestyle="dashed", color="grey", label=r"$H_{bl}$")
+    axes[2].plot(viscosity, np.concatenate(([0],(z[1:] + z[:-1])/2)))
+    axes[2].set_xlabel("K(z)")
+    axes[2].set_ylabel("z")
+    axes[2].legend(loc="center")
+    # axes[3].axhline(H_cfl, linestyle="dashed", color="black")
+    # axes[3].axhline(H_bl, linestyle="dashed", color="grey")
+    # axes[3].plot(l, (z[1:] + z[:-1])/2)
+    # axes[3].set_xlabel(r"$l_m(z)$")
+    # axes[3].set_ylabel("z")
+    show_or_save("fig_stationary_test")
 
 def fig_stationary_test():
     import simulator
@@ -122,7 +197,7 @@ def show_or_save(name_func):
             os.makedirs(directory, exist_ok=True)
             mpl.rcParams['savefig.directory'] = directory
             fig = plt.get_current_fig_manager()
-            fig.canvas.set_window_title(name_fig) 
+            fig.set_window_title(name_fig) 
         except:
             print("cannot set default directory or name")
         plt.show()

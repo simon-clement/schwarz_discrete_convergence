@@ -8,8 +8,6 @@ def scal_multiply(Y, s):
     """
         Returns "Y * s", Y being a tuple of np arrays
     """
-    s = float(s)
-    assert type(s) == float
     ret_list = []
     for element in Y:
         ret_list += [element * s]
@@ -44,9 +42,9 @@ def multiply(Y, u):
 
 def multiply_interior(Y, u):
     """
-        Returns "Y * u"
+        Returns "Y * u" without the first and last values
         equivalent code :
-        return (np.diag(Y[1])+np.diag(Y[0], k=-1) + np.diag(Y[2], k=1)) @ u
+        return Y[0] * u[:-2] + Y[1] * u[1:-1] + Y[2] * u[2:]
         Y is a tridiagonal matrix returned by get_Y or get_Y_star
     """
     assert len(Y) == 3
