@@ -1,5 +1,6 @@
 import numpy as np
 
+from typing import Tuple, List
 array = np.ndarray
 
 class Simu1dEkman():
@@ -34,8 +35,25 @@ class Simu1dEkman():
         self.f: float = f
         self.C_D: float = C_D
 
+    def reconstruct_FV(self, u_bar: array, phi: array):
+        """
+            spline reconstruction of the FV solution.
+            u(xi) = u_bar[m] + (phi[m+1] + phi[m]) * xi/2 +
+                    (phi[m+1} - phi[m]) / (2*h_half[m]) * 
+                        (xi^2 - h_half[m]^2/12)
+            where xi = linspace(-h_half[m]/2, h_half[m]/2, 10, endpoint=True)
+        """
+        xi = [np.linspace(-h/2, h/2, 10) for h in self.h_half[:-1]]
+        sub_discrete: List[array] = [u_bar[m] + (phi[m+1] + phi[m]) * xi[m]/2 \
+                + (phi[m+1] - phi[m]) / (2 * self.h_half[m]) * \
+                (xi[m]**2 - self.h_half[m]**2/12) for m in range(self.M)]
+        u_oversampled = np.concatenate(sub_discrete)
+        # TODO correct z creation
+        z_oversampled = np.concatenate(np.array(xi) + self.z_half[:-1])
+        return z_oversampled, u_oversampled
 
-    def FV_KPP(self, u_t0: array, phi_t0: array, u_firstlevel: array,
+
+    def FV_KPP(self, u_t0: array, phi_t0: array,
             forcing: array, time_method: str="BE", sf_scheme: str="FD",
             z_star: float=1e-4) -> array:
         """
@@ -50,15 +68,15 @@ class Simu1dEkman():
             method support only BE for now
             sf_scheme is the surface flux scheme:
                 - "FD" for a FD interpretation (classical but biaised)
-                - "FV" for a FV interpretation (better)
+                - "FV" for a FV interpretation (unbiaised but \delta_{cfl}=z_1)
                 - "FV free" for a FV interpretation with a free \delta_{cfl}
                     (not implemented)
             returns a numpy array of shape (M)
                                     where M is the number of space points 
         """
         assert u_t0.shape[0] == self.M and phi_t0.shape[0] == self.M + 1
-        N: int = u_firstlevel.shape[0] - 1 # number of time steps
-        assert forcing.shape == (N + 1, self.M)
+        N: int = forcing.shape[0] - 1 # number of time steps
+        assert forcing.shape[1] == self.M
 
         # K_full = u_star * G_full + K_mol.
         G_full: array = self.kappa * self.z_full * \
@@ -67,7 +85,7 @@ class Simu1dEkman():
         u_current: array = np.copy(u_t0)
         phi_current: array = np.copy(phi_t0)
         for n in range(1,N+1):
-            u_flevel_current, forcing_current = u_firstlevel[n], forcing[n]
+            u_flevel_current, forcing_current = u_current[0], forcing[n]
 
             u_star: float = np.sqrt(self.C_D) * np.abs(u_flevel_current)
             K_full: array = u_star * G_full + self.K_mol # viscosity
@@ -123,7 +141,7 @@ class Simu1dEkman():
                         Y=(np.zeros(self.M), Y_diag, np.zeros(self.M)),
                         D=(D_ldiag, D_diag, D_udiag), c=c, u=phi_current)
                 u_current = 1/(1+self.dt*1j*self.f) * (u_current + self.dt * \
-                        (np.diff(phi_current * K_full / self.h_half) \
+                        (np.diff(phi_current * K_full) / self.h_half[:-1] \
                         + forcing_current))
 
             else:
@@ -133,8 +151,7 @@ class Simu1dEkman():
 
 
 
-    def FD_KPP(self, u_t0: array, u_firstlevel: array,
-            forcing: array, method: str="BE",
+    def FD_KPP(self, u_t0: array, forcing: array, method: str="BE",
             z_star: float=1e-4) -> array:
         """
             Integrates in time with Backward Euler the model with KPP
@@ -149,8 +166,7 @@ class Simu1dEkman():
                                     where M is the number of space points 
         """
         assert u_t0.shape[0] == self.M + 1
-        N: int = u_firstlevel.shape[0] - 1 # number of time steps
-        assert forcing.shape == (N + 1, self.M + 1)
+        N: int = forcing.shape[0] - 1 # number of time steps
 
         # K_full = u_star * G_full + K_mol.
         G_full: array = self.kappa * self.z_full * \
@@ -159,7 +175,7 @@ class Simu1dEkman():
         Y_diag: array = np.concatenate((np.ones(self.M), [0]))
         u_current: array = np.copy(u_t0)
         for n in range(1,N+1):
-            u_flevel_current, forcing_current = u_firstlevel[n], forcing[n]
+            u_flevel_current, forcing_current = u_current[0], forcing[n]
 
             u_star: float = np.sqrt(self.C_D) * np.abs(u_flevel_current)
             K_full: array = u_star * G_full + self.K_mol # viscosity
@@ -192,8 +208,9 @@ class Simu1dEkman():
 
         return u_current
 
-    def __backward_euler(self, Y: tuple[array, array, array],
-                        D: tuple[array, array, array], c: array, u: array):
+
+    def __backward_euler(self, Y: Tuple[array, array, array],
+                        D: Tuple[array, array, array], c: array, u: array):
         """
             integrates once (self.dt) in time the equation
             (\partial_t + if)Yu - dt*Du = c
@@ -203,7 +220,7 @@ class Simu1dEkman():
         from utils_linalg import multiply, scal_multiply as s_mult
         from utils_linalg import add_banded as add
         from utils_linalg import multiply, solve_linear
-        to_inverse: tuple[array] = add(s_mult(Y, 1 + self.dt * 1j*self.f),
+        to_inverse: Tuple[array, array, array] = add(s_mult(Y, 1 + self.dt * 1j*self.f),
                                         s_mult(D, - self.dt))
         return solve_linear(to_inverse, multiply(Y, u) + self.dt*c)
 

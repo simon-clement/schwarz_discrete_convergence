@@ -9,7 +9,7 @@ from memoisation import memoised
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 mpl.rc('text', usetex=True)
-mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
+mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
 mpl.rcParams["axes.grid"] = True
 mpl.rcParams["grid.linestyle"] = ':'
 mpl.rcParams["grid.alpha"] = '0.7'
@@ -18,16 +18,16 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 def fig_integration_1dekman():
     from simu1DEkman import Simu1dEkman
     z_levels= np.linspace(0, np.sqrt(1200), 100)**2
+    z_levels= np.linspace(0, 1200, 100)
     M = z_levels.shape[0] - 1
     h_cl = 1000.
     dt = 10.
-    N = 1000
-    N2 = 10000
-    N3 = 100000
+    N = 10000
     simulator = Simu1dEkman(z_levels=z_levels,
-            h_cl=h_cl, dt=dt, u_geostrophy=5.,
+            h_cl=h_cl, dt=dt, u_geostrophy=10.,
             K_mol=1e-7, C_D=1e-3, f=1e-4)
-    u_0 = 10 - 7*np.linspace(1, 0, 100)**3
+    # choosing u_0 linear so it can be the same FD, FV
+    u_0 = 10 - 7*np.linspace(1, 0, 100)
     dirichlet = 3*np.ones(N+1)
     forcing = np.zeros((N+1, M + 1))
 
@@ -35,16 +35,27 @@ def fig_integration_1dekman():
             u_firstlevel=dirichlet,
             forcing=forcing)
 
-    phi_0 = np.diff(u_0, append=10) / np.diff(z_levels, append=1300)
+    phi_0 = np.diff(u_0, append=11) / np.diff(z_levels, append=1300)
+    phi_0[-1] = phi_0[-2] # correcting the last flux
 
-    u_FV = simulator.FV_KPP(u_t0=u_0[:-1], phi_t0=phi_0,
+    u_FV_sffd = simulator.FV_KPP(u_t0=u_0[:-1],
+            phi_t0=phi_0,
             u_firstlevel=dirichlet,
-            forcing=forcing[:, :-1])
+            forcing=forcing[:, :-1],
+            sf_scheme="FD")
 
-    fig, axes = plt.subplots(1,1, figsize=(7.5, 6.5))
-    axes.plot(np.real(u_0), z_levels, label="$u_0$")
-    axes.plot(np.real(u_N1), z_levels, label="$u_{N1}$")
-    axes.plot(np.real(u_FV), z_levels[:-1], label="$u_{N2}$")
+    u_FV_sffv = simulator.FV_KPP(u_t0=u_0[:-1],
+            phi_t0=phi_0,
+            u_firstlevel=dirichlet,
+            forcing=forcing[:, :-1],
+            sf_scheme="FV")
+
+    fig, axes = plt.subplots(1,1, figsize=(3.5, 3.5))
+    fig.subplots_adjust(left=0.21, bottom=0.14)
+    axes.plot(np.real(u_0), z_levels, label="$\mathfrak{R}( u_0)$")
+    axes.plot(np.real(u_N1), z_levels, label="$\mathfrak{R}(u_{FD})$")
+    axes.plot(np.real(u_FV_sffd), z_levels[:-1], label="$\mathfrak{R}(u_{FV})$ (FD inter.)")
+    axes.plot(np.real(u_FV_sffv), z_levels[:-1], "--", label="$\mathfrak{R}(u_{FV})$ (FV inter.)")
     #axes.plot(np.real(u_N3), z_levels, label="$u_{N3}$")
     axes.set_xlabel("wind speed ($m.s^{-1}$)")
     axes.set_ylabel("height (m)")
