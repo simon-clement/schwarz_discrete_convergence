@@ -20,11 +20,10 @@ def fig_integration_1dekman():
     z_levels= np.linspace(0, np.sqrt(1200), 100)**2
     z_levels= np.linspace(0, 1200, 100)
     M = z_levels.shape[0] - 1
-    h_cl = 1000.
-    dt = 10.
-    N = 10000
+    dt = 100.
+    N = 100
     simulator = Simu1dEkman(z_levels=z_levels,
-            h_cl=h_cl, dt=dt, u_geostrophy=10.,
+            h_cl=1e4, dt=dt, u_geostrophy=10.,
             K_mol=1e-7, C_D=1e-3, f=1e-4)
     # choosing u_0 linear so it can be the same FD, FV
     u_0 = 10 - 7*np.linspace(1, 0, 100)
@@ -32,30 +31,29 @@ def fig_integration_1dekman():
     forcing = np.zeros((N+1, M + 1))
 
     u_N1 = simulator.FD_KPP(u_t0=u_0,
-            u_firstlevel=dirichlet,
             forcing=forcing)
 
     phi_0 = np.diff(u_0, append=11) / np.diff(z_levels, append=1300)
     phi_0[-1] = phi_0[-2] # correcting the last flux
 
-    u_FV_sffd = simulator.FV_KPP(u_t0=u_0[:-1],
+    u_FV_sffd, phi_FV_sffd = simulator.FV_KPP(u_t0=u_0[:-1],
             phi_t0=phi_0,
-            u_firstlevel=dirichlet,
             forcing=forcing[:, :-1],
             sf_scheme="FD")
 
-    u_FV_sffv = simulator.FV_KPP(u_t0=u_0[:-1],
+    u_FV_sffv, phi_FV_sffv = simulator.FV_KPP(u_t0=u_0[:-1],
             phi_t0=phi_0,
-            u_firstlevel=dirichlet,
             forcing=forcing[:, :-1],
             sf_scheme="FV")
+    z_subgrid, u_full_sffd = simulator.reconstruct_FV(u_bar = u_FV_sffd, phi=phi_FV_sffd)
+    z_subgrid, u_full_sffv = simulator.reconstruct_FV(u_bar = u_FV_sffv, phi=phi_FV_sffv)
 
     fig, axes = plt.subplots(1,1, figsize=(3.5, 3.5))
     fig.subplots_adjust(left=0.21, bottom=0.14)
     axes.plot(np.real(u_0), z_levels, label="$\mathfrak{R}( u_0)$")
     axes.plot(np.real(u_N1), z_levels, label="$\mathfrak{R}(u_{FD})$")
-    axes.plot(np.real(u_FV_sffd), z_levels[:-1], label="$\mathfrak{R}(u_{FV})$ (FD inter.)")
-    axes.plot(np.real(u_FV_sffv), z_levels[:-1], "--", label="$\mathfrak{R}(u_{FV})$ (FV inter.)")
+    axes.plot(np.real(u_full_sffd), z_subgrid, label="$\mathfrak{R}(u_{FV})$ (FD inter.)")
+    axes.plot(np.real(u_full_sffv), z_subgrid, "--", label="$\mathfrak{R}(u_{FV})$ (FV inter.)")
     #axes.plot(np.real(u_N3), z_levels, label="$u_{N3}$")
     axes.set_xlabel("wind speed ($m.s^{-1}$)")
     axes.set_ylabel("height (m)")
