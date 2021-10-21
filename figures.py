@@ -20,13 +20,13 @@ def fig_integration_1dekman():
     z_levels= np.linspace(0, 1500, 4000)
     M = z_levels.shape[0] - 1
     dt = 6.
-    N = 15 # 28*60=1680
+    N = 168 # 28*60=1680
     simulator = Simu1dEkman(z_levels=z_levels,
             dt=dt, u_geostrophy=10.,
             K_mol=1e-7, C_D=1e-3, f=1e-4)
     # choosing u_0 linear so it can be the same FD, FV
     u_0 = 10*np.ones(M+1)
-    forcing = 1j*simulator.u_g*np.ones((N+1, M + 1))
+    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M + 1))
 
     u_N1 = simulator.FD_KPP(u_t0=u_0,
             forcing=forcing)

@@ -1,12 +1,21 @@
+"""
+    This module defines the class Simu1dEkman
+    which simulates a 1D Ekman problem with various
+    discretisations.
+"""
+
 from typing import Tuple, List
 import numpy as np
 from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
-from utils_linalg import multiply, solve_linear
+from utils_linalg import solve_linear
 
 array = np.ndarray
 
 class Simu1dEkman():
+    """
+        main class, instanciate it to run the simulations.
+    """
     def __init__(self, z_levels: array, dt: float=1.,
             u_geostrophy: float=10., default_h_cl: float=1e4, K_mol: float=1e-7,
             C_D: float=1e-3, f: float=1e-4) -> None:
@@ -71,11 +80,11 @@ class Simu1dEkman():
             method support only BE for now
             sf_scheme is the surface flux scheme:
                 - "FD" for a FD interpretation (classical but biaised)
-                - "FV" for a FV interpretation (unbiaised but \delta_{sl}=z_1)
-                - "FV free" for a FV interpretation with a free \delta_{sl}
+                - "FV" for a FV interpretation (unbiaised but delta_{sl}=z_1)
+                - "FV free" for a FV interpretation with a free delta_{sl}
                     (not implemented)
             returns a numpy array of shape (M)
-                                    where M is the number of space points 
+                                    where M is the number of space points
         """
         assert u_t0.shape[0] == self.M and phi_t0.shape[0] == self.M + 1
         N: int = forcing.shape[0] - 1 # number of time steps
@@ -155,7 +164,7 @@ class Simu1dEkman():
                 else:
                     raise NotImplementedError(sf_scheme + " surface flux scheme unknown")
 
-                c_T = 1j*self.f * self.u_g - forcing_current[self.M-1] / self.h_half[self.M-1]
+                c_T = (1j*self.f * self.u_g - forcing_current[self.M-1]) / self.h_half[self.M-1]
                 c = np.concatenate(([c_I1, c_I2], np.diff(forcing_current[1:]) / \
                                                     self.h_full[2:-1], [c_T]))
 
