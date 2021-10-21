@@ -17,18 +17,16 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 
 def fig_integration_1dekman():
     from simu1DEkman import Simu1dEkman
-    z_levels= np.linspace(0, np.sqrt(1200), 100)**2
-    z_levels= np.linspace(0, 1200, 100)
+    z_levels= np.linspace(0, 1500, 4000)
     M = z_levels.shape[0] - 1
-    dt = 100.
-    N = 100
+    dt = 6.
+    N = 15 # 28*60=1680
     simulator = Simu1dEkman(z_levels=z_levels,
-            h_cl=1e4, dt=dt, u_geostrophy=10.,
+            dt=dt, u_geostrophy=10.,
             K_mol=1e-7, C_D=1e-3, f=1e-4)
     # choosing u_0 linear so it can be the same FD, FV
-    u_0 = 10 - 7*np.linspace(1, 0, 100)
-    dirichlet = 3*np.ones(N+1)
-    forcing = np.zeros((N+1, M + 1))
+    u_0 = 10*np.ones(M+1)
+    forcing = 1j*simulator.u_g*np.ones((N+1, M + 1))
 
     u_N1 = simulator.FD_KPP(u_t0=u_0,
             forcing=forcing)
@@ -54,7 +52,6 @@ def fig_integration_1dekman():
     axes.plot(np.real(u_N1), z_levels, label="$\mathfrak{R}(u_{FD})$")
     axes.plot(np.real(u_full_sffd), z_subgrid, label="$\mathfrak{R}(u_{FV})$ (FD inter.)")
     axes.plot(np.real(u_full_sffv), z_subgrid, "--", label="$\mathfrak{R}(u_{FV})$ (FV inter.)")
-    #axes.plot(np.real(u_N3), z_levels, label="$u_{N3}$")
     axes.set_xlabel("wind speed ($m.s^{-1}$)")
     axes.set_ylabel("height (m)")
     axes.legend()

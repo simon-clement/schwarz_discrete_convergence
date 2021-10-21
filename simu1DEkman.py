@@ -8,7 +8,7 @@ array = np.ndarray
 
 class Simu1dEkman():
     def __init__(self, z_levels: array, dt: float=1.,
-            u_geostrophy: float=10., h_cl: float=1e4, K_mol: float=1e-7,
+            u_geostrophy: float=10., default_h_cl: float=1e4, K_mol: float=1e-7,
             C_D: float=1e-3, f: float=1e-4) -> None:
         """
             z_levels starts at 0 and contains all the full levels $z_m$.
@@ -30,7 +30,7 @@ class Simu1dEkman():
         self.z_half: array = self.z_full + self.h_half/2
         self.h_full: array = np.diff(self.z_half, prepend=-self.z_half[0])
         self.M: int = self.z_full.shape[0] - 1
-        self.h_cl: float = h_cl
+        self.defaulth_cl: float = default_h_cl
         self.dt: float = dt
         self.K_mol: float = K_mol
         self.kappa: float = 0.4
@@ -95,7 +95,7 @@ class Simu1dEkman():
                         np.log(1+self.z_full[1] / z_star) - 1)
                 u_sl: float = u_star / self.kappa * np.log(1+ self.z_full[1]/ z_star)
 
-            h_cl = self.h_cl if np.abs(self.f) < 1e-10 else c_1*u_star/self.f
+            h_cl = self.defaulth_cl if np.abs(self.f) < 1e-10 else c_1*u_star/self.f
             # K_full = u_star * G_full + K_mol.
             G_full: array = self.kappa * self.z_full * \
                     (1 - self.z_full/h_cl)**2 \
@@ -125,9 +125,9 @@ class Simu1dEkman():
             if sf_scheme == "FD":
                 Y_udiag[0] = 0.
                 Y_diag[0] = K_full[0]
-                D_diag[0] = u_star**2 * K_full[0] / \
+                D_diag[0] = -u_star**2 * K_full[0] / \
                         np.abs(u_flevel_current) / self.h_half[0]
-                D_udiag[0] = - u_star**2 * K_full[1] / \
+                D_udiag[0] = + u_star**2 * K_full[1] / \
                         np.abs(u_flevel_current) / self.h_half[0]
             elif sf_scheme == "FV":
                 Y_udiag[0] = Y_diag[0] = D_udiag[0] = D_ldiag[0] = 0.
@@ -135,9 +135,9 @@ class Simu1dEkman():
 
                 Y_diag[1] = K_full[1]
                 Y_udiag[1] = Y_ldiag[0] = 0.
-                D_diag[1] = u_star**2 * K_full[1] / \
+                D_diag[1] = - u_star**2 * K_full[1] / \
                         np.abs(u_sl) / self.h_half[1]
-                D_udiag[1] = - u_star**2 * K_full[2] / \
+                D_udiag[1] = + u_star**2 * K_full[2] / \
                         np.abs(u_sl) / self.h_half[1]
             else:
                 raise NotImplementedError(sf_scheme + " surface flux scheme unknown")
@@ -146,12 +146,12 @@ class Simu1dEkman():
                 c_I1: complex
                 c_I2: complex
                 if sf_scheme == "FD":
-                    c_I1 = u_star**2 / np.abs(u_flevel_current) \
+                    c_I1 = - u_star**2 / np.abs(u_flevel_current) \
                                 * forcing_current[0]
                     c_I2 = 1/self.h_full[1] * (forcing_current[1] - forcing_current[0])
                 elif sf_scheme == "FV":
-                    c_I1 = u_star**2 * u_sl / np.abs(u_sl)
-                    c_I2 = u_star**2 / np.abs(u_sl) * forcing_current[1]
+                    c_I1 = - u_star**2 * u_sl / np.abs(u_sl)
+                    c_I2 = - u_star**2 / np.abs(u_sl) * forcing_current[1]
                 else:
                     raise NotImplementedError(sf_scheme + " surface flux scheme unknown")
 
@@ -208,14 +208,14 @@ class Simu1dEkman():
 
             u_star: float = np.sqrt(self.C_D) * np.abs(u_flevel_current)
 
-            h_cl = self.h_cl if np.abs(self.f) < 1e-10 else c_1*u_star/self.f
+            h_cl = self.defaulth_cl if np.abs(self.f) < 1e-10 else c_1*u_star/self.f
             # K_full = u_star * G_full + K_mol.
             G_full: array = self.kappa * self.z_full * \
                     (1 - self.z_full/h_cl)**2 \
                     * np.heaviside(1 - self.z_full/h_cl, 1)
             K_full: array = u_star * G_full + self.K_mol # viscosity
             D_diag: array = np.concatenate((
-                [-K_full[1] / (self.h_half[0] * self.h_full[1]) - \
+                [-K_full[1] / (self.h_half[0] * self.h_full[1]) + \
                        u_star**2/np.abs(u_flevel_current)/self.h_half[0]],
                 [(-K_full[m+1]/self.h_full[m+1] - K_full[m]/self.h_full[m]) \
                         / self.h_half[m] for m in range(1, self.M)],
