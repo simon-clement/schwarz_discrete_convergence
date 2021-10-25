@@ -117,8 +117,29 @@ class Simu1dEkman():
         if delta_sl is None:
             delta_sl = self.z_half[0] if sf_scheme in {"FD"} else self.z_full[1]
 
-        u_current: array = np.copy(u_t0)
         phi_current: array = np.copy(phi_t0)
+
+        # computing u_current for the first time
+        rhs_ucur = self.h_half[0:-2] * phi_current[0:-2]/6 + \
+                (self.h_half[0:-2] + self.h_half[1:-1])*phi_current[1:-1]/3 + \
+                self.h_half[1:-1] * phi_current[2:] / 6
+        rhs_ucur = np.concatenate((rhs_ucur,
+            [self.h_half[-2] * (phi_current[-2]/6 + phi_current[-1]/3) \
+                        - self.u_g]))
+        to_solve = -np.ones(self.M), np.ones(self.M-1)
+        if sf_scheme == "FV free":
+            # getting overline{u}_{1/2} is particular:
+            tilde_h: float = self.z_full[1] - delta_sl
+            tau_sl = 1 + z_star/delta_sl - 1/np.log(1+delta_sl/z_star)
+            rhs_ucur[0] = tilde_h *(1+3*tau_sl)/(1+tau_sl)* \
+                    phi_current[0]/6 + \
+                (tilde_h*(1+3*tau_sl/2)/(1+tau_sl) + \
+                    self.h_half[1]) * phi_current[1]/3 + \
+                self.h_half[1] * phi_current[2] / 6
+            to_solve[0][0] /= 1 + tau_sl
+
+        u_current: array = solve_linear(to_solve, rhs_ucur)
+
         for n in range(1,N+1):
             u_flevel_current, forcing_current = u_current[0], forcing[n]
             u_star: float
@@ -139,8 +160,8 @@ class Simu1dEkman():
             elif sf_scheme == "FV free":
                 tilde_h: float = self.z_full[1] - delta_sl
                 tau_sl = 1 + z_star/delta_sl - 1/np.log(1+delta_sl/z_star)
-                u_hat = u_current[0] - tilde_h * \
-                        (phi_current[0]/3 + phi_current[1]/6) / \
+                u_hat = (u_current[0] - tilde_h * \
+                        (phi_current[0]/3 + phi_current[1]/6)) / \
                             (1+tau_sl)
             u_star = self.kappa * np.abs(u_hat) \
                     / np.log(1 + delta_sl/z_star) \
