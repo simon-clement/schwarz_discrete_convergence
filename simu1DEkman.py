@@ -134,7 +134,7 @@ class Simu1dEkman():
                 u_hat = u_flevel_current + self.h_half[0] * \
                         (phi_current[0] / 6 + phi_current[1]/3)
             elif sf_scheme == "FV3":
-                u_hat = u_flevel_current - self.h_half[1] * \
+                u_hat = u_current[1] - self.h_half[1] * \
                         (phi_current[2] / 6 + phi_current[1]/3)
             elif sf_scheme == "FV free":
                 tilde_h: float = self.z_full[1] - delta_sl

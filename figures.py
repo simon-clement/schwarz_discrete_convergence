@@ -17,7 +17,7 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 
 def fig_integration_1dekman():
     from simu1DEkman import Simu1dEkman
-    z_levels= np.linspace(0, 1500, 1000)
+    z_levels= np.linspace(0, 1500, 40)
     # for FV with FV interpretation of sf scheme,
     # the first grid level is divided by 2 so that
     # delta_{sl} is the same in all the schemes.
@@ -27,10 +27,10 @@ def fig_integration_1dekman():
     N = 1680 # 28*60=1680
     simulator = Simu1dEkman(z_levels=z_levels,
             dt=dt, u_geostrophy=10.,
-            K_mol=1e-7, C_D=1e-3, f=1e-4)
+            K_mol=1e-4, C_D=1e-3, f=1e-4)
     simulator_sffv = Simu1dEkman(z_levels=z_levels_sffv,
             dt=dt, u_geostrophy=10.,
-            K_mol=1e-7, C_D=1e-3, f=1e-4)
+            K_mol=1e-4, C_D=1e-3, f=1e-4)
     # choosing u_0 linear so it can be the same FD, FV
     u_0 = 10*np.ones(M+1)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M + 1))
@@ -66,7 +66,7 @@ def fig_integration_1dekman():
     z_subgrid, u_full_sffd = simulator.reconstruct_FV(u_bar = u_FV_sffd, phi=phi_FV_sffd)
     z_subgrid_sffv, u_full_sffv = simulator_sffv.reconstruct_FV(u_bar = u_FV_sffv, phi=phi_FV_sffv)
     z_subgrid_sffv, u_full_sffv2 = simulator_sffv.reconstruct_FV(u_bar = u_FV2_sffv, phi=phi_FV2_sffv)
-    z_subgrid_sffv, u_full_sffv3 = simulator_sffv.reconstruct_FV(u_bar = u_FV2_sffv, phi=phi_FV3_sffv)
+    z_subgrid_sffv, u_full_sffv3 = simulator_sffv.reconstruct_FV(u_bar = u_FV3_sffv, phi=phi_FV3_sffv)
     z_subgrid_free, u_full_free = simulator_sffv.reconstruct_FV(u_bar = u_FVfree, phi=phi_FVfree, FV_free=True, delta_sl=delta_sl)
 
     fig, axes = plt.subplots(1,1, figsize=(3.5, 4.5))
