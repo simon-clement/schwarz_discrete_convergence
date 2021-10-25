@@ -17,11 +17,18 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 
 def fig_integration_1dekman():
     from simu1DEkman import Simu1dEkman
-    z_levels= np.linspace(0, 1500, 4000)
+    z_levels= np.linspace(0, 1500, 1000)
+    # for FV with FV interpretation of sf scheme,
+    # the first grid level is divided by 2 so that
+    # delta_{sl} is the same in all the schemes.
+    z_levels_sffv = np.concatenate(([0], z_levels[1:] -  z_levels[1]/2 ))
     M = z_levels.shape[0] - 1
-    dt = 6.
-    N = 168 # 28*60=1680
+    dt = 60.
+    N = 1680 # 28*60=1680
     simulator = Simu1dEkman(z_levels=z_levels,
+            dt=dt, u_geostrophy=10.,
+            K_mol=1e-7, C_D=1e-3, f=1e-4)
+    simulator_sffv = Simu1dEkman(z_levels=z_levels_sffv,
             dt=dt, u_geostrophy=10.,
             K_mol=1e-7, C_D=1e-3, f=1e-4)
     # choosing u_0 linear so it can be the same FD, FV
@@ -39,22 +46,41 @@ def fig_integration_1dekman():
             forcing=forcing[:, :-1],
             sf_scheme="FD")
 
-    u_FV_sffv, phi_FV_sffv = simulator.FV_KPP(u_t0=u_0[:-1],
+    u_FV_sffv, phi_FV_sffv = simulator_sffv.FV_KPP(u_t0=u_0[:-1],
             phi_t0=phi_0,
             forcing=forcing[:, :-1],
-            sf_scheme="FV")
+            sf_scheme="FV1")
+    u_FV2_sffv, phi_FV2_sffv = simulator_sffv.FV_KPP(u_t0=u_0[:-1],
+            phi_t0=phi_0,
+            forcing=forcing[:, :-1],
+            sf_scheme="FV2")
+    u_FV3_sffv, phi_FV3_sffv = simulator_sffv.FV_KPP(u_t0=u_0[:-1],
+            phi_t0=phi_0,
+            forcing=forcing[:, :-1],
+            sf_scheme="FV3")
+    delta_sl = z_levels_sffv[1]*.999
+    u_FVfree, phi_FVfree = simulator_sffv.FV_KPP(u_t0=u_0[:-1],
+            phi_t0=phi_0,
+            forcing=forcing[:, :-1],
+            sf_scheme="FV free", delta_sl=delta_sl)
     z_subgrid, u_full_sffd = simulator.reconstruct_FV(u_bar = u_FV_sffd, phi=phi_FV_sffd)
-    z_subgrid, u_full_sffv = simulator.reconstruct_FV(u_bar = u_FV_sffv, phi=phi_FV_sffv)
+    z_subgrid_sffv, u_full_sffv = simulator_sffv.reconstruct_FV(u_bar = u_FV_sffv, phi=phi_FV_sffv)
+    z_subgrid_sffv, u_full_sffv2 = simulator_sffv.reconstruct_FV(u_bar = u_FV2_sffv, phi=phi_FV2_sffv)
+    z_subgrid_sffv, u_full_sffv3 = simulator_sffv.reconstruct_FV(u_bar = u_FV2_sffv, phi=phi_FV3_sffv)
+    z_subgrid_free, u_full_free = simulator_sffv.reconstruct_FV(u_bar = u_FVfree, phi=phi_FVfree, FV_free=True, delta_sl=delta_sl)
 
-    fig, axes = plt.subplots(1,1, figsize=(3.5, 3.5))
+    fig, axes = plt.subplots(1,1, figsize=(3.5, 4.5))
     fig.subplots_adjust(left=0.21, bottom=0.14)
     axes.plot(np.real(u_0), z_levels, label="$\mathfrak{R}( u_0)$")
     axes.plot(np.real(u_N1), z_levels, label="$\mathfrak{R}(u_{FD})$")
     axes.plot(np.real(u_full_sffd), z_subgrid, label="$\mathfrak{R}(u_{FV})$ (FD inter.)")
-    axes.plot(np.real(u_full_sffv), z_subgrid, "--", label="$\mathfrak{R}(u_{FV})$ (FV inter.)")
+    axes.plot(np.real(u_full_sffv), z_subgrid_sffv, "--", label="$\mathfrak{R}(u_{FV})$ (FV inter.)")
+    axes.plot(np.real(u_full_sffv2), z_subgrid_sffv, "--", label="$\mathfrak{R}(u_{FV})$ (FV2)")
+    axes.plot(np.real(u_full_sffv3), z_subgrid_sffv, "--", label="$\mathfrak{R}(u_{FV})$ (FV3)")
+    axes.plot(np.real(u_full_free), z_subgrid_free, "--", label="$\mathfrak{R}(u_{FV})$ (FV free)")
     axes.set_xlabel("wind speed ($m.s^{-1}$)")
     axes.set_ylabel("height (m)")
-    axes.legend()
+    axes.legend(loc="upper right")
     show_or_save("fig_integration_1dekman")
 
 
