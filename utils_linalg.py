@@ -18,12 +18,18 @@ def add_banded(Y1, Y2):
     """
         Returns "Y1 + Y2", Y1 and Y2 being tuples of ndarrays of the same size
     """
-    assert len(Y1) == len(Y2)
-    ret_list = []
-    for y1, y2 in zip(Y1, Y2):
+    if Y1[0].shape[0] > Y2[0].shape[0]:
+        Y1, Y2 = Y2, Y1 # now Y1[0].shape[0] <= Y2[0].shape[0]
+    k = Y2[0].shape[0] - Y1[0].shape[0] # Y1 has some lower diagonals
+    ret_list = [y1 for y1 in Y1[:k]]
+    for y1, y2 in zip(Y1[k:], Y2):
         assert y1.ndim == y2.ndim
         assert y1.shape[0] == y2.shape[0]
         ret_list += [y1 + y2]
+    for i in range(len(Y2), len(Y1[k:])): # if Y1 has more upper diagonals
+        ret_list += [Y1[k+i]]
+    for i in range(len(Y1[k:]), len(Y2)): # if Y2 has more upper diagonals
+        ret_list += [Y2[i]]
     return tuple(ret_list)
 
 def multiply(Y, u):
