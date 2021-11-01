@@ -9,6 +9,7 @@ import numpy as np
 from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
 from utils_linalg import solve_linear
+import bisect
 
 array = np.ndarray
 
@@ -46,46 +47,64 @@ class Simu1dEkman():
         self.u_g: float = u_geostrophy
         self.f: float = f
         self.C_D: float = C_D
+        self.dictsf_scheme = {
+                "FD pure" : (self.__sf_udelta_FDpure,
+                                self.__sf_YDc_FDpure),
+                "FD Dirichlet" : (self.__sf_udelta_FDDirichlet0,
+                                self.__sf_YDc_FDDirichlet0),
+                "FD2" : (self.__sf_udelta_FD2,
+                                self.__sf_YDc_FD2),
+                "FV pure" : (self.__sf_udelta_FVpure,
+                                self.__sf_YDc_FVpure),
+                "FV Dirichlet" : (self.__sf_udelta_FVDirichlet0,
+                                self.__sf_YDc_FVDirichlet0),
+                "FV1" : (self.__sf_udelta_FV1,
+                                self.__sf_YDc_FV1),
+                "FV2" : (self.__sf_udelta_FV2,
+                                self.__sf_YDc_FV2),
+                "FV free" : (self.__sf_udelta_FVfree,
+                                self.__sf_YDc_FVfree),
+                "FV2 free" : (self.__sf_udelta_FV2free,
+                                self.__sf_YDc_FV2free) }
 
     def reconstruct_FV(self, u_bar: array, phi: array,
-            FV_free=False, delta_sl=0., z_star=1e-1):
+            sf_scheme: str="FV pure", delta_sl: float=None,
+            z_star: float=1e-1):
         """
             spline reconstruction of the FV solution.
             u(xi) = u_bar[m] + (phi[m+1] + phi[m]) * xi/2 +
-                    (phi[m+1} - phi[m]) / (2*h_half[m]) * 
+                    (phi[m+1] - phi[m]) / (2*h_half[m]) *
                         (xi^2 - h_half[m]^2/12)
             where xi = linspace(-h_half[m]/2, h_half[m]/2, 10, endpoint=True)
         """
         h_half, z_half = np.copy(self.h_half), np.copy(self.z_half)
-        if FV_free:
-            h_half[0] = self.z_full[1] - delta_sl
-            z_half[0] = self.z_full[1] - h_half[0]/2
-            tau_sl = 1 + z_star / delta_sl - 1/np.log(1+delta_sl/z_star)
-            u_bar = np.copy(u_bar) # putting u_tilde instead of u_bar[0]:
-            u_bar[0] = (u_bar[0] + h_half[0] * tau_sl * \
-                    (phi[0]/3 + phi[1]/6)) / (1 + tau_sl)
+
         xi = [np.linspace(-h/2, h/2, 10) for h in h_half[:-1]]
         sub_discrete: List[array] = [u_bar[m] + (phi[m+1] + phi[m]) * xi[m]/2 \
                 + (phi[m+1] - phi[m]) / (2 * h_half[m]) * \
                 (xi[m]**2 - h_half[m]**2/12) for m in range(self.M)]
-        if FV_free:
-            u_oversampled = np.concatenate(sub_discrete)
-            z_oversampled = np.concatenate([np.array(xi[m]) + z_half[m]
-                                                for m in range(self.M)])
-            # xi0 = np.linspace(1e-3,delta_sl, 10)
-            # z_oversampled = np.concatenate(( xi0, z_oversampled))
-            # direction = u_oversampled[0] / np.abs(u_oversampled[0])
-            # ustar = np.abs(u_oversampled[0]*self.kappa) / \
-            #         np.log(1 + delta_sl / z_star)
-            # u_oversampled = np.concatenate((
-            #     direction * ustar / self.kappa * \
-            #             np.log(1 + xi0 / z_star), u_oversampled))
-        else:
-            u_oversampled = np.concatenate(sub_discrete[1:])
-            z_oversampled = np.concatenate([np.array(xi[m]) + z_half[m]
-                                                for m in range(1, self.M)])
+        u_oversampled = np.concatenate(sub_discrete[1:])
+        z_oversampled = np.concatenate([np.array(xi[m]) + z_half[m]
+                                            for m in range(1, self.M)])
 
-        return z_oversampled, u_oversampled
+        if delta_sl is None:
+            delta_sl = self.z_half[0] if sf_scheme in\
+                    {"FV pure", "FV1"} else self.z_full[1]
+        k1 = bisect.bisect_right(self.z_full[1:], delta_sl)
+        prognostic: array = np.concatenate((u_bar[:k1+1], phi[k1:]))
+
+        z_log = np.linspace(0, delta_sl, 10)
+        func_un, _ = self.dictsf_scheme[sf_scheme]
+        u_delta: complex = func_un(prognostic=prognostic,
+                delta_sl=delta_sl, z_star=z_star)
+        u_star: float = self.kappa * np.abs(u_delta) \
+                / np.log(1 + delta_sl/z_star)
+        u_log = u_star/self.kappa * np.log(1+z_log/z_star) \
+                * u_delta/np.abs(u_delta)
+
+        k2 = bisect.bisect_right(z_oversampled, delta_sl)
+        return np.concatenate((z_log, z_oversampled[k2:])), \
+                np.concatenate((u_log, u_oversampled[k2:]))
 
 
     def FV_KPP(self, u_t0: array, phi_t0: array,
@@ -102,7 +121,7 @@ class Simu1dEkman():
             forcing should be given as averaged on each volume for all times
             method support only BE for now
             sf_scheme is the surface flux scheme:
-                - "FD" for a FD interpretation (classical but biaised)
+                - "FV pure" for a FD interpretation (classical but biaised)
                 - "FV{1, 2, 3}" for a FV interpretation (unbiaised but delta_{sl}=z_1)
                 - "FV free" for a FV interpretation with a free delta_{sl}
                     (not implemented)
@@ -114,207 +133,119 @@ class Simu1dEkman():
         N: int = forcing.shape[0] - 1 # number of time steps
         assert forcing.shape[1] == self.M
         c_1 = 0.2 # constant for h_cl in atmosphere
+        func_un, func_YDc_sf = self.dictsf_scheme[sf_scheme]
         if delta_sl is None:
-            delta_sl = self.z_half[0] if sf_scheme in {"FD"} else self.z_full[1]
+            delta_sl = self.z_half[0] if sf_scheme in \
+                    {"FV pure", "FV1", "FV Dirichlet"} \
+                    else self.z_full[1]
+        k = bisect.bisect_right(self.z_full[1:], delta_sl)
 
-        phi_current: array = np.copy(phi_t0)
-
-        # computing u_current for the first time
-        rhs_ucur = self.h_half[0:-2] * phi_current[0:-2]/6 + \
-                (self.h_half[0:-2] + self.h_half[1:-1])*phi_current[1:-1]/3 + \
-                self.h_half[1:-1] * phi_current[2:] / 6
-        rhs_ucur = np.concatenate((rhs_ucur,
-            [self.h_half[-2] * (phi_current[-2]/6 + phi_current[-1]/3) \
-                        - self.u_g]))
-        to_solve = -np.ones(self.M), np.ones(self.M-1)
-        if sf_scheme == "FV free":
-            # getting overline{u}_{1/2} is particular:
-            tilde_h: float = self.z_full[1] - delta_sl
-            tau_sl = 1 + z_star/delta_sl - 1/np.log(1+delta_sl/z_star)
-            rhs_ucur[0] = tilde_h *(1+3*tau_sl)/(1+tau_sl)* \
-                    phi_current[0]/6 + \
-                (tilde_h*(1+3*tau_sl/2)/(1+tau_sl) + \
-                    self.h_half[1]) * phi_current[1]/3 + \
-                self.h_half[1] * phi_current[2] / 6
-            to_solve[0][0] /= 1 + tau_sl
-
-        u_current: array = solve_linear(to_solve, rhs_ucur)
+        prognostic: array = np.concatenate((u_t0[:k+1], phi_t0[k:]))
+        u_current: array = np.copy(u_t0)
 
         for n in range(1,N+1):
-            u_flevel_current, forcing_current = u_current[0], forcing[n]
-            u_star: float
-            u_hat: complex
-            if sf_scheme == "FD":
-                u_hat = u_flevel_current
-            elif sf_scheme == "FV1":
-                u_star = self.kappa * np.abs(u_flevel_current) / \
-                        ((1+z_star / self.z_full[1]) * \
-                        np.log(1+self.z_full[1] / z_star) - 1)
-                u_hat = u_star / self.kappa * np.log(1+ self.z_full[1]/ z_star)
-            elif sf_scheme == "FV2":
-                u_hat = u_flevel_current + self.h_half[0] * \
-                        (phi_current[0] / 6 + phi_current[1]/3)
-            elif sf_scheme == "FV3":
-                u_hat = u_current[1] - self.h_half[1] * \
-                        (phi_current[2] / 6 + phi_current[1]/3)
-            elif sf_scheme == "FV free":
-                tilde_h: float = self.z_full[1] - delta_sl
-                tau_sl = 1 + z_star/delta_sl - 1/np.log(1+delta_sl/z_star)
-                u_hat = (u_current[0] - tilde_h * \
-                        (phi_current[0]/3 + phi_current[1]/6)) / \
-                            (1+tau_sl)
-            u_star = self.kappa * np.abs(u_hat) \
-                    / np.log(1 + delta_sl/z_star) \
-                    if sf_scheme != "FV1" else u_star
-
+            forcing_current = forcing[n]
+            u_delta: complex = func_un(prognostic=prognostic,
+                    delta_sl=delta_sl, z_star=z_star)
+            u_star: float = self.kappa * np.abs(u_delta) \
+                    / np.log(1 + delta_sl/z_star)
 
             h_cl = self.defaulth_cl if np.abs(self.f) < 1e-10 \
                     else np.abs(c_1*u_star/self.f)
-            # K_full = u_star * G_full + K_mol.
+
             G_full: array = self.kappa * self.z_full * \
                     (1 - self.z_full/h_cl)**2 \
                     * np.heaviside(1 - self.z_full/h_cl, 1)
             K_full: array = u_star * G_full + self.K_mol # viscosity
-            K_full[0] = u_star * self.kappa * (delta_sl + z_star)
+            K_full[0] = u_star * self.kappa * (delta_sl+z_star)
 
-            Y_diag: array = np.concatenate(([0], 2/3*np.ones(self.M-1), [1/3]))
-            Y_udiag: array = np.concatenate(([0],
+            Y_diag: array = np.concatenate(([0, 0.], 2/3*np.ones(self.M-1), [1/3]))
+            Y_udiag: array = np.concatenate(([0, 0.],
                 [self.h_half[m]/6./self.h_full[m] for m in range(1, self.M)]))
-            Y_ldiag: array =  np.concatenate((
+            Y_ldiag: array =  np.concatenate(([0.],
                 [self.h_half[m-1]/6./self.h_full[m] for m in range(1, self.M)],
                 [1/6.]))
 
-            D_diag: array = np.concatenate(([0.],
+            D_diag: array = np.concatenate(([0., 0.],
                 [-2 * K_full[m] / self.h_half[m] / self.h_half[m-1]
                                             for m in range(1, self.M)],
                 [-K_full[self.M] / self.h_half[self.M - 1]**2]))
-            D_udiag: array = np.concatenate(([0],
+            D_udiag: array = np.concatenate(([0.,  0],
                 [K_full[m+1]/self.h_full[m] / self.h_half[m]
                                             for m in range(1, self.M)]))
-            D_ldiag: array = np.concatenate((
+            D_uudiag: array = np.zeros(self.M)
+
+            D_ldiag: array = np.concatenate(([0.],
                 [K_full[m-1]/self.h_full[m] / self.h_half[m-1]
                                             for m in range(1, self.M)],
                 [K_full[self.M-1] / self.h_half[self.M - 1]**2]))
 
-            if sf_scheme == "FD":
-                Y_udiag[0] = 0.
-                Y_diag[0] = K_full[0] * np.abs(u_hat) / u_star**2
-                D_diag[0] = K_full[0] / self.h_half[0]
-                D_udiag[0] = - K_full[1] / self.h_half[0]
-            elif sf_scheme in {"FV1", "FV2", "FV3"}:
-                Y_udiag[0] = Y_diag[0] = D_udiag[0] = D_ldiag[0] = 0.
-                D_diag[0] = K_full[0] * np.abs(u_hat) / u_star**2
+            c_T = (1j*self.f * self.u_g - forcing_current[self.M-1]) \
+                    / self.h_half[self.M-1]
+            c = np.concatenate(([0, 0], np.diff(forcing_current) / \
+                                                self.h_full[1:-1], [c_T]))
+            Y = (Y_ldiag, Y_diag, Y_udiag)
+            D = (D_ldiag, D_diag, D_udiag, D_uudiag)
+            Y_sf, D_sf, c_sf = func_YDc_sf(K=K_full,
+                    forcing=forcing_current, ustar=u_star,
+                    un=u_delta, delta_sl=delta_sl, z_star=z_star)
+            for y, y_sf in zip(Y, Y_sf):
+                y_sf = np.array(y_sf)
+                y[:y_sf.shape[0]] = y_sf
+            for d, d_sf in zip(D, D_sf):
+                d_sf = np.array(d_sf)
+                d[:d_sf.shape[0]] = d_sf
 
-                Y_diag[1] = K_full[1] * np.abs(u_hat) / u_star**2 \
-                        - self.h_half[1]/3
-                Y_udiag[1] = - self.h_half[1]/6
-                Y_ldiag[0] = 0.
-                D_diag[1] = K_full[1] / self.h_half[1]
-                D_udiag[1] = - K_full[2] / self.h_half[1]
-            elif sf_scheme == "FV free":
-                # boundary condition:
-                Y_diag[0] = tilde_h / 3 - K_full[0] * \
-                        np.log(1+delta_sl/z_star) / \
-                            (self.kappa * u_star)
-                Y_udiag[0] = tilde_h / 6
-                D_diag[0] = - K_full[0] / tilde_h
-                D_udiag[0] = K_full[1]/ tilde_h
-                # first level:
-                D_diag[1] = -K_full[1] / self.h_full[1] * \
-                        (1/tilde_h + 1/self.h_half[1])
-                D_ldiag[0] = K_full[0]/self.h_full[1] / tilde_h
-                D_udiag[1] = K_full[2]/self.h_full[1] / self.h_half[1]
-                Y_diag[1] = (tilde_h + self.h_half[1]) / (3*self.h_full[1])
-                Y_ldiag[0] = tilde_h/6./self.h_full[1]
-                Y_udiag[1] = self.h_half[1]/6./self.h_full[1]
-            else:
-                raise NotImplementedError(sf_scheme + " surface flux scheme unknown")
+            c_sf = np.array(c_sf)
+            c[:c_sf.shape[0]] = np.array(c_sf)
+            prognostic = self.__backward_euler(Y=Y, D=D, c=c,
+                    u=prognostic)
+            u_current = 1/(1+self.dt*1j*self.f) * (u_current + self.dt * \
+                    (np.diff(prognostic[1:] * K_full) / self.h_half[:-1] \
+                    + forcing_current))
+            u_current[:k+1] = prognostic[:k+1]
+            # print(-u_star**2 * prognostic[0]/np.abs(u_delta))
 
-            if time_method == "BE":
-                c_I1: complex
-                c_I2: complex
-                if sf_scheme == "FD":
-                    c_I1 = - forcing_current[0]
-                    c_I2 = (forcing_current[1] - forcing_current[0]) \
-                            / self.h_full[1]
-                elif sf_scheme in {"FV1", "FV2", "FV3"}:
-                    # in the first grid level we directly
-                    # use u_hat: if sf_scheme == "FV1" it does not
-                    # take the direction into account.
-                    # Moreover, it's an explicit, unstable way.
-                    # Fortunately, the first grid level is not
-                    # really used (except for FV2)
-                    c_I1 = - u_hat
-                    c_I2 = - forcing_current[1]
-                elif sf_scheme == "FV free":
-                    c_I1 = forcing_current[0]
-                    c_I2 = 1/self.h_full[1] * (forcing_current[1] - forcing_current[0])
+        # in the end we return u, phi:
+        phi = prognostic[k+1:]
+        if k > 0:
+            phi = np.concatenate((K_full[k]*phi[0]*K_full[:k], phi))
 
-                else:
-                    raise NotImplementedError(sf_scheme + " surface flux scheme unknown")
-
-                c_T = (1j*self.f * self.u_g - forcing_current[self.M-1]) / self.h_half[self.M-1]
-                c = np.concatenate(([c_I1, c_I2], np.diff(forcing_current[1:]) / \
-                                                    self.h_full[2:-1], [c_T]))
-
-                phi_current = self.__backward_euler(
-                        Y=(Y_ldiag, Y_diag, Y_udiag),
-                        D=(D_ldiag, D_diag, D_udiag), c=c, u=phi_current)
-                # u_current = 1/(1+self.dt*1j*self.f) * (u_current + self.dt * \
-                #         (np.diff(phi_current * K_full) / self.h_half[:-1] \
-                #         + forcing_current))
-
-            else:
-                raise NotImplementedError("Integration method not supported")
-
-            # computing u_current for real at each time step (!)
-            rhs_ucur = self.h_half[0:-2] * phi_current[0:-2]/6 + \
-                    (self.h_half[0:-2] + self.h_half[1:-1])*phi_current[1:-1]/3 + \
-                    self.h_half[1:-1] * phi_current[2:] / 6
-            rhs_ucur = np.concatenate((rhs_ucur,
-                [self.h_half[-2] * (phi_current[-2]/6 + phi_current[-1]/3) \
-                            - self.u_g]))
-            to_solve = -np.ones(self.M), np.ones(self.M-1)
-            if sf_scheme == "FV free":
-                # getting overline{u}_{1/2} is particular:
-                rhs_ucur[0] = tilde_h *(1+3*tau_sl)/(1+tau_sl)* \
-                        phi_current[0]/6 + \
-                    (tilde_h*(1+3*tau_sl/2)/(1+tau_sl) + \
-                        self.h_half[1]) * phi_current[1]/3 + \
-                    self.h_half[1] * phi_current[2] / 6
-                to_solve[0][0] /= 1 + tau_sl
-
-            u_current = solve_linear(to_solve, rhs_ucur)
-
-
-        return u_current, phi_current
+        return u_current, phi
 
 
 
     def FD_KPP(self, u_t0: array, forcing: array, method: str="BE",
-            z_star: float=1e-1) -> array:
+            z_star: float=1e-1, sf_scheme: str="FD pure") -> array:
         """
             Integrates in time with Backward Euler the model with KPP
             and Finite differences.
 
             u_t0 should be given at half-levels (follow self.z_half)
-            u_firstlevel should start at t=0 and finish at N*dt
-                                    where N is the number of time step
+
+            sf_scheme should be one of:
+                FD pure (delta_sl = z_1/2)
+                FD2     (delta_sl = z_1)
             forcing should be given at half-levels for all times
             method support only BE for now
-            returns a numpy array of shape (M) 
-                                    where M is the number of space points 
+            returns a numpy array of shape (M)
+                                    where M is the number of space points
         """
         assert u_t0.shape[0] == self.M + 1
         N: int = forcing.shape[0] - 1 # number of time steps
         c_1 = 0.2 # constant for h_cl=c_1*u_star/f in atmosphere
+        func_un, func_YDc_sf = self.dictsf_scheme[sf_scheme]
+        delta_sl = self.z_half[0] if sf_scheme in {"FD pure", "FD Dirichlet"} \
+                else self.z_full[1]
 
         Y_diag: array = np.concatenate((np.ones(self.M), [0]))
         u_current: array = np.copy(u_t0)
         for n in range(1,N+1):
-            u_flevel_current, forcing_current = u_current[0], forcing[n]
-            u_star: float = self.kappa * np.abs(u_flevel_current) \
-                    / np.log(1 + self.z_half[1]/z_star)
+            forcing_current = forcing[n]
+            u_delta = func_un(prognostic=u_current)
+
+            u_star: float = self.kappa * np.abs(u_delta) \
+                    / np.log(1 + delta_sl/z_star)
 
             h_cl = self.defaulth_cl if np.abs(self.f) < 1e-10 else c_1*u_star/self.f
             # K_full = u_star * G_full + K_mol.
@@ -322,14 +253,12 @@ class Simu1dEkman():
                     (1 - self.z_full/h_cl)**2 \
                     * np.heaviside(1 - self.z_full/h_cl, 1)
             K_full: array = u_star * G_full + self.K_mol # viscosity
-            D_diag: array = np.concatenate((
-                [-K_full[1] / (self.h_half[0] * self.h_full[1]) + \
-                       u_star**2/np.abs(u_flevel_current)/self.h_half[0]],
+            K_full[0] = u_star * self.kappa * (delta_sl + z_star)
+            D_diag: array = np.concatenate(( [0.],
                 [(-K_full[m+1]/self.h_full[m+1] - K_full[m]/self.h_full[m]) \
                         / self.h_half[m] for m in range(1, self.M)],
                 [-1]))
-            D_udiag: array = np.concatenate((
-                [K_full[1]/self.h_half[0]/self.h_full[1]],
+            D_udiag: array = np.concatenate(([0.],
                 [K_full[m+1]/self.h_full[m+1] / self.h_half[m]
                     for m in range(1, self.M)]))
             D_ldiag: array = np.concatenate((
@@ -338,11 +267,23 @@ class Simu1dEkman():
                 ,[0]))
 
             c: array = np.concatenate((forcing_current[:-1], [self.u_g]))
+            Y_sf, D_sf, c_sf = func_YDc_sf(K=K_full,
+                    forcing=forcing_current, ustar=u_star,
+                    un=u_delta)
+            assert len(Y_sf[0]) == 0 and Y_sf[2] == (0.,)
+            Y_diag[:1] = Y_sf[1] # raises an error if Y_sf[1].shape[0]>1
+            for d, d_sf in zip((D_ldiag, D_diag, D_udiag), D_sf):
+                d_sf = np.array(d_sf)
+                d[:d_sf.shape[0]] = d_sf
+
+            c_sf = np.array(c_sf)
+            c[:c_sf.shape[0]] = np.array(c_sf)
 
             if method == "BE":
                 u_current = self.__backward_euler(
                         Y=(np.zeros(self.M), Y_diag, np.zeros(self.M)),
                         D=(D_ldiag, D_diag, D_udiag), c=c, u=u_current)
+                # print(-u_star**2 / np.abs(u_delta) * u_current[0])
             else:
                 raise NotImplementedError("Integration method not supported")
 
@@ -360,3 +301,164 @@ class Simu1dEkman():
         to_inverse: Tuple[array, array, array] = add(s_mult(Y, 1 + self.dt * 1j*self.f),
                                         s_mult(D, - self.dt))
         return solve_linear(to_inverse, multiply(Y, u) + self.dt*c)
+
+    ########### DEFINITION OF SF SCHEMES : VALUE OF u######""
+    def __sf_udelta_FDDirichlet0(self, prognostic, **_):
+        return prognostic[0]
+
+    def __sf_udelta_FDpure(self, prognostic, **_):
+        return prognostic[0]
+
+    def __sf_udelta_FD2(self, prognostic, **_):
+        return (prognostic[0] + prognostic[1])/2
+
+    def __sf_udelta_FVDirichlet0(self, prognostic, **_):
+        return prognostic[0] - self.h_half[0]* \
+                (prognostic[2] - prognostic[1])/24
+
+    def __sf_udelta_FVpure(self, prognostic, **_):
+        return prognostic[0] - self.h_half[0]* \
+                (prognostic[2] - prognostic[1])/24
+
+    def __sf_udelta_FV1(self, prognostic, **_):
+        return prognostic[0]
+
+    def __sf_udelta_FV2(self, prognostic, **_):
+        return prognostic[1] - self.h_half[1] * \
+                (prognostic[3]/6 + prognostic[2]/3)
+
+    def __sf_udelta_FVfree(self, prognostic, delta_sl, z_star, **_):
+        tilde_h = self.z_full[1] - delta_sl
+        tau_sl = 1+z_star/delta_sl - 1/np.log(1+delta_sl/z_star)
+        return (prognostic[0] - tilde_h * \
+                (prognostic[2]/6 + prognostic[1]/3))/(1+tau_sl)
+
+    def __sf_udelta_FV2free(self, prognostic, delta_sl, z_star, **_):
+        k = bisect.bisect_right(self.z_full[1:], delta_sl)
+        zk = self.z_full[k]
+        tilde_h = self.z_full[k+1] - delta_sl
+        if zk > 0:
+            tau_sl = 1+z_star/delta_sl - 1/np.log(1+delta_sl/z_star) \
+                    + zk * (1 - (1+z_star/zk)*np.log(1+zk/z_star)) \
+                    / (delta_sl * np.log(1+delta_sl/z_star))
+        else:
+            tau_sl = 1+z_star/delta_sl - 1/np.log(1+delta_sl/z_star)
+        return (prognostic[k] - tilde_h * \
+                (prognostic[k+1] / 3 + prognostic[k+2] / 6)) \
+                / (1+tau_sl)
+
+    def __sf_YDc_FDDirichlet0(self, **_):
+        Y = ((), (0.,), (0.,))
+        D = ((), (1+self.h_half[0]/2/self.h_full[1],),
+                (-self.h_half[0]/2/self.h_full[1],))
+        c = (0.,)
+        return Y, D, c
+
+    def __sf_YDc_FDpure(self, K, forcing, ustar, un, **_):
+        Y = ((), (1.,), (0.,))
+        D = ((), (-K[1]/self.h_full[1]/self.h_half[1] + \
+                ustar**2 / np.abs(un), ),
+                (-K[1]/self.h_full[1]/self.h_half[1],))
+        c = (forcing[0],)
+        return Y, D, c
+
+    def __sf_YDc_FD2(self, K, ustar, un, **_):
+        Y = ((), (0.,), (0.,))
+        D = ((), (-K[1]/self.h_full[1] + ustar**2 / np.abs(un) / 2,),
+                (K[1]/self.h_full[1] + ustar**2 / np.abs(un) / 2,))
+        c = (0.,)
+        return Y, D, c
+
+    def __sf_YDc_FVDirichlet0(self, K, forcing, **_):
+        Y = ((1.,), (0., 0.), (0., 0.))
+        D = ((0.,), (1, -K[0] / self.h_half[0]),
+                (- self.h_half[0]/3, K[1]/self.h_half[0]),
+                (-self.h_half[0]/6,))
+        c = (0., forcing[0])
+        return Y, D, c
+
+    def __sf_YDc_FVpure(self, K, forcing, ustar, un, **_):
+        Y = ((1.,), (0., 0.), (0., 0.))
+        D = ((0.,), (1, -K[0] / self.h_half[0]),
+                (K[0]*np.abs(un)/ustar**2+self.h_half[0]/24,
+                    K[1]/self.h_half[0]),
+                (-self.h_half[0]/24,))
+        c = (0., forcing[0])
+        return Y, D, c
+
+    def __sf_YDc_FV1(self, K, forcing, ustar, un, **_):
+        Y = ((1.,), (0., 0.), (0., 0.))
+        D = ((0.,), (1, -K[0] / self.h_half[0]),
+                (K[0]*np.abs(un)/ustar**2, K[1]/self.h_half[0]))
+        c = (0., forcing[0])
+        return Y, D, c
+
+    def __sf_YDc_FV2(self, K, forcing, ustar, un, z_star, **_):
+        f = lambda z: (z+z_star)*np.log(1+z/z_star) - z
+        ratio_norms = (f(self.z_full[1]) - f(0)) / \
+                (f(self.z_full[2]) - f(self.z_full[1]))
+        Y = ((0., 1.), (0., 0., 0.), (0., 0., 0.))
+        D = ((0., 0.), (1., 1., -K[1] / self.h_half[1]),
+                (-ratio_norms, K[1]*np.abs(un)/ustar**2 - \
+                        self.h_half[1]/3, K[2]/self.h_half[1]),
+                (0., -self.h_half[1]/6))
+        c = (0., 0., forcing[1])
+        return Y, D, c
+
+    def __sf_YDc_FVfree(self, K, forcing, ustar, un,
+            z_star, delta_sl, **_):
+        tau_sl = 1+z_star/delta_sl - 1/np.log(1+delta_sl/z_star)
+        tilde_h = self.z_full[1] - delta_sl
+        Y = ((1/(1+tau_sl), tilde_h / 6 / self.h_full[1]),
+                (0., tilde_h*tau_sl/3/(1+tau_sl),
+                    tilde_h/3/self.h_full[1] + \
+                            self.h_half[1]/3/self.h_full[1]),
+                (0., tilde_h*tau_sl/6/(1+tau_sl),
+                    self.h_half[1]/6/self.h_full[1]))
+
+        D = ((0., K[0]/tilde_h/self.h_full[1]),
+                (1., -K[0] / tilde_h,
+                    -K[1]/tilde_h/self.h_full[1] - \
+                            K[1] / self.h_half[1] / self.h_full[1]),
+                (K[0]*np.abs(un)*(1+tau_sl)/ustar**2 - tilde_h/3,
+                    K[1]/tilde_h, K[2]/self.h_full[1]/self.h_half[1]),
+                (-tilde_h/6, 0.))
+        c = (0., forcing[0], (forcing[1] - forcing[0])/self.h_full[1])
+        return Y, D, c
+
+    def __sf_YDc_FV2free(self, K, forcing, ustar, un,
+            z_star, delta_sl, **_):
+        k = bisect.bisect_right(self.z_full[1:], delta_sl)
+        zk = self.z_full[k]
+        tilde_h = self.z_full[k+1] - delta_sl
+        tau_sl = 1+z_star/delta_sl - 1/np.log(1+delta_sl/z_star) \
+                + zk * (1 - (1+z_star/zk)*np.log(1+zk/z_star)) \
+                / (delta_sl * np.log(1+delta_sl/z_star))
+
+        Y = ((1/(1+tau_sl), tilde_h / 6 / self.h_full[k+1]),
+                (0., tilde_h*tau_sl/3/(1+tau_sl),
+                    tilde_h/3/self.h_full[k+1] + \
+                            self.h_half[k+1]/3/self.h_full[k+1]),
+                (0., tilde_h*tau_sl/6/(1+tau_sl),
+                    self.h_half[k+1]/6/self.h_full[k+1]))
+
+        D = ((0., K[k+0]/tilde_h/self.h_full[k+1]),
+                (1., -K[k+0] / tilde_h,
+                    -K[k+1]/tilde_h/self.h_full[k+1] - \
+                            K[k+1] / self.h_half[k+1] / self.h_full[k+1]),
+                (K[k+0]*np.abs(un)*(1+tau_sl)/ustar**2 - tilde_h/3,
+                    K[k+1]/tilde_h, K[k+2]/self.h_full[k+1]/self.h_half[k+1]),
+                (-tilde_h/6, 0.))
+        c = (0., forcing[k+0],
+                (forcing[k+1] - forcing[k+0])/self.h_full[k+1])
+        Y = (np.concatenate((np.zeros(k), y)) for y in Y)
+        f = lambda z: (z+z_star)*np.log(1+z/z_star) - z
+        ratio_norms = ((f(self.z_full[m+1]) - f(self.z_full[m])) / \
+                (f(self.z_full[m+2]) - f(self.z_full[m+1])) \
+                    for m in range(k))
+        D = (np.concatenate((np.zeros(k), D[0])),
+                np.concatenate((np.ones(k), D[1])),
+                np.concatenate((ratio_norms, D[2])),
+                np.concatenate((np.zeros(k), D[3])))
+        c = np.concatenate((np.zeros(k), c))
+        return Y, D, c
