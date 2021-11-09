@@ -27,7 +27,7 @@ def fig_integration_1dekman():
     # delta_{sl} is the same in all the schemes.
     M = z_levels.shape[0] - 1
     dt = 60.
-    N = 2 # 28*60=1680
+    N = 1680 # 28*60=1680
     simulator = Simu1dEkman(z_levels=z_levels,
             dt=dt, u_geostrophy=10.,
             K_mol=1e-4, C_D=1e-3, f=1e-4)
@@ -37,7 +37,7 @@ def fig_integration_1dekman():
 
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M + 1))
 
-    u_N1, TKE_FD, ustar_FD = \
+    u_N1, TKE_FD, ustar_FD, shear_FD = \
             simulator.FD(u_t0=u_0, sf_scheme=sf_scheme_FD,
             forcing=forcing)
 
@@ -45,7 +45,7 @@ def fig_integration_1dekman():
     phi_0[-1] = phi_0[-2] # correcting the last flux
 
 
-    u_FV_sffvpure, phi_FV_sffvpure, TKE_FV, ustar_FV = \
+    u_FV_sffvpure, phi_FV_sffvpure, TKE_FV, ustar_FV, shear_FV = \
             simulator.FV(u_t0=u_0[:-1],
             phi_t0=phi_0,
             forcing=forcing[:, :-1],
@@ -54,20 +54,33 @@ def fig_integration_1dekman():
     z_subgrid, u_full_sffvpure = simulator.reconstruct_FV(
             u_bar = u_FV_sffvpure, phi=phi_FV_sffvpure,
                                             sf_scheme=sf_scheme_FV)
-    fig, axes = plt.subplots(1,3, figsize=(8.5, 4.5))
-    fig.subplots_adjust(left=0.21, bottom=0.14)
+    fig, axes = plt.subplots(1,4, figsize=(9.5, 4.5))
+    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
     axes[0].plot(np.real(u_N1), simulator.z_half, label=r"$\mathfrak{R}(u_\text{FD})$")
-    axes[0].plot(np.real(u_full_sffvpure), z_subgrid, label=r"$\mathfrak{R}(u_{FV})$")
+    # axes[0].plot(np.real(u_full_sffvpure), z_subgrid, label=r"$\mathfrak{R}(u_{FV})$")
+    axes[0].plot(np.imag(u_N1), simulator.z_half, label=r"$Im(u_\text{FD})$")
+    # axes[0].plot(np.imag(u_full_sffvpure), z_subgrid, label=r"$Im(u_{FV})$")
     axes[1].plot(TKE_FD, simulator.z_half, label=r"$e^\text{FD}$")
     axes[1].plot(TKE_FV, simulator.z_half, label=r"$e^\text{FV}$")
-    axes[2].plot(ustar_FD, label=r"$u_\star^\text{FD}$")
-    axes[2].plot(ustar_FV, label=r"$u_\star^\text{FV}$")
+    axes[2].semilogy(dt*np.array(range(len(ustar_FD))), ustar_FD, "+", label=r"$u_\star^\text{FD}$")
+    axes[2].plot(dt*np.array(range(len(ustar_FV))), ustar_FV, "+", label=r"$u_\star^\text{FV}$")
+    axes[3].plot(shear_FD, simulator.z_half, label=r"$\text{shear}^\text{FD}$")
+    axes[3].plot(shear_FV, simulator.z_half, label=r"$\text{shear}^\text{FV}$")
 
     axes[0].set_xlabel("wind speed ($m.s^{-1}$)")
     axes[0].set_ylabel("height (m)")
+    axes[1].set_xlabel("energy (J)")
+    axes[1].set_ylabel("height (m)")
+    axes[2].set_xlabel("time ($s$)")
+    axes[2].set_ylabel("friction velocity ($m.s^{-1}$)")
+    axes[3].set_xlabel("shear ($kg.m^2.s^{-3}$)")
+    axes[3].set_ylabel("height (m)")
     axes[0].legend(loc="upper right")
     axes[1].legend(loc="upper right")
     axes[2].legend(loc="upper right")
+    axes[3].legend(loc="upper right")
+    fig.suptitle("Surface flux schemes: ("+sf_scheme_FD+", "+
+            sf_scheme_FV+")")
     show_or_save("fig_integration_1dekman")
 
 
