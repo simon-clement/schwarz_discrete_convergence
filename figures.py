@@ -997,7 +997,7 @@ def fig_compare_discrete_modif():
 def fig_optiRates():
     import matplotlib as mpl
     mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     fig, axes = plt.subplots(2, 2, figsize=[6.4*1.4, 4.8*1.4], sharex=True, sharey=True)
     axes[0,0].grid()
     axes[1,0].grid()
