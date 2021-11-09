@@ -113,7 +113,7 @@ def fig_plot_initialisation():
 def fig_optiRates():
     import matplotlib as mpl
     mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     fig, axes = plt.subplots(1, 2, figsize=[6.4*1.4, 4.4], sharex=True, sharey=True)
     axes[0].grid()
     axes[1].grid()
