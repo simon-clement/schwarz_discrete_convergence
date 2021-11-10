@@ -9,6 +9,5 @@ FIGURE["2"] = "fig_rhoDNPade"
 FIGURE["4"] = "fig_rhoDN_space"
 FIGURE["5"] = "fig_DNInteraction"
 FIGURE["6"] = "fig_RRInteraction"
-FIGURE["7"] = "fig_compare_discrete_modif"
-FIGURE["8"] = "fig_optiRates"
+FIGURE["7"] = "fig_optiRates"
 ALL_LABELS = FIGURE

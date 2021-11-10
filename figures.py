@@ -1,8 +1,6 @@
 #!/usr/bin/python3
 """
     This module is the container of the generators of figures.
-    The code is redundant, but it is necessary to make sure
-    a future change in the default values won't affect old figures...
 """
 import numpy as np
 from numpy import pi
@@ -10,12 +8,11 @@ from memoisation import memoised, FunMem
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import functools
-import discretizations
-from simulator import simulation_cv_rate_linear, simulation_cv_rate_matrixlinear
+from scipy.optimize import minimize_scalar, minimize
 from simulator import frequency_simulation
-from simulator import matrixlinear_frequency_simulation
-from simulator import eigenvalues_matrixlinear_frequency_simulation
-from simulator import simulation_firstlevels
+from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FV
+from cv_factor_onestep import rho_BE_FD, rho_BE_FV, rho_c_FD, rho_c_FV
+from cv_factor_onestep import rho_BE_c, rho_c_c
 
 # If set to True, the simulations will run, taking multiple hours.
 REAL_FIG = False
@@ -462,14 +459,6 @@ def fig_rhoDN_space():
 def fig_DNInteraction():
     mpl.rc('text', usetex=True)
     mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
-    from discretizations.space.FD_naive import FiniteDifferencesNaive
-    from discretizations.space.FD_corr import FiniteDifferencesCorr
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    from discretizations.space.fourth_order_fv import FourthOrderFV
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
-    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
     # parameters of the schemes are given to the builder:
     builder = Builder()
     builder.LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
@@ -483,9 +472,6 @@ def fig_DNInteraction():
     plt.subplots_adjust(left=.04, bottom=.10, right=.99, top=.92, wspace=0.05, hspace=0.4)
     dt = builder.DT
     REACTION_COEFF = 0.1
-
-    discretizations = {}
-    time_scheme = BackwardEuler
 
     theorical_convergence_factors = {}
     theorical_convergence_factors["BEFV"] = {}
@@ -514,20 +500,13 @@ def fig_DNInteraction():
         assert REACTION_COEFF * builder.DT <= 1
         axis_freq = get_discrete_freq(int(1000/dt), builder.DT)
 
-        dis = builder.build(BackwardEuler, FiniteDifferencesNaive)
-        theorical_convergence_factors["BEFD"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
-                        order_equations=float('inf'))
+        theorical_convergence_factors["BEFD"][dt] = np.abs(rho_BE_FD(builder, w=axis_freq, k_c=0))
 
-        dis.R = REACTION_COEFF
-        theorical_convergence_factors["BEFD_R"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
-                        order_equations=float('inf'))
+        builder.R = REACTION_COEFF
+        theorical_convergence_factors["BEFD_R"][dt] = np.abs(rho_BE_FD(builder, w=axis_freq, k_c=0))
+        builder.R = 0.
 
-        dis = builder.build(BackwardEuler, QuadSplinesFV)
-        theorical_convergence_factors["BEFV"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
-                        order_equations=float('inf'))
+        theorical_convergence_factors["BEFV"][dt] = np.abs(rho_BE_FV(builder, w=axis_freq))
 
         theorical_convergence_factors["SimplePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=simple_gamma)
 
@@ -537,7 +516,7 @@ def fig_DNInteraction():
 
         theorical_convergence_factors["LowTildePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
 
-        
+
         col = style[dt]['col']
         ls = style[dt]['ls']
         lw = style[dt]['lw']
@@ -574,31 +553,24 @@ def fig_DNInteraction():
     show_or_save("fig_interactionsDN")
 
 def robin_parameters_discrete_space(builder, N, dt, scheme="FD"):
-    from discretizations.space.FD_naive import FiniteDifferencesNaive
-    from discretizations.time.backward_euler import BackwardEuler # silent class
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
     if scheme == "FD":
-        space_dis = FiniteDifferencesNaive
+        rho_BE = rho_c_FD
     elif scheme == "FV":
-        space_dis = QuadSplinesFV
+        rho_BE = rho_c_FV
     else:
-        raise
+        raise NotImplementedError("unknown scheme")
 
-    from scipy.optimize import minimize_scalar, minimize
     axis_freq = get_discrete_freq(N, dt)
     def to_minimize_onesided(p):
-        dis = builder.build(BackwardEuler, space_dis)
-        dis.LAMBDA_1 = p
-        dis.LAMBDA_2 = -p
-        return np.max(np.abs(dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_operators=float('inf'), order_equations=float('inf'))))
+        builder_cp = builder.copy()
+        builder_cp.LAMBDA_1, builder_cp.LAMBDA_2 = p, -p
+        return np.max(np.abs(rho_BE(builder=builder_cp, w=axis_freq)))
 
     def to_minimize_twosided(parameters):
-        dis = builder.build(BackwardEuler, space_dis)
-        dis.LAMBDA_1 = parameters[0]
-        dis.LAMBDA_2 = parameters[1]
-        return np.max(np.abs(dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_operators=float('inf'), order_equations=float('inf'))))
+        builder_cp = builder.copy()
+        builder_cp.LAMBDA_1 = parameters[0]
+        builder_cp.LAMBDA_2 = parameters[1]
+        return np.max(np.abs(rho_BE(builder=builder_cp, w=axis_freq)))
 
     res_onesided = minimize_scalar(fun=to_minimize_onesided)
     p_opti = res_onesided.x
@@ -607,22 +579,13 @@ def robin_parameters_discrete_space(builder, N, dt, scheme="FD"):
     return res_twosided
 
 def fig_RRInteraction():
-    import matplotlib as mpl
     mpl.rc('text', usetex=True)
     mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
-    from discretizations.space.FD_naive import FiniteDifferencesNaive
-    from discretizations.space.FD_corr import FiniteDifferencesCorr
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    from discretizations.space.fourth_order_fv import FourthOrderFV
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
-    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
     # parameters of the schemes are given to the builder:
     builder = Builder()
     builder.D1 = 1.
     builder.D2 = 2.
-    fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))    
+    fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))
     plt.subplots_adjust(left=.04, bottom=.10, right=.99, top=.92, wspace=0.05, hspace=0.4)
     axes[0,0].set_ylim(top=0.6, bottom=0.) #sharey activated : see ax[1].set_xlim
     dt = builder.DT
@@ -634,9 +597,6 @@ def fig_RRInteraction():
             all_dt[3] : {'col':'.5', 'ls':'dashed', 'lw':1.9, 'legend':r"$\Gamma=10^{-2}$"},
             all_dt[4] : {'col':'r', 'ls':'solid', 'lw':1., 'legend':r"$\Gamma=\nu_1\frac{\Delta t}{h^2}=10^{-3}$"}}
         
-    discretizations = {}
-    time_scheme = BackwardEuler
-
     theorical_convergence_factors = {}
     theorical_convergence_factors["BEFV"] = {}
     theorical_convergence_factors["BEFD"] = {}
@@ -650,18 +610,25 @@ def fig_RRInteraction():
     builder.R = 0.
     builder.DT = dtmin
     #optimisation for FD:
-    res_twosided = memoised(robin_parameters_discrete_space, builder=builder, N=int(1000/dtmin), dt=dtmin)
+    res_twosided = memoised(robin_parameters_discrete_space,
+            builder=builder, N=int(1000/dtmin), dt=dtmin, scheme="FD")
     theorical_convergence_factors["BEFD"]["robin"] = res_twosided.x
-    #optimisation for FD with Reaction:
+    theorical_convergence_factors["SimplePade"]["robin"] = res_twosided.x
+    theorical_convergence_factors["LowTildePade"]["robin"] = res_twosided.x
 
+    #optimisation for FD with Reaction:
     builder.R = REACTION_COEFF
-    theorical_convergence_factors["BEFD_R"]["robin"] =memoised(robin_parameters_discrete_space, builder=builder, N=int(1000/dtmin), dt=dtmin).x
+    res_twosided = memoised(robin_parameters_discrete_space,
+            builder=builder, N=int(1000/dtmin), dt=dtmin, scheme="FD")
+
+    theorical_convergence_factors["BEFD_R"]["robin"] = res_twosided.x
+    theorical_convergence_factors["LowTildePade_R"]["robin"] = res_twosided.x
 
     #optimisation for FV:
     builder.R = 0.
-    theorical_convergence_factors["BEFV"]["robin"] = memoised(robin_parameters_discrete_space, builder=builder, N=int(1000/dtmin), dt=dtmin, scheme="FV").x
-
-    #optimisation for FD with r:
+    res_twosided = memoised(robin_parameters_discrete_space,
+            builder=builder, N=int(1000/dtmin), dt=dtmin, scheme="FV")
+    theorical_convergence_factors["BEFV"]["robin"] = res_twosided.x
 
     def low_tilde_gamma(z):
         b = 1+1/np.sqrt(2)
@@ -671,42 +638,39 @@ def fig_RRInteraction():
         return z - b*(z-1)
 
     for dt in all_dt:
-        builder.DT = dt
-        assert REACTION_COEFF * builder.DT <= 1
-        axis_freq = get_discrete_freq(int(5000/dt), builder.DT)
-
-        dis = builder.build(BackwardEuler, FiniteDifferencesNaive)
-        dis.LAMBDA_1, dis.LAMBDA_2 = theorical_convergence_factors["BEFD"]["robin"]
-        theorical_convergence_factors["BEFD"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
-                        order_equations=float('inf'))
-
         col = style[dt]['col']
         ls = style[dt]['ls']
         lw = style[dt]['lw']
         legend = style[dt]['legend']
-
-        dis.R = REACTION_COEFF
-        dis.LAMBDA_1, dis.LAMBDA_2 = theorical_convergence_factors["BEFD_R"]["robin"]
-        theorical_convergence_factors["BEFD_R"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
-                        order_equations=float('inf'))
-
-        dis = builder.build(BackwardEuler, QuadSplinesFV)
-        dis.LAMBDA_1, dis.LAMBDA_2 = theorical_convergence_factors["BEFV"]["robin"]
-        theorical_convergence_factors["BEFV"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
-                        order_equations=float('inf'))
+        builder.DT = dt
+        assert REACTION_COEFF * builder.DT <= 1
+        axis_freq = get_discrete_freq(int(5000/dt), builder.DT)
 
         builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["BEFD"]["robin"]
+        theorical_convergence_factors["BEFD"][dt] = \
+                np.abs(rho_BE_FD(builder=builder, w=axis_freq))
+
+        builder.R = REACTION_COEFF
+        builder.LAMBDA_1, builder.LAMBDA_2 = \
+                    theorical_convergence_factors["BEFD_R"]["robin"]
+        theorical_convergence_factors["BEFD_R"][dt] = \
+                np.abs(rho_BE_FD(builder=builder, w=axis_freq))
+        builder.R = 0.
+
+        builder.LAMBDA_1, builder.LAMBDA_2 = \
+                theorical_convergence_factors["BEFV"]["robin"]
+        theorical_convergence_factors["BEFV"][dt] = \
+                np.abs(rho_BE_FV(builder=builder, w=axis_freq))
+
+        builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["SimplePade"]["robin"]
         theorical_convergence_factors["SimplePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=simple_gamma)
 
         builder.R = REACTION_COEFF
-        builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["BEFD_R"]["robin"]
+        builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["LowTildePade_R"]["robin"]
         theorical_convergence_factors["LowTildePade_R"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
         builder.R = 0.
 
-        builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["BEFD"]["robin"]
+        builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["LowTildePade"]["robin"]
         theorical_convergence_factors["LowTildePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
 
         axes[0,0].semilogx(axis_freq, theorical_convergence_factors["BEFV"][dt], linestyle=ls, color=col, linewidth=lw)
@@ -806,15 +770,8 @@ def wAndRhoPadeRR(builder, gamma=None):
 
 
 def fig_compare_discrete_modif():
-    import matplotlib as mpl
     mpl.rc('text', usetex=True)
     mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
-    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma as Pade
-    from discretizations.time.backward_euler import BackwardEuler as BE
-    from discretizations.space.FD_naive import FiniteDifferencesNaive as FD
-    from discretizations.space.FD_extra import FiniteDifferencesExtra as FD
-    from discretizations.space.quad_splines_fv import QuadSplinesFV as FV
-    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
     fig, axes = plt.subplots(2, 2, figsize=[6.4, 4.4], sharex=False, sharey=True)
     plt.subplots_adjust(left=.11, bottom=.28, right=.99, top=.92, wspace=0.19, hspace=0.34)
     COLOR_CONT = '#FF3333FF'
@@ -991,199 +948,115 @@ def fig_compare_discrete_modif():
     show_or_save("fig_compare_discrete_modif")
 
 def fig_optiRates():
-    import matplotlib as mpl
     mpl.rc('text', usetex=True)
     mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
-    fig, axes = plt.subplots(2, 2, figsize=[6.4*1.4, 4.8*1.4], sharex=True, sharey=True)
-    axes[0,0].grid()
-    axes[1,0].grid()
-    axes[0,1].grid()
-    axes[1,1].grid()
-    axes[1,1].set_ylim(bottom=0.095, top=0.3) # all axis are shared
+    fig, axes = plt.subplots(1, 2, figsize=[6.4*1.4, 4.4], sharex=True, sharey=True)
+    axes[0].grid()
+    axes[1].grid()
+    #axes[1].set_ylim(bottom=0.095, top=0.3) # all axis are shared
 
     caracs = {}
     caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
-    caracs["modified"] = {'color':'#0000FF', 'width':1.3, 'nb_+':12}
-    caracs["discrete"] = {'color':'#000000', 'width':0.7, 'nb_+':15}
+    caracs["semi-discrete"] = {'color':'#FF0000', 'width':.9, 'nb_+':15}
+    caracs["discrete, FV"] = {'color':'#000000', 'width':.9, 'nb_+':15}
+    caracs["discrete, FD"] = {'color':'#0000FF', 'width':.9, 'nb_+':15}
 
 
     fig.suptitle("Optimized convergence rates with different methods")
-    fig.subplots_adjust(left=0.07, bottom=0.12, right=0.98, top=0.92, wspace=0.13, hspace=0.16)
-    #####################################
-    # PADE
-    ####################################
-    from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FD_extra
-
-    time_dis, space_dis = PadeLowTildeGamma, FiniteDifferencesExtra
-
-    def rho_c_FD_extra(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=0, order_operators=float('inf'),
-                    order_equations=float('inf'))
-
-    def rho_m_FD(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=1, order_operators=float('inf'),
-                    order_equations=float('inf'))
-
-    optiRatesGeneral(axes[0,0], rho_c_FD_extra, rho_m_FD, rho_Pade_FD_extra, time_dis, space_dis, "Pade", caracs=caracs)
-
-    ########################################
-    # BE
-    ###########################################
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    time_dis, space_dis = BackwardEuler, FiniteDifferencesExtra
-    def rho_c_FD_extra(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=0, order_operators=float('inf'),
-                    order_equations=float('inf'))
-    def rho_BE_FD_extra(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=float('inf'),
-                    order_equations=float('inf'))
-
-    def rho_m_FD(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=1, order_operators=float('inf'),
-                    order_equations=float('inf'))
-    
-    optiRatesGeneral(axes[0,1], rho_c_FD_extra, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "Backward Euler", caracs=caracs)
-
+    fig.subplots_adjust(left=0.07, bottom=0.15, right=0.98, top=0.92, wspace=0.13, hspace=0.16)
     #############################################
-    # FD
+    # BE
     #######################################
 
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.space.FD_extra import FiniteDifferencesExtra
-    time_dis, space_dis = BackwardEuler, FiniteDifferencesExtra
-    def rho_BE_c(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=0,
-                    order_equations=0)
-    def rho_BE_FD_extra(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=float('inf'),
-                    order_equations=float('inf'))
+    from ocean_models.ocean_BE_FD import OceanBEFD
+    from ocean_models.ocean_BE_FV import OceanBEFV
+    from atmosphere_models.atmosphere_BE_FV import AtmosphereBEFV
+    from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
 
-    def rho_m_FD(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=1,
-                    order_equations=1)
+    all_rates = rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD
+    all_ocean = OceanBEFV, OceanBEFV, OceanBEFV, OceanBEFD
+    all_atmosphere = AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFD
     
-    optiRatesGeneral(axes[1,0], rho_BE_c, rho_m_FD, rho_BE_FD_extra, time_dis, space_dis, "Finite Differences", caracs=caracs)
+    optiRatesGeneral(axes[0], all_rates, all_ocean, all_atmosphere, "BE", caracs=caracs)
 
     ###########################
-    # FV
+    # Pade
     ##########################
 
-    from discretizations.time.backward_euler import BackwardEuler
-    from discretizations.space.quad_splines_fv import QuadSplinesFV
-    time_dis, space_dis = BackwardEuler, QuadSplinesFV
-    def rho_BE_c(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=0,
-                    order_equations=0)
-    def rho_BE_FV(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=float('inf'),
-                    order_equations=float('inf'))
+    from ocean_models.ocean_Pade_FD import OceanPadeFD
+    from ocean_models.ocean_Pade_FV import OceanPadeFV
+    from atmosphere_models.atmosphere_Pade_FV import AtmospherePadeFV
+    from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
 
-    def rho_m_FV(builder, axis_freq):
-        dis = builder.build(time_dis, space_dis)
-        return dis.analytic_robin_robin_modified(w=axis_freq,
-                    order_time=float('inf'), order_operators=1,
-                    order_equations=2)
-    
-    optiRatesGeneral(axes[1,1], rho_BE_c, rho_m_FV, rho_BE_FV, time_dis, space_dis, "Finite Volumes", caracs=caracs)
+    all_rates = rho_c_c, rho_Pade_c, rho_Pade_FV, rho_Pade_FD_corr0
+    all_ocean = OceanPadeFV, OceanPadeFV, OceanPadeFV, OceanPadeFD
+    all_atmosphere = AtmospherePadeFV, AtmospherePadeFV, AtmospherePadeFV, AtmospherePadeFD
+    optiRatesGeneral(axes[1], all_rates, all_ocean, all_atmosphere, "P2", caracs=caracs)
 
 
     from matplotlib.lines import Line2D
     custom_lines = [Line2D([0], [0], color=caracs["continuous"]["color"], lw=caracs["continuous"]["width"]),
-                    Line2D([0], [0], color=caracs["modified"]["color"], lw=caracs["modified"]["width"]),
-                    Line2D([0], [0], color=caracs["discrete"]["color"], lw=caracs["discrete"]["width"]),
+                    Line2D([0], [0], color=caracs["semi-discrete"]["color"], lw=caracs["semi-discrete"]["width"]),
+                    Line2D([0], [0], color=caracs["discrete, FV"]["color"], lw=caracs["discrete, FV"]["width"]),
+                    Line2D([0], [0], color=caracs["discrete, FD"]["color"], lw=caracs["discrete, FD"]["width"]),
                     Line2D([0], [0], marker="^", markersize=6., linewidth=0.,
-                        color=caracs["discrete"]["color"]) ]
-    custom_labels = ["Continuous", "Modified", "Discrete", "Prediction"]
-    fig.legend(custom_lines, custom_labels, loc=(0.2, 0.), ncol=5, handlelength=2)
-
+                        color="000000") ]
+    custom_labels = ["Continuous", "Semi-discrete", "Discrete, FV", "Discrete, FD", "Theoretical prediction"]
+    fig.legend(custom_lines, custom_labels, loc=(0.1, 0.), ncol=5, handlelength=2)
     show_or_save("fig_optiRates")
 
-def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_dis, space_dis, name_method="Unknown discretization", caracs={}, **args_for_discretization):
+def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere, name_method="Unknown discretization", caracs={}, **args_for_discretization):
     """
         Creates a figure comparing analysis methods for a discretization.
-        the functions "rate" should be:
-        def discrete_rate(builder, axis_freq):
-            dis = builder.build(time_dis, space_dis)
-            return dis.analytic_robin_robin_modified(w=axis_freq,
-                        order_time=float('inf'), order_operators=float('inf'),
-                        order_equations=float('inf'))
     """
 
     setting = Builder()
-    setting.M1 = 200
-    setting.M2 = 200
+    setting.M1 = 100
+    setting.SIZE_DOMAIN_1= 100
+    setting.M2 = 100
+    setting.SIZE_DOMAIN_2= 100
     setting.D1 = .5
     setting.D2 = 1.
-    setting.R = 1e-2
-    setting.DT = 1.
-    N = 30000
+    setting.R = 1e-3
+    setting.DT = .5
+    N = 1000
     axis_freq = get_discrete_freq(N, setting.DT)
 
     axes.set_xlabel("$\\omega \\Delta t$")
-    axes.set_ylabel(r"${\rho}_{RR}$")
-    #axes.set_title("Optimized convergence rates with different methods (" + name_method + ")")
-    axes.set_title(name_method)
+    axes.set_ylabel(r"${\rho}_{RR}^{"+name_method+r"}$")
 
     def rate_onesided(lam):
         builder = setting.copy()
         builder.LAMBDA_1 = lam
         builder.LAMBDA_2 = -lam
-        return np.max(continuous_rate(builder, axis_freq))
+        return np.max(np.abs(all_rates[0](builder, axis_freq)))
+
     from scipy.optimize import minimize_scalar, minimize
     optimal_lam = minimize_scalar(fun=rate_onesided)
     x0_opti = (optimal_lam.x, -optimal_lam.x)
 
-    for discrete_factor, names in zip((continuous_rate, modified_rate, discrete_rate), caracs):
-        if names == "modified":
-            freq_opti = axis_freq # get_discrete_freq(N//10, setting.DT*10.)
-        else:
-            freq_opti = axis_freq
-
-
+    for discrete_factor, oce_class, atm_class, names in zip(all_rates,
+            all_ocean, all_atmosphere, caracs):
         def rate_twosided(lam):
             builder = setting.copy()
             builder.LAMBDA_1 = lam[0]
             builder.LAMBDA_2 = lam[1]
-            return np.max(discrete_factor(builder, freq_opti))
+            return np.max(np.abs(discrete_factor(builder, axis_freq)))
 
         optimal_lam = minimize(method='Nelder-Mead',
                 fun=rate_twosided, x0=x0_opti)
         if names == "continuous":
             x0_opti = optimal_lam.x
-        print(optimal_lam)
         setting.LAMBDA_1 = optimal_lam.x[0]
         setting.LAMBDA_2 = optimal_lam.x[1]
 
         builder = setting.copy()
+        ocean, atmosphere = builder.build(oce_class, atm_class)
         if REAL_FIG:
-            alpha_w = memoised(Builder.frequency_cv_factor, builder,
-                    time_dis, space_dis, N=N, number_samples=32, NUMBER_IT=2) # WAS 7 IN CACHE
+            alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=10, NUMBER_IT=1, laplace_real_part=0, T=N*builder.DT)
             convergence_factor = np.abs((alpha_w[2] / alpha_w[1]))
         else:
-            convergence_factor = discrete_rate(setting, axis_freq)
+            convergence_factor = np.abs(ocean.discrete_rate(setting, axis_freq))
 
 
         axis_freq_predicted = np.exp(np.linspace(np.log(min(np.abs(axis_freq))), np.log(axis_freq[-1]), caracs[names]["nb_+"]))
@@ -1192,17 +1065,16 @@ def optiRatesGeneral(axes, continuous_rate, modified_rate, discrete_rate, time_d
 
         axes.semilogx(axis_freq * setting.DT, convergence_factor, linewidth=caracs[names]["width"], label= "$p_1, p_2 =$ ("+ str(optimal_lam.x[0])[:4] +", "+ str(optimal_lam.x[1])[:5] + ")", color=caracs[names]["color"]+"90")
         if names =="discrete":
-            axes.semilogx(axis_freq_predicted * setting.DT, discrete_factor(setting, axis_freq_predicted), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])# , label="prediction")
+            axes.semilogx(axis_freq_predicted * setting.DT, np.abs(discrete_factor(setting, axis_freq_predicted)), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])# , label="prediction")
         else:
-            axes.semilogx(axis_freq_predicted * setting.DT, discrete_factor(setting, axis_freq_predicted), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])
+            axes.semilogx(axis_freq_predicted * setting.DT, np.abs(discrete_factor(setting, axis_freq_predicted)), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])
 
-        axes.semilogx(axis_freq * setting.DT, np.ones_like(axis_freq)*max(convergence_factor), linestyle="dashed", linewidth=caracs[names]["width"], color=caracs[names]["color"]+"90")
+        #axes.semilogx(axis_freq * setting.DT, np.ones_like(axis_freq)*max(convergence_factor), linestyle="dashed", linewidth=caracs[names]["width"], color=caracs[names]["color"]+"90")
 
 
     axes.legend( loc=(0., 0.), ncol=1 )
-    axes.set_xlim(left=1e-4, right=3.4)
+    #axes.set_xlim(left=1e-3, right=3.4)
     #axes.set_ylim(bottom=0)
-
 
 
 ######################################################
@@ -1215,104 +1087,40 @@ class Builder():
         The main functions is build: given a space and a time discretizations,
         it returns a class which can be used with all the available functions.
 
-        The use of anonymous classes forbids to use a persistent cache.
-        To shunt this problem, function @frequency_cv_factor allows to
-        specify the time and space discretizations at the last time, so
-        the function @frequency_cv_factor can be stored in cache.
-
         To use this class, instanciate builder = Builder(),
         choose appropriate arguments of builder:
         builder.DT = 0.1
         builder.LAMBDA_2 = -0.3
-        and then build all the schemes you want with theses parameters:
-        dis_1 = builder.build(BackwardEuler, FiniteDifferencesNaive)
-        dis_2 = builder.build(ThetaMethod, QuadSplinesFV)
+        and then build all the schemes you want with the models
+        contained in ocean_models and atmosphere_models.
         The comparison is thus then quite easy
     """
     def __init__(self): # changing defaults will result in needing to recompute all cache
         self.COURANT_NUMBER = 1.
-        self.M1 = 200
-        self.M2 = 200
-        self.SIZE_DOMAIN_1 = 200
-        self.SIZE_DOMAIN_2 = 200
-        self.D1 = 1.
-        self.D2 = 1.
-        self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
-        self.A = 0.
         self.R = 0.
-        self.LAMBDA_1 = 1e9
-        self.LAMBDA_2 = 0.
-
-    def build_scheme(self, scheme):
-        """
-            To use with a space-time discretization
-        """
-        return scheme(A=self.A, C=self.R,
-                              D1=self.D1, D2=self.D2,
-                              M1=self.M1, M2=self.M2,
-                              SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,
-                              SIZE_DOMAIN_2=self.SIZE_DOMAIN_2,
-                              LAMBDA_1=self.LAMBDA_1,
-                              LAMBDA_2=self.LAMBDA_2,
-                              DT=self.DT)
-
-    def build(self, time_discretization, space_discretization):
-        """
-            Given two abstract classes of a time and space discretization,
-            build a scheme.
-        """
-        class AnonymousScheme(time_discretization, space_discretization):
-            def __init__(self, *args, **kwargs):
-                space_discretization.__init__(self, *args, **kwargs)
-                time_discretization.__init__(self, *args, **kwargs)
-
-        return AnonymousScheme(A=self.A, C=self.R,
-                              D1=self.D1, D2=self.D2,
-                              M1=self.M1, M2=self.M2,
-                              SIZE_DOMAIN_1=self.SIZE_DOMAIN_1,
-                              SIZE_DOMAIN_2=self.SIZE_DOMAIN_2,
-                              LAMBDA_1=self.LAMBDA_1,
-                              LAMBDA_2=self.LAMBDA_2,
-                              DT=self.DT)
-
-    def frequency_cv_factor_spacetime_scheme(self, discretization, linear=True, **kwargs):
-        discretization = self.build_scheme(discretization)
-        if linear:
-            return frequency_simulation(discretization, **kwargs)
-        else:
-            raise NotImplementedError("Just a linear regression in 2D")
-            return matrixlinear_frequency_simulation(discretization, **kwargs)
-
-    def frequency_cv_rate(self, time_discretization, space_discretization, linear=True, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        if linear:
-            return simulation_cv_rate_linear(discretization, **kwargs)
-        else:
-            return simulation_cv_rate_matrixlinear(discretization, **kwargs)
-
-    def simulation_firstlevels(self, time_discretization, space_discretization, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        return simulation_firstlevels(discretization, **kwargs)
-
-    def frequency_cv_factor(self, time_discretization, space_discretization, linear=True, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        if linear:
-            return frequency_simulation(discretization, **kwargs)
-        else:
-            return matrixlinear_frequency_simulation(discretization, **kwargs)
-
-    def frequency_eigenvalues(self, time_discretization, space_discretization, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        return eigenvalues_matrixlinear_frequency_simulation(discretization, **kwargs)
-
-    def robin_robin_theorical_cv_factor(self, time_discretization, space_discretization, *args, **kwargs):
-        discretization = self.build(time_discretization, space_discretization)
-        return discretization.analytic_robin_robin_modified(*args, **kwargs)
+        self.D1=1.
+        self.D2=1.
+        self.M1=200
+        self.M2=200
+        self.LAMBDA_1=1e9
+        self.LAMBDA_2=0.
+        self.SIZE_DOMAIN_1=200
+        self.SIZE_DOMAIN_2=200
+        self.DT = self.COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
 
     def copy(self):
         ret = Builder()
         ret.__dict__ = self.__dict__.copy()
         return ret
+
+    def build(self, ocean_discretisation, atm_discretisation):
+        """ build the models and returns tuple (ocean_model, atmosphere_model)"""
+        ocean = ocean_discretisation(r=self.R, nu=self.D1, LAMBDA=self.LAMBDA_1,
+            M=self.M1, SIZE_DOMAIN=self.SIZE_DOMAIN_1, DT=self.DT)
+        atmosphere = atm_discretisation(r=self.R, nu=self.D2, LAMBDA=self.LAMBDA_2,
+            M=self.M2, SIZE_DOMAIN=self.SIZE_DOMAIN_2, DT=self.DT)
+        return ocean, atmosphere
+
 
     """
         __eq__ and __hash__ are implemented, so that a discretization
@@ -1377,31 +1185,27 @@ def show_or_save(name_func):
     name_func must be the name of your function
     as a string, e.g. "fig_comparisonData"
     """
+    import os
     name_fig = name_func[4:]
     directory = "figures_out/"
     if SAVE_TO_PNG:
         print("exporting to directory " + directory)
-        import os
         os.makedirs(directory, exist_ok=True)
         plt.savefig(directory + name_fig + '.png')
     elif SAVE_TO_PGF:
         print("exporting to directory " + directory)
-        import os
         os.makedirs(directory, exist_ok=True)
         plt.savefig(directory + name_fig + '.pgf')
     elif SAVE_TO_PDF:
         print("exporting to directory " + directory)
-        import os
         os.makedirs(directory, exist_ok=True)
         plt.savefig(directory + name_fig + '.pdf')
     else:
         try:
-            import matplotlib as mpl
-            import os
             os.makedirs(directory, exist_ok=True)
             mpl.rcParams['savefig.directory'] = directory
             fig = plt.get_current_fig_manager()
-            fig.canvas.set_window_title(name_fig) 
+            fig.set_window_title(name_fig)
         except:
             print("cannot set default directory or name")
         plt.show()
