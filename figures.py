@@ -7,6 +7,7 @@
 import numpy as np
 from numpy import pi
 from memoisation import memoised, FunMem
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import functools
 import discretizations
@@ -20,9 +21,8 @@ from simulator import simulation_firstlevels
 REAL_FIG = False
 
 def fig_lambda_Pade():
-    import matplotlib as mpl
     mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     ###########################################
     npts   = 1000
     wwdt   = np.linspace(0.05, np.pi, npts)
@@ -31,72 +31,70 @@ def fig_lambda_Pade():
     nu2    = 1.
     dt     = 1.
     aa     = 1. + np.sqrt(2.)
-    bb     = 1. + 1./np.sqrt(2.)    
+    bb     = 1. + 1./np.sqrt(2.)
 #####========================================================
-    sBEdt  = np.zeros(npts,dtype=np.complex_)   
-    sBEdt  = (np.exp(1j*wwdt)-1.)/np.exp(1j*wwdt)  
+    sBEdt  = np.zeros(npts,dtype=np.complex_)
+    sBEdt  = (np.exp(1j*wwdt)-1.)/np.exp(1j*wwdt)
 #####========================================================
-    cff1   = 1./( aa * np.sqrt(dt*nu1) ) 
-    cff2   = 1./( aa * np.sqrt(dt*nu2) ) 
-    
-    term1  = np.zeros(npts,dtype=np.complex_) 
-    term2  = np.zeros(npts,dtype=np.complex_) 
-    
+    cff1   = 1./( aa * np.sqrt(dt*nu1) )
+    cff2   = 1./( aa * np.sqrt(dt*nu2) )
+
+    term1  = np.zeros(npts,dtype=np.complex_)
+    term2  = np.zeros(npts,dtype=np.complex_)
+
     term1  = 1.+aa*sBEdt+aa*aa*rr*dt
     term2  = np.sqrt(1.-sBEdt)*np.sqrt(1.-aa*aa*sBEdt)
-#####   
-    lambda1  = np.zeros(npts,dtype=np.complex_) 
-    lambda2  = np.zeros(npts,dtype=np.complex_) 
-    lambda3  = np.zeros(npts,dtype=np.complex_) 
-    lambda4  = np.zeros(npts,dtype=np.complex_) 
- 
+#####
+    lambda1  = np.zeros(npts,dtype=np.complex_)
+    lambda2  = np.zeros(npts,dtype=np.complex_)
+    lambda3  = np.zeros(npts,dtype=np.complex_)
+    lambda4  = np.zeros(npts,dtype=np.complex_)
+
     lambda1 =   cff1 * np.sqrt(term1-term2)
-    lambda2 = - cff2 * np.sqrt(term1-term2)    
+    lambda2 = - cff2 * np.sqrt(term1-term2)
     lambda3 =   cff1 * np.sqrt(term1+term2)
-    lambda4 = - cff2 * np.sqrt(term1+term2)    
-#####    
-    sigma1   =  np.zeros(npts,dtype=np.complex_) 
-    sigma2   =  np.zeros(npts,dtype=np.complex_) 
+    lambda4 = - cff2 * np.sqrt(term1+term2)
+#####
+    sigma1   =  np.zeros(npts,dtype=np.complex_)
+    sigma2   =  np.zeros(npts,dtype=np.complex_)
     sigma1   =  np.sqrt( (1j*wwdt + rr*dt)/(nu1*dt) )
     sigma2   = -np.sqrt( (1j*wwdt + rr*dt)/(nu2*dt) )
-#####    
+#####
     fig  = plt.figure()
     fig, axes = plt.subplots(1, 2, sharex=True, sharey=True,figsize=(10,2))
     ax = axes[0]
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_xlabel (r'$\omega\Delta t$', fontsize=14)
     ax.set_xticklabels(ax.get_xticks(),fontsize=14)
-    ax.set_yticklabels(ax.get_yticks(),fontsize=14)  
+    ax.set_yticklabels(ax.get_yticks(),fontsize=14)
     ax.set_ylim(-0.15,1.85)
-    ax.set_title(r"$\left|\mathcal{R}(\lambda_j^{(p)})\right|$") 
-    ax.semilogx( wwdt, np.abs(np.real(lambda1)),linewidth=2.,color='k', linestyle='dashed' ,label=r'$\lambda_1$')   
-    ax.semilogx( wwdt, np.abs(np.real(lambda3)),linewidth=2.,color='k', linestyle='dashdot' ,label=r'$\lambda_3$')     
-    ax.semilogx( wwdt, np.abs(np.real(sigma1)),linewidth=2.,color='k', linestyle='solid' ,label=r'$\sqrt{\frac{s_c \Delta t}{\nu_1 \Delta t}}$')     
-    ax.semilogx( wwdt, np.abs(np.real(lambda2)),linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$\lambda_2$')    
-    ax.semilogx( wwdt, np.abs(np.real(lambda4)),linewidth=2.,color='0.5', linestyle='dashdot' ,label=r'$\lambda_4$')      
-    ax.semilogx( wwdt, np.abs(np.real(sigma2)),linewidth=2.,color='0.5', linestyle='solid' ,label=r'$-\sqrt{\frac{s_c \Delta t}{\nu_2 \Delta t}}$')   
+    ax.set_title(r"$\left|\mathcal{R}(\lambda_j^{(p)})\right|$")
+    ax.semilogx( wwdt, np.abs(np.real(lambda1)),linewidth=2.,color='k', linestyle='dashed' ,label=r'$\lambda_1$')
+    ax.semilogx( wwdt, np.abs(np.real(lambda3)),linewidth=2.,color='k', linestyle='dashdot' ,label=r'$\lambda_3$')
+    ax.semilogx( wwdt, np.abs(np.real(sigma1)),linewidth=2.,color='k', linestyle='solid' ,label=r'$\sqrt{\frac{s_c \Delta t}{\nu_1 \Delta t}}$')
+    ax.semilogx( wwdt, np.abs(np.real(lambda2)),linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$\lambda_2$')
+    ax.semilogx( wwdt, np.abs(np.real(lambda4)),linewidth=2.,color='0.5', linestyle='dashdot' ,label=r'$\lambda_4$')
+    ax.semilogx( wwdt, np.abs(np.real(sigma2)),linewidth=2.,color='0.5', linestyle='solid' ,label=r'$-\sqrt{\frac{s_c \Delta t}{\nu_2 \Delta t}}$')
     ax = axes[1]
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_xlabel (r'$\omega\Delta t$', fontsize=14)
     ax.set_xticklabels(ax.get_xticks(),fontsize=14)
-    ax.set_yticklabels(ax.get_yticks(),fontsize=14) 
+    ax.set_yticklabels(ax.get_yticks(),fontsize=14)
     ax.set_ylim(-0.15,1.85)
-    ax.set_title(r"$\left|\mathcal{I}(\lambda_j^{(p)})\right|$") 
-    ax.semilogx( wwdt, np.abs(np.imag(lambda1)),linewidth=2.,color='k', linestyle='dashed' ,label=r'$\lambda_1^{(1)}$')    
-    ax.semilogx( wwdt, np.abs(np.imag(lambda3)),linewidth=2.,color='k', linestyle='dashdot' ,label=r'$\lambda_1^{(3)}$')   
-    ax.semilogx( wwdt, np.abs(np.imag(sigma1)),linewidth=2.,color='k', linestyle='solid' ,label=r'$\sqrt{\frac{s_c \Delta t}{\nu_1 \Delta t}}$')    
-    ax.semilogx( wwdt, np.abs(np.imag(lambda2)),linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$\lambda_2^{(2)}$')      
-    ax.semilogx( wwdt, np.abs(np.imag(lambda4)),linewidth=2.,color='0.5', linestyle='dashdot' ,label=r'$\lambda_2^{(4)}$')         
-    ax.semilogx( wwdt, np.abs(np.imag(sigma2)),linewidth=2.,color='0.5', linestyle='solid' ,label=r'$-\sqrt{\frac{s_c \Delta t}{\nu_2 \Delta t}}$')  
-    ax.legend(loc=2,prop={'size':9.5},ncol=2,handlelength=2)  
-    fig.tight_layout()   
+    ax.set_title(r"$\left|\mathcal{I}(\lambda_j^{(p)})\right|$")
+    ax.semilogx( wwdt, np.abs(np.imag(lambda1)),linewidth=2.,color='k', linestyle='dashed' ,label=r'$\lambda_1^{(1)}$')
+    ax.semilogx( wwdt, np.abs(np.imag(lambda3)),linewidth=2.,color='k', linestyle='dashdot' ,label=r'$\lambda_1^{(3)}$')
+    ax.semilogx( wwdt, np.abs(np.imag(sigma1)),linewidth=2.,color='k', linestyle='solid' ,label=r'$\sqrt{\frac{s_c \Delta t}{\nu_1 \Delta t}}$')
+    ax.semilogx( wwdt, np.abs(np.imag(lambda2)),linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$\lambda_2^{(2)}$')
+    ax.semilogx( wwdt, np.abs(np.imag(lambda4)),linewidth=2.,color='0.5', linestyle='dashdot' ,label=r'$\lambda_2^{(4)}$')
+    ax.semilogx( wwdt, np.abs(np.imag(sigma2)),linewidth=2.,color='0.5', linestyle='solid' ,label=r'$-\sqrt{\frac{s_c \Delta t}{\nu_2 \Delta t}}$')
+    ax.legend(loc=2,prop={'size':9.5},ncol=2,handlelength=2)
+    fig.tight_layout()
     show_or_save("fig_lambda_Pade")
 
 def fig_rhoDNPade():
-    import matplotlib as mpl
     mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
-    import matplotlib.pyplot as plt
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     fig, axes = plt.subplots(1, 1, sharex=False, sharey=True,figsize=(7,3))
     #plt.subplots_adjust(bottom=.18, top=.85)
     ax   = axes
@@ -107,8 +105,8 @@ def fig_rhoDNPade():
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_xlabel (r'$\omega$', fontsize=18)
     ax.set_xticklabels(ax.get_xticks(),fontsize=12)
-#    ax.set_yticklabels(ax.get_yticks(),fontsize=12)  
-    ax.set_title(r"$\rho_{\rm DN}^{\rm (P2,c)}$",fontsize=16) 
+#    ax.set_yticklabels(ax.get_yticks(),fontsize=12)
+    ax.set_title(r"$\rho_{\rm DN}^{\rm (P2,c)}$",fontsize=16)
 
 
     builder = Builder()
@@ -130,21 +128,21 @@ def fig_rhoDNPade():
         return z - b*(z-1) - b * (b-1)**2 * (z-1)**2
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
-    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')   
+    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
 
-    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta(\beta-1)^2 (z-1)^2$')       
+    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta(\beta-1)^2 (z-1)^2$')
 
     builder.R = .1
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_highTilde)
-    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='solid' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')   
+    ax.semilogx( w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='solid' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')
 
     w, varrho = wAndRhoPadeRR(builder, gamma=gamma_lowTilde)
-    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')    
+    ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='0.5', linestyle='dashed' ,label=r'$r=0.1\;{\rm s}^{-1}, \gamma = z - \beta (z-1) - \beta (\beta-1)^2 (z-1)^2$')
 
     rho_continuous = np.sqrt(builder.D1/builder.D2) * np.ones_like(w)
-    ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2.,color='r', linestyle='dashed' ,label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$') 
+    ax.semilogx(w*builder.DT, rho_continuous ,linewidth=2.,color='r', linestyle='dashed' ,label=r'$\sqrt{\frac{\nu_1}{\nu_2}}$')
     ax.set_xlabel(r"$\omega\Delta t$")
     ax.legend(loc=2,prop={'size':9},ncol=1,handlelength=2)
     fig.tight_layout()
@@ -152,9 +150,8 @@ def fig_rhoDNPade():
     show_or_save("fig_rhoDNPade")
 
 def fig_rhoDN_space():
-    import matplotlib as mpl
     mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     npts   = 1000
     ww     = np.logspace(-6, 3, npts)
     nu1    = 0.5
@@ -171,17 +168,17 @@ def fig_rhoDN_space():
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
     #
     del1p  = ( 6.+2.*chi1+np.sqrt( 3.*chi1*(12.+chi1) ) ) / (6.-chi1)
-    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)   
+    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)
     #
     kappac    = 0.
     eta1FDneu = nu1*(1.-1./sig1p)
     eta2FDneu = nu2*( sig2m - 1.)
-    rhoDNFDn1 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDn1 = np.abs( eta1FDneu/eta2FDneu )
     #
     kappac    = 1.
     eta1FDneu = nu1*(1.-1./sig1p+0.5*kappac*chi1)
     eta2FDneu = nu2*( sig2m - 1.-0.5*kappac*chi2)
-    rhoDNFDc1 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDc1 = np.abs( eta1FDneu/eta2FDneu )
     #
     eta1FV2   = ( (1./3.+1./chi1)+(1./6.-1./chi1) / del1p )
     eta2FV2   = ( (1./chi2-1./6.)*del2m-(1./chi2+1./3.)   )
@@ -191,145 +188,145 @@ def fig_rhoDN_space():
     rr     = 0.0
     #
     chi1   = dx*dx*(rr+1j*ww)/nu1
-    chi2   = dx*dx*(rr+1j*ww)/nu2  
+    chi2   = dx*dx*(rr+1j*ww)/nu2
     #
     sig1p  = 0.5 * ( 2.+chi1+np.sqrt( chi1*(4.+chi1) ) )
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
     #
     del1p  = ( 6.+2.*chi1+np.sqrt( 3.*chi1*(12.+chi1) ) ) / (6.-chi1)
-    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)   
+    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)
     #
     kappac    = 0.
     eta1FDneu = nu1*(1.-1./sig1p)
     eta2FDneu = nu2*( sig2m - 1.)
-    rhoDNFDn2 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDn2 = np.abs( eta1FDneu/eta2FDneu )
     #
     kappac    = 1.
     eta1FDneu = nu1*(1.-1./sig1p+0.5*kappac*chi1)
     eta2FDneu = nu2*( sig2m - 1.-0.5*kappac*chi2)
-    rhoDNFDc2 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDc2 = np.abs( eta1FDneu/eta2FDneu )
     #
     eta1FV2   = ( (1./3.+1./chi1)+(1./6.-1./chi1) / del1p )
     eta2FV2   = ( (1./chi2-1./6.)*del2m-(1./chi2+1./3.)   )
     rhoDNFV22 = np.abs( nu1*eta2FV2/(nu2*eta1FV2) )
-    #      
+    #
     dx     = 5.
     rr     = 0.0
     #
     chi1   = dx*dx*(rr+1j*ww)/nu1
-    chi2   = dx*dx*(rr+1j*ww)/nu2  
+    chi2   = dx*dx*(rr+1j*ww)/nu2
     #
     sig1p  = 0.5 * ( 2.+chi1+np.sqrt( chi1*(4.+chi1) ) )
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
     #
     del1p  = ( 6.+2.*chi1+np.sqrt( 3.*chi1*(12.+chi1) ) ) / (6.-chi1)
-    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)     
+    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)
     #
     kappac    = 0.
     eta1FDneu = nu1*(1.-1./sig1p)
     eta2FDneu = nu2*( sig2m - 1.)
-    rhoDNFDn3 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDn3 = np.abs( eta1FDneu/eta2FDneu )
     #
     kappac    = 1.
     eta1FDneu = nu1*(1.-1./sig1p+0.5*kappac*chi1)
     eta2FDneu = nu2*( sig2m - 1.-0.5*kappac*chi2)
-    rhoDNFDc3 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDc3 = np.abs( eta1FDneu/eta2FDneu )
     #
     eta1FV2   = ( (1./3.+1./chi1)+(1./6.-1./chi1) / del1p )
     eta2FV2   = ( (1./chi2-1./6.)*del2m-(1./chi2+1./3.)   )
     rhoDNFV23 = np.abs( nu1*eta2FV2/(nu2*eta1FV2) )
-    #      
+    #
     dx     = 10.
     rr     = 0.0
     #
     chi1   = dx*dx*(rr+1j*ww)/nu1
-    chi2   = dx*dx*(rr+1j*ww)/nu2  
+    chi2   = dx*dx*(rr+1j*ww)/nu2
     #
     sig1p  = 0.5 * ( 2.+chi1+np.sqrt( chi1*(4.+chi1) ) )
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
     #
     del1p  = ( 6.+2.*chi1+np.sqrt( 3.*chi1*(12.+chi1) ) ) / (6.-chi1)
-    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)   
+    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)
     #
     phi1p  = ( 12.+5.*chi1+2.*np.sqrt(6)*np.sqrt( chi1*(6.+chi1) ) ) / (12.-chi1)
-    phi2m  = ( 12.+5.*chi2-2.*np.sqrt(6)*np.sqrt( chi2*(6.+chi2) ) ) / (12.-chi2)  
+    phi2m  = ( 12.+5.*chi2-2.*np.sqrt(6)*np.sqrt( chi2*(6.+chi2) ) ) / (12.-chi2)
     #
     kappac    = 0.
     eta1FDneu = nu1*(1.-1./sig1p)
     eta2FDneu = nu2*( sig2m - 1.)
-    rhoDNFDn4 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDn4 = np.abs( eta1FDneu/eta2FDneu )
     #
     kappac    = 1.
     eta1FDneu = nu1*(1.-1./sig1p+0.5*kappac*chi1)
     eta2FDneu = nu2*( sig2m - 1.-0.5*kappac*chi2)
-    rhoDNFDc4 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDc4 = np.abs( eta1FDneu/eta2FDneu )
     #
     eta1FV2   = ( (1./3.+1./chi1)+(1./6.-1./chi1) / del1p )
     eta2FV2   = ( (1./chi2-1./6.)*del2m-(1./chi2+1./3.)   )
     rhoDNFV24 = np.abs( nu1*eta2FV2/(nu2*eta1FV2) )
-    #  
-    #####========================================================    
+    #
+    #####========================================================
     fig  = plt.figure()
-    fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))    
-    ax = axes[0,0]  
-    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25) 
-    ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=0, r=0\;{\rm s}^{-1})$",fontsize=10) 
+    fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))
+    ax = axes[0,0]
+    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+    ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=0, r=0\;{\rm s}^{-1})$",fontsize=10)
     ax.set_xlim(9.e-06,1000)
     ax.set_ylim(0.45,1.05)
-    ax.semilogx(ww,rhoDNFDn1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )    
-    ax.semilogx(ww,rhoDNFDn2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFDn3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFDn4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )  
-    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' ) 
+    ax.semilogx(ww,rhoDNFDn1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDn2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDn3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDn4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )
+    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )
     ax.legend(loc=2,prop={'size':7}, handlelength=2)
     txt = ax.annotate('(a)',xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
-    txt.set_bbox(dict(facecolor='white',alpha=1.))  
-    
-    ax  = axes[0,1] 
+    txt.set_bbox(dict(facecolor='white',alpha=1.))
+
+    ax  = axes[0,1]
     ax.set_ylim(0.45,1.05)
-    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)     
+    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=1, r=0\;{\rm s}^{-1})$",fontsize=10)
-    ax.semilogx(ww,rhoDNFDc1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )    
-    ax.semilogx(ww,rhoDNFDc2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFDc3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFDc4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )  
-    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )  
+    ax.semilogx(ww,rhoDNFDc1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDc2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDc3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDc4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )
+    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )
     txt = ax.annotate('(b)',xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
-    txt.set_bbox(dict(facecolor='white',alpha=1.))  
+    txt.set_bbox(dict(facecolor='white',alpha=1.))
 
     ax = axes[0,2]   
     ax.set_ylim(0.45,1.05)
     ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FV})}(r=0\;{\rm s}^{-1})$",fontsize=10)
-    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25) 
-    ax.semilogx(ww,rhoDNFV21,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )    
-    ax.semilogx(ww,rhoDNFV22,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFV23,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFV24,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )  
-    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )  
+    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+    ax.semilogx(ww,rhoDNFV21,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFV22,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFV23,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFV24,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )
+    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )
     txt = ax.annotate('(c)',xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
-    txt.set_bbox(dict(facecolor='white',alpha=1.))  
+    txt.set_bbox(dict(facecolor='white',alpha=1.))
     #####========================================================
     dx     = 0.1
     rr     = 0.1
     #
     chi1   = dx*dx*(rr+1j*ww)/nu1
-    chi2   = dx*dx*(rr+1j*ww)/nu2  
+    chi2   = dx*dx*(rr+1j*ww)/nu2
     #
     sig1p  = 0.5 * ( 2.+chi1+np.sqrt( chi1*(4.+chi1) ) )
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
     #
     del1p  = ( 6.+2.*chi1+np.sqrt( 3.*chi1*(12.+chi1) ) ) / (6.-chi1)
-    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)   
+    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)
     #
     kappac    = 0.
     eta1FDneu = nu1*(1.-1./sig1p)
     eta2FDneu = nu2*( sig2m - 1.)
-    rhoDNFDn1 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDn1 = np.abs( eta1FDneu/eta2FDneu )
     #
     kappac    = 1.
     eta1FDneu = nu1*(1.-1./sig1p+0.5*kappac*chi1)
     eta2FDneu = nu2*( sig2m - 1.-0.5*kappac*chi2)
-    rhoDNFDc1 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDc1 = np.abs( eta1FDneu/eta2FDneu )
     #
     eta1FV2   = ( (1./3.+1./chi1)+(1./6.-1./chi1) / del1p )
     eta2FV2   = ( (1./chi2-1./6.)*del2m-(1./chi2+1./3.)   )
@@ -346,126 +343,125 @@ def fig_rhoDN_space():
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
     #
     del1p  = ( 6.+2.*chi1+np.sqrt( 3.*chi1*(12.+chi1) ) ) / (6.-chi1)
-    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)   
+    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)
     #
     kappac    = 0.
     eta1FDneu = nu1*(1.-1./sig1p)
     eta2FDneu = nu2*( sig2m - 1.)
-    rhoDNFDn2 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDn2 = np.abs( eta1FDneu/eta2FDneu )
     #
     kappac    = 1.
     eta1FDneu = nu1*(1.-1./sig1p+0.5*kappac*chi1)
     eta2FDneu = nu2*( sig2m - 1.-0.5*kappac*chi2)
-    rhoDNFDc2 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDc2 = np.abs( eta1FDneu/eta2FDneu )
     #
     eta1FV2   = ( (1./3.+1./chi1)+(1./6.-1./chi1) / del1p )
     eta2FV2   = ( (1./chi2-1./6.)*del2m-(1./chi2+1./3.)   )
     rhoDNFV22 = np.abs( nu1*eta2FV2/(nu2*eta1FV2) )
-    #      
-#####========================================================    
+    #
+#####========================================================
     dx     = 5.
     rr     = 0.1
     #
     chi1   = dx*dx*(rr+1j*ww)/nu1
-    chi2   = dx*dx*(rr+1j*ww)/nu2  
+    chi2   = dx*dx*(rr+1j*ww)/nu2
     #
     sig1p  = 0.5 * ( 2.+chi1+np.sqrt( chi1*(4.+chi1) ) )
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
     #
     del1p  = ( 6.+2.*chi1+np.sqrt( 3.*chi1*(12.+chi1) ) ) / (6.-chi1)
-    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)     
+    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)
     #
     kappac    = 0.
     eta1FDneu = nu1*(1.-1./sig1p)
     eta2FDneu = nu2*( sig2m - 1.)
-    rhoDNFDn3 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDn3 = np.abs( eta1FDneu/eta2FDneu )
     #
     kappac    = 1.
     eta1FDneu = nu1*(1.-1./sig1p+0.5*kappac*chi1)
     eta2FDneu = nu2*( sig2m - 1.-0.5*kappac*chi2)
-    rhoDNFDc3 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDc3 = np.abs( eta1FDneu/eta2FDneu )
     #
     eta1FV2   = ( (1./3.+1./chi1)+(1./6.-1./chi1) / del1p )
     eta2FV2   = ( (1./chi2-1./6.)*del2m-(1./chi2+1./3.)   )
     rhoDNFV23 = np.abs( nu1*eta2FV2/(nu2*eta1FV2) )
     #      
-###========================================================  
+###========================================================
     dx     = 10.
     rr     = 0.1
     #
     chi1   = dx*dx*(rr+1j*ww)/nu1
-    chi2   = dx*dx*(rr+1j*ww)/nu2  
+    chi2   = dx*dx*(rr+1j*ww)/nu2
     #
     sig1p  = 0.5 * ( 2.+chi1+np.sqrt( chi1*(4.+chi1) ) )
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
     #
     del1p  = ( 6.+2.*chi1+np.sqrt( 3.*chi1*(12.+chi1) ) ) / (6.-chi1)
-    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)   
+    del2m  = ( 6.+2.*chi2-np.sqrt( 3.*chi2*(12.+chi2) ) ) / (6.-chi2)
     #
     phi1p  = ( 12.+5.*chi1+2.*np.sqrt(6)*np.sqrt( chi1*(6.+chi1) ) ) / (12.-chi1)
-    phi2m  = ( 12.+5.*chi2-2.*np.sqrt(6)*np.sqrt( chi2*(6.+chi2) ) ) / (12.-chi2)  
+    phi2m  = ( 12.+5.*chi2-2.*np.sqrt(6)*np.sqrt( chi2*(6.+chi2) ) ) / (12.-chi2)
     #
     kappac    = 0.
     eta1FDneu = nu1*(1.-1./sig1p)
     eta2FDneu = nu2*( sig2m - 1.)
-    rhoDNFDn4 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDn4 = np.abs( eta1FDneu/eta2FDneu )
     #
     kappac    = 1.
     eta1FDneu = nu1*(1.-1./sig1p+0.5*kappac*chi1)
     eta2FDneu = nu2*( sig2m - 1.-0.5*kappac*chi2)
-    rhoDNFDc4 = np.abs( eta1FDneu/eta2FDneu )  
+    rhoDNFDc4 = np.abs( eta1FDneu/eta2FDneu )
     #
     eta1FV2   = ( (1./3.+1./chi1)+(1./6.-1./chi1) / del1p )
     eta2FV2   = ( (1./chi2-1./6.)*del2m-(1./chi2+1./3.)   )
     rhoDNFV24 = np.abs( nu1*eta2FV2/(nu2*eta1FV2) )
-    #  
-    ax = axes[1,0]  
-    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25) 
-    ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=0, r=0.1\;{\rm s}^{-1})$",fontsize=10) 
+    #
+    ax = axes[1,0]
+    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+    ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=0, r=0.1\;{\rm s}^{-1})$",fontsize=10)
     ax.set_xlim(9.e-06,1000)
     ax.set_ylim(0.45,1.05)
     ax.set_xlabel (r'$\omega$', fontsize=12)
-    ax.semilogx(ww,rhoDNFDn1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )    
-    ax.semilogx(ww,rhoDNFDn2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFDn3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFDn4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )  
-    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' ) 
+    ax.semilogx(ww,rhoDNFDn1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDn2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDn3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDn4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )
+    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )
     txt = ax.annotate('(d)',xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
-    txt.set_bbox(dict(facecolor='white',alpha=1.))  
-    
-    ax  = axes[1,1] 
+    txt.set_bbox(dict(facecolor='white',alpha=1.))
+
+    ax  = axes[1,1]
     ax.set_ylim(0.45,1.05)
-    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)     
-    ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=1, r=0.1\;{\rm s}^{-1})$",fontsize=10) 
+    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
+    ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=1, r=0.1\;{\rm s}^{-1})$",fontsize=10)
     ax.set_xlabel (r'$\omega$', fontsize=12)
-    ax.semilogx(ww,rhoDNFDc1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )    
-    ax.semilogx(ww,rhoDNFDc2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFDc3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFDc4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )  
-    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )  
+    ax.semilogx(ww,rhoDNFDc1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$')
+    ax.semilogx(ww,rhoDNFDc2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDc3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFDc4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )
+    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )
     txt = ax.annotate('(e)',xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
-    txt.set_bbox(dict(facecolor='white',alpha=1.))  
+    txt.set_bbox(dict(facecolor='white',alpha=1.))
 
-    ax = axes[1,2]   
+    ax = axes[1,2]
     ax.set_ylim(0.45,1.05)
     ax.set_xlabel (r'$\omega$', fontsize=12)
-    ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FV})}(r=0.1\;{\rm s}^{-1})$",fontsize=10) 
-    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25) 
+    ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FV})}(r=0.1\;{\rm s}^{-1})$",fontsize=10)
+    ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
 
-    ax.semilogx(ww,rhoDNFV21,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )    
-    ax.semilogx(ww,rhoDNFV22,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFV23,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' ) 
-    ax.semilogx(ww,rhoDNFV24,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )  
-    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )  
+    ax.semilogx(ww,rhoDNFV21,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFV22,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFV23,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
+    ax.semilogx(ww,rhoDNFV24,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )
+    ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )
     txt = ax.annotate('(f)',xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
-    txt.set_bbox(dict(facecolor='white',alpha=1.))  
-    fig.tight_layout()   
+    txt.set_bbox(dict(facecolor='white',alpha=1.))
+    fig.tight_layout()
     show_or_save("fig_rhoDN_space")
 
 def fig_DNInteraction():
-    import matplotlib as mpl
     mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     from discretizations.space.FD_naive import FiniteDifferencesNaive
     from discretizations.space.FD_corr import FiniteDifferencesCorr
     from discretizations.space.FD_extra import FiniteDifferencesExtra
@@ -483,11 +479,11 @@ def fig_DNInteraction():
     builder.D1 = 1.
     builder.D2 = 2.
     builder.R = 0.
-    fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))    
+    fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))
     plt.subplots_adjust(left=.04, bottom=.10, right=.99, top=.92, wspace=0.05, hspace=0.4)
     dt = builder.DT
     REACTION_COEFF = 0.1
-        
+
     discretizations = {}
     time_scheme = BackwardEuler
 
@@ -516,7 +512,7 @@ def fig_DNInteraction():
     for dt in all_dt:
         builder.DT = dt
         assert REACTION_COEFF * builder.DT <= 1
-        axis_freq = get_discrete_freq(1000/dt, builder.DT)
+        axis_freq = get_discrete_freq(int(1000/dt), builder.DT)
 
         dis = builder.build(BackwardEuler, FiniteDifferencesNaive)
         theorical_convergence_factors["BEFD"][dt] = dis.analytic_robin_robin_modified(w=axis_freq,
@@ -613,7 +609,7 @@ def robin_parameters_discrete_space(builder, N, dt, scheme="FD"):
 def fig_RRInteraction():
     import matplotlib as mpl
     mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     from discretizations.space.FD_naive import FiniteDifferencesNaive
     from discretizations.space.FD_corr import FiniteDifferencesCorr
     from discretizations.space.FD_extra import FiniteDifferencesExtra
@@ -654,16 +650,16 @@ def fig_RRInteraction():
     builder.R = 0.
     builder.DT = dtmin
     #optimisation for FD:
-    res_twosided = memoised(robin_parameters_discrete_space, builder=builder, N=1000/dtmin, dt=dtmin)
+    res_twosided = memoised(robin_parameters_discrete_space, builder=builder, N=int(1000/dtmin), dt=dtmin)
     theorical_convergence_factors["BEFD"]["robin"] = res_twosided.x
     #optimisation for FD with Reaction:
 
     builder.R = REACTION_COEFF
-    theorical_convergence_factors["BEFD_R"]["robin"] =memoised(robin_parameters_discrete_space, builder=builder, N=1000/dtmin, dt=dtmin).x
+    theorical_convergence_factors["BEFD_R"]["robin"] =memoised(robin_parameters_discrete_space, builder=builder, N=int(1000/dtmin), dt=dtmin).x
 
     #optimisation for FV:
     builder.R = 0.
-    theorical_convergence_factors["BEFV"]["robin"] = memoised(robin_parameters_discrete_space, builder=builder, N=1000/dtmin, dt=dtmin, scheme="FV").x
+    theorical_convergence_factors["BEFV"]["robin"] = memoised(robin_parameters_discrete_space, builder=builder, N=int(1000/dtmin), dt=dtmin, scheme="FV").x
 
     #optimisation for FD with r:
 
@@ -677,7 +673,7 @@ def fig_RRInteraction():
     for dt in all_dt:
         builder.DT = dt
         assert REACTION_COEFF * builder.DT <= 1
-        axis_freq = get_discrete_freq(5000/dt, builder.DT)
+        axis_freq = get_discrete_freq(int(5000/dt), builder.DT)
 
         dis = builder.build(BackwardEuler, FiniteDifferencesNaive)
         dis.LAMBDA_1, dis.LAMBDA_2 = theorical_convergence_factors["BEFD"]["robin"]
@@ -812,7 +808,7 @@ def wAndRhoPadeRR(builder, gamma=None):
 def fig_compare_discrete_modif():
     import matplotlib as mpl
     mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     from discretizations.time.PadeLowTildeGamma import PadeLowTildeGamma as Pade
     from discretizations.time.backward_euler import BackwardEuler as BE
     from discretizations.space.FD_naive import FiniteDifferencesNaive as FD
