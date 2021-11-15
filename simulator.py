@@ -49,7 +49,7 @@ def frequency_simulation(atmosphere, ocean, number_samples=100, laplace_real_par
 
     return np.std(freq_err, axis=0)
 
-def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="white"):
+def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="white", gamma="simple"):
     """
         Returns errors at interface from beginning (first guess) until the end.
         Coupling is made between "atmosphere" (instanciated from atmosphere_models)
@@ -72,10 +72,21 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
     def f_atm(t): # Size of u, whether it is diagnostic or prognostic variable
         return np.zeros(atmosphere.size_u())
 
-    def get_star(val_n, val_np1):
-        return val_np1 + (1+1/np.sqrt(2))*(val_n - val_np1)
-    def give_tuple_star(val_n, val_np1):
-        return val_n, get_star(val_n, val_np1), val_np1
+    def get_star_simplegamma(val_n, val_np1):
+        return val_np1 - (1+1/np.sqrt(2))*(val_np1 - val_n)
+    def tuple_star_simplegamma(val_n, val_np1, *args):
+        return val_n, get_star_simplegamma(val_n, val_np1), val_np1
+
+    def get_star_lowtilde(val_n, val_np1, val_np2):
+        beta = (1+1/np.sqrt(2))
+        return val_np1 - beta*(val_np1 - val_n) \
+                - beta*(beta-1)**2 * (val_np2 - 2*val_np1 + val_n)
+    def tuple_star_lowtilde(val_n, val_np1, val_np2):
+        return val_n, get_star_lowtilde(val_n, val_np1,
+                        val_np2), val_np1
+
+    give_tuple_star = tuple_star_simplegamma \
+            if gamma=="simple" else tuple_star_lowtilde
 
     # random initialization of the interface: we excite the high frequencies with white noise
     np.random.seed(seed)
@@ -93,8 +104,6 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
     else:
         raise
 
-
-
     all_interface_atm = [interface_atm]
 
     # Beginning of schwarz iterations:
@@ -105,8 +114,9 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
 
         interface_atm = [0]
         for n in range(1, N_atm+1):
-            robin = give_tuple_star(interface_ocean[n-1], interface_ocean[n])
-            forcing = give_tuple_star(f_atm((n-1)*atmosphere.dt), f_atm(n*atmosphere.dt))
+            robin = give_tuple_star(interface_ocean[n-1], interface_ocean[n], 
+                    interface_ocean[n] if n==N_atm else interface_ocean[n+1])
+            forcing = give_tuple_star(f_atm((n-1)*atmosphere.dt), f_atm(n*atmosphere.dt), f_atm((n+1)*atmosphere.dt))
             prognosed, diagnosed = atmosphere.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,
                     interface_robin=robin, forcing=forcing, boundary=(0,0,0))
 
@@ -120,8 +130,8 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
         interface_ocean = [0]
 
         for n in range(1, N_ocean+1):
-            robin = give_tuple_star(interface_atm[n-1], interface_atm[n])
-            forcing = give_tuple_star(f_ocean((n-1)*atmosphere.dt), f_ocean(n*atmosphere.dt))
+            robin = give_tuple_star(interface_atm[n-1], interface_atm[n], interface_atm[n] if n==N_ocean else interface_atm[n+1])
+            forcing = give_tuple_star(f_ocean((n-1)*atmosphere.dt), f_ocean(n*atmosphere.dt), f_ocean((n+1)*atmosphere.dt))
             prognosed, diagnosed = ocean.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,
                     interface_robin=robin, forcing=forcing, boundary=(0., 0., 0.))
             u_interface, phi_interface = ocean.interface_values(prognosed, diagnosed)
