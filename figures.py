@@ -589,6 +589,12 @@ def find_indices(frequencies, nbpts):
     return np.array([bisect.bisect(frequencies, x)\
                 for x in ideal_logspace])
 
+def frequencies_for_optim(N, dt, nbpts):
+    axis_freq = get_discrete_freq(N, dt)
+    indices = find_indices(axis_freq[N//2+1:], nbpts) + N//2
+    return axis_freq[indices]
+
+
 def fig_DNInteraction():
     mpl.rc('text', usetex=True)
     mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
@@ -1265,7 +1271,8 @@ def fig_optiRates():
     fig.legend(custom_lines, custom_labels, loc=(0.1, 0.), ncol=5, handlelength=2)
     show_or_save("fig_optiRates")
 
-def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere, name_method="Unknown discretization", caracs={}, **args_for_discretization):
+def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere,
+        name_method="Unknown discretization", caracs={}, **args_for_discretization):
     """
         Creates a figure comparing analysis methods for a discretization.
     """
@@ -1281,6 +1288,7 @@ def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere, name_method="Un
     setting.DT = .5
     N = 1000000
     axis_freq = get_discrete_freq(N, setting.DT)
+    freq_for_optim = frequencies_for_optim(N, setting.DT, 200)
 
     axes.set_xlabel("$\\omega \\Delta t$")
     axes.set_ylabel(r"${\rho}_{RR}^{"+name_method+r"}$")
@@ -1289,7 +1297,7 @@ def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere, name_method="Un
         builder = setting.copy()
         builder.LAMBDA_1 = lam
         builder.LAMBDA_2 = -lam
-        return np.max(np.abs(all_rates[0](builder, axis_freq)))
+        return np.max(np.abs(all_rates[0](builder, freq_for_optim)))
 
     from scipy.optimize import minimize_scalar, minimize
     optimal_lam = minimize_scalar(fun=rate_onesided)
@@ -1301,10 +1309,14 @@ def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere, name_method="Un
             builder = setting.copy()
             builder.LAMBDA_1 = lam[0]
             builder.LAMBDA_2 = lam[1]
-            return np.max(np.abs(discrete_factor(builder, axis_freq)))
+            return np.max(np.abs(discrete_factor(builder, freq_for_optim)))
 
         optimal_lam = minimize(method='Nelder-Mead',
                 fun=rate_twosided, x0=x0_opti)
+        optimal_lam_new = minimize(method='Nelder-Mead',
+                fun=rate_twosided, x0=(0.4, -0.05))
+        if optimal_lam.fun > optimal_lam_new.fun:
+            optimal_lam = optimal_lam_new
         if names == "continuous":
             x0_opti = optimal_lam.x
         setting.LAMBDA_1 = optimal_lam.x[0]
@@ -1329,12 +1341,60 @@ def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere, name_method="Un
         else:
             axes.semilogx(axis_freq_predicted * setting.DT, np.abs(discrete_factor(setting, axis_freq_predicted)), marker="^", markersize=6., linewidth=0., color=caracs[names]["color"])
 
-        #axes.semilogx(axis_freq * setting.DT, np.ones_like(axis_freq)*max(convergence_factor), linestyle="dashed", linewidth=caracs[names]["width"], color=caracs[names]["color"]+"90")
-
-
     axes.legend( loc=(0., 0.), ncol=1 )
     #axes.set_xlim(left=1e-3, right=3.4)
     #axes.set_ylim(bottom=0)
+
+def fig_review_contour():
+    builder = Builder()
+    builder.D1 = 0.5
+    builder.D2 = 1.
+    builder.R = 1e-3
+    builder.DT = 1.
+    N = 1000000
+    # DO NOT CHANGE (or change the legend also)
+    axis_freq = frequencies_for_optim(N, builder.DT)
+
+    def function_to_plot(p1, p2):
+        setting = builder.copy()
+        setting.LAMBDA_1, setting.LAMBDA_2 = p1, p2
+        return np.max(np.abs(rho_BE_FD(setting, axis_freq)))
+    vfunc = np.vectorize(function_to_plot)
+        
+    delta = 0.001
+    allp1 = np.arange(0.01, 0.8, delta)
+    allp2 = np.arange(-0.6, -0.01, delta)
+    X, Y = np.meshgrid(allp1, allp2)
+    Z = vfunc(X, Y)
+    fig, axes = plt.subplots(1, 2)
+    fig.subplots_adjust(wspace=0.337)
+
+    CS = axes[0].contour(X, Y, Z)
+    axes[0].clabel(CS, inline=True, fontsize=10)
+    axes[0].set_title(r"$\max(\rho^{BE, FD})$")
+    axes[0].set_xlabel(r"$p_1$")
+    axes[0].set_ylabel(r"$p_2$")
+
+    def function_to_minimize(p): return function_to_plot(*p)
+
+    optimal_lams = minimize(method='Nelder-Mead',
+            fun=function_to_minimize, x0=(.3, -.05))
+    optimal_lams_old = minimize(method='Nelder-Mead',
+            fun=function_to_minimize, x0=(.1, -.85))
+    
+    builder.LAMBDA_1, builder.LAMBDA_2 = optimal_lams.x
+    axes[1].semilogx(axis_freq, np.abs(rho_BE_FD(builder, axis_freq)),
+            label="Global minimum, \n(p1, p2) = ({:.2f}, {:.2f})".format(*optimal_lams.x))
+    builder.LAMBDA_1, builder.LAMBDA_2 = optimal_lams_old.x
+    axes[1].semilogx(axis_freq, np.abs(rho_BE_FD(builder, axis_freq)),
+            label="Local minimum, \n(p1, p2) = ({:.2f}, {:.2f})".format(*optimal_lams_old.x))
+    axes[1].set_xlabel(r"$\omega$")
+    axes[1].set_ylabel(r"$\rho^{\rm (BE, FD)}_{\rm RR}$")
+    axes[1].legend()
+
+    plt.show()
+
+
 
 
 ######################################################
