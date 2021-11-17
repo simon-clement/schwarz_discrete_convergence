@@ -5,6 +5,36 @@
 import functools
 import numpy as np
 
+def simulation_L2norm(atmosphere, ocean,
+        number_samples=100, laplace_real_part=0., **kwargs):
+    """
+        Simulate and returns the L2 norm across iterations.
+        number_samples simulations are done to have
+        an average on multiple possible first guess.
+        The errors are of the form ocean.Lambda * u_2(x=0) + nu phi_2(x=0)
+
+        Every argument should be given in models atmosphere and ocean, except **kwargs
+          kwargs = {T, NUMBER_IT}
+        T: time window
+        NUMBER_IT: number of Schwarz iterations (should be at least > 3)
+    """
+    import concurrent.futures
+    to_map = functools.partial(schwarz_simulator, atmosphere, ocean, **kwargs)
+
+    from progressbar import ProgressBar
+    progressbar = ProgressBar(maxval=number_samples)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        err_ret = []
+        for result in progressbar(executor.map(to_map, range(number_samples))):
+            err_ret += [result]
+        errors = np.array(err_ret)
+
+    if errors.shape[0] == 1: # special case with only one sample
+        return np.linalg.norm(errors[0], axis=-1)
+
+    return np.linalg.norm(np.std(errors, axis=0), axis=-1)
+
 def frequency_simulation(atmosphere, ocean, number_samples=100, laplace_real_part=0., **kwargs):
     """
         Simulate and returns directly errors in frequencial domain.
