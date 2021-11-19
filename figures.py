@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import bisect
 from scipy.optimize import minimize_scalar, minimize
 from memoisation import memoised
-from simulator import frequency_simulation
+from simulator import frequency_simulation, simulation_L2norm
 from cv_factor_pade import rho_Pade_FD_corr0, rho_Pade_c, rho_Pade_FV
 from cv_factor_onestep import rho_BE_FD, rho_BE_FV, rho_c_FD, rho_c_FV
 from cv_factor_onestep import rho_BE_c, rho_c_c
@@ -1278,14 +1278,9 @@ def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere,
     """
 
     setting = Builder()
-    setting.M1 = 100
-    setting.SIZE_DOMAIN_1= 100
-    setting.M2 = 100
-    setting.SIZE_DOMAIN_2= 100
     setting.D1 = .5
-    setting.D2 = 1.
     setting.R = 1e-3
-    setting.DT = .5
+    setting.DT = 1.
     N = 1000000
     axis_freq = get_discrete_freq(N, setting.DT)
     freq_for_optim = frequencies_for_optim(N, setting.DT, 200)
@@ -1343,7 +1338,97 @@ def optiRatesGeneral(axes, all_rates, all_ocean, all_atmosphere,
 
     axes.legend( loc=(0., 0.), ncol=1 )
     #axes.set_xlim(left=1e-3, right=3.4)
-    #axes.set_ylim(bottom=0)
+    axes.set_ylim(bottom=0)
+
+def fig_optiRatesL2():
+    mpl.rc('text', usetex=True)
+    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
+
+    caracs = {}
+    caracs["continuous"] = {'color':'#00AF80', 'width':0.7, 'nb_+':9}
+    caracs["semi-discrete"] = {'color':'#FF0000', 'width':.9, 'nb_+':15}
+    caracs["discrete, FV"] = {'color':'#000000', 'width':.9, 'nb_+':15}
+    caracs["discrete, FD"] = {'color':'#0000FF', 'width':.9, 'nb_+':15}
+
+    #############################################
+    # BE
+    #######################################
+
+    from ocean_models.ocean_BE_FD import OceanBEFD
+    from ocean_models.ocean_BE_FV import OceanBEFV
+    from atmosphere_models.atmosphere_BE_FV import AtmosphereBEFV
+    from atmosphere_models.atmosphere_BE_FD import AtmosphereBEFD
+
+    all_rates = rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD
+    all_ocean = OceanBEFV, OceanBEFV, OceanBEFV, OceanBEFD
+    all_atmosphere = AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFD
+    
+    optiRatesGeneralL2(all_rates, all_ocean, all_atmosphere, "BE", caracs=caracs)
+
+    ###########################
+    # Pade
+    ##########################
+
+    from ocean_models.ocean_Pade_FD import OceanPadeFD
+    from ocean_models.ocean_Pade_FV import OceanPadeFV
+    from atmosphere_models.atmosphere_Pade_FV import AtmospherePadeFV
+    from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
+
+    all_rates = rho_c_c, rho_Pade_c, rho_Pade_FV, rho_Pade_FD_corr0
+    all_ocean = OceanPadeFV, OceanPadeFV, OceanPadeFV, OceanPadeFD
+    all_atmosphere = AtmospherePadeFV, AtmospherePadeFV, AtmospherePadeFV, AtmospherePadeFD
+    optiRatesGeneralL2(all_rates, all_ocean, all_atmosphere, "P2", caracs=caracs)
+
+def optiRatesGeneralL2(all_rates, all_ocean, all_atmosphere,
+        name_method="Unknown discretization", caracs={}, **args_for_discretization):
+    """
+        Creates a figure comparing analysis methods for a discretization.
+    """
+
+    setting = Builder()
+    setting.D1 = .5
+    setting.R = 1e-3
+    setting.DT = 1.
+    N = 1000000
+    axis_freq = get_discrete_freq(N, setting.DT)
+    freq_for_optim = frequencies_for_optim(N, setting.DT, 200)
+
+    def rate_onesided(lam):
+        builder = setting.copy()
+        builder.LAMBDA_1 = lam
+        builder.LAMBDA_2 = -lam
+        return np.max(np.abs(all_rates[0](builder, freq_for_optim)))
+
+    from scipy.optimize import minimize_scalar, minimize
+    optimal_lam = minimize_scalar(fun=rate_onesided)
+    x0_opti = (optimal_lam.x, -optimal_lam.x)
+
+    for discrete_factor, oce_class, atm_class, names in zip(all_rates,
+            all_ocean, all_atmosphere, caracs):
+        def rate_twosided(lam):
+            builder = setting.copy()
+            builder.LAMBDA_1 = lam[0]
+            builder.LAMBDA_2 = lam[1]
+            return np.max(np.abs(discrete_factor(builder, freq_for_optim)))
+
+        optimal_lam = minimize(method='Nelder-Mead',
+                fun=rate_twosided, x0=x0_opti)
+        optimal_lam_new = minimize(method='Nelder-Mead',
+                fun=rate_twosided, x0=(0.4, -0.05))
+        if optimal_lam.fun > optimal_lam_new.fun:
+            optimal_lam = optimal_lam_new
+        if names == "continuous":
+            x0_opti = optimal_lam.x
+        setting.LAMBDA_1 = optimal_lam.x[0]
+        setting.LAMBDA_2 = optimal_lam.x[1]
+
+        builder = setting.copy()
+        ocean, atmosphere = builder.build(oce_class, atm_class)
+
+        L2_norm = memoised(simulation_L2norm, atmosphere, ocean,
+                number_samples=1, NUMBER_IT=1, laplace_real_part=0, T=N*builder.DT)
+        convergence_rate = L2_norm[2]/L2_norm[1]
+        print(name_method, names, convergence_rate)
 
 def fig_review_contour():
     builder = Builder()
@@ -1353,7 +1438,7 @@ def fig_review_contour():
     builder.DT = 1.
     N = 1000000
     # DO NOT CHANGE (or change the legend also)
-    axis_freq = frequencies_for_optim(N, builder.DT)
+    axis_freq = frequencies_for_optim(N, builder.DT, 200)
 
     def function_to_plot(p1, p2):
         setting = builder.copy()
@@ -1394,6 +1479,78 @@ def fig_review_contour():
 
     plt.show()
 
+
+def fig_review_contournu():
+    """
+        plots the maximum of the convergence factor
+        for nu_1, nu_2 in [0,2]
+    """
+    builder = Builder()
+    builder.R = 1e-3
+    builder.DT = 1.
+    N = 1000000
+    # DO NOT CHANGE (or change the legend also)
+    axis_freq = frequencies_for_optim(N, builder.DT, 200)
+
+    def function_to_plot_p(nu1, nu2, index, rho):
+        setting = builder.copy()
+        setting.D1, setting.D2 = nu1, nu2
+
+        def function_to_minimize(p):
+            setting2 = setting.copy()
+            setting2.LAMBDA_1, setting2.LAMBDA_2 = p
+            return np.max(np.abs(rho(setting2, axis_freq)))
+
+        optimal_lams = minimize(method='Nelder-Mead',
+                fun=function_to_minimize, x0=(.3, -.05))
+        optimal_lams_old = minimize(method='Nelder-Mead',
+                fun=function_to_minimize, x0=(.1, -.85))
+        if optimal_lams.fun > optimal_lams_old.fun:
+            optimal_lams = optimal_lams_old
+        return optimal_lams.fun
+
+    def function_to_plot_DN(nu1, nu2, index, rho):
+        setting = builder.copy()
+        setting.D1, setting.D2 = nu1, nu2
+        setting.LAMBDA_1, setting.LAMBDA_2 = 1e9, 0.
+        return np.max(np.abs(rho(setting, axis_freq)))
+
+    vfunc = np.vectorize(function_to_plot_p)
+
+    delta = 0.8
+    allnu1 = np.arange(0.2, 20., delta)
+    allnu2 = np.arange(0.2, 20., delta)
+    X, Y = np.meshgrid(allnu1, allnu2)
+    Z = vfunc(X, Y, 0, rho_BE_FD)
+    vfunc2 = np.vectorize(function_to_plot_p)
+    Zc = vfunc2(X, Y, 0, rho_c_c)
+
+    fig, axes = plt.subplots(1, 3)
+    fig.subplots_adjust(wspace=0.337)
+
+    levels = np.geomspace(np.min(Zc), np.max(Zc), 15)
+    CS = axes[0].contour(X, Y, Z, levels=levels)
+    axes[0].clabel(CS, inline=True, fontsize=10)
+    axes[0].set_title(r"$p_1$, BE, FD")
+    axes[0].set_xlabel(r"$\nu_1$")
+    axes[0].set_ylabel(r"$\nu_2$")
+    
+    CS = axes[1].contour(X, Y, Zc, levels=levels)
+    axes[1].clabel(CS, inline=True, fontsize=10)
+    axes[1].set_title(r"$p_1$, c, c")
+    axes[1].set_xlabel(r"$\nu_1$")
+    axes[1].set_ylabel(r"$\nu_2$")
+
+    vfuncDN = np.vectorize(function_to_plot_DN)
+    ZDN = vfuncDN(X, Y, 0, rho_c_c)
+
+    levels = np.geomspace(np.min(ZDN), np.max(ZDN), 15)
+    CS = axes[2].contour(X, Y, ZDN, levels=levels)
+    axes[2].clabel(CS, inline=True, fontsize=10)
+    axes[2].set_title(r"$p_1$, c, c with DN")
+    axes[2].set_xlabel(r"$\nu_1$")
+    axes[2].set_ylabel(r"$\nu_2$")
+    plt.show()
 
 
 

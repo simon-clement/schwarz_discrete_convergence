@@ -21,12 +21,9 @@ def simulation_L2norm(atmosphere, ocean,
     import concurrent.futures
     to_map = functools.partial(schwarz_simulator, atmosphere, ocean, **kwargs)
 
-    from progressbar import ProgressBar
-    progressbar = ProgressBar(maxval=number_samples)
-
     with concurrent.futures.ThreadPoolExecutor() as executor:
         err_ret = []
-        for result in progressbar(executor.map(to_map, range(number_samples))):
+        for result in executor.map(to_map, range(number_samples)):
             err_ret += [result]
         errors = np.array(err_ret)
 
