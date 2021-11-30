@@ -97,7 +97,7 @@ class OceanPadeFD():
         phi_np1 = np.diff(-u_np1)/h
 
         #slight modification of phi[0] if corrective term:
-        derivative_u0 = (u_np1[0] - u_star[0])/(b*dt)
+        derivative_u0 = ((1+R)*u_np1[0] - u_star[0])/(b*dt)
         phi_np1[0] += self.h/2 *self.k_c/nu * derivative_u0
 
         return u_np1, phi_np1

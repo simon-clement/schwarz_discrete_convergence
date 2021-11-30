@@ -10,4 +10,6 @@ FIGURE["4"] = "fig_rhoDN_space"
 FIGURE["5"] = "fig_DNInteraction"
 FIGURE["6"] = "fig_RRInteraction"
 FIGURE["7"] = "fig_optiRates"
+FIGURE["review1"] = "fig_review_contournu"
+FIGURE["review2"] = "fig_review_contour"
 ALL_LABELS = FIGURE

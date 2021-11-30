@@ -141,7 +141,7 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
 
         interface_atm = [0]
         for n in range(1, N_atm+1):
-            robin = give_tuple_star(interface_ocean[n-1], interface_ocean[n], 
+            robin = give_tuple_star(interface_ocean[n-1], interface_ocean[n],
                     interface_ocean[n] if n==N_atm else interface_ocean[n+1])
             forcing = give_tuple_star(f_atm((n-1)*atmosphere.dt), f_atm(n*atmosphere.dt), f_atm((n+1)*atmosphere.dt))
             prognosed, diagnosed = atmosphere.integrate_in_time(prognosed=prognosed, diagnosed=diagnosed,

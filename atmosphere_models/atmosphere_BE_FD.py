@@ -23,6 +23,11 @@ class AtmosphereBEFD():
         return self.M
 
     def interface_values(self, prognosed, diagnosed):
+        """
+            returns (u_0, phi_0).
+            if k_c==1, diagnosed[0] is already corrected
+            (see end of the method integrate_in_time())
+        """
         u_interface = prognosed[0]
         phi_interface = diagnosed[0]
         return u_interface, phi_interface
@@ -32,8 +37,8 @@ class AtmosphereBEFD():
             Given the information, returns the tuple (prognosed^{n+1}, diagnosed^{n+1})
 
             Parameters:
-            prognosed=u_n (diagnosed variable, space derivative of solution), (size M)
-            diagnosed=phi_n (diagnosed average of solution on each volume), (size M-1)
+            prognosed=u_n (prognosed variable: solution), (size M)
+            diagnosed=phi_n (diagnosed derivative of solution), (size M-1)
             interface_robin, forcing, boundary: tuples for time (tn, t*, t{n+1})
             time t* is not used.
 
@@ -43,10 +48,10 @@ class AtmosphereBEFD():
                 -Robin(t)=interface_robin(t) at interface
 
             scheme is:
-                -Noting Y = 1+delta_x^2/6, b=1+1/sqrt(2), a=1+sqrt(2)
+                -Noting Y = 1+delta_x^2/6
                 -Noting R = r*dt, Gamma = nu*dt/h^2
 
-                    (Y + (R Y - Gamma delta_x^2))phi_np1 = Y phi_n
+                    (Y + (R Y - Gamma delta_x^2))u_np1 = Y u_n
                 See pdf for the implementation.
         """
         
@@ -84,7 +89,7 @@ class AtmosphereBEFD():
         phi_np1 = np.diff(u_np1)/h
 
         #slight modification of phi[0] if corrective term:
-        derivative_u0 = (u_np1[0] - u_n[0])/(dt)
+        derivative_u0 = ((1+R)*u_np1[0] - u_n[0])/(dt)
         phi_np1[0] -= self.h/2 * self.k_c/nu * derivative_u0
 
         return u_np1, phi_np1

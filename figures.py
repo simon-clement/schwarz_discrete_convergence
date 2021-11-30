@@ -20,8 +20,8 @@ from atmosphere_models.atmosphere_BE_FV import AtmosphereBEFV
 from ocean_models.ocean_Pade_FD import OceanPadeFD
 from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
 
-# If set to True, the simulations will run, taking multiple hours.
-REAL_FIG = False
+# If set to True, the simulations will run, taking ~2 days.
+REAL_FIG = True
 
 def fig_lambda_Pade():
     mpl.rc('text', usetex=True)
@@ -184,10 +184,24 @@ def fig_rhoDNPade():
         cv_factor_r0_high = np.abs(theory(builder,
             axis_freq, gamma=gammaz_highTilde))
 
-    ax.semilogx(axis_freq, cv_factor_r0_high ,linewidth=4.,color='g', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')
-    ax.semilogx(axis_freq, cv_factor_r1_high ,linewidth=4.,color='g', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')
-    ax.semilogx(axis_freq, cv_factor_r0_low ,linewidth=4.,color='b', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1)- \beta(\beta-1)^2 (z-1)^2$')
-    ax.semilogx(axis_freq, cv_factor_r1_low ,linewidth=4.,color='b', linestyle='dashed' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1)- \beta(\beta-1)^2 (z-1)^2$')
+    #### validation ####
+    nb_subpoints = 12 # plotting only 12 points
+    indices = find_indices(axis_freq[N//2+1:], nb_subpoints) + N//2
+    lw_observed = 0.45
+
+    ax.semilogx(axis_freq[indices], cv_factor_r0_high[indices],
+            'o', color='k', fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
+    ax.semilogx(axis_freq[indices], cv_factor_r1_high[indices],
+            'o', color='0.5', fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
+    ax.semilogx(axis_freq[indices], cv_factor_r0_low[indices],
+            'o', color='k', fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
+    ax.semilogx(axis_freq[indices], cv_factor_r1_low[indices],
+            'o', color='0.5', fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
+
     w, varrho = wAndRhoPadeRR(builder, gamma=gammaw_highTilde, N=N)
     ax.semilogx(w*builder.DT, np.abs(varrho ) ,linewidth=2.,color='k', linestyle='solid' ,label=r'$r=0\;{\rm s}^{-1}, \gamma = z - \beta (z-1)$')
 
@@ -217,24 +231,30 @@ def fig_rhoDN_space():
     builder.R = 0.
     builder.D1 = .5
     builder.D2 = 1.
-    builder.DT /= 1000
-    N = 1000000
+    builder.DT /= 100
+    N = 100000
     axis_freq = get_discrete_freq(N, builder.DT)[N//2+1:]
     def validation(builder, h, atmclass, oceanclass, theory,
-            **eventual_k_c):
+            ignore_cached=False, **eventual_k_c):
         local_builder = builder.copy()
-        local_builder.set_h(h)
+        local_builder.set_h(h, vertical_levels=100)
         ocean, atmosphere = local_builder.build(oceanclass,
                 atmclass, **eventual_k_c)
         if REAL_FIG:
             alpha_w = memoised(frequency_simulation, atmosphere, ocean,
-                    number_samples=10, NUMBER_IT=1, T=N*builder.DT)
+                    number_samples=10, NUMBER_IT=1, T=N*builder.DT,
+                    ignore_cached=ignore_cached)
             convergence_factor = np.abs((alpha_w[2] / alpha_w[1]))
             convergence_factor = convergence_factor[N//2 + 1:]
         else:
             convergence_factor = np.abs(theory(local_builder,
                                         axis_freq, **eventual_k_c))
         return convergence_factor
+
+    nb_subpoints = 12 # plotting only 12 points
+    indices = find_indices(axis_freq, nb_subpoints)
+    lw_observed = 0.45
+
 
     from ocean_models.ocean_BE_FD import OceanBEFD
     from ocean_models.ocean_BE_FV import OceanBEFV
@@ -246,27 +266,26 @@ def fig_rhoDN_space():
     nu1    = 0.5
     nu2    = 1.
     continuous = ww*0. + np.sqrt(nu1/nu2)
-    print(np.sqrt(nu1/nu2))   
     ########### h = 0.1 #################
     dx     = 0.1
     builder.R = 0.1
     validFD0 = {}
     validFD1 = {}
     validFV = {}
-    for r in (0., 0.1):
+    for r in (0., .1):
         for h in (0.1, 1, 5, 10):
             builder.R = r
             validFD0[(h, r)] = validation(builder, h, AtmosphereBEFD,
                     OceanBEFD, rho_BE_FD, k_c=0.)
             validFD1[(h, r)] = validation(builder, h, AtmosphereBEFD,
-                    OceanBEFD, rho_BE_FD, k_c=1.)
+                    OceanBEFD, rho_BE_FD, k_c=1., ignore_cached=False)
             validFV[(h, r)] = validation(builder, h, AtmosphereBEFV,
                     OceanBEFV, rho_BE_FV)
 
     rr     = 0.0
     #
     chi1   = dx*dx*(rr+1j*ww)/nu1
-    chi2   = dx*dx*(rr+1j*ww)/nu2  
+    chi2   = dx*dx*(rr+1j*ww)/nu2
     #
     sig1p  = 0.5 * ( 2.+chi1+np.sqrt( chi1*(4.+chi1) ) )
     sig2m  = 0.5 * ( 2.+chi2-np.sqrt( chi2*(4.+chi2) ) )
@@ -381,8 +400,12 @@ def fig_rhoDN_space():
     ax.semilogx(ww,rhoDNFDn2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFDn3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFDn4,linewidth=2.,color='0.5'   , linestyle='solid' ,label=r'$h = 10\;{\rm m}$' )
+    colors_h = {0.1 : 'k', 1 : 'k', 5 : '0.5', 10 : '0.5'}
+
     for h in (0.1, 1, 5, 10):
-        ax.semilogx(axis_freq,validFD0[(h, 0.)],linewidth=4.,color='g', linestyle='dashed' ,label=r'validation' )
+        ax.semilogx(axis_freq[indices],validFD0[(h, 0.)][indices],
+            'o', color=colors_h[h], fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
     ax.semilogx(ww,continuous,linewidth=1.,color='red'   , linestyle='solid' ,label=r'continuous' )
     ax.legend(loc=2,prop={'size':7}, handlelength=2)
     txt = ax.annotate('(a)',xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
@@ -393,7 +416,10 @@ def fig_rhoDN_space():
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=1, r=0\;{\rm s}^{-1})$",fontsize=10)
     for h in (0.1, 1, 5, 10):
-        ax.semilogx(axis_freq,validFD1[(h, 0.)],linewidth=4.,color='g', linestyle='dashed' ,label=r'validation' )
+        ax.semilogx(axis_freq[indices],validFD1[(h, 0.)][indices],
+            'o', color=colors_h[h], fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
+
     ax.semilogx(ww,rhoDNFDc1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFDc2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFDc3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
@@ -407,7 +433,9 @@ def fig_rhoDN_space():
     ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FV})}(r=0\;{\rm s}^{-1})$",fontsize=10)
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     for h in (0.1, 1, 5, 10):
-        ax.semilogx(axis_freq,validFV[(h, 0.)],linewidth=4.,color='g', linestyle='dashed' ,label=r'validation' )
+        ax.semilogx(axis_freq[indices],validFV[(h, 0.)][indices],
+            'o', color=colors_h[h], fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
     ax.semilogx(ww,rhoDNFV21,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFV22,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFV23,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
@@ -533,7 +561,9 @@ def fig_rhoDN_space():
     ax.set_ylim(0.45,1.05)
     ax.set_xlabel (r'$\omega$', fontsize=12)
     for h in (0.1, 1, 5, 10):
-        ax.semilogx(axis_freq,validFD0[(h, 0.1)],linewidth=4.,color='g', linestyle='dashed' ,label=r'validation' )
+        ax.semilogx(axis_freq[indices],validFD0[(h, 0.1)][indices],
+            'o', color=colors_h[h], fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
     ax.semilogx(ww,rhoDNFDn1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFDn2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFDn3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
@@ -548,7 +578,9 @@ def fig_rhoDN_space():
     ax.set_title(r"$\rho_{\rm DN}^{({\rm c,FD})}(\kappa_c=1, r=0.1\;{\rm s}^{-1})$",fontsize=10)
     ax.set_xlabel (r'$\omega$', fontsize=12)
     for h in (0.1, 1, 5, 10):
-        ax.semilogx(axis_freq,validFD1[(h, 0.1)],linewidth=4.,color='g', linestyle='dashed' ,label=r'validation' )
+        ax.semilogx(axis_freq[indices],validFD1[(h, 0.1)][indices],
+            'o', color=colors_h[h], fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
     ax.semilogx(ww,rhoDNFDc1,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$')
     ax.semilogx(ww,rhoDNFDc2,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFDc3,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
@@ -564,7 +596,9 @@ def fig_rhoDN_space():
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
 
     for h in (0.1, 1, 5, 10):
-        ax.semilogx(axis_freq,validFV[(h, 0.1)],linewidth=4.,color='g', linestyle='dashed' ,label=r'validation' )
+        ax.semilogx(axis_freq[indices],validFV[(h, 0.1)][indices],
+            'o', color=colors_h[h], fillstyle="none",
+            markeredgewidth=lw_observed, zorder=0)
     ax.semilogx(ww,rhoDNFV21,linewidth=2.,color='k', linestyle='dashed' ,label=r'$h = 10^{-1}\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFV22,linewidth=2.,color='k'   , linestyle='solid' ,label=r'$h = 1\;{\rm m}$' )
     ax.semilogx(ww,rhoDNFV23,linewidth=2.,color='0.5'   , linestyle='dashed' ,label=r'$h = 5\;{\rm m}$' )
@@ -585,14 +619,14 @@ def find_indices(frequencies, nbpts):
     """
     assert frequencies[0] > 0
     ideal_logspace = np.geomspace(frequencies[0],
-            frequencies[-1], num=nbpts)
+            frequencies[-2], num=nbpts)
     return np.array([bisect.bisect(frequencies, x)\
                 for x in ideal_logspace])
 
 def frequencies_for_optim(N, dt, nbpts):
     axis_freq = get_discrete_freq(N, dt)
     indices = find_indices(axis_freq[N//2+1:], nbpts) + N//2
-    return axis_freq[indices]
+    return np.copy(axis_freq[indices])
 
 
 def fig_DNInteraction():
@@ -602,15 +636,13 @@ def fig_DNInteraction():
     builder = Builder()
     builder.LAMBDA_1 = 1e9  # extremely high lambda is a Dirichlet condition
     builder.LAMBDA_2 = 0. # lambda=0 is a Neumann condition
-    # builder.LAMBDA_1 = 1.11 # optimal parameters for corr=0, N=3000
-    # builder.LAMBDA_2 = -0.76
-    builder.D1 = 1.
-    builder.D2 = 2.
+    builder.D1 = .5
+    builder.D2 = 1.
     builder.R = 0.
     fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))
     plt.subplots_adjust(left=.04, bottom=.10, right=.99, top=.92, wspace=0.05, hspace=0.4)
-    dt = builder.DT
     REACTION_COEFF = 0.1
+    T = 1000
 
     theorical_convergence_factors = {}
     theorical_convergence_factors["BEFV"] = {}
@@ -635,12 +667,17 @@ def fig_DNInteraction():
         b = 1+1/np.sqrt(2)
         return z - b*(z-1)
 
-    all_dt = (1e-3, 1e-2, 1e-1, 1e0, 1e1)
+    all_dt = (2e-3, 2e-2, 2e-1, 2e0, 2e1)
     style = {all_dt[4] : {'col':'k', 'ls':'solid', 'lw':1.4, 'legend':r"$\Gamma=10$"},
             all_dt[3] : {'col':'.1', 'ls':'dashed', 'lw':1.55, 'legend':r"$\Gamma=1$"},
             all_dt[2] : {'col':'.5', 'ls':'solid', 'lw':1.7, 'legend':r"$\Gamma=10^{-1}$"},
             all_dt[1] : {'col':'.5', 'ls':'dashed', 'lw':1.9, 'legend':r"$\Gamma=10^{-2}$"},
             all_dt[0] : {'col':'r', 'ls':'solid', 'lw':1.2, 'legend':r"$\Gamma=\nu_1\frac{\Delta t}{h^2}=10^{-3}$"}}
+    nb_validation_pts = {all_dt[4] : 10,
+            all_dt[3] : 6,
+            all_dt[2] : 4,
+            all_dt[1] : 3,
+            all_dt[0] : 3 }
 
     def validation(builder, N, oceanclass, atmclass, theory, gamma="simple", **possible_kc):
         ocean, atmosphere = builder.build(oceanclass,
@@ -662,67 +699,70 @@ def fig_DNInteraction():
 
     for dt in all_dt:
         builder.DT = dt
-        assert REACTION_COEFF * builder.DT <= 1
-        N = int(1000/dt)
+        # assert REACTION_COEFF * builder.DT <= 1
+        N = int(T/dt)
+        N_validation = 10000
         axis_freq = get_discrete_freq(N, builder.DT)
 
         theorical_convergence_factors["BEFD"][dt] = np.abs(rho_BE_FD(builder, w=axis_freq, k_c=0))
         observed_convergence_factors["BEFD"][dt] = validation(builder,
-                N, OceanBEFD, AtmosphereBEFD, rho_BE_FD, k_c=0)
+                N_validation, OceanBEFD, AtmosphereBEFD, rho_BE_FD, k_c=0)
 
         builder.R = REACTION_COEFF
         theorical_convergence_factors["BEFD_R"][dt] = np.abs(rho_BE_FD(builder, w=axis_freq, k_c=0))
         observed_convergence_factors["BEFD_R"][dt] = validation(builder,
-                N, OceanBEFD, AtmosphereBEFD, rho_BE_FD, k_c=0)
+                N_validation, OceanBEFD, AtmosphereBEFD, rho_BE_FD, k_c=0)
         builder.R = 0.
 
         theorical_convergence_factors["BEFV"][dt] = np.abs(rho_BE_FV(builder, w=axis_freq))
         observed_convergence_factors["BEFV"][dt] = validation(builder,
-                N, OceanBEFV, AtmosphereBEFV, rho_BE_FV)
+                N_validation, OceanBEFV, AtmosphereBEFV, rho_BE_FV)
 
         theorical_convergence_factors["SimplePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=simple_gamma)
         observed_convergence_factors["SimplePade"][dt] = validation(builder,
-                N, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0)
+                N_validation, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0)
 
         builder.R = REACTION_COEFF
         theorical_convergence_factors["LowTildePade_R"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
         observed_convergence_factors["LowTildePade_R"][dt] = validation(builder,
-                N, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0,
+                N_validation, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0,
                 gamma="lowTilde")
         builder.R = 0.
 
         theorical_convergence_factors["LowTildePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
         observed_convergence_factors["LowTildePade"][dt] = validation(builder,
-                N, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0,
+                N_validation, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0,
                 gamma="lowTilde")
 
 
         col = style[dt]['col']
         ls = style[dt]['ls']
         lw = style[dt]['lw']
+        lw_observed = 0.45
         legend = style[dt]['legend']
 
-        nb_subpoints = 4 # plotting only the right half of the points
-        indices = find_indices(axis_freq[N//2+1:], 2*nb_subpoints) + N//2
-        indices = indices[nb_subpoints:]
-        axes[0,0].semilogx(axis_freq[indices],
+        nb_subpoints = nb_validation_pts[dt]
+        w_validation = get_discrete_freq(N_validation, dt)
+        indices = find_indices(w_validation[N_validation//2+1:],
+                nb_subpoints) + N_validation//2
+        axes[0,0].semilogx(w_validation[indices],
                 observed_convergence_factors["BEFV"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[0,1].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[0,1].semilogx(w_validation[indices],
                 observed_convergence_factors["BEFD"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[0,2].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[0,2].semilogx(w_validation[indices],
                 observed_convergence_factors["BEFD_R"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[1,0].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[1,0].semilogx(w_validation[indices],
                 observed_convergence_factors["SimplePade"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[1,1].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[1,1].semilogx(w_validation[indices],
                 observed_convergence_factors["LowTildePade"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[1,2].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[1,2].semilogx(w_validation[indices],
                 observed_convergence_factors["LowTildePade_R"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
 
         axes[0,0].semilogx(axis_freq, theorical_convergence_factors["BEFV"][dt], linestyle=ls, color=col, linewidth=lw)
         axes[0,1].semilogx(axis_freq, theorical_convergence_factors["BEFD"][dt], linestyle=ls, color=col, label=legend, linewidth=lw)
@@ -749,56 +789,70 @@ def fig_DNInteraction():
             (1,2): '(f)', }
     for i,j in ((0,0), (1,0), (0,1), (1,1), (0,2), (1,2)):
         txt = axes[i,j].annotate(letter_fig[(i,j)],xy=(0.03,0.075), xycoords='axes fraction',color='k',fontsize=10)
-        txt.set_bbox(dict(facecolor='white',alpha=1.))  
+        txt.set_bbox(dict(facecolor='white',alpha=1.))
         axes[i,j].grid(color='k', linestyle=':', linewidth=0.25)
+    axes[0,0].set_xlim(3.1415/1000,9e2)
     axes[0,1].legend(loc="upper right",prop={'size':7}, handlelength=2)
     fig.tight_layout()   
     show_or_save("fig_interactionsDN")
 
 def robin_parameters_discrete_space(builder, N, dt, scheme="FD"):
     if scheme == "FD":
-        rho_BE = rho_c_FD
+        rho = rho_c_FD
     elif scheme == "FV":
-        rho_BE = rho_c_FV
+        rho = rho_c_FV
     else:
         raise NotImplementedError("unknown scheme")
 
-    axis_freq = get_discrete_freq(N, dt)
+    # axis_freq = get_discrete_freq(N, dt)
+    axis_freq = frequencies_for_optim(N, dt, 1000)
+    # indices = find_indices(axis_freq[N//2+1:], 100) + N//2
+    # axis_freq = axis_freq[indices]
     def to_minimize_onesided(p):
         builder_cp = builder.copy()
         builder_cp.LAMBDA_1, builder_cp.LAMBDA_2 = p, -p
-        return np.max(np.abs(rho_BE(builder=builder_cp, w=axis_freq)))
+        return np.max(np.abs(rho(builder=builder_cp, w=axis_freq)))
 
     def to_minimize_twosided(parameters):
         builder_cp = builder.copy()
         builder_cp.LAMBDA_1 = parameters[0]
         builder_cp.LAMBDA_2 = parameters[1]
-        return np.max(np.abs(rho_BE(builder=builder_cp, w=axis_freq)))
+        return np.max(np.abs(rho(builder=builder_cp, w=axis_freq)))
 
-    res_onesided = minimize_scalar(fun=to_minimize_onesided)
-    p_opti = res_onesided.x
-    res_twosided = minimize(fun=to_minimize_twosided,
-            x0=np.array((p_opti, -p_opti)), method='Nelder-Mead')
-    return res_twosided
+    # res_onesided = minimize_scalar(fun=to_minimize_onesided)
+    # p_opti = res_onesided.x
+    res_twosided_eye1 = minimize(fun=to_minimize_twosided,
+            x0=np.array((0.35, -0.04)), method='Nelder-Mead')
+    res_twosided_eye2 = minimize(fun=to_minimize_twosided,
+            x0=np.array((0.06, -0.21)), method='Nelder-Mead')
+    print(res_twosided_eye2.x, res_twosided_eye1.x)
+    if res_twosided_eye2.fun > res_twosided_eye1.fun:
+        return res_twosided_eye1
+    return res_twosided_eye2
 
 def fig_RRInteraction():
     mpl.rc('text', usetex=True)
     mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
     # parameters of the schemes are given to the builder:
     builder = Builder()
-    builder.D1 = 1.
-    builder.D2 = 2.
+    builder.D1 = .5
+    builder.D2 = 1.
     fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))
     plt.subplots_adjust(left=.04, bottom=.10, right=.99, top=.92, wspace=0.05, hspace=0.4)
-    axes[0,0].set_ylim(top=0.6, bottom=0.) #sharey activated : see ax[1].set_xlim
+    axes[0,0].set_ylim(top=0.42, bottom=0.) #sharey activated : see ax[1].set_xlim
     dt = builder.DT
     REACTION_COEFF = 0.1 # for cases with reaction != 0
-    all_dt = (1e1, 1e0, 1e-1, 1e-2, 1e-3)
+    all_dt = (2e1,2e0,2e-1,2e-2,2e-3,)
     style = {all_dt[0] : {'col':'k', 'ls':'solid', 'lw':1.4, 'legend':r"$\Gamma=10$"},
             all_dt[1] : {'col':'.1', 'ls':'dashed', 'lw':1.55, 'legend':r"$\Gamma=1$"},
             all_dt[2] : {'col':'.5', 'ls':'solid', 'lw':1.7, 'legend':r"$\Gamma=10^{-1}$"},
             all_dt[3] : {'col':'.5', 'ls':'dashed', 'lw':1.9, 'legend':r"$\Gamma=10^{-2}$"},
             all_dt[4] : {'col':'r', 'ls':'solid', 'lw':1., 'legend':r"$\Gamma=\nu_1\frac{\Delta t}{h^2}=10^{-3}$"}}
+    nb_validation_pts = {all_dt[0] : 9,
+            all_dt[1] : 7,
+            all_dt[2] : 6,
+            all_dt[3] : 5,
+            all_dt[4] : 5 }
         
     theorical_convergence_factors = {}
     theorical_convergence_factors["BEFV"] = {}
@@ -817,12 +871,13 @@ def fig_RRInteraction():
     observed_convergence_factors["LowTildePade_R"] = {}
 
     ############## OPTIMISATION #####################
-    dtmin = 1e-3
+    dtmin = 2e-3
     builder.R = 0.
     builder.DT = dtmin
+    T = 1000
     #optimisation for FD:
     res_twosided = memoised(robin_parameters_discrete_space,
-            builder=builder, N=int(1000/dtmin), dt=dtmin, scheme="FD")
+            builder=builder, N=int(T/dtmin), dt=dtmin, scheme="FD")
     theorical_convergence_factors["BEFD"]["robin"] = res_twosided.x
     theorical_convergence_factors["SimplePade"]["robin"] = res_twosided.x
     theorical_convergence_factors["LowTildePade"]["robin"] = res_twosided.x
@@ -830,7 +885,7 @@ def fig_RRInteraction():
     #optimisation for FD with Reaction:
     builder.R = REACTION_COEFF
     res_twosided = memoised(robin_parameters_discrete_space,
-            builder=builder, N=int(1000/dtmin), dt=dtmin, scheme="FD")
+            builder=builder, N=int(T/dtmin), dt=dtmin, scheme="FD")
 
     theorical_convergence_factors["BEFD_R"]["robin"] = res_twosided.x
     theorical_convergence_factors["LowTildePade_R"]["robin"] = res_twosided.x
@@ -838,7 +893,7 @@ def fig_RRInteraction():
     #optimisation for FV:
     builder.R = 0.
     res_twosided = memoised(robin_parameters_discrete_space,
-            builder=builder, N=int(1000/dtmin), dt=dtmin, scheme="FV")
+            builder=builder, N=int(T/dtmin), dt=dtmin, scheme="FV")
     theorical_convergence_factors["BEFV"]["robin"] = res_twosided.x
 
     def validation(builder, N, oceanclass, atmclass, theory, gamma="simple", **possible_kc):
@@ -848,7 +903,7 @@ def fig_RRInteraction():
         if REAL_FIG:
             alpha_w = memoised(frequency_simulation, atmosphere, ocean,
                     number_samples=10, NUMBER_IT=1, T=N*builder.DT,
-                    gamma=gamma)
+                    gamma=gamma, ignore_cached=False)
             convergence_factor = np.abs((alpha_w[2] / alpha_w[1]))
         else:
             if gamma != "simple":
@@ -871,81 +926,95 @@ def fig_RRInteraction():
         col = style[dt]['col']
         ls = style[dt]['ls']
         lw = style[dt]['lw']
+        lw_observed = 0.45
         legend = style[dt]['legend']
         builder.DT = dt
-        assert REACTION_COEFF * builder.DT <= 1
-        N = int(5000/dt)
+        # assert REACTION_COEFF * builder.DT <= 1
+        N = int(T/dt)
+        N_validation = 10000
         axis_freq = get_discrete_freq(N, builder.DT)
+        freq_theory = get_discrete_freq(5*N, builder.DT)
+        indices = find_indices(freq_theory[5*N//2+1:], 1000) + 5*N//2
+        freq_theory = freq_theory[indices]
 
         builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["BEFD"]["robin"]
         theorical_convergence_factors["BEFD"][dt] = \
-                np.abs(rho_BE_FD(builder=builder, w=axis_freq))
+                np.abs(rho_BE_FD(builder=builder, w=freq_theory))
         observed_convergence_factors["BEFD"][dt] = validation(builder,
-                N, OceanBEFD, AtmosphereBEFD, rho_BE_FD, k_c=0)
+                N_validation, OceanBEFD, AtmosphereBEFD,
+                rho_BE_FD, k_c=0)
 
         builder.R = REACTION_COEFF
         builder.LAMBDA_1, builder.LAMBDA_2 = \
                     theorical_convergence_factors["BEFD_R"]["robin"]
         theorical_convergence_factors["BEFD_R"][dt] = \
-                np.abs(rho_BE_FD(builder=builder, w=axis_freq))
+                np.abs(rho_BE_FD(builder=builder, w=freq_theory))
         observed_convergence_factors["BEFD_R"][dt] = validation(builder,
-                N, OceanBEFD, AtmosphereBEFD, rho_BE_FD, k_c=0)
+                N_validation, OceanBEFD, AtmosphereBEFD,
+                rho_BE_FD, k_c=0)
         builder.R = 0.
 
         builder.LAMBDA_1, builder.LAMBDA_2 = \
                 theorical_convergence_factors["BEFV"]["robin"]
         theorical_convergence_factors["BEFV"][dt] = \
-                np.abs(rho_BE_FV(builder=builder, w=axis_freq))
+                np.abs(rho_BE_FV(builder=builder, w=freq_theory))
         observed_convergence_factors["BEFV"][dt] = validation(builder,
-                N, OceanBEFV, AtmosphereBEFV, rho_BE_FV)
+                N_validation, OceanBEFV, AtmosphereBEFV,
+                rho_BE_FV)
 
         builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["SimplePade"]["robin"]
-        theorical_convergence_factors["SimplePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=simple_gamma)
+        theorical_convergence_factors["SimplePade"][dt] = rho_Pade_FD_corr0(builder, freq_theory, gamma=simple_gamma)
         observed_convergence_factors["SimplePade"][dt] = validation(builder,
-                N, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0)
+                N_validation, OceanPadeFD, AtmospherePadeFD,
+                rho_Pade_FD_corr0)
 
         builder.R = REACTION_COEFF
         builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["LowTildePade_R"]["robin"]
-        theorical_convergence_factors["LowTildePade_R"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
+        theorical_convergence_factors["LowTildePade_R"][dt] = rho_Pade_FD_corr0(builder, freq_theory, gamma=low_tilde_gamma)
         observed_convergence_factors["LowTildePade_R"][dt] = validation(builder,
-                N, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0,
+                N_validation, OceanPadeFD, AtmospherePadeFD,
+                rho_Pade_FD_corr0,
                 gamma="lowTilde")
         builder.R = 0.
 
         builder.LAMBDA_1, builder.LAMBDA_2 = theorical_convergence_factors["LowTildePade"]["robin"]
-        theorical_convergence_factors["LowTildePade"][dt] = rho_Pade_FD_corr0(builder, axis_freq, gamma=low_tilde_gamma)
+        theorical_convergence_factors["LowTildePade"][dt] = rho_Pade_FD_corr0(builder, freq_theory, gamma=low_tilde_gamma)
         observed_convergence_factors["LowTildePade"][dt] = validation(builder,
-                N, OceanPadeFD, AtmospherePadeFD, rho_Pade_FD_corr0,
+                N_validation, OceanPadeFD, AtmospherePadeFD,
+                rho_Pade_FD_corr0,
                 gamma="lowTilde")
 
-        nb_subpoints = 4 # plotting only the right half of the points
-        indices = find_indices(axis_freq[N//2+1:], 2*nb_subpoints) + N//2
-        indices = indices[nb_subpoints:]
-        axes[0,0].semilogx(axis_freq[indices],
+        nb_subpoints = nb_validation_pts[dt]
+        w_validation = get_discrete_freq(N_validation, dt)
+        indices = find_indices(w_validation[N_validation//2+1:], nb_subpoints) + N_validation//2
+        # indices = indices[nb_subpoints:]
+        # indices = np.array(range(w_validation.shape[0]))
+        w_validation = w_validation[indices]
+        axes[0,0].semilogx(w_validation,
                 observed_convergence_factors["BEFV"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[0,1].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[0,1].semilogx(w_validation,
                 observed_convergence_factors["BEFD"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[0,2].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[0,2].semilogx(w_validation,
                 observed_convergence_factors["BEFD_R"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[1,0].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[1,0].semilogx(w_validation,
                 observed_convergence_factors["SimplePade"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[1,1].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[1,1].semilogx(w_validation,
                 observed_convergence_factors["LowTildePade"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
-        axes[1,2].semilogx(axis_freq[indices],
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
+        axes[1,2].semilogx(w_validation,
                 observed_convergence_factors["LowTildePade_R"][dt][indices],
-                'o', color="blue", fillstyle="none", linewidth=lw, zorder=0)
+                'o', color=col, fillstyle="none", markeredgewidth=lw_observed, zorder=0)
 
-        axes[0,0].semilogx(axis_freq, theorical_convergence_factors["BEFV"][dt], linestyle=ls, color=col, linewidth=lw)
-        axes[0,1].semilogx(axis_freq, theorical_convergence_factors["BEFD"][dt], linestyle=ls, color=col, linewidth=lw)
-        axes[0,2].semilogx(axis_freq, theorical_convergence_factors["BEFD_R"][dt], linestyle=ls, color=col, label=legend, linewidth=lw)
-        axes[1,0].semilogx(axis_freq, theorical_convergence_factors["SimplePade"][dt], linestyle=ls, color=col, linewidth=lw)
-        axes[1,1].semilogx(axis_freq, theorical_convergence_factors["LowTildePade"][dt], linestyle=ls, color=col, linewidth=lw)
-        axes[1,2].semilogx(axis_freq, theorical_convergence_factors["LowTildePade_R"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[0,0].semilogx(freq_theory, theorical_convergence_factors["BEFV"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[0,1].semilogx(freq_theory, theorical_convergence_factors["BEFD"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[0,2].semilogx(freq_theory, theorical_convergence_factors["BEFD_R"][dt], linestyle=ls, color=col, label=legend, linewidth=lw)
+        axes[1,0].semilogx(freq_theory, theorical_convergence_factors["SimplePade"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[1,1].semilogx(freq_theory, theorical_convergence_factors["LowTildePade"][dt], linestyle=ls, color=col, linewidth=lw)
+        axes[1,2].semilogx(freq_theory, theorical_convergence_factors["LowTildePade_R"][dt], linestyle=ls, color=col, linewidth=lw)
 
     axes[0,0].set_title(r"${\rho}^{(BE, FV)}_{RR}$", fontsize=10)
     axes[0,1].set_title(r"${\rho}^{(BE, FD)}_{RR}$", fontsize=10)
@@ -956,11 +1025,11 @@ def fig_RRInteraction():
 
     for i in (0,1,2):
         axes[1,i].set_xlabel(r"$\omega$", fontsize=12)
-    letter_fig = {(0,0): '(a)', 
-            (0,1): '(b)', 
-            (0,2): '(c)', 
-            (1,0): '(d)', 
-            (1,1): '(e)', 
+    letter_fig = {(0,0): '(a)',
+            (0,1): '(b)',
+            (0,2): '(c)',
+            (1,0): '(d)',
+            (1,1): '(e)',
             (1,2): '(f)', }
 
     for i,j in ((0,0), (1,0), (0,1), (1,1), (0,2), (1,2)):
@@ -1437,7 +1506,6 @@ def fig_review_contour():
     builder.R = 1e-3
     builder.DT = 1.
     N = 1000000
-    # DO NOT CHANGE (or change the legend also)
     axis_freq = frequencies_for_optim(N, builder.DT, 200)
 
     def function_to_plot(p1, p2):
@@ -1467,17 +1535,16 @@ def fig_review_contour():
     optimal_lams_old = minimize(method='Nelder-Mead',
             fun=function_to_minimize, x0=(.1, -.85))
     
-    builder.LAMBDA_1, builder.LAMBDA_2 = optimal_lams.x
-    axes[1].semilogx(axis_freq, np.abs(rho_BE_FD(builder, axis_freq)),
-            label="Global minimum, \n(p1, p2) = ({:.2f}, {:.2f})".format(*optimal_lams.x))
     builder.LAMBDA_1, builder.LAMBDA_2 = optimal_lams_old.x
     axes[1].semilogx(axis_freq, np.abs(rho_BE_FD(builder, axis_freq)),
             label="Local minimum, \n(p1, p2) = ({:.2f}, {:.2f})".format(*optimal_lams_old.x))
+    builder.LAMBDA_1, builder.LAMBDA_2 = optimal_lams.x
+    axes[1].semilogx(axis_freq, np.abs(rho_BE_FD(builder, axis_freq)),
+            label="Global minimum, \n(p1, p2) = ({:.2f}, {:.2f})".format(*optimal_lams.x))
     axes[1].set_xlabel(r"$\omega$")
     axes[1].set_ylabel(r"$\rho^{\rm (BE, FD)}_{\rm RR}$")
     axes[1].legend()
-
-    plt.show()
+    show_or_save("fig_review_contour")
 
 
 def fig_review_contournu():
@@ -1489,7 +1556,6 @@ def fig_review_contournu():
     builder.R = 1e-3
     builder.DT = 1.
     N = 1000000
-    # DO NOT CHANGE (or change the legend also)
     axis_freq = frequencies_for_optim(N, builder.DT, 200)
 
     def function_to_plot_p(nu1, nu2, index, rho):
@@ -1507,7 +1573,10 @@ def fig_review_contournu():
                 fun=function_to_minimize, x0=(.1, -.85))
         if optimal_lams.fun > optimal_lams_old.fun:
             optimal_lams = optimal_lams_old
-        return optimal_lams.fun
+        if index == 0:
+            return optimal_lams.fun
+        elif index == 1:
+            return optimal_lams.x[0]
 
     def function_to_plot_DN(nu1, nu2, index, rho):
         setting = builder.copy()
@@ -1517,42 +1586,58 @@ def fig_review_contournu():
 
     vfunc = np.vectorize(function_to_plot_p)
 
-    delta = 0.8
-    allnu1 = np.arange(0.2, 20., delta)
-    allnu2 = np.arange(0.2, 20., delta)
+    delta = .05
+    newvalue = False
+    xmin, xmax, ymin, ymax = 0.1, 2., 0.1, 2.
+    allnu1 = np.arange(xmin, xmax, delta)
+    allnu2 = np.arange(ymin, ymax, delta)
     X, Y = np.meshgrid(allnu1, allnu2)
-    Z = vfunc(X, Y, 0, rho_BE_FD)
-    vfunc2 = np.vectorize(function_to_plot_p)
-    Zc = vfunc2(X, Y, 0, rho_c_c)
+    from memoisation import dirty_memoised
+    ZBEFD = dirty_memoised(vfunc, X, Y, 0, rho_BE_FD,
+            name="review_contournu_ZBEFD",
+            ignore_cached=newvalue)
 
-    fig, axes = plt.subplots(1, 3)
-    fig.subplots_adjust(wspace=0.337)
+    fig, axes = plt.subplots(1, 4, figsize=(10,3))
+    fig.subplots_adjust(bottom=0.18, left=0.08, right=0.98)
 
-    levels = np.geomspace(np.min(Zc), np.max(Zc), 15)
-    CS = axes[0].contour(X, Y, Z, levels=levels)
+    ZPadeFV = dirty_memoised(vfunc, X, Y, 0, rho_Pade_FV,
+            name="review_contournu_ZPadeFV",
+            ignore_cached=newvalue)
+    Zc = dirty_memoised(vfunc, X, Y, 0, rho_c_c,
+            name="review_contournu_Zc",
+            ignore_cached=newvalue)
+    levels = np.linspace(np.min(ZPadeFV), np.max(ZPadeFV), 9)
+    import matplotlib.cm as cm
+
+    CS = axes[0].contour(X, Y, ZBEFD, levels=levels)
     axes[0].clabel(CS, inline=True, fontsize=10)
-    axes[0].set_title(r"$p_1$, BE, FD")
+    axes[0].set_title(r"$\max(\rho^{(BE, FD)}_{RR})$")
     axes[0].set_xlabel(r"$\nu_1$")
     axes[0].set_ylabel(r"$\nu_2$")
-    
-    CS = axes[1].contour(X, Y, Zc, levels=levels)
+
+    CS = axes[1].contour(X, Y, ZPadeFV, levels=levels)
     axes[1].clabel(CS, inline=True, fontsize=10)
-    axes[1].set_title(r"$p_1$, c, c")
+    axes[1].set_title(r"$\max(\rho^{(P2, FV)}_{RR})$")
     axes[1].set_xlabel(r"$\nu_1$")
-    axes[1].set_ylabel(r"$\nu_2$")
+    #axes[1].set_ylabel(r"$\nu_2$")
+
+    CS = axes[2].contour(X, Y, Zc, levels=levels)
+    axes[2].clabel(CS, inline=True, fontsize=10)
+    axes[2].set_title(r"$\max(\rho^{(c,c)}_{RR})$")
+    axes[2].set_xlabel(r"$\nu_1$")
+    #axes[1].set_ylabel(r"$\nu_2$")
 
     vfuncDN = np.vectorize(function_to_plot_DN)
-    ZDN = vfuncDN(X, Y, 0, rho_c_c)
+    ZDN = dirty_memoised(vfuncDN, X, Y, 0, rho_c_c,
+            name="review_contournu_ZDN",
+            ignore_cached=newvalue)
 
     levels = np.geomspace(np.min(ZDN), np.max(ZDN), 15)
-    CS = axes[2].contour(X, Y, ZDN, levels=levels)
-    axes[2].clabel(CS, inline=True, fontsize=10)
-    axes[2].set_title(r"$p_1$, c, c with DN")
-    axes[2].set_xlabel(r"$\nu_1$")
-    axes[2].set_ylabel(r"$\nu_2$")
-    plt.show()
-
-
+    CS = axes[3].contour(X, Y, ZDN, levels=levels)
+    axes[3].clabel(CS, inline=True, fontsize=10)
+    axes[3].set_title(r"$\rho_{DN}^{(c,c)}$")
+    axes[3].set_xlabel(r"$\nu_1$")
+    show_or_save("fig_review_contournu")
 
 ######################################################
 # Utilities for analysing, representing discretizations
@@ -1585,10 +1670,11 @@ class Builder():
         COURANT_NUMBER = 1.
         self.DT = COURANT_NUMBER * (self.SIZE_DOMAIN_1 / self.M1)**2 / self.D1
 
-    def set_h(self, h):
-        self.SIZE_DOMAIN_1 = self.SIZE_DOMAIN_2 = 100.
-        self.M1 = int(self.SIZE_DOMAIN_1 / h) + 1
-        self.M2 = int(self.SIZE_DOMAIN_2 / h) + 1
+    def set_h(self, h, vertical_levels=100):
+        self.SIZE_DOMAIN_1 = self.SIZE_DOMAIN_2 = \
+                float(h*(vertical_levels-1))
+        self.M1 = vertical_levels
+        self.M2 = vertical_levels
 
     def copy(self):
         ret = Builder()

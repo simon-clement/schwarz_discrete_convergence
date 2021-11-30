@@ -45,7 +45,6 @@ def clean():
                 print("please clean manually folder " +
                       MEMOISATION_FOLDER_NAME)
 
-
 def memoised(func_to_memoise, *args_mem, ignore_cached=False, **kwargs_mem):
     """
         memoise function "fun" with arguments given.
@@ -102,6 +101,38 @@ def memoised(func_to_memoise, *args_mem, ignore_cached=False, **kwargs_mem):
     np.save(filename_res, to_store)
     return res
 
+def dirty_memoised(func, *args, name="test",
+        ignore_cached=False, **kwargs):
+    """
+        if $name exists in the cache, use the associated value
+        otherwise, save value in the cache.
+    """
+    import os
+
+    directory = MEMOISATION_FOLDER_NAME + "/dirty_memoised"
+    filename = directory + "/" + name + ".npy"
+    os.makedirs(directory, exist_ok=True)
+
+    if not ignore_cached:
+        try:
+            res = np.load(filename, allow_pickle=True)[()][KEY_FOR_UNIQUE_ITEM]
+            if res is None:
+                print("That is strange, we have a None result... " +
+                      "Let's compute it again.")
+            else:
+                print("Found value named " + name + " in cache. " +
+                      "If you changed anything of that name, " +
+                      "run \"./main.py clean\"")
+                return res
+        except IOError:
+            print("The result of the following computation will be stored as "+name)
+
+    # Finally, we can compute and store our result.
+    res = func(*args, **kwargs)
+    # We use a dictionnary to store because we don't know type(res)
+    to_store = {KEY_FOR_UNIQUE_ITEM: res}
+    np.save(filename, to_store)
+    return res
 
 class FunMem():
     """

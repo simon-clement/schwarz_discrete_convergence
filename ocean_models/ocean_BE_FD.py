@@ -34,8 +34,8 @@ class OceanBEFD():
             Given the information, returns the tuple (phi_(n+1), u_(n+1)).
 
             Parameters:
-            prognosed=u_n (diagnosed variable, space derivative of solution), (size M)
-            diagnosed=phi_n (diagnosed average of solution on each volume), (size M-1)
+            prognosed=u_n (prognosed variable: solution), (size M)
+            diagnosed=phi_n (diagnosed derivative of solution), (size M-1)
             interface_robin, forcing, boundary: tuples for time (tn, t*, t{n+1})
             time t* is not used.
 
@@ -45,10 +45,10 @@ class OceanBEFD():
                 -Robin(t)=interface_robin(t) at interface
 
             scheme is:
-                -Noting Y = 1+delta_x^2/6, b=1+1/sqrt(2), a=1+sqrt(2)
+                -Noting Y = 1+delta_x^2/6
                 -Noting R = r*dt, Gamma = nu*dt/h^2
 
-                    (Y + (R Y - Gamma delta_x^2))phi_np1 = Y phi_n
+                    (Y + (R Y - Gamma delta_x^2))u_np1 = Y u_n
                 See pdf for the implementation.
         """
         
@@ -57,9 +57,9 @@ class OceanBEFD():
         R = self.r * self.dt
         h, dt, nu = self.h, self.dt, self.nu
         tilde_p = self.Lambda
-        f_n, _, f_np1 = forcing
-        robin_n, _, robin_np1 = interface_robin
-        bd_n, _, bd_np1 = boundary
+        _, _, f_np1 = forcing
+        _, _, robin_np1 = interface_robin
+        _, _, bd_np1 = boundary
 
         def prod_banded(tridiag_mat, x):
             ret = tridiag_mat[1]*x
@@ -85,7 +85,7 @@ class OceanBEFD():
         phi_np1 = np.diff(-u_np1)/h
 
         #slight modification of phi[0] if corrective term:
-        derivative_u0 = (u_np1[0] - u_n[0])/dt
+        derivative_u0 = ((1+R)*u_np1[0] - u_n[0])/dt
         phi_np1[0] += self.h/2 * self.k_c/nu * derivative_u0
 
         return u_np1, phi_np1
