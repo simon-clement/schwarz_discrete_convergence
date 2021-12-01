@@ -1519,8 +1519,8 @@ def fig_review_contour():
     allp2 = np.arange(-0.6, -0.01, delta)
     X, Y = np.meshgrid(allp1, allp2)
     Z = vfunc(X, Y)
-    fig, axes = plt.subplots(1, 2)
-    fig.subplots_adjust(wspace=0.337)
+    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.8))
+    fig.subplots_adjust(wspace=0.337, bottom=0.18)
 
     CS = axes[0].contour(X, Y, Z)
     axes[0].clabel(CS, inline=True, fontsize=10)
@@ -1544,6 +1544,7 @@ def fig_review_contour():
     axes[1].set_xlabel(r"$\omega$")
     axes[1].set_ylabel(r"$\rho^{\rm (BE, FD)}_{\rm RR}$")
     axes[1].legend()
+    axes[1].set_ylim(bottom=0.)
     show_or_save("fig_review_contour")
 
 
