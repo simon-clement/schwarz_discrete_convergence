@@ -33,7 +33,7 @@ def fig_integration_1dekman():
             K_mol=1e-4, C_D=1e-3, f=1e-4)
     # choosing u_0 linear so it can be the same FD, FV
     u_0 = 10*np.ones(M+1)
-    sf_scheme_FD, sf_scheme_FV = "FD Dirichlet", "FV Dirichlet"
+    sf_scheme_FD = "FD pure"
 
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M + 1))
 
@@ -45,27 +45,13 @@ def fig_integration_1dekman():
     phi_0[-1] = phi_0[-2] # correcting the last flux
 
 
-    u_FV_sffvpure, phi_FV_sffvpure, TKE_FV, ustar_FV, shear_FV = \
-            simulator.FV(u_t0=u_0[:-1],
-            phi_t0=phi_0,
-            forcing=forcing[:, :-1],
-            sf_scheme=sf_scheme_FV)
-
-    z_subgrid, u_full_sffvpure = simulator.reconstruct_FV(
-            u_bar = u_FV_sffvpure, phi=phi_FV_sffvpure,
-                                            sf_scheme=sf_scheme_FV)
     fig, axes = plt.subplots(1,4, figsize=(9.5, 4.5))
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
     axes[0].plot(np.real(u_N1), simulator.z_half, label=r"$\mathfrak{R}(u_\text{FD})$")
-    # axes[0].plot(np.real(u_full_sffvpure), z_subgrid, label=r"$\mathfrak{R}(u_{FV})$")
     axes[0].plot(np.imag(u_N1), simulator.z_half, label=r"$Im(u_\text{FD})$")
-    # axes[0].plot(np.imag(u_full_sffvpure), z_subgrid, label=r"$Im(u_{FV})$")
     axes[1].plot(TKE_FD, simulator.z_half, label=r"$e^\text{FD}$")
-    axes[1].plot(TKE_FV, simulator.z_half, label=r"$e^\text{FV}$")
     axes[2].semilogy(dt*np.array(range(len(ustar_FD))), ustar_FD, "+", label=r"$u_\star^\text{FD}$")
-    axes[2].plot(dt*np.array(range(len(ustar_FV))), ustar_FV, "+", label=r"$u_\star^\text{FV}$")
     axes[3].plot(shear_FD, simulator.z_half, label=r"$\text{shear}^\text{FD}$")
-    axes[3].plot(shear_FV, simulator.z_half, label=r"$\text{shear}^\text{FV}$")
 
     axes[0].set_xlabel("wind speed ($m.s^{-1}$)")
     axes[0].set_ylabel("height (m)")
@@ -79,8 +65,7 @@ def fig_integration_1dekman():
     axes[1].legend(loc="upper right")
     axes[2].legend(loc="upper right")
     axes[3].legend(loc="upper right")
-    fig.suptitle("Surface flux schemes: ("+sf_scheme_FD+", "+
-            sf_scheme_FV+")")
+    fig.suptitle("Surface flux scheme: "+sf_scheme_FD)
     show_or_save("fig_integration_1dekman")
 
 
