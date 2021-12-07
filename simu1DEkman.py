@@ -49,9 +49,9 @@ class Simu1dEkman():
         self.C_D: float = C_D
         self.e_min: float = 1e-6
         self.K_min: float = 1e-4
-        self.C_m: float = 0.0667
-        self.C_e: float = 0.4
-        self.c_eps: float = 0.7
+        self.C_m: float = 0.126
+        self.C_e: float = 0.34
+        self.c_eps: float = 0.845
         self.z_star: float = 1e-1
         self.implicit_coriolis: float = 0.55 # semi-implicit coefficient
         self.lm_min: float = self.K_min / self.C_m / \
@@ -158,14 +158,15 @@ class Simu1dEkman():
         if sf_scheme == "FV Dirichlet":
             delta_sl = self.z_half[1] #~30m if 40 000 points
 
-        e_sl = np.maximum(self.e_min, u_t0[0] / np.sqrt(self.C_m*self.c_eps))
-        tke = np.linspace(e_sl, self.e_min, self.M + 1)
+        tke = np.ones(self.M+1) * self.e_min
         l_m, _ = self.__mixing_lengths(delta_sl)
+        K_full: array = self.K_min + np.zeros_like(tke)
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         if sf_scheme == "FV Dirichlet":
             k=0
 
         phi = phi_t0
+        old_phi = np.copy(phi)
 
         prognostic: array = np.concatenate((u_t0[:k+1], phi_t0[k:]))
         u_current: array = np.copy(u_t0)
@@ -179,7 +180,6 @@ class Simu1dEkman():
                     / np.log(1 + delta_sl/self.z_star)
             all_u_star += [u_star]
 
-            K_full: array
             if turbulence == "KPP":
                 h_cl: float = self.defaulth_cl if np.abs(self.f) < 1e-10 \
                         else np.abs(c_1*u_star/self.f)
@@ -189,6 +189,13 @@ class Simu1dEkman():
                 K_full = u_star * G_full + self.K_mol # viscosity
                 K_full[0] = u_star * self.kappa * (delta_sl+self.z_star)
             elif turbulence == "TKE":
+                shear = np.concatenate(([0],
+                    [np.abs(K_full[m]*phi[m]*(phi[m] + old_phi[m])/2) \
+                            for m in range(1, self.M)], [0]))
+
+                tke = np.maximum(self.e_min,
+                        self.__integrate_tke(tke, shear, K_full,
+                        delta_sl=delta_sl, u_star=u_star))
                 K_full = self.C_m * l_m * np.sqrt(tke)
             else:
                 raise NotImplementedError("Wrong turbulence scheme")
@@ -244,31 +251,8 @@ class Simu1dEkman():
             u_current, old_u = next_u, u_current
 
             old_phi, phi = phi, prognostic[k+1:]
-            if k > 0:
+            if k > 0: # constant flux layer : K[:k] phi[:k] = K[0] phi[0]
                 phi = np.concatenate((K_full[k]*phi[0]*K_full[:k], phi))
-
-            ####### TKE SCHEME #############
-            if turbulence == "TKE":
-                shear = np.concatenate(([0],
-                    [np.abs(K_full[m]*phi[m]*(phi[m] + old_phi[m])/2) \
-                            for m in range(1, self.M)], [0]))
-
-                u_delta: complex = func_un(prognostic=prognostic,
-                        delta_sl=delta_sl, u=u_current, phi=phi)
-                u_star: float = self.kappa * np.abs(u_delta) \
-                        / np.log(1 + delta_sl/self.z_star)
-
-
-                tke = np.maximum(self.e_min, self.__integrate_tke(tke, shear,
-                        delta_sl=delta_sl, u_star=u_star))
-
-        if N == 0:
-            old_phi = phi
-            K_full = self.C_m * l_m * np.sqrt(tke)
-            shear = np.concatenate(([0],
-                [np.abs(K_full[m]*phi[m]*(phi[m] + old_phi[m])/2) \
-                        for m in range(1, self.M)], [0]))
-
         return u_current, phi, tke, all_u_star, shear
 
 
@@ -298,12 +282,13 @@ class Simu1dEkman():
                 else self.z_full[1]
         if sf_scheme == "FD Dirichlet":
             delta_sl = self.z_half[1] # avoid differences with FV
-        e_sl = np.maximum(self.e_min, u_t0[0] / np.sqrt(self.C_m*self.c_eps))
-        tke = np.linspace(e_sl, self.e_min, self.M + 1)
+        tke = np.ones(self.M+1) * self.e_min
         l_m, _ = self.__mixing_lengths(delta_sl)
+        K_full: array = self.K_min + np.zeros_like(tke)
 
         Y_diag: array = np.concatenate((np.ones(self.M), [0]))
         u_current: array = np.copy(u_t0)
+        old_u = np.copy(u_current)
         all_u_star = []
         for n in range(1,N+1):
             forcing_current = forcing[n]
@@ -323,7 +308,20 @@ class Simu1dEkman():
                 K_full: array = u_star * G_full + self.K_mol # viscosity
                 K_full[0] = u_star * self.kappa * (delta_sl + self.z_star)
             elif turbulence == "TKE":
-                K_full: array = self.C_m * l_m * np.sqrt(tke)
+                ####### TKE SCHEME #############
+                du = np.diff(u_current)
+                du_old = np.diff(old_u)
+                shear = np.concatenate(([0],
+                    [np.abs(K_full[m]/self.h_full[m]**2 * du[m-1] * \
+                            (du[m-1]+du_old[m-1])/2) \
+                            for m in range(1, self.M)], [0]))
+
+                tke = np.maximum(self.e_min,
+                        self.__integrate_tke(tke, shear, K_full,
+                        delta_sl=delta_sl, u_star=u_star))
+
+                K_full: array = np.maximum(self.K_min,
+                        self.C_m * l_m * np.sqrt(tke))
             else:
                 raise NotImplementedError("Wrong turbulence scheme")
 
@@ -350,42 +348,18 @@ class Simu1dEkman():
                 d[:d_sf.shape[0]] = d_sf
 
             c_sf = np.array(c_sf)
-            c[:c_sf.shape[0]] = np.array(c_sf)
+            c[:c_sf.shape[0]] = c_sf
 
             next_u = self.__backward_euler(
                     Y=(np.zeros(self.M), Y_diag, np.zeros(self.M)),
                     D=(D_ldiag, D_diag, D_udiag), c=c, u=u_current)
             u_current, old_u = next_u, u_current
 
-            if turbulence == "TKE":
-                ####### TKE SCHEME #############
-                du = np.diff(u_current)
-                du_old = np.diff(old_u)
-                shear = np.concatenate(([0],
-                    [np.abs(K_full[m]/self.h_full[m]**2 * du[m-1] * \
-                            (du[m-1]+du_old[m-1])/2) \
-                            for m in range(1, self.M)], [0]))
-                u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
-
-                u_star: float = self.kappa * np.abs(u_delta) \
-                        / np.log(1 + delta_sl/self.z_star)
-
-                tke = self.__integrate_tke(tke, shear,
-                        delta_sl=delta_sl, u_star=u_star)
-
-        if N== 0:
-            du = du_old = np.diff(u_current)
-            K_full: array = self.C_m * l_m * np.sqrt(tke)
-            shear = np.concatenate(([0],
-                [np.abs(K_full[m]/self.h_full[m]**2 * du[m-1] * \
-                        (du[m-1]+du_old[m-1])/2) \
-                        for m in range(1, self.M)], [0]))
         return u_current, tke, all_u_star, shear
 
-    def __integrate_tke(self, tke, shear, delta_sl, u_star):
+    def __integrate_tke(self, tke, shear, K_full, delta_sl, u_star):
         l_m, l_eps = self.__mixing_lengths(delta_sl)
-        Ke_half = self.C_e * (l_m[1:] + l_m[:-1])/2 * \
-                np.sqrt((tke[1:] + tke[:-1])/2)
+        Ke_half = self.C_e / self.C_m * (K_full[1:] + K_full[:-1])/2
         diag_e = np.concatenate(([1],
                     [1/self.dt + self.c_eps*tke[m]/l_eps[m] \
                     + (Ke_half[m]/self.h_half[m] + \
@@ -399,7 +373,8 @@ class Simu1dEkman():
             [ -Ke_half[m] / self.h_half[m] / self.h_full[m] \
                     for m in range(1,self.M) ]))
 
-        e_sl = u_star**2/np.sqrt(self.C_m*self.c_eps)
+        e_sl = np.maximum(u_star**2/np.sqrt(self.C_m*self.c_eps),
+                                    self.e_min)
         rhs_e = np.concatenate(([e_sl],
             [tke[m]/self.dt + shear[m] for m in range(1, self.M)],
             [self.e_min]))
@@ -497,16 +472,16 @@ class Simu1dEkman():
 
     def __sf_YDc_FDpure(self, K, forcing, ustar, un, **_):
         Y = ((), (1.,), (0.,))
-        D = ((), (-K[1]/self.h_full[1]/self.h_half[1] + \
-                ustar**2 / np.abs(un), ),
-                (-K[1]/self.h_full[1]/self.h_half[1],))
+        D = ((), (-K[1]/self.h_full[1]/self.h_half[0] - \
+                ustar**2 / np.abs(un)/self.h_half[0], ),
+                (K[1]/self.h_full[1]/self.h_half[0],))
         c = (forcing[0],)
         return Y, D, c
 
     def __sf_YDc_FD2(self, K, ustar, un, **_):
         Y = ((), (0.,), (0.,))
-        D = ((), (-K[1]/self.h_full[1] + ustar**2 / np.abs(un) / 2,),
-                (K[1]/self.h_full[1] + ustar**2 / np.abs(un) / 2,))
+        D = ((), (-K[1]/self.h_full[1] - ustar**2 / np.abs(un) / 2,),
+                (K[1]/self.h_full[1] - ustar**2 / np.abs(un) / 2,))
         c = (0.,)
         return Y, D, c
 
@@ -521,7 +496,7 @@ class Simu1dEkman():
     def __sf_YDc_FVpure(self, K, forcing, ustar, un, **_):
         Y = ((1.,), (0., 0.), (0., 0.))
         D = ((0.,), (1, -K[0] / self.h_half[0]),
-                (K[0]*np.abs(un)/ustar**2+self.h_half[0]/24,
+                (-K[0]*np.abs(un)/ustar**2+self.h_half[0]/24,
                     K[1]/self.h_half[0]),
                 (-self.h_half[0]/24,))
         c = (0., forcing[0])
@@ -530,7 +505,7 @@ class Simu1dEkman():
     def __sf_YDc_FV1(self, K, forcing, ustar, un, **_):
         Y = ((1.,), (0., 0.), (0., 0.))
         D = ((0.,), (1, -K[0] / self.h_half[0]),
-                (K[0]*np.abs(un)/ustar**2, K[1]/self.h_half[0]))
+                (-K[0]*np.abs(un)/ustar**2, K[1]/self.h_half[0]))
         c = (0., forcing[0])
         return Y, D, c
 
@@ -540,7 +515,7 @@ class Simu1dEkman():
                 (f(self.z_full[2]) - f(self.z_full[1]))
         Y = ((0., 1.), (0., 0., 0.), (0., 0., 0.))
         D = ((0., 0.), (1., 1., -K[1] / self.h_half[1]),
-                (-ratio_norms, K[1]*np.abs(un)/ustar**2 - \
+                (-ratio_norms, -K[1]*np.abs(un)/ustar**2 - \
                         self.h_half[1]/3, K[2]/self.h_half[1]),
                 (0., -self.h_half[1]/6))
         c = (0., 0., forcing[1])
@@ -560,7 +535,7 @@ class Simu1dEkman():
                 (1., -K[0] / tilde_h,
                     -K[1]/tilde_h/self.h_full[1] - \
                             K[1] / self.h_half[1] / self.h_full[1]),
-                (K[0]*np.abs(un)*(1+tau_sl)/ustar**2 - tilde_h/3,
+                (-K[0]*np.abs(un)*(1+tau_sl)/ustar**2 - tilde_h/3,
                     K[1]/tilde_h, K[2]/self.h_full[1]/self.h_half[1]),
                 (-tilde_h/6, 0.))
         c = (0., forcing[0], (forcing[1] - forcing[0])/self.h_full[1])
@@ -586,7 +561,7 @@ class Simu1dEkman():
                 (1., -K[k+0] / tilde_h,
                     -K[k+1]/tilde_h/self.h_full[k+1] - \
                             K[k+1] / self.h_half[k+1] / self.h_full[k+1]),
-                (K[k+0]*np.abs(un)*(1+tau_sl)/ustar**2 - tilde_h/3,
+                (-K[k+0]*np.abs(un)*(1+tau_sl)/ustar**2 - tilde_h/3,
                     K[k+1]/tilde_h, K[k+2]/self.h_full[k+1]/self.h_half[k+1]),
                 (-tilde_h/6, 0.))
         c = (0., forcing[k+0],

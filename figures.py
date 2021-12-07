@@ -21,38 +21,63 @@ def fig_integration_1dekman():
         Integrates for 1 day a 1D ekman equation
         with TKE turbulence scheme.
     """
-    z_levels= np.linspace(0, 1500, 40)
+    z_levels= np.linspace(0, 1500, 41)
     # for FV with FV interpretation of sf scheme,
     # the first grid level is divided by 2 so that
     # delta_{sl} is the same in all the schemes.
     M = z_levels.shape[0] - 1
     dt = 60.
-    N = 1680 # 28*60=1680
+    N = 168 # 28*60=1680
     simulator = Simu1dEkman(z_levels=z_levels,
             dt=dt, u_geostrophy=10.,
             K_mol=1e-4, C_D=1e-3, f=1e-4)
     # choosing u_0 linear so it can be the same FD, FV
     u_0 = 10*np.ones(M+1)
-    sf_scheme_FD = "FD pure"
+    sf_scheme_FV = "FV2"
+    sf_scheme_FVfree = "FV1 free"
+    delta_slfree = z_levels[1] * 0.99
+    sf_scheme_FD = "FD2"
 
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M + 1))
-
-    u_N1, TKE_FD, ustar_FD, shear_FD = \
-            simulator.FD(u_t0=u_0, sf_scheme=sf_scheme_FD,
-            forcing=forcing)
 
     phi_0 = np.diff(u_0, append=11) / np.diff(z_levels, append=1300)
     phi_0[-1] = phi_0[-2] # correcting the last flux
 
+    u_FV, phi_FV, TKE_FV, ustar_FV, shear_FV = \
+            simulator.FV(u_t0=u_0[:-1], phi_t0=phi_0,
+                    sf_scheme=sf_scheme_FV,
+                    forcing=forcing[:,:-1])
+
+    u_FVfree, phi_FVfree, TKE_FVfree, ustar_FVfree, shear_FVfree = \
+            simulator.FV(u_t0=u_0[:-1], phi_t0=phi_0,
+                    sf_scheme=sf_scheme_FVfree,
+                    delta_sl=delta_slfree, forcing=forcing[:,:-1])
+    u_FD, TKE_FD, ustar_FD, shear_FD = \
+            simulator.FD(u_t0=u_0,
+                    sf_scheme=sf_scheme_FD,
+                    forcing=forcing)
+    z_fv, u_fv = simulator.reconstruct_FV(u_FV, phi_FV, sf_scheme_FV)
+    z_fvfree, u_fvfree = simulator.reconstruct_FV(u_FVfree,
+            phi_FVfree, sf_scheme_FVfree, delta_sl=delta_slfree)
 
     fig, axes = plt.subplots(1,4, figsize=(9.5, 4.5))
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
-    axes[0].plot(np.real(u_N1), simulator.z_half, label=r"$\mathfrak{R}(u_\text{FD})$")
-    axes[0].plot(np.imag(u_N1), simulator.z_half, label=r"$Im(u_\text{FD})$")
+    axes[0].plot(np.real(u_fv), z_fv, label=r"$\mathfrak{R}(u_\text{FV})$")
+    axes[0].plot(np.imag(u_fv), z_fv, label=r"$Im(u_\text{FV})$")
+    # axes[0].plot(np.real(u_fvfree), z_fvfree, label=r"$\mathfrak{R}(u_\text{FV1 free})$")
+    # axes[0].plot(np.imag(u_fvfree), z_fvfree, label=r"$Im(u_\text{FV1 free})$")
+    axes[1].plot(TKE_FV, simulator.z_half, label=r"$e^\text{FV}$")
+    # axes[1].plot(TKE_FVfree, simulator.z_half, label=r"$e^\text{FV1 free}$")
+    axes[2].semilogy(dt*np.array(range(len(ustar_FV))), ustar_FV, "+", label=r"$u_\star^\text{FV}$")
+    # axes[2].semilogy(dt*np.array(range(len(ustar_FVfree))), ustar_FVfree, "+", label=r"$u_\star^\text{FV1 free}$")
+    axes[3].plot(shear_FV, simulator.z_half, label=r"$\text{shear}^\text{FV}$")
+    # axes[3].plot(shear_FVfree, simulator.z_half, label=r"$\text{shear}^\text{FV1 free}$")
+
+    axes[0].plot(np.real(u_FD), simulator.z_half, label=r"$\mathfrak{R}(u_\text{FD})$")
+    axes[0].plot(np.imag(u_FD), simulator.z_half, label=r"$Im(u_\text{FD})$")
     axes[1].plot(TKE_FD, simulator.z_half, label=r"$e^\text{FD}$")
     axes[2].semilogy(dt*np.array(range(len(ustar_FD))), ustar_FD, "+", label=r"$u_\star^\text{FD}$")
     axes[3].plot(shear_FD, simulator.z_half, label=r"$\text{shear}^\text{FD}$")
-
     axes[0].set_xlabel("wind speed ($m.s^{-1}$)")
     axes[0].set_ylabel("height (m)")
     axes[1].set_xlabel("energy (J)")
@@ -65,7 +90,7 @@ def fig_integration_1dekman():
     axes[1].legend(loc="upper right")
     axes[2].legend(loc="upper right")
     axes[3].legend(loc="upper right")
-    fig.suptitle("Surface flux scheme: "+sf_scheme_FD)
+    fig.suptitle("Surface flux scheme: "+sf_scheme_FV)
     show_or_save("fig_integration_1dekman")
 
 
