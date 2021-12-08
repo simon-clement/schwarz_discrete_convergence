@@ -33,7 +33,6 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
     axes[0].plot(np.real(u), simulator.z_half, label=r"$\mathfrak{R}(u_\text{FD})$")
     axes[1].plot(np.imag(u), simulator.z_half, label=r"$Im(u_\text{FD})$")
     axes[2].plot(TKE, simulator.z_half, label=r"$e^\text{FD}$")
-    # axes[3].semilogy(dt*np.array(range(len(ustar))), ustar, "+", label=r"$u_\star^\text{FD}$")
     # axes[3].plot(shear, simulator.z_half, label=r"$\text{shear}^\text{FD}$")
 
 def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
