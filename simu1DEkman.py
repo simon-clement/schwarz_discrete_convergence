@@ -318,7 +318,7 @@ class Simu1dEkman():
         l_m, _ = self.mixing_lengths(delta_sl)
         K_full: array = self.K_min + np.zeros_like(tke)
 
-        Y_diag: array = np.concatenate((np.ones(self.M), [0]))
+        Y_diag: array = np.ones(self.M + 1)
         u_current: array = np.copy(u_t0)
         old_u = np.copy(u_current)
         all_u_star = []
@@ -361,16 +361,16 @@ class Simu1dEkman():
             D_diag: array = np.concatenate(( [0.],
                 [(-K_full[m+1]/self.h_full[m+1] - K_full[m]/self.h_full[m]) \
                         / self.h_half[m] for m in range(1, self.M)],
-                [-1]))
+                [-K_full[self.M]/self.h_half[self.M]/self.h_full[self.M]]))
             D_udiag: array = np.concatenate(([0.],
                 [K_full[m+1]/self.h_full[m+1] / self.h_half[m]
                     for m in range(1, self.M)]))
             D_ldiag: array = np.concatenate((
                 [K_full[m]/self.h_full[m] / self.h_half[m]
                     for m in range(1, self.M)]
-                ,[0]))
+                , [K_full[self.M]/self.h_half[self.M]/self.h_full[self.M]]))
 
-            c: array = np.concatenate((forcing_current[:-1], [self.u_g]))
+            c: array = forcing_current
             Y_sf, D_sf, c_sf = func_YDc_sf(K=K_full,
                     forcing=forcing_current, ustar=u_star,
                     un=u_delta)
@@ -398,10 +398,12 @@ class Simu1dEkman():
                     + (Ke_half[m]/self.h_half[m] + \
                         Ke_half[m-1]/self.h_half[m-1]) \
                         / self.h_full[m] for m in range(1, self.M)],
-                                [1]))
+                        [1/self.dt + Ke_half[self.M-1] / \
+                        self.h_half[self.M-1] / self.h_full[self.M]]))
         ldiag_e = np.concatenate((
             [ -Ke_half[m-1] / self.h_half[m-1] / self.h_full[m] \
-                    for m in range(1,self.M) ], [0]))
+                    for m in range(1,self.M) ], [- Ke_half[self.M-1] / \
+                        self.h_half[self.M-1] / self.h_full[self.M]]))
         udiag_e = np.concatenate(([0],
             [ -Ke_half[m] / self.h_half[m] / self.h_full[m] \
                     for m in range(1,self.M) ]))
@@ -410,7 +412,7 @@ class Simu1dEkman():
                                     self.e_min)
         rhs_e = np.concatenate(([e_sl],
             [tke[m]/self.dt + shear[m] for m in range(1, self.M)],
-            [self.e_min]))
+            [tke[self.M]/self.dt]))
         if delta_sl >= self.z_full[1]:
             rhs_e[1] = e_sl
             diag_e[1] = 1.
