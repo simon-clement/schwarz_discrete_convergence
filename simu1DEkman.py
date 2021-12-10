@@ -226,17 +226,17 @@ class Simu1dEkman():
                 raise NotImplementedError("Wrong turbulence scheme")
 
             Y_diag: array = np.concatenate(([0, 0.], 2/3*np.ones(self.M-1),
-                                                            [1/3]))
+                                                            [1.]))
             Y_udiag: array = np.concatenate(([0, 0.],
                 [self.h_half[m]/6./self.h_full[m] for m in range(1, self.M)]))
             Y_ldiag: array =  np.concatenate(([0.],
                 [self.h_half[m-1]/6./self.h_full[m] for m in range(1, self.M)],
-                [1/6.]))
+                [0.]))
 
             D_diag: array = np.concatenate(([0., 0.],
                 [-2 * K_full[m] / self.h_half[m] / self.h_half[m-1]
                                             for m in range(1, self.M)],
-                [-K_full[self.M] / self.h_half[self.M - 1]**2]))
+                [0.]))
             D_udiag: array = np.concatenate(([0.,  0],
                 [K_full[m+1]/self.h_full[m] / self.h_half[m]
                                             for m in range(1, self.M)]))
@@ -245,10 +245,10 @@ class Simu1dEkman():
             D_ldiag: array = np.concatenate(([0.],
                 [K_full[m-1]/self.h_full[m] / self.h_half[m-1]
                                             for m in range(1, self.M)],
-                [K_full[self.M-1] / self.h_half[self.M - 1]**2]))
+                [0.]))
 
-            c_T = (1j*self.f * self.u_g - forcing_current[self.M-1]) \
-                    / self.h_half[self.M-1]
+
+            c_T = 0. / K_full[self.M]
             c = np.concatenate(([0, 0], np.diff(forcing_current) / \
                                                 self.h_full[1:-1], [c_T]))
             Y = (Y_ldiag, Y_diag, Y_udiag)
@@ -307,7 +307,8 @@ class Simu1dEkman():
             returns a numpy array of shape (M)
                                     where M is the number of space points
         """
-        assert u_t0.shape[0] == self.M + 1
+        assert u_t0.shape[0] == self.M
+        assert forcing.shape[1] == self.M
         N: int = forcing.shape[0] - 1 # number of time steps
         func_un, func_YDc_sf = self.dictsf_scheme[sf_scheme]
         delta_sl = self.z_half[0] if sf_scheme in {"FD pure", "FD Dirichlet"} \
@@ -318,7 +319,7 @@ class Simu1dEkman():
         l_m, _ = self.mixing_lengths(delta_sl)
         K_full: array = self.K_min + np.zeros_like(tke)
 
-        Y_diag: array = np.ones(self.M + 1)
+        Y_diag: array = np.ones(self.M)
         u_current: array = np.copy(u_t0)
         old_u = np.copy(u_current)
         all_u_star = []
@@ -360,17 +361,18 @@ class Simu1dEkman():
 
             D_diag: array = np.concatenate(( [0.],
                 [(-K_full[m+1]/self.h_full[m+1] - K_full[m]/self.h_full[m]) \
-                        / self.h_half[m] for m in range(1, self.M)],
-                [-K_full[self.M]/self.h_half[self.M]/self.h_full[self.M]]))
+                        / self.h_half[m] for m in range(1, self.M-1)],
+                [-K_full[self.M-1]/self.h_half[self.M-1]/self.h_full[self.M-1]]))
             D_udiag: array = np.concatenate(([0.],
                 [K_full[m+1]/self.h_full[m+1] / self.h_half[m]
-                    for m in range(1, self.M)]))
+                    for m in range(1, self.M-1)]))
             D_ldiag: array = np.concatenate((
                 [K_full[m]/self.h_full[m] / self.h_half[m]
-                    for m in range(1, self.M)]
-                , [K_full[self.M]/self.h_half[self.M]/self.h_full[self.M]]))
+                    for m in range(1, self.M-1)]
+                , [K_full[self.M-1]/self.h_half[self.M-1]/self.h_full[self.M-1]]))
 
             c: array = forcing_current
+            c[-1] += K_full[self.M] * 0. / self.h_half[self.M-1]
             Y_sf, D_sf, c_sf = func_YDc_sf(K=K_full,
                     forcing=forcing_current, ustar=u_star,
                     un=u_delta)
@@ -384,7 +386,7 @@ class Simu1dEkman():
             c[:c_sf.shape[0]] = c_sf
 
             next_u = self.__backward_euler(
-                    Y=(np.zeros(self.M), Y_diag, np.zeros(self.M)),
+                    Y=(np.zeros(self.M-1), Y_diag, np.zeros(self.M-1)),
                     D=(D_ldiag, D_diag, D_udiag), c=c, u=u_current)
             u_current, old_u = next_u, u_current
 
@@ -421,8 +423,8 @@ class Simu1dEkman():
         return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 
     def mixing_lengths(self, delta_sl):
-        l_down = np.maximum(self.lm_min, self.z_full[-1] - self.z_full)
-        l_up = np.maximum(self.lm_min, self.z_full)
+        l_up = np.maximum(self.lm_min, self.z_full[-1] - self.z_full)
+        l_down = np.maximum(self.lm_min, self.z_full)
         l_eps = np.abs(np.amin((l_up, l_down), axis=0))
         a = -(np.log(self.c_eps)-3.*np.log(self.C_m)+\
                 4.*np.log(self.kappa))/np.log(16.)
