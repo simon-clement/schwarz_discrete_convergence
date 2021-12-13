@@ -415,10 +415,11 @@ class Simu1dEkman():
         rhs_e = np.concatenate(([e_sl],
             [tke[m]/self.dt + shear[m] for m in range(1, self.M)],
             [tke[self.M]/self.dt]))
-        if delta_sl >= self.z_full[1]:
-            rhs_e[1] = e_sl
-            diag_e[1] = 1.
-            udiag_e[1] = ldiag_e[0] = 0.
+        # if delta_sl is inside the computational domain:
+        k = bisect.bisect_right(self.z_full[1:], delta_sl)
+        rhs_e[:k+1] = e_sl # prescribe e=e_sl in all the ASL
+        diag_e[:k+1] = 1.
+        udiag_e[:k+1] = ldiag_e[:k] = 0.
 
         return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 

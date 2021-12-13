@@ -20,23 +20,27 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 DEFAULT_z_levels = np.linspace(0, 1500, 41)
 
 def plot_FD(axes, sf_scheme, dt=60., N=1680,
-        z_levels=DEFAULT_z_levels):
+        z_levels=DEFAULT_z_levels, name=None):
+    if name == None:
+        name = sf_scheme
     M = z_levels.shape[0] - 1
     simulator = Simu1dEkman(z_levels=z_levels,
             dt=dt, u_geostrophy=10.,
             K_mol=1e-4, C_D=1e-3, f=1e-4)
-    u_0 = 10*np.ones(M+1)
-    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M + 1))
+    u_0 = 10*np.ones(M)
+    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     u, TKE, ustar, shear = simulator.FD(u_t0=u_0,
             sf_scheme=sf_scheme, forcing=forcing)
 
-    axes[0].plot(np.real(u), simulator.z_half, label=r"$\mathfrak{R}(u_\text{FD})$")
-    axes[1].plot(np.imag(u), simulator.z_half, label=r"$Im(u_\text{FD})$")
-    axes[2].plot(TKE, simulator.z_half, label=r"$e^\text{FD}$")
-    # axes[3].plot(shear, simulator.z_half, label=r"$\text{shear}^\text{FD}$")
+    axes[0].plot(np.real(u), simulator.z_half[:-1])
+    axes[1].plot(np.imag(u), simulator.z_half[:-1])
+    axes[2].plot(TKE, simulator.z_full, label=name)
+    axes[3].plot(dt*np.array(range(len(ustar))), ustar, "+")
 
 def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
-        z_levels=DEFAULT_z_levels):
+        z_levels=DEFAULT_z_levels, name=None):
+    if name == None:
+        name = sf_scheme
     M = z_levels.shape[0] - 1
     z_star: float = .1
     simulator = Simu1dEkman(z_levels=z_levels,
@@ -72,16 +76,10 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     z_fv, u_fv = simulator.reconstruct_FV(u,
             phi, sf_scheme, delta_sl=delta_sl)
 
-    axes[0].plot(np.real(u_fv), z_fv, label=r"$\mathfrak{R}(u_\text{FV})$, "+sf_scheme)
-    axes[1].plot(np.imag(u_fv), z_fv, label=r"$Im(u_\text{FV})$, "+sf_scheme)
-    # axes[1].semilogx(TKE, simulator.z_half, label=r"$e^\text{FV1 free}$")
-    # axes[2].semilogy(dt*np.array(range(len(ustar))), ustar, "+",
-    #         label=r"$u_\star^\text{FV1 free}$")
-    # axes[3].semilogx(shear, simulator.z_half,
-    #         label=r"$\text{shear}^\text{FV1 free}$")
-    axes[2].plot(TKE, simulator.z_half, label=sf_scheme)
-    l_m, _ = simulator.mixing_lengths(delta_sl)
-    axes[3].plot(l_m, simulator.z_half, label=sf_scheme)
+    axes[0].plot(np.real(u_fv), z_fv)
+    axes[1].plot(np.imag(u_fv), z_fv)
+    axes[2].plot(TKE, simulator.z_half, label=name)
+    axes[3].plot(dt*np.array(range(len(ustar))), ustar, "+")
 
 def fig_integration_1dekman():
     """
@@ -89,36 +87,36 @@ def fig_integration_1dekman():
         with TKE turbulence scheme.
     """
     z_levels= np.linspace(0, 1500, 41)
+    z_levels_les= np.linspace(0, 1500, 4001)
     # for FV with FV interpretation of sf scheme,
     # the first grid level is divided by 2 so that
     # delta_{sl} is the same in all the schemes.
     dt = 60.
     N = 1680 # 28*60=1680
 
-    fig, axes = plt.subplots(1,4, figsize=(9.5, 3.5))
+    fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
     sf_scheme_FV = "FV2 free"
-    plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels)
-    plot_FV(axes, "FV pure", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels)
+    # plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels)
+    plot_FV(axes, "FV2 free", delta_sl=10.,
+            N=N, dt=dt, z_levels=z_levels, name="FV2 free, $\delta_{sl}=10$m")
+    plot_FV(axes, "FV2 free", delta_sl=30.,
+            N=N, dt=dt, z_levels=z_levels, name="FV2 free, $\delta_{sl}=30$m")
+    plot_FV(axes, "FV2 free", delta_sl=100.,
+            N=N, dt=dt, z_levels=z_levels, name="FV2 free, $\delta_{sl}=100$m")
     axes[0].set_ylim(top=1500., bottom=0.)
     axes[1].set_ylim(top=1500., bottom=0.)
-    axes[0].set_xlabel("wind speed ($m.s^{-1}$)")
+    axes[0].set_xlabel("wind speed (u, $m.s^{-1}$)")
     axes[0].set_ylabel("height (m)")
-    axes[1].set_xlabel("wind speed ($m.s^{-1}$)")
+    axes[1].set_xlabel("wind speed (v, $m.s^{-1}$)")
     axes[1].set_ylabel("height (m)")
     axes[2].set_xlabel("energy (J)")
     axes[2].set_ylabel("height (m)")
-    # axes[2].set_ylabel("friction velocity ($m.s^{-1}$)")
-    # axes[3].set_xlabel("shear ($kg.m^2.s^{-3}$)")
-    # axes[3].set_ylabel("height (m)")
-    axes[3].set_xlabel(r"$l_m$ (m)")
-    axes[3].set_ylabel("height (m)")
+    axes[3].set_ylabel("friction velocity (u*, $m.s^{-1}$)")
+    axes[3].set_xlabel("time (s)")
     axes[0].legend(loc="upper right")
     axes[1].legend(loc="upper right")
     axes[2].legend(loc="upper right")
-    axes[3].legend(loc="upper right")
-    fig.suptitle("Surface flux scheme: "+sf_scheme_FV)
     show_or_save("fig_integration_1dekman")
 
 
