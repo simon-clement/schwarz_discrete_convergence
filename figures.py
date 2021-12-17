@@ -29,7 +29,7 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
             K_mol=1e-4, C_D=1e-3, f=1e-4)
     u_0 = 10*np.ones(M)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
-    u, TKE, ustar, shear = simulator.FD(u_t0=u_0,
+    u, TKE, ustar = simulator.FD(u_t0=u_0,
             sf_scheme=sf_scheme, forcing=forcing)
 
     axes[0].plot(np.real(u), simulator.z_half[:-1], **style)
@@ -69,7 +69,7 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
 
         u_0[k] = (1+tau_sl) * u_tilde - tau_sl*h_tilde*phi_0[k]/3
 
-    u, phi, TKE, ustar, shear = simulator.FV(u_t0=u_0[:-1],
+    u, phi, TKE, ustar = simulator.FV(u_t0=u_0[:-1],
             phi_t0=phi_0, sf_scheme=sf_scheme,
             delta_sl=delta_sl, forcing=forcing)
 
@@ -80,6 +80,47 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     axes[1].plot(np.imag(u_fv), z_fv, **style)
     axes[2].plot(TKE, simulator.z_half, **style, label=name)
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
+
+def fig_verify_FDFV():
+    """
+        Integrates for 1 day a 1D ekman equation
+        with TKE turbulence scheme.
+    """
+    z_levels= np.linspace(0, 1500, 41)
+    # for FV with FV interpretation of sf scheme,
+    # the first grid level is divided by 2 so that
+    # delta_{sl} is the same in all the schemes.
+    dt = 60.
+    N = 1680 # 28*60=1680
+
+    fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
+    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
+
+    def style(col, linestyle='solid', **kwargs):
+        return {"color": col, "linestyle": linestyle,
+                "linewidth":0.8, **kwargs}
+
+    plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
+            name="FD, M=40", style=style('r'))
+    plot_FV(axes, "FV2 free", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels,
+            name="FV1, M=40", style=style('b'))
+
+    axes[0].set_ylim(top=1500., bottom=0.)
+    axes[1].set_ylim(top=1500., bottom=0.)
+    axes[0].set_xlabel("wind speed (u, $m.s^{-1}$)")
+    axes[0].set_ylabel("height (m)")
+    axes[1].set_xlabel("wind speed (v, $m.s^{-1}$)")
+    axes[1].set_ylabel("height (m)")
+    axes[2].set_xlabel("energy (J)")
+    axes[2].set_ylabel("height (m)")
+    axes[3].set_ylabel("friction velocity (u*, $m.s^{-1}$)")
+    axes[3].set_ylim(top=0.5, bottom=0.38)
+    axes[3].set_xlabel("time (s)")
+    axes[0].legend(loc="upper right")
+    axes[1].legend(loc="upper right")
+    axes[2].legend(loc="upper right")
+    show_or_save("fig_verify_FDFV")
 
 def fig_consistency_comparison():
     """

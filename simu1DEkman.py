@@ -78,10 +78,214 @@ class Simu1dEkman():
                 "FV2 free" : (self.__sf_udelta_FV2free,
                                 self.__sf_YDc_FV2free) }
 
+    def FV(self, u_t0: array, phi_t0: array, forcing: array,
+            sf_scheme: str="FV pure", turbulence: str="TKE",
+            delta_sl: float=None) -> array:
+        """
+            Integrates in time with Backward Euler the model with KPP
+            and Finite differences.
+
+            u_t0 should be given at half-levels (follow self.z_half)
+            phi_t0 should be given at full-levels (follow self.z_full)
+            forcing should be given as averaged on each volume for all times
+            sf_scheme is the surface flux scheme:
+                - "FV pure" for a FD interpretation (classical but biaised)
+                - "FV{1, 2}" for a FV interpretation
+                                (unbiaised but delta_{sl}=z_1)
+                - "FV{1, 2} free" for a FV interpretation with a free delta_{sl}
+                - "FV Dirichlet" for debug purpose
+            turbulence should be one of:
+                - "TKE" (for one-equation TKE)
+                - "KPP" (for simple K-profile parametrization)
+            delta_sl should be provided only with sf_scheme="FV1 free"
+                (for delta_sl < z_1) or "FV2 free" (for any delta_sl)
+            returns a numpy array of shape (M)
+                                    where M is the number of space points
+        """
+        assert u_t0.shape[0] == self.M and phi_t0.shape[0] == self.M + 1
+        N: int = forcing.shape[0] - 1 # number of time steps
+        assert forcing.shape[1] == self.M
+        func_un, func_YDc_sf = self.dictsf_scheme[sf_scheme]
+        if delta_sl is None:
+            delta_sl = self.z_half[0] if sf_scheme in \
+                    {"FV pure", "FV1", "FV Dirichlet"} \
+                    else self.z_full[1]
+        if sf_scheme == "FV Dirichlet":
+            delta_sl = self.z_half[1]
+
+        tke = np.ones(self.M+1) * self.e_min
+        l_m, _ = self.mixing_lengths(delta_sl)
+        K_full: array = self.K_min + np.zeros_like(tke)
+        k = bisect.bisect_right(self.z_full[1:], delta_sl)
+        if sf_scheme == "FV Dirichlet":
+            k=0
+
+        phi = phi_t0
+        old_phi = np.copy(phi)
+
+        prognostic: array = np.concatenate((u_t0[:k+1], phi_t0[k:]))
+        u_current: array = np.copy(u_t0)
+        all_u_star = []
+
+        for n in range(1,N+1):
+            forcing_current = forcing[n]
+            u_delta: complex = func_un(prognostic=prognostic,
+                    delta_sl=delta_sl, u=u_current, phi=phi)
+            u_star: float = self.kappa * np.abs(u_delta) \
+                    / np.log(1 + delta_sl/self.z_star)
+            all_u_star += [u_star]
+            K_full, tke = self.__visc_turb_FV(u_star,
+                    delta_sl, turbulence="TKE", phi=phi,
+                    old_phi=old_phi, K_full=K_full, tke=tke)
+
+            Y, D, c = self.__matrices_u_FV(K_full, forcing_current)
+
+            self.__apply_sf_scheme(sf_scheme, Y=Y, D=D, c=c,
+                    K_full=K_full, forcing=forcing_current,
+                    u_star=u_star, u_delta=u_delta, delta_sl=delta_sl)
+
+            prognostic = self.__backward_euler(Y=Y, D=D, c=c,
+                    u=prognostic)
+            next_u = 1/(1+self.dt*1j*self.f*self.implicit_coriolis) * \
+                    ((1 - self.dt*1j*self.f*(1-self.implicit_coriolis)) * \
+                    u_current + self.dt * \
+                    (np.diff(prognostic[1:] * K_full) / self.h_half[:-1] \
+                    + forcing_current))
+            next_u[:k+1] = prognostic[:k+1]
+
+            u_current, old_u = next_u, u_current
+
+            old_phi, phi = phi, prognostic[k+1:]
+
+            if k > 0: # constant flux layer : K[:k] phi[:k] = K[0] phi[0]
+                phi = np.concatenate((K_full[k]*phi[0]*K_full[:k], phi))
+
+        u_delta: complex = func_un(prognostic=prognostic,
+                delta_sl=delta_sl, u=u_current, phi=phi)
+        u_star: float = self.kappa * np.abs(u_delta) \
+                / np.log(1 + delta_sl/self.z_star)
+        all_u_star += [u_star]
+        return u_current, phi, tke, all_u_star
+
+
+    def FD(self, u_t0: array, forcing: array,
+            turbulence: str="TKE", sf_scheme: str="FD pure") -> array:
+        """
+            Integrates in time with Backward Euler the model with KPP
+            and Finite differences.
+
+            u_t0 should be given at half-levels (follow self.z_half)
+            forcing should be given at half-levels for all times
+            turbulence should be one of:
+                TKE (for one-equation TKE)
+                KPP (for simple K-profile parametrization)
+            sf_scheme should be one of:
+                FD pure (delta_sl = z_1/2)
+                FD2     (delta_sl = z_1)
+                FD Dirichlet (no real delta_sl)
+            returns a numpy array of shape (M)
+                                    where M is the number of space points
+        """
+        assert u_t0.shape[0] == self.M
+        assert forcing.shape[1] == self.M
+        N: int = forcing.shape[0] - 1 # number of time steps
+        func_un, func_YDc_sf = self.dictsf_scheme[sf_scheme]
+        delta_sl = self.z_half[0] if sf_scheme in {"FD pure", "FD Dirichlet"} \
+                else self.z_full[1]
+        if sf_scheme == "FD Dirichlet":
+            delta_sl = self.z_half[1] # avoid differences with FV
+        tke = np.ones(self.M+1) * self.e_min
+        K_full: array = self.K_min + np.zeros_like(tke)
+
+        u_current: array = np.copy(u_t0)
+        old_u = np.copy(u_current)
+        all_u_star = []
+        for n in range(1,N+1):
+            forcing_current = forcing[n]
+            u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
+
+            u_star: float = self.kappa * np.abs(u_delta) \
+                    / np.log(1 + delta_sl/self.z_star)
+            all_u_star += [u_star]
+
+            K_full, tke = self.__visc_turb_FD(u_star=u_star,
+                    delta_sl=delta_sl, turbulence="TKE",
+                    u_current=u_current, old_u=old_u,
+                    K_full=K_full, tke=tke)
+
+            Y, D, c = self.__matrices_u_FD(K_full, forcing_current)
+            self.__apply_sf_scheme(sf_scheme, Y=Y, D=D, c=c,
+                    K_full=K_full, forcing=forcing_current,
+                    u_star=u_star, u_delta=u_delta, delta_sl=delta_sl)
+
+            next_u = self.__backward_euler(Y=Y, D=D, c=c, u=u_current)
+            u_current, old_u = next_u, u_current
+
+        return u_current, tke, all_u_star
+
+
+    def __integrate_tke(self, tke, shear, K_full, delta_sl, u_star):
+        """
+            integrates TKE equation on one time step.
+            discretisation of TKE is Finite Differences,
+            located on half-points.
+        """
+        _, l_eps = self.mixing_lengths(delta_sl)
+        Ke_half = self.C_e / self.C_m * (K_full[1:] + K_full[:-1])/2
+        diag_e = np.concatenate(([1],
+                    [1/self.dt + self.c_eps*np.sqrt(tke[m])/l_eps[m] \
+                    + (Ke_half[m]/self.h_half[m] + \
+                        Ke_half[m-1]/self.h_half[m-1]) \
+                        / self.h_full[m] for m in range(1, self.M)],
+                        [1/self.dt + Ke_half[self.M-1] / \
+                        self.h_half[self.M-1] / self.h_full[self.M]]))
+        ldiag_e = np.concatenate((
+            [ -Ke_half[m-1] / self.h_half[m-1] / self.h_full[m] \
+                    for m in range(1,self.M) ], [- Ke_half[self.M-1] / \
+                        self.h_half[self.M-1] / self.h_full[self.M]]))
+        udiag_e = np.concatenate(([0],
+            [ -Ke_half[m] / self.h_half[m] / self.h_full[m] \
+                    for m in range(1,self.M) ]))
+
+        e_sl = np.maximum(u_star**2/np.sqrt(self.C_m*self.c_eps),
+                                    self.e_min)
+        rhs_e = np.concatenate(([e_sl],
+            [tke[m]/self.dt + shear[m] for m in range(1, self.M)],
+            [tke[self.M]/self.dt]))
+        # if delta_sl is inside the computational domain:
+        k = bisect.bisect_right(self.z_full[1:], delta_sl)
+        rhs_e[:k+1] = e_sl # prescribe e=e_sl in all the ASL
+        diag_e[:k+1] = 1.
+        udiag_e[:k+1] = ldiag_e[:k] = 0.
+
+        return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
+
+    def mixing_lengths(self, delta_sl):
+        """
+            returns the mixing lengths (l_m, l_eps)
+            for a given delta_sl.
+            l_m is computed with (0.5(l_up^(1/a)+l_down^(1/a)))^a
+            with (l_up, l_down) the raw distances to the
+            (top, bottom) of the computational domain.
+        """
+        l_up = np.maximum(self.lm_min, self.z_full[-1] - self.z_full)
+        l_down = np.maximum(self.lm_min, self.z_full)
+        l_eps = np.abs(np.amin((l_up, l_down), axis=0))
+        a = -(np.log(self.c_eps)-3.*np.log(self.C_m)+\
+                4.*np.log(self.kappa))/np.log(16.)
+        l_m = np.abs((0.5*(l_up**(1/a)+l_down**(1/a)))**a)
+        l_m[self.z_full <= delta_sl] = np.maximum(self.lm_min,
+                self.kappa * \
+                (self.C_m * self.c_eps)**(1/4) / self.C_m * \
+                (self.z_full[self.z_full <= delta_sl] + self.z_star))
+        return l_m, l_eps
+
     def reconstruct_FV(self, u_bar: array, phi: array,
             sf_scheme: str="FV pure", delta_sl: float=None):
         """
             spline reconstruction of the FV solution.
+            input: discrete representation in FV,
+            output: arrays (z, u(z))
             u(xi) = u_bar[m] + (phi[m+1] + phi[m]) * xi/2 +
                     (phi[m+1] - phi[m]) / (2*h_half[m]) *
                         (xi^2 - h_half[m]^2/12)
@@ -143,306 +347,14 @@ class Simu1dEkman():
                 np.concatenate((u_log, u_freepart, u_oversampled[k2:]))
 
 
-    def FV(self, u_t0: array, phi_t0: array, forcing: array,
-            sf_scheme: str="FV pure", turbulence: str="TKE",
-            delta_sl: float=None) -> array:
-        """
-            Integrates in time with Backward Euler the model with KPP
-            and Finite differences.
-
-            u_t0 should be given at half-levels (follow self.z_half)
-            phi_t0 should be given at full-levels (follow self.z_full)
-            forcing should be given as averaged on each volume for all times
-            sf_scheme is the surface flux scheme:
-                - "FV pure" for a FD interpretation (classical but biaised)
-                - "FV{1, 2}" for a FV interpretation
-                                (unbiaised but delta_{sl}=z_1)
-                - "FV{1, 2} free" for a FV interpretation with a free delta_{sl}
-                - "FV Dirichlet" for debug purpose
-            turbulence should be one of:
-                - "TKE" (for one-equation TKE)
-                - "KPP" (for simple K-profile parametrization)
-            delta_sl should be provided only with sf_scheme="FV1 free"
-                (for delta_sl < z_1) or "FV2 free" (for any delta_sl)
-            returns a numpy array of shape (M)
-                                    where M is the number of space points
-        """
-        assert u_t0.shape[0] == self.M and phi_t0.shape[0] == self.M + 1
-        N: int = forcing.shape[0] - 1 # number of time steps
-        assert forcing.shape[1] == self.M
-        func_un, func_YDc_sf = self.dictsf_scheme[sf_scheme]
-        if delta_sl is None:
-            delta_sl = self.z_half[0] if sf_scheme in \
-                    {"FV pure", "FV1", "FV Dirichlet"} \
-                    else self.z_full[1]
-        if sf_scheme == "FV Dirichlet":
-            delta_sl = self.z_half[1]
-
-        tke = np.ones(self.M+1) * self.e_min
-        l_m, _ = self.mixing_lengths(delta_sl)
-        K_full: array = self.K_min + np.zeros_like(tke)
-        k = bisect.bisect_right(self.z_full[1:], delta_sl)
-        if sf_scheme == "FV Dirichlet":
-            k=0
-
-        phi = phi_t0
-        old_phi = np.copy(phi)
-
-        prognostic: array = np.concatenate((u_t0[:k+1], phi_t0[k:]))
-        u_current: array = np.copy(u_t0)
-        all_u_star = []
-
-        for n in range(1,N+1):
-            forcing_current = forcing[n]
-            u_delta: complex = func_un(prognostic=prognostic,
-                    delta_sl=delta_sl, u=u_current, phi=phi)
-            u_star: float = self.kappa * np.abs(u_delta) \
-                    / np.log(1 + delta_sl/self.z_star)
-            all_u_star += [u_star]
-
-            if turbulence == "KPP":
-                c_1 = 0.2 # constant for h_cl in atmosphere
-                h_cl: float = self.defaulth_cl if np.abs(self.f) < 1e-10 \
-                        else np.abs(c_1*u_star/self.f)
-                G_full: array = self.kappa * self.z_full * \
-                        (1 - self.z_full/h_cl)**2 \
-                        * np.heaviside(1 - self.z_full/h_cl, 1)
-                K_full = u_star * G_full + self.K_mol # viscosity
-                K_full[0] = u_star * self.kappa * (delta_sl+self.z_star)
-            elif turbulence == "TKE":
-                shear = np.concatenate(([0],
-                    [np.abs(K_full[m]*phi[m]*(phi[m] + old_phi[m])/2) \
-                            for m in range(1, self.M)], [0]))
-
-                tke = np.maximum(self.e_min,
-                        self.__integrate_tke(tke, shear, K_full,
-                        delta_sl=delta_sl, u_star=u_star))
-
-                K_full = self.C_m * l_m * np.sqrt(tke)
-                K_full[:k] =  self.kappa*u_star*(
-                        self.z_full[:k] + self.z_star)
-                K_full[k] = self.kappa*u_star*(delta_sl + self.z_star)
-            else:
-                raise NotImplementedError("Wrong turbulence scheme")
-
-            Y_diag: array = np.concatenate(([0, 0.], 2/3*np.ones(self.M-1),
-                                                            [1.]))
-            Y_udiag: array = np.concatenate(([0, 0.],
-                [self.h_half[m]/6./self.h_full[m] for m in range(1, self.M)]))
-            Y_ldiag: array =  np.concatenate(([0.],
-                [self.h_half[m-1]/6./self.h_full[m] for m in range(1, self.M)],
-                [0.]))
-
-            D_diag: array = np.concatenate(([0., 0.],
-                [-2 * K_full[m] / self.h_half[m] / self.h_half[m-1]
-                                            for m in range(1, self.M)],
-                [0.]))
-            D_udiag: array = np.concatenate(([0.,  0],
-                [K_full[m+1]/self.h_full[m] / self.h_half[m]
-                                            for m in range(1, self.M)]))
-            D_uudiag: array = np.zeros(self.M)
-
-            D_ldiag: array = np.concatenate(([0.],
-                [K_full[m-1]/self.h_full[m] / self.h_half[m-1]
-                                            for m in range(1, self.M)],
-                [0.]))
-
-
-            c_T = 0. / K_full[self.M]
-            c = np.concatenate(([0, 0], np.diff(forcing_current) / \
-                                                self.h_full[1:-1], [c_T]))
-            Y = (Y_ldiag, Y_diag, Y_udiag)
-            D = (D_ldiag, D_diag, D_udiag, D_uudiag)
-            Y_sf, D_sf, c_sf = func_YDc_sf(K=K_full,
-                    forcing=forcing_current, ustar=u_star,
-                    un=u_delta, delta_sl=delta_sl)
-            for y, y_sf in zip(Y, Y_sf):
-                y_sf = np.array(y_sf)
-                y[:y_sf.shape[0]] = y_sf
-            for d, d_sf in zip(D, D_sf):
-                d_sf = np.array(d_sf)
-                d[:d_sf.shape[0]] = d_sf
-
-            c_sf = np.array(c_sf)
-            c[:c_sf.shape[0]] = np.array(c_sf)
-            prognostic = self.__backward_euler(Y=Y, D=D, c=c,
-                    u=prognostic)
-            next_u = 1/(1+self.dt*1j*self.f*self.implicit_coriolis) * \
-                    ((1 - self.dt*1j*self.f*(1-self.implicit_coriolis)) * \
-                    u_current + self.dt * \
-                    (np.diff(prognostic[1:] * K_full) / self.h_half[:-1] \
-                    + forcing_current))
-            next_u[:k+1] = prognostic[:k+1]
-
-            u_current, old_u = next_u, u_current
-
-            old_phi, phi = phi, prognostic[k+1:]
-
-            if k > 0: # constant flux layer : K[:k] phi[:k] = K[0] phi[0]
-                phi = np.concatenate((K_full[k]*phi[0]*K_full[:k], phi))
-
-        u_delta: complex = func_un(prognostic=prognostic,
-                delta_sl=delta_sl, u=u_current, phi=phi)
-        u_star: float = self.kappa * np.abs(u_delta) \
-                / np.log(1 + delta_sl/self.z_star)
-        all_u_star += [u_star]
-        return u_current, phi, tke, all_u_star, shear
-
-
-    def FD(self, u_t0: array, forcing: array,
-            turbulence: str="TKE", sf_scheme: str="FD pure") -> array:
-        """
-            Integrates in time with Backward Euler the model with KPP
-            and Finite differences.
-
-            u_t0 should be given at half-levels (follow self.z_half)
-            forcing should be given at half-levels for all times
-            turbulence should be one of:
-                TKE (for one-equation TKE)
-                KPP (for simple K-profile parametrization)
-            sf_scheme should be one of:
-                FD pure (delta_sl = z_1/2)
-                FD2     (delta_sl = z_1)
-                FD Dirichlet (no real delta_sl)
-            returns a numpy array of shape (M)
-                                    where M is the number of space points
-        """
-        assert u_t0.shape[0] == self.M
-        assert forcing.shape[1] == self.M
-        N: int = forcing.shape[0] - 1 # number of time steps
-        func_un, func_YDc_sf = self.dictsf_scheme[sf_scheme]
-        delta_sl = self.z_half[0] if sf_scheme in {"FD pure", "FD Dirichlet"} \
-                else self.z_full[1]
-        if sf_scheme == "FD Dirichlet":
-            delta_sl = self.z_half[1] # avoid differences with FV
-        tke = np.ones(self.M+1) * self.e_min
-        l_m, _ = self.mixing_lengths(delta_sl)
-        K_full: array = self.K_min + np.zeros_like(tke)
-
-        Y_diag: array = np.ones(self.M)
-        u_current: array = np.copy(u_t0)
-        old_u = np.copy(u_current)
-        all_u_star = []
-        for n in range(1,N+1):
-            forcing_current = forcing[n]
-            u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
-
-            u_star: float = self.kappa * np.abs(u_delta) \
-                    / np.log(1 + delta_sl/self.z_star)
-            all_u_star += [u_star]
-
-            if turbulence =="KPP":
-                c_1 = 0.2 # constant for h_cl=c_1*u_star/f
-                h_cl: float = self.defaulth_cl if np.abs(self.f) < 1e-10 \
-                        else c_1*u_star/self.f
-                G_full: array = self.kappa * self.z_full * \
-                        (1 - self.z_full/h_cl)**2 \
-                        * np.heaviside(1 - self.z_full/h_cl, 1)
-
-                K_full: array = u_star * G_full + self.K_mol # viscosity
-                K_full[0] = u_star * self.kappa * (delta_sl + self.z_star)
-            elif turbulence == "TKE":
-                ####### TKE SCHEME #############
-                du = np.diff(u_current)
-                du_old = np.diff(old_u)
-                shear = np.concatenate(([0],
-                    [np.abs(K_full[m]/self.h_full[m]**2 * du[m-1] * \
-                            (du[m-1]+du_old[m-1])/2) \
-                            for m in range(1, self.M)], [0]))
-
-                tke = np.maximum(self.e_min,
-                        self.__integrate_tke(tke, shear, K_full,
-                        delta_sl=delta_sl, u_star=u_star))
-
-                K_full: array = np.maximum(self.K_min,
-                        self.C_m * l_m * np.sqrt(tke))
-            else:
-                raise NotImplementedError("Wrong turbulence scheme")
-
-            D_diag: array = np.concatenate(( [0.],
-                [(-K_full[m+1]/self.h_full[m+1] - K_full[m]/self.h_full[m]) \
-                        / self.h_half[m] for m in range(1, self.M-1)],
-                [-K_full[self.M-1]/self.h_half[self.M-1]/self.h_full[self.M-1]]))
-            D_udiag: array = np.concatenate(([0.],
-                [K_full[m+1]/self.h_full[m+1] / self.h_half[m]
-                    for m in range(1, self.M-1)]))
-            D_ldiag: array = np.concatenate((
-                [K_full[m]/self.h_full[m] / self.h_half[m]
-                    for m in range(1, self.M-1)]
-                , [K_full[self.M-1]/self.h_half[self.M-1]/self.h_full[self.M-1]]))
-
-            c: array = forcing_current
-            c[-1] += K_full[self.M] * 0. / self.h_half[self.M-1]
-            Y_sf, D_sf, c_sf = func_YDc_sf(K=K_full,
-                    forcing=forcing_current, ustar=u_star,
-                    un=u_delta)
-            assert len(Y_sf[0]) == 0 and Y_sf[2] == (0.,)
-            Y_diag[:1] = Y_sf[1] # raises an error if Y_sf[1].shape[0]>1
-            for d, d_sf in zip((D_ldiag, D_diag, D_udiag), D_sf):
-                d_sf = np.array(d_sf)
-                d[:d_sf.shape[0]] = d_sf
-
-            c_sf = np.array(c_sf)
-            c[:c_sf.shape[0]] = c_sf
-
-            next_u = self.__backward_euler(
-                    Y=(np.zeros(self.M-1), Y_diag, np.zeros(self.M-1)),
-                    D=(D_ldiag, D_diag, D_udiag), c=c, u=u_current)
-            u_current, old_u = next_u, u_current
-
-        return u_current, tke, all_u_star, shear
-
-    def __integrate_tke(self, tke, shear, K_full, delta_sl, u_star):
-        l_m, l_eps = self.mixing_lengths(delta_sl)
-        Ke_half = self.C_e / self.C_m * (K_full[1:] + K_full[:-1])/2
-        diag_e = np.concatenate(([1],
-                    [1/self.dt + self.c_eps*np.sqrt(tke[m])/l_eps[m] \
-                    + (Ke_half[m]/self.h_half[m] + \
-                        Ke_half[m-1]/self.h_half[m-1]) \
-                        / self.h_full[m] for m in range(1, self.M)],
-                        [1/self.dt + Ke_half[self.M-1] / \
-                        self.h_half[self.M-1] / self.h_full[self.M]]))
-        ldiag_e = np.concatenate((
-            [ -Ke_half[m-1] / self.h_half[m-1] / self.h_full[m] \
-                    for m in range(1,self.M) ], [- Ke_half[self.M-1] / \
-                        self.h_half[self.M-1] / self.h_full[self.M]]))
-        udiag_e = np.concatenate(([0],
-            [ -Ke_half[m] / self.h_half[m] / self.h_full[m] \
-                    for m in range(1,self.M) ]))
-
-        e_sl = np.maximum(u_star**2/np.sqrt(self.C_m*self.c_eps),
-                                    self.e_min)
-        rhs_e = np.concatenate(([e_sl],
-            [tke[m]/self.dt + shear[m] for m in range(1, self.M)],
-            [tke[self.M]/self.dt]))
-        # if delta_sl is inside the computational domain:
-        k = bisect.bisect_right(self.z_full[1:], delta_sl)
-        rhs_e[:k+1] = e_sl # prescribe e=e_sl in all the ASL
-        diag_e[:k+1] = 1.
-        udiag_e[:k+1] = ldiag_e[:k] = 0.
-
-        return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
-
-    def mixing_lengths(self, delta_sl):
-        l_up = np.maximum(self.lm_min, self.z_full[-1] - self.z_full)
-        l_down = np.maximum(self.lm_min, self.z_full)
-        l_eps = np.abs(np.amin((l_up, l_down), axis=0))
-        a = -(np.log(self.c_eps)-3.*np.log(self.C_m)+\
-                4.*np.log(self.kappa))/np.log(16.)
-        l_m = np.abs((0.5*(l_up**(1/a)+l_down**(1/a)))**a)
-        l_m[self.z_full <= delta_sl] = np.maximum(self.lm_min,
-                self.kappa * \
-                (self.C_m * self.c_eps)**(1/4) / self.C_m * \
-                (self.z_full[self.z_full <= delta_sl] + self.z_star))
-        return l_m, l_eps
-
     def __backward_euler(self, Y: Tuple[array, array, array],
                         D: Tuple[array, array, array], c: array, u: array):
         """
             integrates once (self.dt) in time the equation
             (partial_t + if)Yu - dt*Du = c
             The scheme is:
-            Y(1+dt*if*gamma) - D) u_np1 = Y u + dt*c
+            Y(1+dt*if*gamma) - D) u_np1 = Y u + dt*c + dt*if*(1-gamma)
+            with gamma the coefficient of implicitation of Coriolis
         """
         to_inverse: Tuple[array, array, array] = add(s_mult(Y,
                                 1 + self.implicit_coriolis * \
@@ -451,7 +363,172 @@ class Simu1dEkman():
                 (1 - (1 - self.implicit_coriolis) * self.dt*1j*self.f) * \
                                 multiply(Y, u) + self.dt*c)
 
-    ########### DEFINITION OF SF SCHEMES : VALUE OF u######""
+    def __visc_turb_FD(self, u_star, delta_sl,
+            turbulence="TKE", u_current=None, old_u=None,
+            K_full=None, tke=None):
+        """
+            Computes the turbulent viscosity on full levels K_full.
+            It differs between FD and FV because of the
+            shear computation (in the future, other differences
+            might appear like the temperature handling).
+            returns (K_full, TKE)
+        """
+        if turbulence =="KPP":
+            c_1 = 0.2 # constant for h_cl=c_1*u_star/f
+            h_cl: float = self.defaulth_cl if np.abs(self.f) < 1e-10 \
+                    else c_1*u_star/self.f
+            G_full: array = self.kappa * self.z_full * \
+                    (1 - self.z_full/h_cl)**2 \
+                    * np.heaviside(1 - self.z_full/h_cl, 1)
+
+            K_full: array = u_star * G_full + self.K_mol # viscosity
+            K_full[0] = u_star * self.kappa * (delta_sl + self.z_star)
+        elif turbulence == "TKE":
+            ####### TKE SCHEME #############
+            l_m, _ = self.mixing_lengths(delta_sl)
+            du = np.diff(u_current)
+            du_old = np.diff(old_u)
+            shear = np.concatenate(([0],
+                [np.abs(K_full[m]/self.h_full[m]**2 * du[m-1] * \
+                        (du[m-1]+du_old[m-1])/2) \
+                        for m in range(1, self.M)], [0]))
+
+            tke[:] = np.maximum(self.e_min,
+                    self.__integrate_tke(tke, shear, K_full,
+                    delta_sl=delta_sl, u_star=u_star))
+
+            K_full: array = np.maximum(self.K_min,
+                    self.C_m * l_m * np.sqrt(tke))
+        else:
+            raise NotImplementedError("Wrong turbulence scheme")
+        return K_full, tke
+
+    def __matrices_u_FD(self, K_full, forcing):
+        """
+            Creates the matrices D, Y, c such that the
+            semi-discrete in space Ekman equation writes
+            (d/dt Y - D) u = c
+        """
+        D_diag: array = np.concatenate(( [0.],
+            [(-K_full[m+1]/self.h_full[m+1] - K_full[m]/self.h_full[m]) \
+                    / self.h_half[m] for m in range(1, self.M-1)],
+            [-K_full[self.M-1]/self.h_half[self.M-1]/self.h_full[self.M-1]]))
+        D_udiag: array = np.concatenate(([0.],
+            [K_full[m+1]/self.h_full[m+1] / self.h_half[m]
+                for m in range(1, self.M-1)]))
+        D_ldiag: array = np.concatenate((
+            [K_full[m]/self.h_full[m] / self.h_half[m]
+                for m in range(1, self.M-1)]
+            , [K_full[self.M-1]/self.h_half[self.M-1]/self.h_full[self.M-1]]))
+
+        c: array = forcing
+        c[-1] += K_full[self.M] * 0. / self.h_half[self.M-1]
+        Y = (np.zeros(self.M-1), np.ones(self.M), np.zeros(self.M-1))
+        D = D_ldiag, D_diag, D_udiag
+        return Y, D, c
+
+    def __visc_turb_FV(self, u_star, delta_sl,
+            turbulence="TKE", phi=None, old_phi=None,
+            K_full=None, tke=None):
+        """
+            Computes the turbulent viscosity on full levels K_full.
+            It differs between FD and FV because of the
+            shear computation (in the future, other differences
+            might appear like the temperature handling).
+            returns (K_full, TKE).
+            turbulence is either "TKE" or "KPP"
+        """
+        if turbulence == "KPP":
+            c_1 = 0.2 # constant for h_cl in atmosphere
+            h_cl: float = self.defaulth_cl if np.abs(self.f) < 1e-10 \
+                    else np.abs(c_1*u_star/self.f)
+            G_full: array = self.kappa * self.z_full * \
+                    (1 - self.z_full/h_cl)**2 \
+                    * np.heaviside(1 - self.z_full/h_cl, 1)
+            K_full = u_star * G_full + self.K_mol # viscosity
+            K_full[0] = u_star * self.kappa * (delta_sl+self.z_star)
+        elif turbulence == "TKE":
+            shear = np.concatenate(([0],
+                [np.abs(K_full[m]*phi[m]*(phi[m] + old_phi[m])/2) \
+                        for m in range(1, self.M)], [0]))
+
+            tke[:] = np.maximum(self.e_min,
+                    self.__integrate_tke(tke, shear, K_full,
+                    delta_sl=delta_sl, u_star=u_star))
+
+            k = bisect.bisect_right(self.z_full[1:], delta_sl)
+            l_m, _ = self.mixing_lengths(delta_sl)
+            K_full = self.C_m * l_m * np.sqrt(tke)
+            K_full[:k] =  self.kappa*u_star*(
+                    self.z_full[:k] + self.z_star)
+            K_full[k] = self.kappa*u_star*(delta_sl + self.z_star)
+        else:
+            raise NotImplementedError("Wrong turbulence scheme")
+
+        return K_full, tke
+
+    def __matrices_u_FV(self, K_full, forcing):
+        """
+            Creates the matrices D, Y, c such that the
+            semi-discrete in space Ekman equation writes
+            (d/dt Y - D) phi = c
+        """
+        Y_diag: array = np.concatenate(([0, 0.], 2/3*np.ones(self.M-1),
+                                                        [1.]))
+        Y_udiag: array = np.concatenate(([0, 0.],
+            [self.h_half[m]/6./self.h_full[m] for m in range(1, self.M)]))
+        Y_ldiag: array =  np.concatenate(([0.],
+            [self.h_half[m-1]/6./self.h_full[m] for m in range(1, self.M)],
+            [0.]))
+
+        D_diag: array = np.concatenate(([0., 0.],
+            [-2 * K_full[m] / self.h_half[m] / self.h_half[m-1]
+                                        for m in range(1, self.M)],
+            [0.]))
+        D_udiag: array = np.concatenate(([0.,  0],
+            [K_full[m+1]/self.h_full[m] / self.h_half[m]
+                                        for m in range(1, self.M)]))
+        D_uudiag: array = np.zeros(self.M)
+
+        D_ldiag: array = np.concatenate(([0.],
+            [K_full[m-1]/self.h_full[m] / self.h_half[m-1]
+                                        for m in range(1, self.M)],
+            [0.]))
+
+
+        c_T = 0. / K_full[self.M]
+        c = np.concatenate(([0, 0], np.diff(forcing) / \
+                                            self.h_full[1:-1], [c_T]))
+        Y = (Y_ldiag, Y_diag, Y_udiag)
+        D = (D_ldiag, D_diag, D_udiag, D_uudiag)
+        return Y, D, c
+
+    def __apply_sf_scheme(self, sf_scheme, Y, D, c, K_full,
+            forcing, u_star, u_delta, delta_sl):
+        """
+            Changes matrices Y, D, c on the first levels
+            to use the surface flux scheme.
+        """
+        _, func_YDc_sf = self.dictsf_scheme[sf_scheme]
+        Y_sf, D_sf, c_sf = func_YDc_sf(K=K_full,
+                forcing=forcing, ustar=u_star,
+                un=u_delta, delta_sl=delta_sl)
+        for y, y_sf in zip(Y, Y_sf):
+            y_sf = np.array(y_sf)
+            y[:y_sf.shape[0]] = y_sf
+        for d, d_sf in zip(D, D_sf):
+            d_sf = np.array(d_sf)
+            d[:d_sf.shape[0]] = d_sf
+
+        c_sf = np.array(c_sf)
+        c[:c_sf.shape[0]] = c_sf
+
+    ####### DEFINITION OF SF SCHEMES : VALUE OF u(delta_sl) #####
+    # The method must use the prognostic variables and delta_sl
+    # to return u(delta_sl).
+    # the prognostic variables are u for FD and 
+    # (u_{1/2}, ... u_{k+1/2}, phi_k, ...phi_M) for FV.
+
     def __sf_udelta_FDDirichlet0(self, prognostic, delta_sl, **_):
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         return prognostic[k]
@@ -496,6 +573,14 @@ class Simu1dEkman():
         return (prognostic[k] - tilde_h * \
                 (prognostic[k+1] / 3 + prognostic[k+2] / 6)) \
                 / (1+tau_sl)
+
+    ####### DEFINITION OF SF SCHEMES : FIRST LINES OF Y,D,c #####
+    # each method must return Y, D, c:
+    # Y: 3-tuple of tuples of sizes (j-1, j, j)
+    # D: 3-tuple of tuples of sizes (j-1, j, j)
+    # c: tuple of size j
+    # they represent the first j lines of the matrices.
+    # for Y and D, the tuples are (lower diag, diag, upper diag)
 
     def __sf_YDc_FDDirichlet0(self, **_):
         Y = ((), (0.,), (0.,))
@@ -611,3 +696,4 @@ class Simu1dEkman():
                 np.concatenate((np.zeros(k), D[3])))
         c = np.concatenate((np.zeros(k), c))
         return Y, D, c
+
