@@ -58,6 +58,10 @@ class Simu1dEkman():
                 np.sqrt(self.e_min)
         self.leps_min: float = self.K_min / self.c_eps / \
                 np.sqrt(self.e_min)
+        # For each name of sf_scheme, two corresponding
+        # methods defined at the bottom of this class:
+        # sf_udelta_* is how we compute u(delta_sl) and
+        # sf_YDc_* is the definition of the bottom boundary condition
         self.dictsf_scheme = {
                 "FD pure" : (self.__sf_udelta_FDpure,
                                 self.__sf_YDc_FDpure),
