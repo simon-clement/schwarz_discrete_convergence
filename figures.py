@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from memoisation import memoised
 from simu1DEkman import Simu1dEkman
+from simu1DStratified import Simu1dStratified
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
 mpl.rcParams["axes.grid"] = True
@@ -18,6 +19,122 @@ mpl.rcParams["grid.alpha"] = '0.7'
 mpl.rcParams["grid.linewidth"] = '0.5'
 
 DEFAULT_z_levels = np.linspace(0, 1500, 41)
+DEFAULT_z_levels_stratified = np.linspace(0, 400, 65)
+
+def fig_verify_FDStratified():
+    """
+        Integrates for 1 day a 1D ekman equation
+        with TKE turbulence scheme.
+    """
+    z_levels = DEFAULT_z_levels_stratified
+    dt = 10.
+    N = 200 # 28*3600/10=3240
+
+    fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
+    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
+
+    def style(col, linestyle='solid', **kwargs):
+        return {"color": col, "linestyle": linestyle,
+                "linewidth":0.8, **kwargs}
+
+    # plot_FVStratified(axes, "FV pure", N=N, dt=dt,
+    #         z_levels=z_levels, name="FV pure, M=64",
+    #         style=style('g'))
+
+    # plot_FDStratified(axes, "FD pure", N=N, dt=dt,
+    #         z_levels=z_levels, name="FD pure, M=64",
+    #         style=style('r', linestyle='dashed'))
+
+    plot_FDStratified(axes, "FD2", N=N, dt=dt,
+            z_levels=z_levels, name="FD2, M=64",
+            style=style('k', linestyle='dashed'))
+
+    # plot_FVStratified(axes, "FV pure", N=N, dt=dt,
+    #         z_levels=z_levels, name="FV pure, M=64",
+    #         style=style('b'), delta_sl=z_levels[1]/2)
+
+    plot_FVStratified(axes, "FV2", N=N, dt=dt,
+            z_levels=z_levels, name="FV pure, M=64",
+            style=style('b'), delta_sl=z_levels[1])
+
+    # from fortran.visu import import_data
+    # u, z = import_data("fortran/u_final_gabls.out")
+    # v, z = import_data("fortran/v_final_gabls.out")
+    # theta, ztheta = import_data("fortran/t_final_gabls.out")
+
+    # tke, z_tke = import_data("fortran/tke_final_gabls.out")
+    # l_m, z_lm = import_data("fortran/mxl_final_gabls.out")
+    # axes[0].plot(np.sqrt(u**2+v**2), z, "--", label="fortran $|u|$")
+    # axes[1].plot(theta, ztheta, "--", label="fortran temperature")
+    # axes[2].plot(tke, z_tke, "--", label="fortran")
+    # axes[3].plot(l_m, z_lm, "--", label="fortran")
+
+    axes[0].set_ylim(top=400., bottom=0.)
+    axes[1].set_ylim(top=400., bottom=0.)
+    axes[0].set_xlabel("wind speed ($|u|, ~m.s^{-1}$)")
+    axes[0].set_ylabel("height (m)")
+    axes[1].set_xlabel(r"Temperature ($\theta$, $K$)")
+    axes[1].set_ylabel("height (m)")
+    axes[2].set_xlabel("energy (J)")
+    axes[2].set_ylabel("height (m)")
+    axes[3].set_xlabel("length scale ($l_m,~ m$)")
+    axes[3].set_ylabel("height (m)")
+    axes[0].legend(loc="upper right")
+    axes[1].legend(loc="upper right")
+    axes[2].legend(loc="upper right")
+    show_or_save("fig_verify_FDFVStratified")
+
+def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
+        z_levels=DEFAULT_z_levels_stratified, delta_sl=None,
+        name=None, style={}):
+    if name is None:
+        name = sf_scheme
+    if delta_sl is None:
+        delta_sl = z_levels[1]/2
+
+    M = z_levels.shape[0] - 1
+    simulator = Simu1dStratified(z_levels=z_levels,
+            dt=dt, u_geostrophy=8.,
+            K_mol=1e-4, C_D=1e-3, f=1.39e-4)
+    u_0 = 8*np.ones(M)
+    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
+    SST = np.concatenate(([265],
+        [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
+
+    u, phi, TKE, ustar, temperature, dz_theta, l_m = \
+            simulator.FV(u_t0=u_0, phi_t0=np.zeros(M+1),
+                    SST=SST, sf_scheme=sf_scheme,
+                    forcing=forcing, delta_sl=delta_sl)
+
+    z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
+            dz_theta, sf_scheme, delta_sl=delta_sl, SST=SST[-1])
+
+    axes[0].semilogy(np.abs(u_fv), z_fv, **style)
+    axes[1].semilogy(theta_fv, z_fv, **style)
+    axes[2].semilogy(TKE, simulator.z_full, **style, label=name)
+    axes[3].semilogy(l_m, simulator.z_full, **style)
+
+def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
+        z_levels=DEFAULT_z_levels_stratified,
+        name=None, style={}):
+    if name is None:
+        name = sf_scheme
+    M = z_levels.shape[0] - 1
+    simulator = Simu1dStratified(z_levels=z_levels,
+            dt=dt, u_geostrophy=8.,
+            K_mol=1e-4, C_D=1e-3, f=1.39e-4)
+    u_0 = 8*np.ones(M)
+    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
+    SST = np.concatenate(([265],
+        [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
+    u, TKE, ustar, temperature, l_m = simulator.FD(u_t0=u_0, SST=SST,
+            sf_scheme=sf_scheme, forcing=forcing)
+
+    axes[0].semilogy(np.abs(u), simulator.z_half[:-1], **style)
+    axes[1].semilogy(temperature, simulator.z_half[:-1], **style)
+    axes[2].semilogy(TKE, simulator.z_full, **style, label=name)
+    # axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
+    axes[3].semilogy(l_m, simulator.z_full, **style)
 
 def plot_FD(axes, sf_scheme, dt=60., N=1680,
         z_levels=DEFAULT_z_levels, name=None, style={}):
