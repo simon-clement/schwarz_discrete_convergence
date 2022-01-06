@@ -332,20 +332,21 @@ class Simu1dEkman():
 
         if sf_scheme in {"FV1 free", "FV2 free"}:
             # between the log profile and the next grid level:
-            h_tilde = self.z_full[k1+1] - delta_sl
-            assert 0 < h_tilde <= self.h_half[k1]
-            xi = np.linspace(-h_tilde/2, h_tilde/2, 10)
+            tilde_h = self.z_full[k1+1] - delta_sl
+            assert 0 < tilde_h <= self.h_half[k1]
+            xi = np.linspace(-tilde_h/2, tilde_h/2, 10)
             zk = self.z_full[k1]
-            tau_sl = 1+self.z_star/delta_sl - \
+            tau_sl = delta_sl/self.h_half[k1]*(1+self.z_star/delta_sl - \
                             1/np.log(1+delta_sl/self.z_star) \
                     + (zk - (zk+self.z_star)*np.log(1+zk/self.z_star)) \
-                    / (delta_sl * np.log(1+delta_sl/self.z_star))
-            u_tilde = 1/(1+tau_sl) * (u_bar[k1] + h_tilde * tau_sl * \
+                    / (delta_sl * np.log(1+delta_sl/self.z_star)))
+            alpha_sl = tilde_h/self.h_half[k1] + tau_sl
+            u_tilde = 1/alpha_sl * (u_bar[k1] + tilde_h * tau_sl * \
                     (phi[k1]/3 + phi[k1+1]/6))
             u_freepart = u_tilde + (phi[k1+1] + phi[k1]) * xi/2 \
-                    + (phi[k1+1] - phi[k1]) / (2 * h_tilde) * \
-                    (xi**2 - h_tilde**2/12)
-            z_freepart = delta_sl + xi + h_tilde / 2
+                    + (phi[k1+1] - phi[k1]) / (2 * tilde_h) * \
+                    (xi**2 - tilde_h**2/12)
+            z_freepart = delta_sl + xi + tilde_h / 2
 
         return np.concatenate((z_log, z_freepart, z_oversampled[k2:])), \
                 np.concatenate((u_log, u_freepart, u_oversampled[k2:]))
@@ -562,21 +563,24 @@ class Simu1dEkman():
 
     def __sf_udelta_FVfree(self, prognostic, delta_sl, **_):
         tilde_h = self.z_full[1] - delta_sl
-        tau_sl = 1+self.z_star/delta_sl - 1/np.log(1+delta_sl/self.z_star)
-        return (prognostic[0] - tilde_h * \
-                (prognostic[2]/6 + prognostic[1]/3))/(1+tau_sl)
+        h = self.h_half[0]
+        tau_sl = (delta_sl+self.z_star)/h - \
+                delta_sl / h / np.log(1+delta_sl/self.z_star)
+        return (prognostic[0] - tilde_h * tilde_h/h * \
+                (prognostic[2]/6 + prognostic[1]/3)) \
+                /(tilde_h/h + tau_sl)
 
     def __sf_udelta_FV2free(self, prognostic, delta_sl, **_):
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         zk = self.z_full[k]
         tilde_h = self.z_full[k+1] - delta_sl
-        tau_sl = 1+self.z_star/delta_sl - \
+        tau_sl = delta_sl/self.h_half[k]*(1+self.z_star/delta_sl - \
                         1/np.log(1+delta_sl/self.z_star) + \
                 (zk - (zk+self.z_star)*np.log(1+zk/self.z_star)) \
-                / (delta_sl * np.log(1+delta_sl/self.z_star))
-        return (prognostic[k] - tilde_h * \
+                / (delta_sl * np.log(1+delta_sl/self.z_star)))
+        return (prognostic[k] - tilde_h*tilde_h/self.h_half[k] * \
                 (prognostic[k+1] / 3 + prognostic[k+2] / 6)) \
-                / (1+tau_sl)
+                / (tilde_h/self.h_half[k]+tau_sl)
 
     ####### DEFINITION OF SF SCHEMES : FIRST LINES OF Y,D,c #####
     # each method must return Y, D, c:
@@ -645,49 +649,54 @@ class Simu1dEkman():
         return Y, D, c
 
     def __sf_YDc_FVfree(self, K, forcing, ustar, un, delta_sl, **_):
-        tau_sl = 1+self.z_star/delta_sl - 1/np.log(1+delta_sl/self.z_star)
         tilde_h = self.z_full[1] - delta_sl
-        Y = ((1/(1+tau_sl), tilde_h / 6 / self.h_full[1]),
-                (0., tilde_h*tau_sl/3/(1+tau_sl),
-                    tilde_h/3/self.h_full[1] + \
+        tau_sl = (delta_sl+self.z_star)/self.h_half[0] - \
+                delta_sl / self.h_half[0] / np.log(1+delta_sl/self.z_star)
+        alpha_sl = tilde_h/self.h_half[0] + tau_sl
+        Y = ((1, tilde_h / 6 / self.h_full[1]),
+                (0., tilde_h*tau_sl/3, tilde_h/3/self.h_full[1] + \
                             self.h_half[1]/3/self.h_full[1]),
-                (0., tilde_h*tau_sl/6/(1+tau_sl),
+                (0., tilde_h*tau_sl/6,
                     self.h_half[1]/6/self.h_full[1]))
 
         D = ((0., K[0]/tilde_h/self.h_full[1]),
-                (1., -K[0] / tilde_h,
+                (-1., -K[0]*alpha_sl / tilde_h,
                     -K[1]/tilde_h/self.h_full[1] - \
                             K[1] / self.h_half[1] / self.h_full[1]),
-                (-K[0]*np.abs(un)*(1+tau_sl)/ustar**2 - tilde_h/3,
-                    K[1]/tilde_h, K[2]/self.h_full[1]/self.h_half[1]),
-                (-tilde_h/6, 0.))
-        c = (0., forcing[0], (forcing[1] - forcing[0])/self.h_full[1])
+                (K[0]*alpha_sl*np.abs(un)/ustar**2 + \
+                        tilde_h**2/3/self.h_half[0],
+                    K[1]*alpha_sl/tilde_h, K[2]/self.h_full[1]/self.h_half[1]),
+                (tilde_h**2/6/self.h_half[0], 0.))
+        c = (0., forcing[0]*alpha_sl,
+                (forcing[1] - forcing[0])/self.h_full[1])
         return Y, D, c
 
     def __sf_YDc_FV2free(self, K, forcing, ustar, un, delta_sl, **_):
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         zk = self.z_full[k]
         tilde_h = self.z_full[k+1] - delta_sl
-        tau_sl = 1+self.z_star/delta_sl - \
+        tau_sl = delta_sl/self.h_half[k]*(1+self.z_star/delta_sl - \
                         1/np.log(1+delta_sl/self.z_star) + \
                 (zk - (zk+self.z_star)*np.log(1+zk/self.z_star)) \
-                / (delta_sl * np.log(1+delta_sl/self.z_star))
+                / (delta_sl * np.log(1+delta_sl/self.z_star)))
+        alpha_sl = tilde_h/self.h_half[k] + tau_sl
 
-        Y = ((1/(1+tau_sl), tilde_h / 6 / self.h_full[k+1]),
-                (0., tilde_h*tau_sl/3/(1+tau_sl),
+        Y = ((1, tilde_h / 6 / self.h_full[k+1]),
+                (0., tilde_h*tau_sl/3,
                     tilde_h/3/self.h_full[k+1] + \
                             self.h_half[k+1]/3/self.h_full[k+1]),
-                (0., tilde_h*tau_sl/6/(1+tau_sl),
+                (0., tilde_h*tau_sl/6,
                     self.h_half[k+1]/6/self.h_full[k+1]))
 
         D = ((0., K[k+0]/tilde_h/self.h_full[k+1]),
-                (1., -K[k+0] / tilde_h,
+                (-1., -alpha_sl*K[k+0] / tilde_h,
                     -K[k+1]/tilde_h/self.h_full[k+1] - \
                             K[k+1] / self.h_half[k+1] / self.h_full[k+1]),
-                (-K[k+0]*np.abs(un)*(1+tau_sl)/ustar**2 - tilde_h/3,
-                    K[k+1]/tilde_h, K[k+2]/self.h_full[k+1]/self.h_half[k+1]),
-                (-tilde_h/6, 0.))
-        c = (0., forcing[k+0],
+                (K[k+0]*np.abs(un)*alpha_sl/ustar**2 + \
+                        tilde_h**2 / 3 / self.h_half[k],
+                    alpha_sl * K[k+1]/tilde_h, K[k+2]/self.h_full[k+1]/self.h_half[k+1]),
+                (tilde_h**2 / 6 / self.h_half[k], 0.))
+        c = (0., forcing[k+0]*alpha_sl,
                 (forcing[k+1] - forcing[k+0])/self.h_full[k+1])
         Y = (np.concatenate((np.zeros(k), y)) for y in Y)
         f = lambda z: (z+self.z_star)*np.log(1+z/self.z_star) - z

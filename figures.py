@@ -173,18 +173,24 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
         k = bisect.bisect_right(z_levels[1:], delta_sl)
         zk = z_levels[k]
         h_tilde = z_levels[k+1] - delta_sl
-        tau_sl = 1+z_star/delta_sl - \
+        h_kp12 = z_levels[k+1] - z_levels[k]
+        tau_sl = (delta_sl / (h_kp12))*(1+z_star/delta_sl - \
                         1/np.log(1+delta_sl/z_star) \
                 + (zk - (zk+z_star)*np.log(1+zk/z_star)) \
-                / (delta_sl * np.log(1+delta_sl/z_star))
+                / (delta_sl * np.log(1+delta_sl/z_star)))
 
         u_constant = 10.
-        u_deltasl = 10. # approximation
-        phi_0[k] = np.abs(u_deltasl) / (z_star+delta_sl) / \
-                np.log(1+delta_sl/z_star)
-        u_tilde = u_constant - h_tilde/6 * phi_0[k]
+        u_deltasl = 10. # first guess before the iterations
+        for _ in range(5):
+            phi_0[k] = u_deltasl / (z_star+delta_sl) / \
+                    np.log(1+delta_sl/z_star)
+            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_constant
+            # (subgrid reconstruction at the top of the volume)
+            u_tilde = u_constant - h_tilde/6 * phi_0[k]
+            u_deltasl = u_tilde - h_tilde / 3 * phi_0[k]
 
-        u_0[k] = (1+tau_sl) * u_tilde - tau_sl*h_tilde*phi_0[k]/3
+        alpha_sl = h_tilde/h_kp12 + tau_sl
+        u_0[k] = alpha_sl * u_tilde - tau_sl*h_tilde*phi_0[k]/3
 
     u, phi, TKE, ustar = simulator.FV(u_t0=u_0[:-1],
             phi_t0=phi_0, sf_scheme=sf_scheme,
@@ -193,10 +199,10 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     z_fv, u_fv = simulator.reconstruct_FV(u,
             phi, sf_scheme, delta_sl=delta_sl)
 
-    axes[0].plot(np.real(u_fv), z_fv, **style)
-    axes[1].plot(np.imag(u_fv), z_fv, **style)
-    axes[2].plot(TKE, simulator.z_half, **style, label=name)
-    axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
+    axes[0].semilogy(np.real(u_fv), z_fv, **style)
+    axes[1].semilogy(np.imag(u_fv), z_fv, **style)
+    axes[2].semilogy(TKE, simulator.z_half, **style, label=name)
+    axes[3].semilogy(dt*np.array(range(len(ustar))), ustar, **style)
 
 def fig_verify_FDFV():
     """
@@ -217,11 +223,14 @@ def fig_verify_FDFV():
         return {"color": col, "linestyle": linestyle,
                 "linewidth":0.8, **kwargs}
 
-    plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-            name="FD, M=40", style=style('r'))
-    plot_FV(axes, "FV2 free", delta_sl=z_levels[1]/2,
+    # plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
+    #         name="FD, M=40", style=style('r'))
+    plot_FV(axes, "FV2", delta_sl=z_levels[1],
             N=N, dt=dt, z_levels=z_levels,
-            name="FV1, M=40", style=style('b'))
+            name="FV2, M=40", style=style('b'))
+    plot_FV(axes, "FV1 free", delta_sl=z_levels[1]*0.99,
+            N=N, dt=dt, z_levels=z_levels,
+            name=r"FV1 free, M=40, $\delta_{sl}=0.99z_1$", style=style('r', linestyle='dashed'))
 
     axes[0].set_ylim(top=1500., bottom=0.)
     axes[1].set_ylim(top=1500., bottom=0.)
