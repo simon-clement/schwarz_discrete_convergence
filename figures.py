@@ -21,6 +21,46 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 DEFAULT_z_levels = np.linspace(0, 1500, 41)
 DEFAULT_z_levels_stratified = np.linspace(0, 400, 65)
 
+def fig_verify_FVfreeStrat():
+    """
+        Integrates for 1 day a 1D ekman stratified equation
+        with TKE turbulence scheme.
+        compares FV free with FV2.
+    """
+    z_levels = DEFAULT_z_levels_stratified
+    dt = 10.
+    N = 3240 # 28*3600/10=3240
+
+    fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
+    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
+
+    def style(col, linestyle='solid', **kwargs):
+        return {"color": col, "linestyle": linestyle,
+                "linewidth":0.8, **kwargs}
+
+    sf_scheme = "FV2"
+    plot_FVStratified(axes, sf_scheme, N=N, dt=dt,
+            z_levels=z_levels, name=sf_scheme,
+            style=style('b'), delta_sl=z_levels[1])
+
+    plot_FVStratified(axes, "FV free", N=N, dt=dt,
+            z_levels=z_levels, name=r"FV free, $\delta_{sl}=z_1$",
+            style=style('r', linestyle='dashed'),
+            delta_sl=z_levels[1]*0.99)
+
+    axes[0].set_ylim(top=400.)
+    axes[1].set_ylim(top=400.)
+    axes[0].set_xlabel("wind speed ($|u|, ~m.s^{-1}$)")
+    axes[0].set_ylabel("height (m)")
+    axes[1].set_xlabel(r"Temperature ($\theta$, $K$)")
+    axes[1].set_ylabel("height (m)")
+    axes[2].set_xlabel("energy (J)")
+    axes[2].set_ylabel("height (m)")
+    axes[3].set_xlabel("length scale ($l_m,~ m$)")
+    axes[3].set_ylabel("height (m)")
+    axes[2].legend(loc="upper right")
+    show_or_save("fig_verify_FVfreeStrat")
+
 def fig_verify_FDStratified():
     """
         Integrates for 1 day a 1D ekman equation
@@ -28,7 +68,7 @@ def fig_verify_FDStratified():
     """
     z_levels = DEFAULT_z_levels_stratified
     dt = 10.
-    N = 200 # 28*3600/10=3240
+    N = 3240 # 28*3600/10=3240
 
     fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
@@ -97,17 +137,44 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
             dt=dt, u_geostrophy=8.,
             K_mol=1e-4, C_D=1e-3, f=1.39e-4)
     u_0 = 8*np.ones(M)
+    phi_0 = np.zeros(M+1)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     SST = np.concatenate(([265],
         [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
 
-    u, phi, TKE, ustar, temperature, dz_theta, l_m = \
-            simulator.FV(u_t0=u_0, phi_t0=np.zeros(M+1),
+    if sf_scheme in {"FV1 free", "FV2 free", "FV free"}:
+        k = bisect.bisect_right(z_levels[1:], delta_sl)
+        zk = z_levels[k]
+        h_tilde = z_levels[k+1] - delta_sl
+        h_kp12 = z_levels[k+1] - z_levels[k]
+        z_star = 1e-1
+        neutral_tau_sl = (delta_sl / (h_kp12))* \
+                (1+z_star/delta_sl - 1/np.log(1+delta_sl/z_star) \
+                + (zk - (zk+z_star)*np.log(1+zk/z_star)) \
+                / (delta_sl * np.log(1+delta_sl/z_star)))
+
+        u_constant = 8.
+        u_deltasl = 8. # first guess before the iterations
+        for _ in range(5):
+            phi_0[k] = u_deltasl / (z_star+delta_sl) / \
+                    np.log(1+delta_sl/z_star)
+            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_constant
+            # (subgrid reconstruction at the top of the volume)
+            u_tilde = u_constant - h_tilde/6 * phi_0[k]
+            u_deltasl = u_tilde - h_tilde / 3 * phi_0[k]
+
+        alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
+        u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
+
+
+    u, phi, TKE, ustar, temperature, dz_theta, l_m, inv_L_MO = \
+            simulator.FV(u_t0=u_0, phi_t0=phi_0,
                     SST=SST, sf_scheme=sf_scheme,
                     forcing=forcing, delta_sl=delta_sl)
 
     z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
-            dz_theta, sf_scheme, delta_sl=delta_sl, SST=SST[-1])
+            dz_theta, inv_L_MO=inv_L_MO,
+            sf_scheme=sf_scheme, delta_sl=delta_sl, SST=SST[-1])
 
     axes[0].semilogy(np.abs(u_fv), z_fv, **style)
     axes[1].semilogy(theta_fv, z_fv, **style)
