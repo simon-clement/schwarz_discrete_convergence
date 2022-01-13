@@ -44,9 +44,13 @@ def fig_verify_FVfreeStrat():
             style=style('b'), delta_sl=z_levels[1])
 
     plot_FVStratified(axes, "FV free", N=N, dt=dt,
-            z_levels=z_levels, name=r"FV free, $\delta_{sl}=z_1$",
+            z_levels=z_levels, name=r"FV free, $\delta_{sl}<z_1$",
             style=style('r', linestyle='dashed'),
-            delta_sl=z_levels[1]*0.99)
+            delta_sl=z_levels[1]*0.7)
+
+    # plot_FDStratified(axes, "FD2", N=N, dt=dt,
+    #         z_levels=z_levels, name="FD2, M=64",
+    #         style=style('k', linestyle='dashed'))
 
     axes[0].set_ylim(top=400.)
     axes[1].set_ylim(top=400.)
@@ -179,7 +183,7 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
     axes[0].semilogy(np.abs(u_fv), z_fv, **style)
     axes[1].semilogy(theta_fv, z_fv, **style)
     axes[2].semilogy(TKE, simulator.z_full, **style, label=name)
-    axes[3].semilogy(l_m, simulator.z_full, **style)
+    # axes[3].semilogy(l_m, simulator.z_full, **style)
 
 def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
         z_levels=DEFAULT_z_levels_stratified,

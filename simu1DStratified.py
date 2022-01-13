@@ -97,8 +97,8 @@ class Simu1dStratified():
             SST:array, sf_scheme: str="FV pure",
             turbulence: str="TKE", delta_sl: float=None) -> array:
         """
-            Integrates in time with Backward Euler the model with KPP
-            and Finite differences.
+            Integrates in time with Backward Euler the model with TKE
+            and Finite volumes.
 
             u_t0 should be given at half-levels (follow self.z_half)
             phi_t0 should be given at full-levels (follow self.z_full)
@@ -118,7 +118,6 @@ class Simu1dStratified():
         """
         assert u_t0.shape[0] == self.M and phi_t0.shape[0] == self.M + 1
         assert forcing.shape[1] == self.M
-        TKE_FV = True
         N: int = forcing.shape[0] - 1 # number of time steps
         func_un, _ = self.dictsf_scheme[sf_scheme]
         func_theta, _ = self.dictsf_scheme_theta[sf_scheme]
@@ -137,8 +136,6 @@ class Simu1dStratified():
                 self.z_full[self.z_full <= 250] / 250)**3
         dz_tke = self.__compute_dz_tke(tke_full, tke, delta_sl, k)
         h_tilde = self.z_full[k+1] - delta_sl
-        if not TKE_FV:
-            tke = tke_full
 
         businger = Businger_et_al_1971()
 
@@ -201,8 +198,7 @@ class Simu1dStratified():
                     old_phi=old_phi, l_m=l_m, l_eps=l_eps,
                     K_full=Ku_full, tke=tke, dz_tke=dz_tke,
                     dz_theta=dz_theta, Ktheta_full=Ktheta_full,
-                    universal_funcs=businger, inv_L_MO=inv_L_MO,
-                    TKE_FV=TKE_FV)
+                    universal_funcs=businger, inv_L_MO=inv_L_MO)
 
 
             Y, D, c = self.__matrices_u_FV(Ku_full, forcing_current)
@@ -269,18 +265,8 @@ class Simu1dStratified():
                     universal_funcs=businger,
                     SST=SST_current)
 
-        if TKE_FV:
-            tke_full = np.concatenate((
-                [tke[0] - self.h_half[0]*dz_tke[0]*5/12 - \
-                        self.h_half[0]*dz_tke[1]/12],
-                tke + self.h_half[:-1]*dz_tke[1:]*5/12 + \
-                        self.h_half[:-1]*dz_tke[:-1]/12))
-            e_sl = np.maximum(u_star**2/np.sqrt(self.C_m*self.c_eps),
-                                    self.e_min)
-            tke_full[:k+1] = e_sl
-            tke_full[k+1] = tke[k] + \
-                    h_tilde*(dz_tke[k+1]*5 + dz_tke[k])/12
-            tke = tke_full
+        tke = self.__compute_tke_full(tke, dz_tke, u_star,
+                delta_sl, k)
         return u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_m, inv_L_MO
 
@@ -366,6 +352,19 @@ class Simu1dStratified():
             theta, old_theta = next_theta, theta
 
         return u_current, tke, all_u_star, theta, l_m
+
+    def __compute_tke_full(self, tke, dz_tke, u_star, delta_sl, k):
+        tke_full = np.concatenate((
+            [tke[0] - self.h_half[0]*dz_tke[0]*5/12 - \
+                    self.h_half[0]*dz_tke[1]/12],
+            tke + self.h_half[:-1]*dz_tke[1:]*5/12 + \
+                    self.h_half[:-1]*dz_tke[:-1]/12))
+        e_sl = np.maximum(u_star**2/np.sqrt(self.C_m*self.c_eps),
+                                self.e_min)
+        tke_full[:k+1] = e_sl
+        tke_full[k+1] = tke[k] + (self.z_full[k+1] - delta_sl) * \
+                (dz_tke[k+1]*5 + dz_tke[k])/12
+        return tke_full
 
     def __compute_dz_tke(self, tke_full, tke, delta_sl, k):
         """ solving the system:
@@ -539,14 +538,8 @@ class Simu1dStratified():
                 solve_linear((lldiag, ldiag, diag, udiag, uudiag),
                                 rhs))
 
-        tke_full = np.concatenate((
-            [tke[0] - self.h_half[0]*dz_tke[0]*5/12 - \
-                    self.h_half[0]*dz_tke[1]/12],
-            tke + self.h_half[:-1]*dz_tke[1:]*5/12 + \
-                    self.h_half[:-1]*dz_tke[:-1]/12))
-        tke_full[:k+1] = e_sl
-        tke_full[k+1] = tke[k] + \
-                h_tilde*(dz_tke[k+1]*5 + dz_tke[k])/12
+        tke_full = self.__compute_tke_full(tke, dz_tke, u_star,
+                    delta_sl, k)
         return tke, dz_tke, tke_full
 
     def __integrate_tke(self, tke, shear, K_full, delta_sl, u_star,
@@ -872,8 +865,7 @@ class Simu1dStratified():
             K_full=None, tke=None, dz_tke=None,
             l_m=None, l_eps=None,
             dz_theta=None, Ktheta_full=None,
-            universal_funcs=None, inv_L_MO=None,
-            TKE_FV=True):
+            universal_funcs=None, inv_L_MO=None):
         """
             Computes the turbulent viscosity on full levels K_full.
             It differs between FD and FV because of the
@@ -902,28 +894,19 @@ class Simu1dStratified():
 
             g, theta_ref = 9.81, 283.
 
-            if TKE_FV:
-                tke[:], dz_tke[:], tke_full = \
-                        self.__integrate_tke_FV(tke, dz_tke,
-                        shear=shear, K_full=K_full,
-                        delta_sl=delta_sl, u_star=u_star,
-                        l_eps=l_eps, N2=g/theta_ref * dz_theta,
-                        Ktheta_full=Ktheta_full)
+            tke[:], dz_tke[:], tke_full = \
+                    self.__integrate_tke_FV(tke, dz_tke,
+                    shear=shear, K_full=K_full,
+                    delta_sl=delta_sl, u_star=u_star,
+                    l_eps=l_eps, N2=g/theta_ref * dz_theta,
+                    Ktheta_full=Ktheta_full)
 
-                if (tke_full < self.e_min).any() or \
-                        (tke < self.e_min).any():
-                    tke_full = np.maximum(tke_full, self.e_min)
-                    tke = np.maximum(tke, self.e_min)
-                    dz_tke = self.__compute_dz_tke(tke_full, tke,
-                                    delta_sl, k)
-            else:
-                tke[:] = np.maximum(self.e_min,
-                        self.__integrate_tke(tke, shear, K_full,
-                        delta_sl=delta_sl, u_star=u_star,
-                        l_eps=l_eps, N2=g/theta_ref * dz_theta,
-                        Ktheta_full=Ktheta_full))
-                tke_full = tke
-
+            if (tke_full < self.e_min).any() or \
+                    (tke < self.e_min).any():
+                tke_full = np.maximum(tke_full, self.e_min)
+                tke = np.maximum(tke, self.e_min)
+                dz_tke = self.__compute_dz_tke(tke_full, tke,
+                                delta_sl, k)
 
             l_m[:], l_eps[:] = self.mixing_lengths(tke_full,
                     shear/K_full, g/theta_ref*dz_theta)
