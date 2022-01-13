@@ -94,7 +94,7 @@ def fig_verify_FDStratified():
     #         style=style('b'), delta_sl=z_levels[1]/2)
 
     plot_FVStratified(axes, "FV2", N=N, dt=dt,
-            z_levels=z_levels, name="FV pure, M=64",
+            z_levels=z_levels, name="FV2, M=64",
             style=style('b'), delta_sl=z_levels[1])
 
     # from fortran.visu import import_data

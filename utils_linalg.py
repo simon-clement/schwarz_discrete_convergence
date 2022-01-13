@@ -160,3 +160,6 @@ def solve_linear_with_ultra_right(Y, f):
     Y = np.vstack((Y_3, Y_2, Y_1, Y_0))
     from scipy.linalg import solve_banded
     return solve_banded((1, 2), Y, f)
+
+def full_to_half(var_full: np.ndarray):
+    return (var_full[1:] + var_full[:-1])/2
