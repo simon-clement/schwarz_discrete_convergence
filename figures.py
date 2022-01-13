@@ -171,14 +171,13 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
         u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
 
 
-    u, phi, TKE, ustar, temperature, dz_theta, l_m, inv_L_MO = \
+    u, phi, TKE, ustar, temperature, dz_theta, l_m, SL = \
             simulator.FV(u_t0=u_0, phi_t0=phi_0,
                     SST=SST, sf_scheme=sf_scheme,
                     forcing=forcing, delta_sl=delta_sl)
 
     z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
-            dz_theta, inv_L_MO=inv_L_MO,
-            sf_scheme=sf_scheme, delta_sl=delta_sl, SST=SST[-1])
+            dz_theta, SL=SL)
 
     axes[0].semilogy(np.abs(u_fv), z_fv, **style)
     axes[1].semilogy(theta_fv, z_fv, **style)
