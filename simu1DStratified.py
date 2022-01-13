@@ -134,8 +134,7 @@ class Simu1dStratified():
         tke_full = np.ones(self.M+1)*self.e_min
         tke_full[self.z_full <= 250] = self.e_min + 0.4*(1 - \
                 self.z_full[self.z_full <= 250] / 250)**3
-        dz_tke = self.__compute_dz_tke(tke_full, tke, delta_sl, k)
-        h_tilde = self.z_full[k+1] - delta_sl
+        dz_tke = self.__compute_dz_tke(tke_full[0], tke, delta_sl, k)
 
         businger = Businger_et_al_1971()
 
@@ -366,9 +365,10 @@ class Simu1dStratified():
                 (dz_tke[k+1]*5 + dz_tke[k])/12
         return tke_full
 
-    def __compute_dz_tke(self, tke_full, tke, delta_sl, k):
-        """ solving the system:
-        tke-h*5/12phi[:-1]-h*phi[1:]/12 = tke_full[:-1]
+    def __compute_dz_tke(self, e_sl, tke, delta_sl, k):
+        """ solving the system of finite volumes:
+        phi_{m-1}/12 + 10 phi_m / 12 + phi_{m+1} / 12 = 
+                (tke_{m+1/2} - tke_{m-1/2})/h
         """
         ldiag = self.h_half[:-2] / 12.
         diag = self.h_full[1:-1] * 10./12.
@@ -377,16 +377,16 @@ class Simu1dStratified():
         diag = np.concatenate(([h_tilde*5/12], diag, [1.]))
         udiag = np.concatenate(([h_tilde*1/12], udiag))
         ldiag = np.concatenate((ldiag, [0.]))
-        rhs = np.concatenate(([tke[0]-tke_full[0]],
+        rhs = np.concatenate(([tke[0]-e_sl],
             np.diff(tke), [0.]))
         old_diag, old_udiag, old_ldiag, old_rhs = diag, udiag, ldiag, rhs
         # GRID LEVEL k-1 AND BELOW: dz_tke=0:
         diag[:k], udiag[:k] = 1., 0.
         rhs[:k] = 0.
-        # GRID LEVEL k : tke(z=delta_sl) = tke_full[k]
+        # GRID LEVEL k : tke(z=delta_sl) = e_sl
         ldiag[:k] = 0. # ldiag[k-1] is for cell k
         diag[k], udiag[k] = h_tilde*5/12., h_tilde/12.
-        rhs[k] = tke[k] - tke_full[k]
+        rhs[k] = tke[k] - e_sl
         if k == 0:
             assert np.linalg.norm(old_diag - diag) == 0.
             assert np.linalg.norm(old_udiag - udiag) == 0.
@@ -905,8 +905,8 @@ class Simu1dStratified():
                     (tke < self.e_min).any():
                 tke_full = np.maximum(tke_full, self.e_min)
                 tke = np.maximum(tke, self.e_min)
-                dz_tke = self.__compute_dz_tke(tke_full, tke,
-                                delta_sl, k)
+                dz_tke = self.__compute_dz_tke(tke_full[0],
+                                    tke, delta_sl, k)
 
             l_m[:], l_eps[:] = self.mixing_lengths(tke_full,
                     shear/K_full, g/theta_ref*dz_theta)
