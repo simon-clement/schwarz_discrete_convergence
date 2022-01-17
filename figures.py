@@ -29,7 +29,7 @@ def fig_verify_FVfreeStrat():
     """
     z_levels = DEFAULT_z_levels_stratified
     dt = 10.
-    N = 324 # 28*3600/10=3240
+    N = 3240 # 28*3600/10=3240
 
     fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)

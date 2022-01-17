@@ -275,13 +275,14 @@ class Simu1dStratified():
         func_un, func_YDc = self.dictsf_scheme[SL.sf_scheme]
         prognostic: array = np.concatenate((u[:k+1], phi[k:]))
         Y, D, c = self.__matrices_u_FV(Ku_full, forcing)
+        Y_nm1 = tuple(np.copy(y) for y in Y)
         self.__apply_sf_scheme(\
                 func=func_YDc, Y=Y, D=D, c=c, K_u=Ku_full,
-                forcing=forcing, SL=SL,
+                forcing=forcing, SL=SL, SL_nm1=SL_nm1, Y_nm1=Y_nm1,
                 universal_funcs=businger())
 
         prognostic = self.__backward_euler(Y=Y, D=D, c=c,
-                u=prognostic, f=self.f)
+                u=prognostic, f=self.f, Y_nm1=Y_nm1)
 
         next_u = 1/(1+self.dt*1j*self.f*self.implicit_coriolis) * \
                 ((1 - self.dt*1j*self.f*(1-self.implicit_coriolis)) * \
@@ -309,13 +310,15 @@ class Simu1dStratified():
 
         Y_theta, D_theta, c_theta = self.__matrices_theta_FV(
                 Ktheta_full, forcing_theta)
+        Y_nm1 = tuple(np.copy(y) for y in Y_theta)
         self.__apply_sf_scheme(\
                 func=self.dictsf_scheme_theta[SL.sf_scheme][1],
-                Y=Y_theta, D=D_theta, c=c_theta,
-                K_theta=Ktheta_full, forcing=forcing_theta, 
+                Y=Y_theta, D=D_theta, c=c_theta, Y_nm1=Y_nm1,
+                K_theta=Ktheta_full, forcing=forcing_theta,
                 universal_funcs=businger(), SL=SL, SL_nm1=SL_nm1)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
-                D=D_theta, c=c_theta, u=prognostic_theta, f=0.))
+                D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
+                Y_nm1=Y_nm1))
 
         next_theta = theta + self.dt * \
                 np.diff(prognostic_theta[1:] * Ktheta_full) \
@@ -722,7 +725,7 @@ class Simu1dStratified():
 
     def __backward_euler(self, Y: Tuple[array, array, array],
                         D: Tuple[array, array, array], c: array,
-                        u: array, f:float=0.):
+                        u: array, f:float=0., Y_nm1=None):
         """
             if it's for $u$, set f=self.f otherwise f=0
             integrates once (self.dt) in time the equation
@@ -731,12 +734,14 @@ class Simu1dStratified():
             Y(1+dt*if*gamma) - D) u_np1 = Y u + dt*c + dt*if*(1-gamma)
             with gamma the coefficient of implicitation of Coriolis
         """
+        if Y_nm1 is None:
+            Y_nm1=Y
         to_inverse: Tuple[array, array, array] = add(s_mult(Y,
                                 1 + self.implicit_coriolis * \
                             self.dt * 1j*f), s_mult(D, - self.dt))
         return solve_linear(to_inverse,
                 (1 - (1 - self.implicit_coriolis) * self.dt*1j*f) * \
-                                multiply(Y, u) + self.dt*c)
+                                multiply(Y_nm1, u) + self.dt*c)
 
     def __visc_turb_FD(self, SL: SurfaceLayerData,
             turbulence: str="TKE", u_current: array=None,
@@ -1025,16 +1030,25 @@ class Simu1dStratified():
     #             for m in range(4)]))
     #     return lambda_s, lambda_m
 
-    def __apply_sf_scheme(self, func, Y, D, c, **kwargs):
+    def __apply_sf_scheme(self, func, Y, D, c,
+            Y_nm1=None, **kwargs):
         """
             Changes matrices Y, D, c on the first levels
             to use the surface flux scheme.
             _, func = self.dictsf_scheme[sf_scheme]
         """
-        Y_sf, D_sf, c_sf = func(**kwargs)
+        Y_sf, D_sf, c_sf, Y_nm1_sf = func(**kwargs)
         for y, y_sf in zip(Y, Y_sf):
             y_sf = np.array(y_sf)
             y[:y_sf.shape[0]] = y_sf
+
+        if Y_nm1 is not None:
+            for y, y_sf in zip(Y_nm1, Y_nm1_sf):
+                y_sf = np.array(y_sf)
+                y[:y_sf.shape[0]] = y_sf
+        else:
+            assert Y_nm1_sf is Y_sf
+
         for d, d_sf in zip(D, D_sf):
             d_sf = np.array(d_sf)
             d[:d_sf.shape[0]] = d_sf
@@ -1142,7 +1156,7 @@ class Simu1dStratified():
                 u_star**2 / np.abs(u_delta)/self.h_half[0], ),
                 (K_u[1]/self.h_full[1]/self.h_half[0],))
         c = (forcing[0],)
-        return Y, D, c
+        return Y, D, c, Y
 
     def __sf_YDc_FD2(self, K_u, SL, **_):
         u_star, u_delta = SL.u_star, SL.u_delta
@@ -1150,7 +1164,7 @@ class Simu1dStratified():
         D = ((), (-K_u[1]/self.h_full[1] - u_star**2 / np.abs(u_delta) / 2,),
                 (K_u[1]/self.h_full[1] - u_star**2 / np.abs(u_delta) / 2,))
         c = (0.,)
-        return Y, D, c
+        return Y, D, c, Y
 
     def __sf_YDc_FVpure(self, K_u, forcing, SL, **_):
         u_star, u_delta = SL.u_star, SL.u_delta
@@ -1160,7 +1174,7 @@ class Simu1dStratified():
                     K_u[1]/self.h_half[0]),
                 (-self.h_half[0]/24,))
         c = (0., forcing[0])
-        return Y, D, c
+        return Y, D, c, Y
 
     def __sf_YDc_FV1(self, K_u, forcing, SL, **_):
         u_star, u_delta = SL.u_star, SL.u_delta
@@ -1168,7 +1182,7 @@ class Simu1dStratified():
         D = ((0.,), (1, -K_u[0] / self.h_half[0]),
                 (-K_u[0]*np.abs(u_delta)/u_star**2, K_u[1]/self.h_half[0]))
         c = (0., forcing[0])
-        return Y, D, c
+        return Y, D, c, Y
 
     def __sf_YDc_FV2(self, K_u, forcing, SL, universal_funcs, **_):
         u_star, u_delta, t_star, t_delta = SL.u_star, \
@@ -1190,32 +1204,43 @@ class Simu1dStratified():
                         self.h_half[1]/3, K_u[2]/self.h_half[1]),
                 (0., -self.h_half[1]/6))
         c = (0., 0., forcing[1])
-        return Y, D, c
+        return Y, D, c, Y
 
-    def __sf_YDc_FVfree(self, K_u, forcing, universal_funcs, SL, **_):
+    def __sf_YDc_FVfree(self, K_u, forcing, universal_funcs,
+            SL, SL_nm1, **_):
         u_star, u_delta, delta_sl, inv_L_MO = SL.u_star, \
                 SL.u_delta, SL.delta_sl, SL.inv_L_MO
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         tilde_h = self.z_full[k+1] - delta_sl
         tau_slu, _ = self.__tau_sl(SL, universal_funcs)
         alpha_sl = tilde_h/self.h_half[k] + tau_slu
+        tau_slu_nm1, _ = self.__tau_sl(SL_nm1, universal_funcs)
+        alpha_sl_nm1 = tilde_h/self.h_half[k] + tau_slu_nm1
+        # note that delta_sl is assumed constant here.
+        # its variation would need much more changes.
 
-        Y = ((1, tilde_h / 6 / self.h_full[k+1]),
-                (0., tilde_h*tau_slu/3,
+        Y = ((1/alpha_sl, tilde_h / 6 / self.h_full[k+1]),
+                (0., tilde_h*tau_slu/3/alpha_sl,
                     tilde_h/3/self.h_full[k+1] + \
                             self.h_half[k+1]/3/self.h_full[k+1]),
-                (0., tilde_h*tau_slu/6,
+                (0., tilde_h*tau_slu/6/alpha_sl,
+                    self.h_half[k+1]/6/self.h_full[k+1]))
+        Y_nm1 = ((1/alpha_sl_nm1, tilde_h / 6 / self.h_full[k+1]),
+                (0., tilde_h*tau_slu_nm1/3/alpha_sl_nm1,
+                    tilde_h/3/self.h_full[k+1] + \
+                            self.h_half[k+1]/3/self.h_full[k+1]),
+                (0., tilde_h*tau_slu_nm1/6/alpha_sl_nm1,
                     self.h_half[k+1]/6/self.h_full[k+1]))
 
         D = ((0., K_u[k+0]/tilde_h/self.h_full[k+1]),
-                (-1., -alpha_sl*K_u[k+0] / tilde_h,
+                (-1., -K_u[k+0] / tilde_h,
                     -K_u[k+1]/tilde_h/self.h_full[k+1] - \
                             K_u[k+1] / self.h_half[k+1] / self.h_full[k+1]),
                 (K_u[k+0]*np.abs(u_delta)*alpha_sl/u_star**2 + \
                         tilde_h**2 / 3 / self.h_half[k],
-                    alpha_sl * K_u[k+1]/tilde_h, K_u[k+2]/self.h_full[k+1]/self.h_half[k+1]),
+                    K_u[k+1]/tilde_h, K_u[k+2]/self.h_full[k+1]/self.h_half[k+1]),
                 (tilde_h**2 / 6 / self.h_half[k], 0.))
-        c = (0.+0j, forcing[k+0]*alpha_sl,
+        c = (0.+0j, forcing[k+0],
                 (forcing[k+1] - forcing[k+0])/self.h_full[k+1])
         Y = (np.concatenate((np.zeros(k), y)) for y in Y)
 
@@ -1238,7 +1263,7 @@ class Simu1dStratified():
                 np.concatenate((ratio_norms, D[2])),
                 np.concatenate((np.zeros(k), D[3])))
         c = np.concatenate((np.zeros(k), c))
-        return Y, D, c
+        return Y, D, c, Y_nm1
 
 
     ####### DEFINITION OF SF SCHEMES : VALUE OF theta(delta_sl) ##
@@ -1274,12 +1299,15 @@ class Simu1dStratified():
 
 
     ####### DEFINITION OF SF SCHEMES : FIRST LINES OF Y,D,c (theta)
-    # each method must return Y, D, c:
-    # Y: 3-tuple of tuples of sizes (j-1, j, j)
+    # each method must return Y_n, D, c, Y_nm1:
+    # Y_*: 3-tuple of tuples of sizes (j-1, j, j)
     # D: 3-tuple of tuples of sizes (j-1, j, j)
     # c: tuple of size j
     # they represent the first j lines of the matrices.
     # for Y and D, the tuples are (lower diag, diag, upper diag)
+    # Now that Y_n and Y_nm1 can be different,
+    # the framework with Y, D and c is far less convenient.
+    # I'll change this in a future update.
     def __sf_YDc_FDpure_theta(self, K_theta, SL, **_):
         phi_stab = -7.8 * self.kappa * SL.delta_sl * 9.81*\
                     (SL.t_star / SL.t_delta) / SL.u_star**2
@@ -1290,7 +1318,7 @@ class Simu1dStratified():
                 ch_du /self.h_half[0],),
                 (K_theta[1]/self.h_full[1]/self.h_half[0],))
         c = (SL.SST*ch_du / self.h_half[0],)
-        return Y, D, c
+        return Y, D, c, Y
 
     def __sf_YDc_FD2_theta(self, K_theta, SL, **_):
         phi_stab = -7.8 * self.kappa * SL.delta_sl * 9.81*\
@@ -1300,7 +1328,7 @@ class Simu1dStratified():
         D = ((), (-K_theta[1]/self.h_full[1] - ch_du / 2,),
                 (K_theta[1]/self.h_full[1] - ch_du / 2,))
         c = (ch_du * SL.SST,)
-        return Y, D, c
+        return Y, D, c, Y
 
     def __sf_YDc_FVpure_theta(self, K_theta, SST, SL,
             universal_funcs, **_):
@@ -1315,7 +1343,7 @@ class Simu1dStratified():
                     K_theta[1]/self.h_half[0]),
                 (self.h_half[0]/24,))
         c = (SL.SST, 0.)
-        return Y, D, c
+        return Y, D, c, Y
 
     def __sf_YDc_FV2_theta(self, K_theta, SL, universal_funcs, **_):
         _, _, _, psi_h, _, Psi_h = universal_funcs
@@ -1337,36 +1365,45 @@ class Simu1dStratified():
                         self.h_half[1]/3, K_theta[2]/self.h_half[1]),
                 (0., self.h_half[1]/6))
         c = (SL.SST*(ratio_norms-1), SL.SST, 0.)
-        return Y, D, c
+        return Y, D, c, Y
 
     def __sf_YDc_FVfree_theta(self, K_theta, universal_funcs, forcing,
             SL, SL_nm1, **_):
-        SST_derivative = (SL.SST - SL_nm1.SST)/self.dt
         k = bisect.bisect_right(self.z_full[1:], SL.delta_sl)
         tilde_h = self.z_full[k+1] - SL.delta_sl
         _, _, _, psi_h, _, Psi_h = universal_funcs
         _, tau_slt = self.__tau_sl(SL, universal_funcs)
         alpha_slt = tilde_h/self.h_half[k] + tau_slt
+        _, tau_slt_nm1 = self.__tau_sl(SL_nm1, universal_funcs)
+        alpha_slt_nm1 = tilde_h/self.h_half[k] + tau_slt_nm1
         ch_du = SL.u_star * self.kappa / \
                 (np.log(1+SL.delta_sl/self.z_star) - \
                 psi_h(SL.delta_sl*SL.inv_L_MO))
 
-        Y = ((1, tilde_h / 6 / self.h_full[k+1]),
-                (0., tilde_h*tau_slt/3,
+        Y = ((1/alpha_slt, tilde_h / 6 / self.h_full[k+1]),
+                (0., tilde_h*tau_slt/3/alpha_slt,
                     tilde_h/3/self.h_full[k+1] + \
                             self.h_half[k+1]/3/self.h_full[k+1]),
-                (0., tilde_h*tau_slt/6,
+                (0., tilde_h*tau_slt/6/alpha_slt,
+                    self.h_half[k+1]/6/self.h_full[k+1]))
+        Y_nm1 = ((1/alpha_slt_nm1, tilde_h / 6 / self.h_full[k+1]),
+                (0., tilde_h*tau_slt_nm1/3/alpha_slt_nm1,
+                    tilde_h/3/self.h_full[k+1] + \
+                            self.h_half[k+1]/3/self.h_full[k+1]),
+                (0., tilde_h*tau_slt_nm1/6/alpha_slt_nm1,
                     self.h_half[k+1]/6/self.h_full[k+1]))
 
         D = ((0., K_theta[k+0]/tilde_h/self.h_full[k+1]),
-                (-1., -alpha_slt*K_theta[k+0] / tilde_h,
+                (-1., -K_theta[k+0] / tilde_h,
                     -K_theta[k+1]/tilde_h/self.h_full[k+1] - \
                             K_theta[k+1] / self.h_half[k+1] / self.h_full[k+1]),
                 (K_theta[k+0]*alpha_slt/ch_du + \
                         tilde_h**2 / 3 / self.h_half[k],
-                    alpha_slt * K_theta[k+1]/tilde_h, K_theta[k+2]/self.h_full[k+1]/self.h_half[k+1]),
+                    K_theta[k+1]/tilde_h, K_theta[k+2]/self.h_full[k+1]/self.h_half[k+1]),
                 (tilde_h**2 / 6 / self.h_half[k], 0.))
-        c = (SL.SST, forcing[k+0]*alpha_slt + (1 - alpha_slt) * SST_derivative,
+        rhs_part_tilde = (SL.SST * (1 - alpha_slt)/alpha_slt - \
+                SL_nm1.SST *(1-alpha_slt_nm1)/alpha_slt_nm1)/self.dt
+        c = (SL.SST, forcing[k+0] + rhs_part_tilde,
                 (forcing[k+1] - forcing[k+0])/self.h_full[k+1])
         Y = (np.concatenate((np.zeros(k), y)) for y in Y)
 
@@ -1386,4 +1423,4 @@ class Simu1dStratified():
                 np.concatenate((-ratio_norms, D[2])),
                 np.concatenate((np.zeros(k), D[3])))
         c = np.concatenate(((ratio_norms - 1)*SL.SST, c))
-        return Y, D, c
+        return Y, D, c, Y_nm1
