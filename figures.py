@@ -65,6 +65,57 @@ def fig_verify_FVfreeStrat():
     axes[2].legend(loc="upper right")
     show_or_save("fig_verify_FVfreeStrat")
 
+def fig_consistency_comparisonStratified():
+    """
+        Integrates for 1 day a 1D ekman equation
+        with TKE turbulence scheme.
+    """
+    z_levels = DEFAULT_z_levels_stratified
+    z_levels_les= np.linspace(0, 400, 651)
+    dt = 10.
+    N = 324 # 28*3600/10=3240
+
+    fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
+    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
+    col_FDpure = "g"
+    col_FV1 = "b"
+    col_FVfree = "r"
+    def style(col, linestyle='solid', **kwargs):
+        return {"color": col, "linestyle": linestyle,
+                "linewidth":0.8, **kwargs}
+
+    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
+            name="FD, M=65", style=style(col_FDpure, "dotted"))
+    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les,
+            name="FD, M=650", style=style(col_FDpure))
+    # plot_FVStratified(axes, "FV1", delta_sl=z_levels[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels,
+    #         name="FV1, M=65", style=style(col_FV1, "dotted"))
+    # plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels_les,
+    #         name="FV1, M=650", style=style(col_FV1))
+    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels,
+            name="FV free, M=65", style=style(col_FVfree, "dotted"))
+    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels_les,
+            name="FV free, M=650", style=style(col_FVfree))
+
+    axes[0].set_ylim(top=1500.)
+    axes[1].set_ylim(top=1500.)
+    axes[0].set_xlabel(r"wind speed ($|u|, m.s^{-1}$)")
+    axes[0].set_ylabel("height (m)")
+    axes[1].set_xlabel(r"Potential Temperature ($\theta$, K)")
+    axes[1].set_ylabel("height (m)")
+    axes[2].set_xlabel("energy (J)")
+    axes[2].set_ylabel("height (m)")
+    # axes[0].legend(loc="upper right")
+    # axes[1].legend(loc="upper right")
+    axes[2].legend(loc="upper right")
+    axes[3].set_ylabel("friction velocity (u*, $m.s^{-1}$)")
+    axes[3].set_xlabel("time (s)")
+    show_or_save("fig_consistency_comparisonStratified")
+
 def fig_verify_FDStratified():
     """
         Integrates for 1 day a 1D ekman equation
@@ -145,9 +196,10 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     SST = np.concatenate(([265],
         [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
-
+    z_tke = np.copy(simulator.z_full)
+    k = bisect.bisect_right(z_levels[1:], delta_sl)
+    z_tke[k] = delta_sl #
     if sf_scheme in {"FV1 free", "FV2 free", "FV free"}:
-        k = bisect.bisect_right(z_levels[1:], delta_sl)
         zk = z_levels[k]
         h_tilde = z_levels[k+1] - delta_sl
         h_kp12 = z_levels[k+1] - z_levels[k]
@@ -159,7 +211,7 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
 
         u_constant = 8.
         u_deltasl = 8. # first guess before the iterations
-        for _ in range(5):
+        for _ in range(15):
             phi_0[k] = u_deltasl / (z_star+delta_sl) / \
                     np.log(1+delta_sl/z_star)
             # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_constant
@@ -170,10 +222,9 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
         alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
         u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
 
-
     u, phi, TKE, ustar, temperature, dz_theta, l_m, SL = \
             simulator.FV(u_t0=u_0, phi_t0=phi_0,
-                    SST=SST, sf_scheme=sf_scheme,
+                    SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
                     forcing=forcing, delta_sl=delta_sl)
 
     z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
@@ -182,7 +233,7 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
     axes[0].semilogy(np.abs(u_fv), z_fv, **style)
     axes[1].semilogy(theta_fv, z_fv, **style)
     axes[2].semilogy(TKE, simulator.z_full, **style, label=name)
-    # axes[3].semilogy(l_m, simulator.z_full, **style)
+    axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
 
 def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
         z_levels=DEFAULT_z_levels_stratified,
@@ -203,8 +254,8 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
     axes[0].semilogy(np.abs(u), simulator.z_half[:-1], **style)
     axes[1].semilogy(temperature, simulator.z_half[:-1], **style)
     axes[2].semilogy(TKE, simulator.z_full, **style, label=name)
-    # axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
-    axes[3].semilogy(l_m, simulator.z_full, **style)
+    axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
+    # axes[3].semilogy(l_m, simulator.z_full, **style)
 
 def plot_FD(axes, sf_scheme, dt=60., N=1680,
         z_levels=DEFAULT_z_levels, name=None, style={}):
@@ -272,7 +323,7 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     axes[0].semilogy(np.real(u_fv), z_fv, **style)
     axes[1].semilogy(np.imag(u_fv), z_fv, **style)
     axes[2].semilogy(TKE, simulator.z_half, **style, label=name)
-    axes[3].semilogy(dt*np.array(range(len(ustar))), ustar, **style)
+    axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
 
 def fig_verify_FDFV():
     """
@@ -333,30 +384,29 @@ def fig_consistency_comparison():
 
     fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
-    sf_scheme_FV = "FV2 free"
-    col_FDpure = "#488f31"
-    col_FV1 = "#acb75b"
-    col_FVfree = "#de425b"
+    col_FDpure = "g"
+    col_FV1 = "b"
+    col_FVfree = "r"
     def style(col, linestyle='solid', **kwargs):
         return {"color": col, "linestyle": linestyle,
                 "linewidth":0.8, **kwargs}
 
     plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-            name="FD, M=40", style=style(col_FDpure))
+            name="FD, M=40", style=style(col_FDpure, "dotted"))
     plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les,
-            name="FD, M=400", style=style(col_FDpure, "dashed"))
+            name="FD, M=400", style=style(col_FDpure))
     plot_FV(axes, "FV1", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels,
-            name="FV1, M=40", style=style(col_FV1))
+            name="FV1, M=40", style=style(col_FV1, "dotted"))
     plot_FV(axes, "FV1", delta_sl=z_levels_les[1]/2,
             N=N, dt=dt, z_levels=z_levels_les,
-            name="FV1, M=400", style=style(col_FV1, "dashed"))
+            name="FV1, M=400", style=style(col_FV1))
     plot_FV(axes, "FV2 free", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels,
-            name="FV2 free, M=40", style=style(col_FVfree))
+            name="FV free, M=40", style=style(col_FVfree, "dotted"))
     plot_FV(axes, "FV2 free", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels_les,
-            name="FV2 free, M=400", style=style(col_FVfree, "dashed"))
+            name="FV free, M=400", style=style(col_FVfree))
 
     axes[0].set_ylim(top=1500., bottom=0.)
     axes[1].set_ylim(top=1500., bottom=0.)

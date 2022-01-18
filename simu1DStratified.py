@@ -101,6 +101,8 @@ class Simu1dStratified():
                                 self.__sf_YDc_FD2_theta),
                 "FV pure" : (self.__sf_thetadelta_FVpure,
                                 self.__sf_YDc_FVpure_theta),
+                "FV1" : (self.__sf_thetadelta_FV1,
+                                self.__sf_YDc_FV1_theta),
                 "FV2" : (self.__sf_thetadelta_FV2,
                                 self.__sf_YDc_FV2_theta),
                 "FV free" : (self.__sf_thetadelta_FVfree,
@@ -109,6 +111,7 @@ class Simu1dStratified():
 
     def FV(self, u_t0: array, phi_t0: array, forcing: array,
             SST:array, delta_sl: float, sf_scheme: str="FV pure",
+            u_delta: float=8.+0j, t_delta: float=265., 
             turbulence: str="TKE") -> array:
         """
             Integrates in time with Backward Euler the model with TKE
@@ -121,7 +124,9 @@ class Simu1dStratified():
                 - "FV pure" for a FD interpretation (classical but biaised)
                 - "FV{1, 2}" for a FV interpretation
                                 (unbiaised but delta_{sl}=z_1)
-                - "FV{1, 2} free" for a FV interpretation with a free delta_{sl}
+                - "FV{, 1, 2} free" for a FV interpretation
+                        with a free delta_{sl}
+                    in the FV free case, it's needed to give u_delta
             turbulence should be one of:
                 - "TKE" (for one-equation TKE)
                 - "KPP" (for simple K-profile parametrization)
@@ -154,7 +159,6 @@ class Simu1dStratified():
 
         u_current: array = np.copy(u_t0)
         all_u_star = []
-        u_delta, t_delta = 8. + 0j, 265. #TODO better initialisation
 
         SL: SurfaceLayerData = self.__friction_scales(u_delta,
                 delta_sl, t_delta, SST[0], businger(), sf_scheme, k)
@@ -164,6 +168,8 @@ class Simu1dStratified():
                     t_delta, SST[n], businger(), sf_scheme, k)
             all_u_star += [SL.u_star]
 
+            # print("z_k, delta_sl, z_{k+1}=", self.z_full[SL.k],
+            #         SL.delta_sl, self.z_full[SL.k+1]) TODO remove
             # Compute viscosity
             Ku_full, Ktheta_full, tke, dz_tke = self.__visc_turb_FV(
                     SL, turbulence=turbulence, phi=phi,
@@ -175,9 +181,8 @@ class Simu1dStratified():
             old_phi = phi
             # integrate in time momentum
             u_current, phi, u_delta = self.__step_u(u=u_current,
-                    phi=phi, theta=theta, dz_theta=dz_theta,
-                        Ku_full=Ku_full, forcing=forcing[n], SL=SL,
-                            SL_nm1=SL_nm1)
+                    phi=phi, Ku_full=Ku_full,
+                    forcing=forcing[n], SL=SL, SL_nm1=SL_nm1)
 
             # integrate in time potential temperature
             theta, dz_theta, t_delta = self.__step_theta(theta,
@@ -268,8 +273,8 @@ class Simu1dStratified():
 
         return u_current, tke, all_u_star, theta, l_m
 
-    def __step_u(self, u: array, phi: array, theta: array,
-            dz_theta: array, Ku_full: array, forcing: array,
+    def __step_u(self, u: array, phi: array,
+            Ku_full: array, forcing: array,
             SL: SurfaceLayerData, SL_nm1: SurfaceLayerData):
         k = SL.k
         func_un, func_YDc = self.dictsf_scheme[SL.sf_scheme]
@@ -644,7 +649,7 @@ class Simu1dStratified():
                         (xi^2 - h_half[m]^2/12)
             where xi = linspace(-h_half[m]/2, h_half[m]/2, 10, endpoint=True)
         """
-        xi = [np.linspace(-h/2, h/2, 5) for h in self.h_half[:-1]]
+        xi = [np.linspace(-h/2, h/2, 15) for h in self.h_half[:-1]]
         xi[1] = np.linspace(-self.h_half[1]/2, self.h_half[1]/2, 40)
         sub_discrete: List[array] = [u_bar[m] + (phi[m+1] + phi[m]) * xi[m]/2 \
                 + (phi[m+1] - phi[m]) / (2 * self.h_half[m]) * \
@@ -657,7 +662,7 @@ class Simu1dStratified():
         theta_oversampled = np.concatenate(sub_discrete_theta[1:])
         z_oversampled = np.concatenate([np.array(xi[m]) + self.z_half[m]
                                             for m in range(1, self.M)])
-        u_star, t_star, inv_L_MO, u_delta, t_delta, \
+        u_star, t_star, inv_L_MO, _, _, \
                 SST, delta_sl, k1, sf_scheme = SL
         if sf_scheme in {"FV1", "FV pure"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
@@ -670,20 +675,35 @@ class Simu1dStratified():
             delta_sl = self.z_half[0] if sf_scheme in\
                     {"FV pure", "FV1"} else self.z_full[1]
 
+        prognostic: array = np.concatenate((u_bar[:SL.k+1],
+            phi[SL.k:]))
+        prognostic_theta: array = np.concatenate((theta[:SL.k+1],
+            dz_theta[SL.k:]))
+
         # getting information of the surface layer (from which
         # we get the MOST profiles)
         z_log: array = np.geomspace(self.z_star, delta_sl, 20)
 
         _, _, psi_m, psi_h, *_ = businger()
+
+        func_un, _ = self.dictsf_scheme[SL.sf_scheme]
+        func_theta, _ = self.dictsf_scheme_theta[SL.sf_scheme]
+        t_delta: float = func_theta(prognostic=prognostic_theta,
+                universal_funcs=businger(), SL=SL)
+        u_delta: complex = func_un(prognostic=prognostic,
+                SL=SL, universal_funcs=businger())
+
         Pr = 1.# 4.8/7.8
         u_log: complex = u_star/self.kappa * \
                 (np.log(1+z_log/self.z_star) - \
                 psi_m(z_log*inv_L_MO) + psi_m(self.z_star*inv_L_MO)) \
-                            * u_delta/np.abs(u_delta)
+                            * u_delta/np.abs(SL.u_delta)
+        # u_delta/|SL.udelta| is u^{n+1}/|u^n| like in the
+        # formulas
         theta_log: complex = SST + Pr * t_star / self.kappa * \
                 (np.log(1+z_log/self.z_star) - \
                 psi_h(z_log*inv_L_MO) + psi_h(self.z_star*inv_L_MO)) \
-                            * np.sign(t_delta - SST)
+                        * np.sign(t_delta - SST)
 
         k2: int = bisect.bisect_right(z_oversampled, self.z_full[k1+1])
 
@@ -695,7 +715,7 @@ class Simu1dStratified():
             # between the log profile and the next grid level:
             tilde_h = self.z_full[k1+1] - delta_sl
             assert 0 < tilde_h <= self.h_half[k1]
-            xi = np.linspace(-tilde_h/2, tilde_h/2, 10)
+            xi = np.linspace(-tilde_h/2, tilde_h/2, 15)
             tau_slu, tau_slt = self.__tau_sl(SL, businger())
             alpha_slu = tilde_h/self.h_half[k1] + tau_slu
             alpha_slt = tilde_h/self.h_half[k1] + tau_slt
@@ -1042,11 +1062,11 @@ class Simu1dStratified():
             y_sf = np.array(y_sf)
             y[:y_sf.shape[0]] = y_sf
 
-        if Y_nm1 is not None:
+        if Y_nm1 is not None: # Y_nm1 may be different from Y
             for y, y_sf in zip(Y_nm1, Y_nm1_sf):
                 y_sf = np.array(y_sf)
                 y[:y_sf.shape[0]] = y_sf
-        else:
+        else: # otherwise we check the sf gives indeed the same Y
             assert Y_nm1_sf is Y_sf
 
         for d, d_sf in zip(D, D_sf):
@@ -1134,7 +1154,7 @@ class Simu1dStratified():
 
     def __sf_udelta_FVfree(self, prognostic, SL,
             universal_funcs, **_):
-        tau_slu, _ =self.__tau_sl(SL, universal_funcs)
+        tau_slu, _ = self.__tau_sl(SL, universal_funcs)
         k = bisect.bisect_right(self.z_full[1:], SL.delta_sl)
         tilde_h = self.z_full[k+1] - SL.delta_sl
         return (prognostic[k] - tilde_h*tilde_h/self.h_half[k] * \
@@ -1242,7 +1262,9 @@ class Simu1dStratified():
                 (tilde_h**2 / 6 / self.h_half[k], 0.))
         c = (0.+0j, forcing[k+0],
                 (forcing[k+1] - forcing[k+0])/self.h_full[k+1])
+
         Y = (np.concatenate((np.zeros(k), y)) for y in Y)
+        Y_nm1 = (np.concatenate((np.zeros(k), y)) for y in Y_nm1)
 
         *_, Psi_m, _ = universal_funcs
         def f(z):
@@ -1280,6 +1302,9 @@ class Simu1dStratified():
     def __sf_thetadelta_FVpure(self, prognostic, **_):
         return prognostic[0] - self.h_half[0]* \
                 (prognostic[2] - prognostic[1])/24
+
+    def __sf_thetadelta_FV1(self, prognostic, **_):
+        return prognostic[0]
 
     def __sf_thetadelta_FV2(self, prognostic, **_):
         return prognostic[1] - self.h_half[1] * \
@@ -1330,7 +1355,20 @@ class Simu1dStratified():
         c = (ch_du * SL.SST,)
         return Y, D, c, Y
 
-    def __sf_YDc_FVpure_theta(self, K_theta, SST, SL,
+    def __sf_YDc_FV1_theta(self, K_theta, SL, universal_funcs, **_):
+        _, _, _, psi_h, _, _ = universal_funcs
+        inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
+        ch_du = SL.u_star * self.kappa / \
+                (np.log(1+SL.delta_sl/self.z_star)-psi_h(SL.delta_sl*inv_L_MO))
+
+        Y = ((1.,), (0., 0.), (0., 0.))
+        D = ((0.,), (-1, -K_theta[0] / self.h_half[0]),
+                (K_theta[0]/ch_du, K_theta[1]/self.h_half[0]),
+                (0.,))
+        c = (SL.SST, 0.)
+        return Y, D, c, Y
+
+    def __sf_YDc_FVpure_theta(self, K_theta, SL,
             universal_funcs, **_):
         _, _, _, psi_h, _, _ = universal_funcs
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
@@ -1406,6 +1444,7 @@ class Simu1dStratified():
         c = (SL.SST, forcing[k+0] + rhs_part_tilde,
                 (forcing[k+1] - forcing[k+0])/self.h_full[k+1])
         Y = (np.concatenate((np.zeros(k), y)) for y in Y)
+        Y_nm1 = (np.concatenate((np.zeros(k), y)) for y in Y_nm1)
 
         def f(z):
             return (z+self.z_star)*np.log(1+z/self.z_star) \

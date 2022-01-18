@@ -9,7 +9,7 @@ import bisect
 import numpy as np
 from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
-from utils_linalg import solve_linear
+from utils_linalg import solve_linear, full_to_half
 
 array = np.ndarray
 
@@ -117,9 +117,10 @@ class Simu1dEkman():
         if sf_scheme == "FV Dirichlet":
             delta_sl = self.z_half[1]
 
-        tke = np.ones(self.M+1) * self.e_min
+        tke = np.ones(self.M) * self.e_min
+        dz_tke = np.zeros(self.M+1)
         l_m, _ = self.mixing_lengths(delta_sl)
-        K_full: array = self.K_min + np.zeros_like(tke)
+        K_full: array = self.K_min + np.zeros(self.M+1)
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         if sf_scheme == "FV Dirichlet":
             k=0
@@ -138,9 +139,10 @@ class Simu1dEkman():
             u_star: float = self.kappa * np.abs(u_delta) \
                     / np.log(1 + delta_sl/self.z_star)
             all_u_star += [u_star]
-            K_full, tke = self.__visc_turb_FV(u_star,
+            K_full, tke, dz_tke = self.__visc_turb_FV(u_star,
                     delta_sl, turbulence="TKE", phi=phi,
-                    old_phi=old_phi, K_full=K_full, tke=tke)
+                    old_phi=old_phi, K_full=K_full, tke=tke,
+                    dz_tke=dz_tke)
 
             Y, D, c = self.__matrices_u_FV(K_full, forcing_current)
 
@@ -169,6 +171,9 @@ class Simu1dEkman():
         u_star: float = self.kappa * np.abs(u_delta) \
                 / np.log(1 + delta_sl/self.z_star)
         all_u_star += [u_star]
+        # Representation of TKE as in FD
+        tke = self.__compute_tke_full(tke, dz_tke, u_star,
+                delta_sl, k)
         return u_current, phi, tke, all_u_star
 
 
@@ -199,7 +204,7 @@ class Simu1dEkman():
         if sf_scheme == "FD Dirichlet":
             delta_sl = self.z_half[1] # avoid differences with FV
         tke = np.ones(self.M+1) * self.e_min
-        K_full: array = self.K_min + np.zeros_like(tke)
+        K_full: array = self.K_min + np.zeros(self.M+1)
 
         u_current: array = np.copy(u_t0)
         old_u = np.copy(u_current)
@@ -264,6 +269,162 @@ class Simu1dEkman():
 
         return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 
+    def __integrate_tke_FV(self, tke, dz_tke, shear, K_full,
+            delta_sl, u_star):
+        """
+            integrates TKE equation on one time step.
+            discretisation of TKE is Finite Volumes,
+            centered on half-points.
+            tke is the array of averages,
+            dz_tke is the array of space derivatives.
+            shear is K_u ||dz u|| at full levels.
+            K_full is K_u (at full levels)
+            delta_sl is the height of the SL
+            u_star is the friction scale
+
+            WARNING DELTA_SL IS NOT SUPPOSED TO MOVE !!
+            to do this, e_sl of the previous time should be known.
+            (otherwise a discontinuity between the
+            cell containing the SL's top and the one above
+            may appear.)
+            tke is the average value on the whole cell,
+            except tke[k] which is the average value on
+            the "subvolume" [delta_sl, z_{k+1}].
+            returns tke, dz_tke
+        """
+        _, l_eps = self.mixing_lengths(delta_sl)
+        # computing buoyancy on half levels:
+        shear_half = full_to_half(shear)
+        buoy_half = np.zeros_like(shear_half)
+
+        # deciding in which cells we use Patankar's trick
+        PATANKAR = (shear_half <= buoy_half)
+        # turbulent viscosity of tke :
+        Ke_full = K_full * self.C_e / self.C_m
+        l_eps_half = full_to_half(l_eps)
+        # bottom value:
+        e_sl = np.maximum(u_star**2/np.sqrt(self.C_m*self.c_eps),
+                                    self.e_min)
+        k = bisect.bisect_right(self.z_full[1:], delta_sl)
+
+        h_tilde = self.z_full[k+1] - delta_sl
+
+        # definition of functions to interlace and deinterace:
+        def interlace(arr1, arr2):
+            """ interlace arrays of same size, beginning with arr1[0] """
+            if arr1.shape[0] == arr2.shape[0]:
+                return np.vstack((arr1, arr2)).T.flatten()
+            assert arr1.shape[0] == arr2.shape[0] + 1
+            return np.vstack((arr1,
+                np.concatenate((arr2, [0])))).T.flatten()[:-1]
+
+        def deinterlace(arr):
+            """ returns a tuple of the two interlaced arrays """
+            return arr[1::2], arr[::2]
+
+        ####### ODD LINES: evolution of tke = overline{e}
+        # data located at m+1/2, 0<=m<=M
+        # odd_{l, ll}diag index is *not* shifted
+        odd_ldiag = Ke_full[:-1] / self.h_half[:-1]
+        odd_udiag = -Ke_full[1:] / self.h_half[:-1]
+        odd_diag = self.c_eps * np.sqrt(tke) / l_eps_half + \
+                PATANKAR * buoy_half / tke + 1/self.dt
+        odd_rhs = shear_half - (1 - PATANKAR)* buoy_half + tke/self.dt
+        # odd_diag[0], odd_rhs[0], odd_udiag[0] = 1., e_sl, 0.
+        odd_lldiag = np.zeros(odd_ldiag.shape[0] - 1)
+        odd_uudiag = np.zeros(odd_ldiag.shape[0] - 1)
+        # inside the surface layer:
+        odd_ldiag[:k] = 0.
+        odd_udiag[:k] = 0.
+        odd_ldiag[k] = Ke_full[k] / h_tilde
+        odd_udiag[k] = -Ke_full[k+1] / h_tilde
+        odd_rhs[:k] = e_sl
+        odd_diag[:k] = 1.
+
+        ####### EVEN LINES: evolution of dz_tke = (partial_z e)
+        # data located at m, 0<m<M
+        # notice that even_{l, ll}diag index is shifted
+        even_diag = np.concatenate(([-self.h_half[0]*5/12],
+                10*self.h_full[1:-1]/12 / self.dt + \
+                Ke_full[1:-1]/self.h_half[1:-1] + \
+                Ke_full[1:-1] / self.h_half[:-2],
+                [1]
+            ))
+        even_udiag = np.concatenate(([1],
+                buoy_half[1:]*PATANKAR[1:] / tke[1:] + \
+                self.c_eps * np.sqrt(tke[1:]) / l_eps_half[1:]))
+        even_uudiag = np.concatenate(([-self.h_half[0]/12],
+                self.h_half[1:-1]/12/self.dt - \
+                Ke_full[2:]/self.h_half[1:-1]))
+
+        even_ldiag = np.concatenate((
+                - buoy_half[:-1]*PATANKAR[:-1] / tke[:-1] - \
+                self.c_eps * np.sqrt(tke[:-1]) / l_eps_half[:-1],
+                [0]))
+        even_lldiag = np.concatenate((
+                self.h_half[:-2]/12/self.dt - \
+                Ke_full[:-2]/self.h_half[:-2],
+                [0]
+                ))
+
+        even_rhs = np.concatenate(( [e_sl],
+                1/self.dt * (self.h_half[:-2]* dz_tke[:-2]/12 \
+                + 10*self.h_full[1:-1]* dz_tke[1:-1]/12 \
+                + self.h_half[1:-1]* dz_tke[2:]/12) \
+                + np.diff(shear_half - buoy_half*(1-PATANKAR)),
+                [0]))
+        # e(delta_sl) = e_sl :
+        even_diag[k] = -h_tilde*5/12
+        even_udiag[k] = 1.
+        even_uudiag[k] = -h_tilde/12
+        even_rhs[k] = e_sl
+        # first grid levels above delta_sl:
+        even_diag[k+1] = 5*(self.h_half[k+1]+h_tilde)/12/self.dt + \
+                Ke_full[k+1]/ h_tilde + \
+                Ke_full[k+1] / self.h_half[k+1]
+        even_lldiag[k] = h_tilde/12/self.dt - Ke_full[k]/h_tilde
+        even_rhs[k+1] = 1./self.dt * (h_tilde* dz_tke[k]/12 \
+                + 5*(self.h_half[k+1]+h_tilde)* dz_tke[k+1]/12 \
+                + self.h_half[k+1]* dz_tke[k+2]/12) \
+                + np.diff(shear_half - buoy_half*(1-PATANKAR))[k]
+
+        # inside the surface layer: (partial_z e)_m = 0
+        # we include even_ldiag[k-1] as the bd cond
+        # requires even_ldiag[k-1]=even_lldiag[k-1]=0 if k>0
+        even_ldiag[:k] = even_lldiag[:k] = 0.
+        even_udiag[:k] = even_uudiag[:k] = even_rhs[:k] = 0.
+        even_diag[:k] = 1.
+
+        diag = interlace(even_diag, odd_diag)
+        rhs = interlace(even_rhs, odd_rhs)
+        udiag = interlace(even_udiag, odd_udiag)
+        uudiag = interlace(even_uudiag, odd_uudiag)
+        # for ldiag and lldiag the first index is shifted
+        # so it begins with odd for ldiag (and not for lldiag)
+        ldiag = interlace(odd_ldiag, even_ldiag)
+        lldiag = interlace(even_lldiag, odd_lldiag)
+
+        tke, dz_tke = deinterlace(\
+                solve_linear((lldiag, ldiag, diag, udiag, uudiag),
+                                rhs))
+
+        tke_full = self.__compute_tke_full(tke, dz_tke, u_star,
+                    delta_sl, k)
+        return tke, dz_tke, tke_full
+
+    def __compute_tke_full(self, tke, dz_tke, u_star, delta_sl, k):
+        tke_full = np.concatenate((
+            [tke[0] - self.h_half[0]*dz_tke[0]*5/12 - \
+                    self.h_half[0]*dz_tke[1]/12],
+            tke + self.h_half[:-1]*dz_tke[1:]*5/12 + \
+                    self.h_half[:-1]*dz_tke[:-1]/12))
+        e_sl = np.maximum(u_star**2/np.sqrt(self.C_m*self.c_eps),
+                                self.e_min)
+        tke_full[:k+1] = e_sl
+        tke_full[k+1] = tke[k] + (self.z_full[k+1] - delta_sl) * \
+                (dz_tke[k+1]*5 + dz_tke[k])/12
+        return tke_full
+
     def mixing_lengths(self, delta_sl):
         """
             returns the mixing lengths (l_m, l_eps)
@@ -295,7 +456,7 @@ class Simu1dEkman():
                         (xi^2 - h_half[m]^2/12)
             where xi = linspace(-h_half[m]/2, h_half[m]/2, 10, endpoint=True)
         """
-        xi = [np.linspace(-h/2, h/2, 20) for h in self.h_half[:-1]]
+        xi = [np.linspace(-h/2, h/2, 10) for h in self.h_half[:-1]]
         sub_discrete: List[array] = [u_bar[m] + (phi[m+1] + phi[m]) * xi[m]/2 \
                 + (phi[m+1] - phi[m]) / (2 * self.h_half[m]) * \
                 (xi[m]**2 - self.h_half[m]**2/12) for m in range(self.M)]
@@ -315,7 +476,7 @@ class Simu1dEkman():
         prognostic: array = np.concatenate((u_bar[:k1+1], phi[k1:]))
 
         # getting u(delta), from which we extrapolate the log profile
-        z_log: array = np.geomspace(self.z_star, delta_sl, 20)
+        z_log: array = np.geomspace(self.z_star, delta_sl, 10)
         func_un, _ = self.dictsf_scheme[sf_scheme]
         u_delta: complex = func_un(prognostic=prognostic, delta_sl=delta_sl)
         u_star: float = self.kappa * np.abs(u_delta) \
@@ -432,7 +593,7 @@ class Simu1dEkman():
         D = D_ldiag, D_diag, D_udiag
         return Y, D, c
 
-    def __visc_turb_FV(self, u_star, delta_sl,
+    def __visc_turb_FV(self, u_star, delta_sl, dz_tke=None,
             turbulence="TKE", phi=None, old_phi=None,
             K_full=None, tke=None):
         """
@@ -453,24 +614,63 @@ class Simu1dEkman():
             K_full = u_star * G_full + self.K_mol # viscosity
             K_full[0] = u_star * self.kappa * (delta_sl+self.z_star)
         elif turbulence == "TKE":
+            k = bisect.bisect_right(self.z_full[1:], delta_sl)
             shear = np.concatenate(([0],
                 [np.abs(K_full[m]*phi[m]*(phi[m] + old_phi[m])/2) \
                         for m in range(1, self.M)], [0]))
 
-            tke[:] = np.maximum(self.e_min,
-                    self.__integrate_tke(tke, shear, K_full,
-                    delta_sl=delta_sl, u_star=u_star))
+            tke[:], dz_tke[:], tke_full = \
+                self.__integrate_tke_FV(tke, dz_tke, shear,
+                            K_full, delta_sl=delta_sl, u_star=u_star)
 
-            k = bisect.bisect_right(self.z_full[1:], delta_sl)
+            if (tke_full < self.e_min).any() or \
+                    (tke < self.e_min).any():
+                tke_full = np.maximum(tke_full, self.e_min)
+                tke = np.maximum(tke, self.e_min)
+                dz_tke = self.__compute_dz_tke(tke_full[0],
+                                    tke, delta_sl, k)
+
             l_m, _ = self.mixing_lengths(delta_sl)
-            K_full = self.C_m * l_m * np.sqrt(tke)
+            K_full = self.C_m * l_m * np.sqrt(tke_full)
             K_full[:k] =  self.kappa*u_star*(
                     self.z_full[:k] + self.z_star)
             K_full[k] = self.kappa*u_star*(delta_sl + self.z_star)
         else:
             raise NotImplementedError("Wrong turbulence scheme")
 
-        return K_full, tke
+        return K_full, tke, dz_tke
+
+    def __compute_dz_tke(self, e_sl, tke, delta_sl, k):
+        """ solving the system of finite volumes:
+        phi_{m-1}/12 + 10 phi_m / 12 + phi_{m+1} / 12 =
+                (tke_{m+1/2} - tke_{m-1/2})/h
+        """
+        ldiag = self.h_half[:-2] / 12.
+        diag = self.h_full[1:-1] * 10./12.
+        udiag = self.h_half[1:-1] / 12.
+        h_tilde = self.z_full[k+1] - delta_sl
+        diag = np.concatenate(([h_tilde*5/12], diag, [1.]))
+        udiag = np.concatenate(([h_tilde*1/12], udiag))
+        ldiag = np.concatenate((ldiag, [0.]))
+        rhs = np.concatenate(([tke[0]-e_sl],
+            np.diff(tke), [0.]))
+        old_diag, old_udiag, old_ldiag, old_rhs = diag, udiag, ldiag, rhs
+        # GRID LEVEL k-1 AND BELOW: dz_tke=0:
+        diag[:k], udiag[:k] = 1., 0.
+        rhs[:k] = 0.
+        # GRID LEVEL k : tke(z=delta_sl) = e_sl
+        ldiag[:k] = 0. # ldiag[k-1] is for cell k
+        diag[k], udiag[k] = h_tilde*5/12., h_tilde/12.
+        rhs[k] = tke[k] - e_sl
+        if k == 0:
+            assert np.linalg.norm(old_diag - diag) == 0.
+            assert np.linalg.norm(old_udiag - udiag) == 0.
+            assert np.linalg.norm(old_ldiag - ldiag) == 0.
+            assert np.linalg.norm(old_rhs - rhs) == 0.
+        # GRID LEVEL k+1: h_tilde used in continuity equation
+        ldiag[k] = h_tilde / 12.
+        diag[k+1] = (h_tilde+self.h_half[k+1]) * 5./12.
+        return solve_linear((ldiag, diag, udiag), rhs)
 
     def __matrices_u_FV(self, K_full, forcing):
         """

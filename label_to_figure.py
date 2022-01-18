@@ -5,6 +5,5 @@ You can then look for this function name in the file figures.py """
 FIGURE = {}
 FIGURE["0"] = "fig_verify_FDFV"
 FIGURE["1"] = "fig_consistency_comparison"
-FIGURE["2"] = "fig_verify_FDStratified"
-FIGURE["3"] = "fig_verify_FVfreeStrat"
+FIGURE["2"] = "fig_consistency_comparisonStratified"
 ALL_LABELS = FIGURE
