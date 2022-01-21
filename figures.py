@@ -217,20 +217,24 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
         zk = z_levels[k]
         h_tilde = z_levels[k+1] - delta_sl
         h_kp12 = z_levels[k+1] - z_levels[k]
-        z_star = 1e-1
-        neutral_tau_sl = (delta_sl / (h_kp12))* \
-                (1+z_star/delta_sl - 1/np.log(1+delta_sl/z_star) \
-                + (zk - (zk+z_star)*np.log(1+zk/z_star)) \
-                / (delta_sl * np.log(1+delta_sl/z_star)))
-
+        z_0M = 1e-1
         u_constant = 8.
+        K_mol, kappa = simulator.K_mol, simulator.kappa
         for _ in range(15):
-            phi_0[k] = u_deltasl / (z_star+delta_sl) / \
-                    np.log(1+delta_sl/z_star)
+            u_star = kappa / np.log(1+delta_sl/z_0M) * np.abs(u_deltasl)
+            z_0M = K_mol / kappa / u_star
+
+            phi_0[k] = u_deltasl / (z_0M+delta_sl) / \
+                    np.log(1+delta_sl/z_0M)
             # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_constant
             # (subgrid reconstruction at the top of the volume)
             u_tilde = u_constant - h_tilde/6 * phi_0[k]
             u_deltasl = u_tilde - h_tilde / 3 * phi_0[k]
+
+        neutral_tau_sl = (delta_sl / (h_kp12))* \
+                (1+z_0M/delta_sl - 1/np.log(1+delta_sl/z_0M) \
+                + (zk - (zk+z_0M)*np.log(1+zk/z_0M)) \
+                / (delta_sl * np.log(1+delta_sl/z_0M)))
 
         alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
         u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
