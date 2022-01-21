@@ -21,6 +21,8 @@ class SurfaceLayerData(NamedTuple):
     """
     u_star: float # friction scale u*
     t_star: float # friction scale t*
+    z_0M: float # roughness length for momentum
+    z_0H: float # roughness length for theta
     inv_L_MO: float # inverse of Obukhov length:
     u_delta: complex # value of u at z=delta_sl
     t_delta: float # value of theta at z=delta_sl
@@ -71,7 +73,6 @@ class Simu1dStratified():
         self.C_1: float = 0.143
         self.C_e: float = 0.34
         self.c_eps: float = 0.845
-        self.z_star: float = 1e-1
         self.implicit_coriolis: float = 0.55 # semi-implicit coefficient
         self.lm_min: float = self.K_min / self.C_m / \
                 np.sqrt(self.e_min)
@@ -168,9 +169,7 @@ class Simu1dStratified():
                     t_delta, SST[n], businger(), sf_scheme, k)
             all_u_star += [SL.u_star]
 
-            # print("z_k, delta_sl, z_{k+1}=", self.z_full[SL.k],
-            #         SL.delta_sl, self.z_full[SL.k+1]) TODO remove
-            # Compute viscosity
+            # Compute viscosities
             Ku_full, Ktheta_full, tke, dz_tke = self.__visc_turb_FV(
                     SL, turbulence=turbulence, phi=phi,
                     old_phi=old_phi, l_m=l_m, l_eps=l_eps,
@@ -361,7 +360,6 @@ class Simu1dStratified():
         ldiag, diag, udiag, rhs = np.ones(self.M)/6, \
                 np.ones(self.M+1)*2/3, np.ones(self.M)/6, \
                 np.diff(theta, prepend=0, append=0.)/ self.h_half
-        #TODO verify theta is initialized properly with the FV free
         udiag[0] = rhs[0] = 0. # bottom Neumann condition
         ldiag[-1], diag[-1], rhs[-1] = 0., 1., 0.01 # top Neumann
         dz_theta: array = solve_linear((ldiag, diag, udiag), rhs)
@@ -601,7 +599,8 @@ class Simu1dStratified():
 
         return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 
-    def __mixing_lengths(self, tke: array, dzu2: array, N2: array):
+    def __mixing_lengths(self, tke: array, dzu2: array, N2: array,
+            z_0M):
         """
             returns the mixing lengths (l_m, l_eps)
             for given entry parameters.
@@ -612,7 +611,7 @@ class Simu1dStratified():
         """
         l_up = np.zeros(self.M+1) + \
                 (self.kappa / self.C_m) * \
-                (self.C_m*self.c_eps)**.25 * self.z_star
+                (self.C_m*self.c_eps)**.25 * z_0M
         l_down = np.copy(l_up)
         l_up[-1] = l_down[-1] = self.lm_min
 
@@ -649,6 +648,7 @@ class Simu1dStratified():
                         (xi^2 - h_half[m]^2/12)
             where xi = linspace(-h_half[m]/2, h_half[m]/2, 10, endpoint=True)
         """
+        z_min = 0.7
         xi = [np.linspace(-h/2, h/2, 15) for h in self.h_half[:-1]]
         xi[1] = np.linspace(-self.h_half[1]/2, self.h_half[1]/2, 40)
         sub_discrete: List[array] = [u_bar[m] + (phi[m+1] + phi[m]) * xi[m]/2 \
@@ -662,10 +662,14 @@ class Simu1dStratified():
         theta_oversampled = np.concatenate(sub_discrete_theta[1:])
         z_oversampled = np.concatenate([np.array(xi[m]) + self.z_half[m]
                                             for m in range(1, self.M)])
-        u_star, t_star, inv_L_MO, _, _, \
+        u_star, t_star, z_0M, z_0H, inv_L_MO, _, _, \
                 SST, delta_sl, k1, sf_scheme = SL
         if sf_scheme in {"FV1", "FV pure"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
+            k_1m: int = bisect.bisect_right(allxi[0], z_min)
+            allxi[0] = allxi[0][k_1m:]
+            sub_discrete_theta[0] = sub_discrete_theta[0][k_1m:]
+            sub_discrete[0] = sub_discrete[0][k_1m:]
             return np.concatenate(allxi), \
                     np.concatenate(sub_discrete), \
                     np.concatenate(sub_discrete_theta), \
@@ -682,7 +686,7 @@ class Simu1dStratified():
 
         # getting information of the surface layer (from which
         # we get the MOST profiles)
-        z_log: array = np.geomspace(self.z_star, delta_sl, 20)
+        z_log: array = np.geomspace(z_min, delta_sl, 20)
 
         _, _, psi_m, psi_h, *_ = businger()
 
@@ -695,14 +699,14 @@ class Simu1dStratified():
 
         Pr = 1.# 4.8/7.8
         u_log: complex = u_star/self.kappa * \
-                (np.log(1+z_log/self.z_star) - \
-                psi_m(z_log*inv_L_MO) + psi_m(self.z_star*inv_L_MO)) \
+                (np.log(1+z_log/SL.z_0M) - \
+                psi_m(z_log*inv_L_MO) + psi_m(SL.z_0M*inv_L_MO)) \
                             * u_delta/np.abs(SL.u_delta)
         # u_delta/|SL.udelta| is u^{n+1}/|u^n| like in the
         # formulas
         theta_log: complex = SST + Pr * t_star / self.kappa * \
-                (np.log(1+z_log/self.z_star) - \
-                psi_h(z_log*inv_L_MO) + psi_h(self.z_star*inv_L_MO)) \
+                (np.log(1+z_log/SL.z_0H) - \
+                psi_h(z_log*inv_L_MO) + psi_h(SL.z_0H*inv_L_MO)) \
                         * np.sign(t_delta - SST)
 
         k2: int = bisect.bisect_right(z_oversampled, self.z_full[k1+1])
@@ -786,7 +790,7 @@ class Simu1dStratified():
                     * np.heaviside(1 - self.z_full/h_cl, 1)
 
             K_full: array = u_star * G_full + self.K_mol # viscosity
-            K_full[0] = u_star * self.kappa * (delta_sl + self.z_star)
+            K_full[0] = u_star * self.kappa * (delta_sl + SL.z_0M)
         elif turbulence == "TKE":
             ####### TKE SCHEME #############
             du = np.diff(u_current)
@@ -803,7 +807,7 @@ class Simu1dStratified():
                     l_eps=l_eps, N2=N2, Ktheta_full=Ktheta_full))
 
             l_m[:], l_eps[:] = self.__mixing_lengths(tke,
-                    shear/K_full, N2)
+                    shear/K_full, N2, SL.z_0M)
 
             phi_z = self.__stability_temperature_phi_z(
                     C_1=self.C_1, l_m=l_m, l_eps=l_eps, N2=N2,
@@ -898,7 +902,7 @@ class Simu1dStratified():
                     (1 - self.z_full/h_cl)**2 \
                     * np.heaviside(1 - self.z_full/h_cl, 1)
             K_full = u_star * G_full + self.K_mol # viscosity
-            K_full[0] = u_star * self.kappa * (delta_sl+self.z_star)
+            K_full[0] = u_star * self.kappa * (delta_sl+SL.z_0M)
         elif turbulence == "TKE":
             shear = np.concatenate(([0],
                 [np.abs(K_full[m]*phi[m]*(phi[m] + old_phi[m])/2) \
@@ -923,7 +927,7 @@ class Simu1dStratified():
                                     tke, delta_sl, k)
 
             l_m[:], l_eps[:] = self.__mixing_lengths(tke_full,
-                    shear/K_full, g/theta_ref*dz_theta)
+                    shear/K_full, g/theta_ref*dz_theta, SL.z_0M)
 
             phi_z = self.__stability_temperature_phi_z(
                     C_1=self.C_1, l_m=l_m, l_eps=l_eps,
@@ -933,18 +937,18 @@ class Simu1dStratified():
                     self.C_s * phi_z * l_m * np.sqrt(tke_full))
 
             phi_m, phi_h, *_ = universal_funcs
-            Ktheta_full[:k] = (self.kappa * u_star*(self.z_full[:k]+self.z_star))\
+            Ktheta_full[:k] = (self.kappa * u_star*(self.z_full[:k]+SL.z_0M))\
                     / phi_h(self.z_full[:k]*inv_L_MO)
-            Ktheta_full[k] = (self.kappa * u_star*(delta_sl+self.z_star))\
+            Ktheta_full[k] = (self.kappa * u_star*(delta_sl+SL.z_0H))\
                         / phi_h(delta_sl*inv_L_MO)
 
             K_full = self.C_m * l_m * np.sqrt(tke_full)
             # K_full[:k] =  self.kappa*u_star*(
-            #         self.z_full[:k] + self.z_star)
-            # K_full[k] = self.kappa*u_star*(delta_sl + self.z_star)
-            K_full[:k] = (self.kappa * u_star*(self.z_full[:k]+self.z_star)\
+            #         self.z_full[:k] + SL.z_0M)
+            # K_full[k] = self.kappa*u_star*(delta_sl + SL.z_0M)
+            K_full[:k] = (self.kappa * u_star*(self.z_full[:k]+SL.z_0M)\
                     ) / phi_m(self.z_full[:k]*inv_L_MO)
-            K_full[k] = (self.kappa * u_star*(delta_sl+self.z_star)\
+            K_full[k] = (self.kappa * u_star*(delta_sl+SL.z_0M)\
                     ) / phi_m(delta_sl*inv_L_MO)
         else:
             raise NotImplementedError("Wrong turbulence scheme")
@@ -1089,22 +1093,25 @@ class Simu1dStratified():
         _, _, psim, psis, *_ = universal_funcs
         t_star: float = (t_delta-SST) * \
                 (0.0180 if t_delta > SST else 0.0327)
+        z_0M = 0.1
+        z_0H = 0.1
         u_star: float = (self.kappa *np.abs(u_delta) / \
-                np.log(1 + delta_sl/self.z_star ) )
-        for _ in range(5):
+                np.log(1 + delta_sl/z_0M ) )
+        for _ in range(12):
             zeta = self.kappa * delta_sl * 9.81*\
                     (t_star / t_delta) / u_star**2
             Cd    = self.kappa**2 / \
-                    (np.log(1+delta_sl/self.z_star) - psim(zeta))**2
+                    (np.log(1+delta_sl/z_0M) - psim(zeta))**2
             Ch    = self.kappa * np.sqrt(Cd) / \
-                    (np.log(1+delta_sl/self.z_star) - psis(zeta))
+                    (np.log(1+delta_sl/z_0H) - psis(zeta))
             u_star = np.sqrt(Cd) * np.abs(u_delta)
             t_star = ( Ch / np.sqrt(Cd) ) * (t_delta - SST)
-            # self.z_star = K_mol / self.kappa / u_star ?
+            z_0M = z_0H = self.K_mol / self.kappa / u_star
         inv_L_MO = t_star / t_delta / u_star**2 * \
                 self.kappa * 9.81
-        return SurfaceLayerData(u_star, t_star, inv_L_MO,
-                u_delta, t_delta, SST, delta_sl, k, sf_scheme)
+        return SurfaceLayerData(u_star, t_star, z_0M, z_0H,
+                inv_L_MO, u_delta, t_delta, SST, delta_sl, k,
+                sf_scheme)
 
     def __tau_sl(self, SL: SurfaceLayerData,
             universal_funcs) -> (float, float):
@@ -1113,14 +1120,15 @@ class Simu1dStratified():
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         zk = self.z_full[k]
         def brackets_u(z):
-            return (z+self.z_star)*np.log(1+z/self.z_star) - z + \
+            return (z+SL.z_0M)*np.log(1+z/SL.z_0M) - z + \
                     z*Psi_m(z*inv_L_MO)
         def brackets_theta(z):
-            return (z+self.z_star)*np.log(1+z/self.z_star) - z + \
+            return (z+SL.z_0H)*np.log(1+z/SL.z_0H) - z + \
                     z*Psi_h(z*inv_L_MO)
-        log_delta = np.log(1+delta_sl/self.z_star)
-        denom_u = log_delta - psi_m(delta_sl*inv_L_MO)
-        denom_theta = log_delta - psi_h(delta_sl*inv_L_MO)
+        denom_u = np.log(1+delta_sl/SL.z_0M) \
+                - psi_m(delta_sl*inv_L_MO)
+        denom_theta = np.log(1+delta_sl/SL.z_0H)\
+                - psi_h(delta_sl*inv_L_MO)
 
         tau_slu = (brackets_u(delta_sl) - brackets_u(zk)) / \
                 self.h_half[k] / denom_u
@@ -1210,7 +1218,7 @@ class Simu1dStratified():
         _, _, _, _, Psi_m, _ = universal_funcs
         inv_L_MO = t_star / t_delta / u_star**2 * self.kappa * 9.81
         def f(z):
-            return (z+self.z_star)*np.log(1+z/self.z_star) - z + \
+            return (z+SL.z_0M)*np.log(1+z/SL.z_0M) - z + \
                     z * Psi_m(z*inv_L_MO)
 
         try:
@@ -1268,7 +1276,7 @@ class Simu1dStratified():
 
         *_, Psi_m, _ = universal_funcs
         def f(z):
-            return (z+self.z_star)*np.log(1+z/self.z_star) - z + \
+            return (z+SL.z_0M)*np.log(1+z/SL.z_0M) - z + \
                     z * Psi_m(z*inv_L_MO)
 
         try:
@@ -1337,7 +1345,7 @@ class Simu1dStratified():
         phi_stab = -7.8 * self.kappa * SL.delta_sl * 9.81*\
                     (SL.t_star / SL.t_delta) / SL.u_star**2
         ch_du = SL.u_star * self.kappa / \
-                (np.log(1+SL.delta_sl/self.z_star)-phi_stab)
+                (np.log(1+SL.delta_sl/SL.z_0H)-phi_stab)
         Y = ((), (1.,), (0.,))
         D = ((), (-K_theta[1]/self.h_full[1]/self.h_half[0] - \
                 ch_du /self.h_half[0],),
@@ -1348,7 +1356,7 @@ class Simu1dStratified():
     def __sf_YDc_FD2_theta(self, K_theta, SL, **_):
         phi_stab = -7.8 * self.kappa * SL.delta_sl * 9.81*\
                     (SL.t_star / SL.t_delta) / SL.u_star**2
-        ch_du = SL.u_star * self.kappa / (np.log(1+SL.delta_sl/self.z_star)-phi_stab)
+        ch_du = SL.u_star * self.kappa / (np.log(1+SL.delta_sl/SL.z_0H)-phi_stab)
         Y = ((), (0.,), (0.,))
         D = ((), (-K_theta[1]/self.h_full[1] - ch_du / 2,),
                 (K_theta[1]/self.h_full[1] - ch_du / 2,))
@@ -1359,7 +1367,7 @@ class Simu1dStratified():
         _, _, _, psi_h, _, _ = universal_funcs
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         ch_du = SL.u_star * self.kappa / \
-                (np.log(1+SL.delta_sl/self.z_star)-psi_h(SL.delta_sl*inv_L_MO))
+                (np.log(1+SL.delta_sl/SL.z_0H)-psi_h(SL.delta_sl*inv_L_MO))
 
         Y = ((1.,), (0., 0.), (0., 0.))
         D = ((0.,), (-1, -K_theta[0] / self.h_half[0]),
@@ -1373,7 +1381,7 @@ class Simu1dStratified():
         _, _, _, psi_h, _, _ = universal_funcs
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         ch_du = SL.u_star * self.kappa / \
-                (np.log(1+SL.delta_sl/self.z_star)-psi_h(SL.delta_sl*inv_L_MO))
+                (np.log(1+SL.delta_sl/SL.z_0H)-psi_h(SL.delta_sl*inv_L_MO))
 
         Y = ((1.,), (0., 0.), (0., 0.))
         D = ((0.,), (-1, -K_theta[0] / self.h_half[0]),
@@ -1386,11 +1394,11 @@ class Simu1dStratified():
     def __sf_YDc_FV2_theta(self, K_theta, SL, universal_funcs, **_):
         _, _, _, psi_h, _, Psi_h = universal_funcs
         def f(z):
-            return (z+self.z_star)*np.log(1+z/self.z_star) \
+            return (z+SL.z_0H)*np.log(1+z/SL.z_0H) \
                 - z + z* Psi_h(z*SL.inv_L_MO)
 
         ch_du = SL.u_star * self.kappa / \
-                (np.log(1+SL.delta_sl/self.z_star)-psi_h(SL.delta_sl*SL.inv_L_MO))
+                (np.log(1+SL.delta_sl/SL.z_0H)-psi_h(SL.delta_sl*SL.inv_L_MO))
 
         try:
             ratio_norms = (f(self.z_full[1]) - f(0)) / \
@@ -1415,7 +1423,7 @@ class Simu1dStratified():
         _, tau_slt_nm1 = self.__tau_sl(SL_nm1, universal_funcs)
         alpha_slt_nm1 = tilde_h/self.h_half[k] + tau_slt_nm1
         ch_du = SL.u_star * self.kappa / \
-                (np.log(1+SL.delta_sl/self.z_star) - \
+                (np.log(1+SL.delta_sl/SL.z_0H) - \
                 psi_h(SL.delta_sl*SL.inv_L_MO))
 
         Y = ((1/alpha_slt, tilde_h / 6 / self.h_full[k+1]),
@@ -1447,7 +1455,7 @@ class Simu1dStratified():
         Y_nm1 = (np.concatenate((np.zeros(k), y)) for y in Y_nm1)
 
         def f(z):
-            return (z+self.z_star)*np.log(1+z/self.z_star) \
+            return (z+SL.z_0H)*np.log(1+z/SL.z_0H) \
                 - z + z* Psi_h(z*SL.inv_L_MO)
 
         try:
