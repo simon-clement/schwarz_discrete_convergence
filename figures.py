@@ -23,7 +23,9 @@ IFS_z_levels = np.flipud(np.array((1600.04, 1459.58, 1328.43,
     1206.21, 1092.54, 987.00, 889.17, 798.62, 714.94, 637.70,
     566.49, 500.91, 440.58, 385.14, 334.22, 287.51, 244.68,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
-    10.00))) - 10. # starting at 0. it is thus not really IFS zlevels
+    10.00))) - 10. # Not really IFS levels, since the list here
+# is actually z_half. So the correct way would be to add 0
+# and to take the middle of all space step here
 
 IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     334.22, 287.51, 244.68,
@@ -81,7 +83,8 @@ def fig_consistency_comparisonStratified():
     """
     z_levels = DEFAULT_z_levels_stratified
     z_levels = IFS_z_levels_stratified
-    z_levels_les= np.linspace(0, 400, 651)
+    # z_levels_les= np.linspace(0, 400, 651)
+    z_levels_les= np.linspace(0, IFS_z_levels_stratified[-1], 651)
     dt = 10.
     N = 3240 # 28*3600/10=3240
 
@@ -258,6 +261,57 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
             dz_theta, SL=SL)
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
 
+def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
+    """
+    return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
+    """
+    M = z_levels.shape[0] - 1
+    simulator = Simu1dStratified(z_levels=z_levels,
+            dt=dt, u_geostrophy=10.,
+            K_mol=1e-4, f=1e-4)
+    u_0 = 10.*np.ones(M)
+    phi_0 = np.zeros(M+1)
+    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
+    SST = np.ones(N+1)*265.
+    z_tke = np.copy(simulator.z_full)
+    k = bisect.bisect_right(z_levels[1:], delta_sl)
+    z_tke[k] = delta_sl #
+    u_deltasl = 10. # first guess before the iterations
+    if sf_scheme in {"FV1 free", "FV2 free", "FV free"}:
+        zk = z_levels[k]
+        h_tilde = z_levels[k+1] - delta_sl
+        h_kp12 = z_levels[k+1] - z_levels[k]
+        z_0M = 1e-1
+        u_constant = 10.
+        K_mol, kappa = simulator.K_mol, simulator.kappa
+        for _ in range(15):
+            u_star = kappa / np.log(1+delta_sl/z_0M) * np.abs(u_deltasl)
+            z_0M = K_mol / kappa / u_star
+
+            phi_0[k] = u_deltasl / (z_0M+delta_sl) / \
+                    np.log(1+delta_sl/z_0M)
+            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_constant
+            # (subgrid reconstruction at the top of the volume)
+            u_tilde = u_constant - h_tilde/6 * phi_0[k]
+            u_deltasl = u_tilde - h_tilde / 3 * phi_0[k]
+
+        neutral_tau_sl = (delta_sl / (h_kp12))* \
+                (1+z_0M/delta_sl - 1/np.log(1+delta_sl/z_0M) \
+                + (zk - (zk+z_0M)*np.log(1+zk/z_0M)) \
+                / (delta_sl * np.log(1+delta_sl/z_0M)))
+
+        alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
+        u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
+
+    u, phi, TKE, ustar, temperature, dz_theta, l_m, SL = \
+            simulator.FV(u_t0=u_0, phi_t0=phi_0, Neutral_case=True,
+                    SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
+                    forcing=forcing, delta_sl=delta_sl)
+
+    z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
+            dz_theta, SL=SL)
+    return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
+
 def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
         z_levels=DEFAULT_z_levels_stratified, delta_sl=None,
         name=None, style={}):
@@ -319,55 +373,13 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
 
 def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
         z_levels=DEFAULT_z_levels, name=None, style={}):
-    # if name == None:
-    #     name = sf_scheme
-    M = z_levels.shape[0] - 1
-    z_star: float = .1
-    simulator = Simu1dStratified(z_levels=z_levels,
-            dt=dt, u_geostrophy=10.,
-            K_mol=1e-4, f=1e-4)
-    # choosing u_0 linear so it can be the same FD, FV
-    u_0 = 10*np.ones(M+1)
-    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
-    phi_0 = np.diff(u_0, append=11) / np.diff(z_levels, append=1300)
-    phi_0[-1] = phi_0[-2] # correcting the last flux
-
-    if sf_scheme in {"FV1 free", "FV2 free"}:
-        k = bisect.bisect_right(z_levels[1:], delta_sl)
-        zk = z_levels[k]
-        h_tilde = z_levels[k+1] - delta_sl
-        h_kp12 = z_levels[k+1] - z_levels[k]
-        tau_sl = (delta_sl / (h_kp12))*(1+z_star/delta_sl - \
-                        1/np.log(1+delta_sl/z_star) \
-                + (zk - (zk+z_star)*np.log(1+zk/z_star)) \
-                / (delta_sl * np.log(1+delta_sl/z_star)))
-
-        u_constant = 10.
-        u_deltasl = 10. # first guess before the iterations
-        for _ in range(5):
-            phi_0[k] = u_deltasl / (z_star+delta_sl) / \
-                    np.log(1+delta_sl/z_star)
-            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_constant
-            # (subgrid reconstruction at the top of the volume)
-            u_tilde = u_constant - h_tilde/6 * phi_0[k]
-            u_deltasl = u_tilde - h_tilde / 3 * phi_0[k]
-
-        alpha_sl = h_tilde/h_kp12 + tau_sl
-        u_0[k] = alpha_sl * u_tilde - tau_sl*h_tilde*phi_0[k]/3
-
-    SST = 265.*np.ones(N+1) # Neutral case SST with theta=265K
-    u, phi, TKE, ustar, theta, dz_theta, _, SL = simulator.FV(\
-            u_t0=u_0[:-1],
-            phi_t0=phi_0, sf_scheme=sf_scheme, Neutral_case=True,
-            delta_sl=delta_sl, forcing=forcing, u_delta=10.,
-            SST=SST)
-
-    z_fv, u_fv, theta = simulator.reconstruct_FV(u,
-            phi, theta, dz_theta, SL)
+    z_fv, u_fv, theta_fv, z_tke, TKE, ustar = \
+            compute_with_sfNeutral(sf_scheme, z_levels, dt, N,
+                    delta_sl)
 
     axes[0].semilogy(np.real(u_fv), z_fv, **style)
     axes[1].semilogy(np.imag(u_fv), z_fv, **style)
-    axes[2].semilogy(TKE, simulator.z_half, **style, label=name)
+    axes[2].semilogy(TKE, z_tke, **style, label=name)
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
 
 def fig_verify_FDFV():
@@ -420,7 +432,8 @@ def fig_consistency_comparison():
         with TKE turbulence scheme.
     """
     z_levels= np.linspace(0, 1500, 41)
-    z_levels_les= np.linspace(0, 1500, 401)
+    z_levels= IFS_z_levels
+    z_levels_les= np.linspace(0, IFS_z_levels[-1], 401)
     # for FV with FV interpretation of sf scheme,
     # the first grid level is divided by 2 so that
     # delta_{sl} is the same in all the schemes.
@@ -437,7 +450,8 @@ def fig_consistency_comparison():
                 "linewidth":0.8, **kwargs}
 
     plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-            name="FD, M=40", style=style(col_FDpure, "dotted"))
+            name="FD, M="+str(z_levels.shape[0] - 1),
+            style=style(col_FDpure, "dotted"))
     plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les,
             name="FD, M=400", style=style(col_FDpure))
     plot_FV(axes, "FV1", delta_sl=z_levels[1]/2,
@@ -458,10 +472,10 @@ def fig_consistency_comparison():
     plot_FV(axes, "FV pure", delta_sl=z_levels_les[1]/2,
             N=N, dt=dt, z_levels=z_levels_les,
             name="FV pure, M=400", style=style("m"))
-    plot_FV(axes, "FV2 free", delta_sl=z_levels[1]/2,
+    plot_FV(axes, "FV free", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels,
             name=None, style=style(col_FVfree, "dotted"))
-    plot_FV(axes, "FV2 free", delta_sl=z_levels[1]/2,
+    plot_FV(axes, "FV free", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels_les,
             name="FV free, M=400", style=style(col_FVfree))
 
