@@ -19,16 +19,16 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 
 DEFAULT_z_levels = np.linspace(0, 1500, 41)
 DEFAULT_z_levels_stratified = np.linspace(0, 400, 65)
-IFS_z_levels = np.flipud(np.array(( 9824.08, 9533.20, 9242.26,
-    8951.30, 8660.32, 8369.35, 8078.41,
-    7787.51, 7496.68, 7205.93, 6915.29, 6624.76, 6334.38, 6044.15,
-    5754.10, 5464.60, 5176.77, 4892.26, 4612.58, 4338.77, 4071.80,
-    3812.53, 3561.70, 3319.94, 3087.75, 2865.54, 2653.58, 2452.04,
-    2260.99, 2080.41, 1910.19, 1750.14, 1600.04, 1459.58, 1328.43,
+IFS_z_levels = np.flipud(np.array((1600.04, 1459.58, 1328.43,
     1206.21, 1092.54, 987.00, 889.17, 798.62, 714.94, 637.70,
     566.49, 500.91, 440.58, 385.14, 334.22, 287.51, 244.68,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # starting at 0. it is thus not really IFS zlevels
+
+IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
+    334.22, 287.51, 244.68,
+    205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
+    10.00))) - 10. # less levels in the stratified case
 
 def fig_verify_FVfreeStrat():
     """
@@ -80,6 +80,7 @@ def fig_consistency_comparisonStratified():
         with TKE turbulence scheme.
     """
     z_levels = DEFAULT_z_levels_stratified
+    z_levels = IFS_z_levels_stratified
     z_levels_les= np.linspace(0, 400, 651)
     dt = 10.
     N = 3240 # 28*3600/10=3240
