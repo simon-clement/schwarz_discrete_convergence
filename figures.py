@@ -9,7 +9,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from memoisation import memoised
-from simu1DEkman import Simu1dEkman
 from simu1DStratified import Simu1dStratified
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
@@ -20,6 +19,16 @@ mpl.rcParams["grid.linewidth"] = '0.5'
 
 DEFAULT_z_levels = np.linspace(0, 1500, 41)
 DEFAULT_z_levels_stratified = np.linspace(0, 400, 65)
+IFS_z_levels = np.flipud(np.array(( 9824.08, 9533.20, 9242.26,
+    8951.30, 8660.32, 8369.35, 8078.41,
+    7787.51, 7496.68, 7205.93, 6915.29, 6624.76, 6334.38, 6044.15,
+    5754.10, 5464.60, 5176.77, 4892.26, 4612.58, 4338.77, 4071.80,
+    3812.53, 3561.70, 3319.94, 3087.75, 2865.54, 2653.58, 2452.04,
+    2260.99, 2080.41, 1910.19, 1750.14, 1600.04, 1459.58, 1328.43,
+    1206.21, 1092.54, 987.00, 889.17, 798.62, 714.94, 637.70,
+    566.49, 500.91, 440.58, 385.14, 334.22, 287.51, 244.68,
+    205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
+    10.00))) - 10. # starting at 0. it is thus not really IFS zlevels
 
 def fig_verify_FVfreeStrat():
     """
@@ -27,7 +36,7 @@ def fig_verify_FVfreeStrat():
         with TKE turbulence scheme.
         compares FV free with FV2.
     """
-    z_levels = DEFAULT_z_levels_stratified
+    z_levels = IFS_z_levels
     dt = 10.
     N = 3240 # 28*3600/10=3240
 
@@ -203,7 +212,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     M = z_levels.shape[0] - 1
     simulator = Simu1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
-            K_mol=1e-4, C_D=1e-3, f=1.39e-4)
+            K_mol=1e-4, f=1.39e-4)
     u_0 = 8*np.ones(M)
     phi_0 = np.zeros(M+1)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
@@ -269,7 +278,7 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
     M = z_levels.shape[0] - 1
     simulator = Simu1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
-            K_mol=1e-4, C_D=1e-3, f=1.39e-4)
+            K_mol=1e-4, f=1.39e-4)
     u_0 = 8*np.ones(M)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     SST = np.concatenate(([265],
@@ -290,13 +299,15 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
     if name == None:
         name = sf_scheme
     M = z_levels.shape[0] - 1
-    simulator = Simu1dEkman(z_levels=z_levels,
-            dt=dt, u_geostrophy=10.,
-            K_mol=1e-4, C_D=1e-3, f=1e-4)
+    simulator = Simu1dStratified(z_levels=z_levels,
+            dt=dt, u_geostrophy=10., K_mol=1e-4, f=1e-4)
+
     u_0 = 10*np.ones(M)
-    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
-    u, TKE, ustar = simulator.FD(u_t0=u_0,
-            sf_scheme=sf_scheme, forcing=forcing)
+    forcing = 1j*simulator.f * simulator.u_g*np.ones((N+1, M))
+    SST = 265. * np.ones(N+1) # Neutral SST with theta=const=265.
+    u, TKE, ustar, _, _ = simulator.FD(u_0,
+            forcing, SST, sf_scheme=sf_scheme,
+            Neutral_case=True)
     z_tke = np.copy(simulator.z_full)
     z_tke[0] = z_levels[1]/2 if sf_scheme != "FD2" else 0.1
 
@@ -311,9 +322,9 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     #     name = sf_scheme
     M = z_levels.shape[0] - 1
     z_star: float = .1
-    simulator = Simu1dEkman(z_levels=z_levels,
+    simulator = Simu1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=10.,
-            K_mol=1e-4, C_D=1e-3, f=1e-4)
+            K_mol=1e-4, f=1e-4)
     # choosing u_0 linear so it can be the same FD, FV
     u_0 = 10*np.ones(M+1)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
@@ -343,12 +354,15 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
         alpha_sl = h_tilde/h_kp12 + tau_sl
         u_0[k] = alpha_sl * u_tilde - tau_sl*h_tilde*phi_0[k]/3
 
-    u, phi, TKE, ustar = simulator.FV(u_t0=u_0[:-1],
-            phi_t0=phi_0, sf_scheme=sf_scheme,
-            delta_sl=delta_sl, forcing=forcing)
+    SST = 265.*np.ones(N+1) # Neutral case SST with theta=265K
+    u, phi, TKE, ustar, theta, dz_theta, _, SL = simulator.FV(\
+            u_t0=u_0[:-1],
+            phi_t0=phi_0, sf_scheme=sf_scheme, Neutral_case=True,
+            delta_sl=delta_sl, forcing=forcing, u_delta=10.,
+            SST=SST)
 
-    z_fv, u_fv = simulator.reconstruct_FV(u,
-            phi, sf_scheme, delta_sl=delta_sl)
+    z_fv, u_fv, theta = simulator.reconstruct_FV(u,
+            phi, theta, dz_theta, SL)
 
     axes[0].semilogy(np.real(u_fv), z_fv, **style)
     axes[1].semilogy(np.imag(u_fv), z_fv, **style)

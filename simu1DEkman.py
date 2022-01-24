@@ -119,7 +119,8 @@ class Simu1dEkman():
 
         tke = np.ones(self.M) * self.e_min
         dz_tke = np.zeros(self.M+1)
-        l_m, _ = self.mixing_lengths(delta_sl)
+        l_m = self.lm_min*np.ones(self.M+1)
+        l_eps = self.leps_min*np.ones(self.M+1)
         K_full: array = self.K_min + np.zeros(self.M+1)
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         if sf_scheme == "FV Dirichlet":
@@ -142,7 +143,7 @@ class Simu1dEkman():
             K_full, tke, dz_tke = self.__visc_turb_FV(u_star,
                     delta_sl, turbulence="TKE", phi=phi,
                     old_phi=old_phi, K_full=K_full, tke=tke,
-                    dz_tke=dz_tke)
+                    dz_tke=dz_tke, l_m=l_m, l_eps=l_eps)
 
             Y, D, c = self.__matrices_u_FV(K_full, forcing_current)
 
@@ -206,6 +207,8 @@ class Simu1dEkman():
         tke = np.ones(self.M+1) * self.e_min
         K_full: array = self.K_min + np.zeros(self.M+1)
 
+        l_m = self.lm_min*np.ones(self.M+1)
+        l_eps = self.lm_min*np.ones(self.M+1)
         u_current: array = np.copy(u_t0)
         old_u = np.copy(u_current)
         all_u_star = []
@@ -220,7 +223,7 @@ class Simu1dEkman():
             K_full, tke = self.__visc_turb_FD(u_star=u_star,
                     delta_sl=delta_sl, turbulence="TKE",
                     u_current=u_current, old_u=old_u,
-                    K_full=K_full, tke=tke)
+                    K_full=K_full, tke=tke, l_m=l_m, l_eps=l_eps)
 
             Y, D, c = self.__matrices_u_FD(K_full, forcing_current)
             self.__apply_sf_scheme(sf_scheme, Y=Y, D=D, c=c,
@@ -233,13 +236,13 @@ class Simu1dEkman():
         return u_current, tke, all_u_star
 
 
-    def __integrate_tke(self, tke, shear, K_full, delta_sl, u_star):
+    def __integrate_tke(self, tke, shear, K_full, delta_sl,
+            u_star, l_eps):
         """
             integrates TKE equation on one time step.
             discretisation of TKE is Finite Differences,
             located on half-points.
         """
-        _, l_eps = self.mixing_lengths(delta_sl)
         Ke_half = self.C_e / self.C_m * (K_full[1:] + K_full[:-1])/2
         diag_e = np.concatenate(([1],
                     [1/self.dt + self.c_eps*np.sqrt(tke[m])/l_eps[m] \
@@ -270,7 +273,7 @@ class Simu1dEkman():
         return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 
     def __integrate_tke_FV(self, tke, dz_tke, shear, K_full,
-            delta_sl, u_star):
+            delta_sl, u_star, l_eps):
         """
             integrates TKE equation on one time step.
             discretisation of TKE is Finite Volumes,
@@ -292,7 +295,6 @@ class Simu1dEkman():
             the "subvolume" [delta_sl, z_{k+1}].
             returns tke, dz_tke
         """
-        _, l_eps = self.mixing_lengths(delta_sl)
         # computing buoyancy on half levels:
         shear_half = full_to_half(shear)
         buoy_half = np.zeros_like(shear_half)
@@ -445,6 +447,43 @@ class Simu1dEkman():
                 (self.z_full[self.z_full <= delta_sl] + self.z_star))
         return l_m, l_eps
 
+    def __mixing_lengthsadvanced(self, tke: array, dzu2: array):
+        """
+            returns the mixing lengths (l_m, l_eps)
+            for given entry parameters.
+            dzu2 =||du/dz||^2 should be computed similarly
+            to the shear
+            l_m, l_eps, l_up and l_down are
+            computed on full levels.
+        """
+        z_0M = self.z_star
+        l_up = np.zeros(self.M+1) + \
+                (self.kappa / self.C_m) * \
+                (self.C_m*self.c_eps)**.25 * z_0M
+        l_down = np.copy(l_up)
+        l_up[-1] = l_down[-1] = self.lm_min
+
+        #  Mixing length computation
+        Rod = 0.2
+        buoyancy = 1e-12
+        mxlm = np.maximum(self.lm_min, 2.*np.sqrt(tke) / \
+            (Rod*np.sqrt(dzu2) + np.sqrt(Rod**2*dzu2+2.*buoyancy)))
+        mxlm[0] = mxlm[-1] = self.lm_min
+
+        # should not exceed linear mixing lengths:
+        for j in range(self.M - 1, -1, -1):
+            l_up[j] = min(l_up[j+1] + self.h_half[j], mxlm[j])
+        for j in range(1, self.M+1):
+            l_down[j] = min(l_down[j-1] + self.h_half[j-1], mxlm[j])
+
+        a = -(np.log(self.c_eps)-3.*np.log(self.C_m)+ \
+                4.*np.log(self.kappa))/np.log(16.)
+        l_m = np.maximum((0.5*(l_down**(1./a) + l_up**(1./a)))**a,
+                    self.lm_min)
+        l_eps = np.minimum(l_down, l_up) # l_eps
+
+        return l_m, l_eps
+
     def reconstruct_FV(self, u_bar: array, phi: array,
             sf_scheme: str="FV pure", delta_sl: float=None):
         """
@@ -531,7 +570,7 @@ class Simu1dEkman():
 
     def __visc_turb_FD(self, u_star, delta_sl,
             turbulence="TKE", u_current=None, old_u=None,
-            K_full=None, tke=None):
+            K_full=None, tke=None, l_m=None, l_eps=None):
         """
             Computes the turbulent viscosity on full levels K_full.
             It differs between FD and FV because of the
@@ -551,7 +590,6 @@ class Simu1dEkman():
             K_full[0] = u_star * self.kappa * (delta_sl + self.z_star)
         elif turbulence == "TKE":
             ####### TKE SCHEME #############
-            l_m, _ = self.mixing_lengths(delta_sl)
             du = np.diff(u_current)
             du_old = np.diff(old_u)
             shear = np.concatenate(([0],
@@ -561,7 +599,10 @@ class Simu1dEkman():
 
             tke[:] = np.maximum(self.e_min,
                     self.__integrate_tke(tke, shear, K_full,
-                    delta_sl=delta_sl, u_star=u_star))
+                    delta_sl=delta_sl, u_star=u_star, l_eps=l_eps))
+
+            l_m[:], l_eps[:] = self.__mixing_lengthsadvanced(tke,
+                    shear/K_full)
 
             K_full: array = np.maximum(self.K_min,
                     self.C_m * l_m * np.sqrt(tke))
@@ -595,7 +636,7 @@ class Simu1dEkman():
 
     def __visc_turb_FV(self, u_star, delta_sl, dz_tke=None,
             turbulence="TKE", phi=None, old_phi=None,
-            K_full=None, tke=None):
+            K_full=None, tke=None, l_m=None, l_eps=None):
         """
             Computes the turbulent viscosity on full levels K_full.
             It differs between FD and FV because of the
@@ -621,7 +662,8 @@ class Simu1dEkman():
 
             tke[:], dz_tke[:], tke_full = \
                 self.__integrate_tke_FV(tke, dz_tke, shear,
-                            K_full, delta_sl=delta_sl, u_star=u_star)
+                            K_full, delta_sl=delta_sl, u_star=u_star,
+                            l_eps=l_eps)
 
             if (tke_full < self.e_min).any() or \
                     (tke < self.e_min).any():
@@ -630,7 +672,8 @@ class Simu1dEkman():
                 dz_tke = self.__compute_dz_tke(tke_full[0],
                                     tke, delta_sl, k)
 
-            l_m, _ = self.mixing_lengths(delta_sl)
+            l_m[:], l_eps[:] = self.__mixing_lengthsadvanced(delta_sl,
+                    shear/K_full)
             K_full = self.C_m * l_m * np.sqrt(tke_full)
             K_full[:k] =  self.kappa*u_star*(
                     self.z_full[:k] + self.z_star)

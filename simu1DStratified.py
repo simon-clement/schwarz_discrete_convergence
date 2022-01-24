@@ -112,8 +112,8 @@ class Simu1dStratified():
 
     def FV(self, u_t0: array, phi_t0: array, forcing: array,
             SST:array, delta_sl: float, sf_scheme: str="FV pure",
-            u_delta: float=8.+0j, t_delta: float=265., 
-            turbulence: str="TKE") -> array:
+            u_delta: float=8.+0j, t_delta: float=265.,
+            Neutral_case: bool=False, turbulence: str="TKE") -> array:
         """
             Integrates in time with Backward Euler the model with TKE
             and Finite volumes.
@@ -147,8 +147,8 @@ class Simu1dStratified():
 
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
 
-        tke, dz_tke = self.__initialize_tke(delta_sl, k)
-        theta, dz_theta = self.__initialize_theta()
+        tke, dz_tke = self.__initialize_tke(delta_sl, k, Neutral_case)
+        theta, dz_theta = self.__initialize_theta(Neutral_case)
 
         Ku_full: array = self.K_min + np.zeros(self.M+1)
         Ktheta_full: array = self.Ktheta_min + np.zeros(self.M+1)
@@ -183,9 +183,11 @@ class Simu1dStratified():
                     phi=phi, Ku_full=Ku_full,
                     forcing=forcing[n], SL=SL, SL_nm1=SL_nm1)
 
-            # integrate in time potential temperature
-            theta, dz_theta, t_delta = self.__step_theta(theta,
-                    dz_theta, Ktheta_full, forcing_theta, SL, SL_nm1)
+            if not Neutral_case:
+                # integrate in time potential temperature
+                theta, dz_theta, t_delta = self.__step_theta(theta,
+                        dz_theta, Ktheta_full, forcing_theta,
+                        SL, SL_nm1)
 
         # Representation of TKE as in FD
         tke = self.__compute_tke_full(tke, dz_tke, SL.u_star,
@@ -195,7 +197,8 @@ class Simu1dStratified():
 
 
     def FD(self, u_t0: array, forcing: array, SST:array,
-            turbulence: str="TKE", sf_scheme: str="FD pure") -> array:
+            turbulence: str="TKE", sf_scheme: str="FD pure",
+            Neutral_case: bool=False) -> array:
         """
             Integrates in time with Backward Euler the model with KPP
             and Finite differences.
@@ -224,6 +227,10 @@ class Simu1dStratified():
                 self.z_half[self.z_half <= 250] / 250)**3
 
         theta: array = 265 + np.maximum(0, 0.01 * (self.z_half[:-1]-100))
+        if Neutral_case:
+            theta[:] = 265.
+            tke[:] = self.e_min
+
         Ku_full: array = self.K_min + np.zeros_like(tke)
         Ktheta_full: array = self.Ktheta_min + np.zeros_like(tke)
         l_m = self.lm_min*np.ones(self.M+1)
@@ -248,27 +255,25 @@ class Simu1dStratified():
                     K_full=Ku_full, tke=tke, theta=theta,
                     Ktheta_full=Ktheta_full, l_m=l_m, l_eps=l_eps)
             Y, D, c = self.__matrices_u_FD(Ku_full, forcing_current)
-            # lam_s, lam_m = self.__lambdas_reaction(Pr)
-            Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
-                    Ktheta_full, np.zeros(self.M))
-
-            _, func = self.dictsf_scheme[sf_scheme]
 
             self.__apply_sf_scheme(func=self.dictsf_scheme[sf_scheme][1],
                     Y=Y, D=D, c=c, K_u=Ku_full,
                     forcing=forcing_current, SL=SL)
-
-            self.__apply_sf_scheme(\
-                    func=self.dictsf_scheme_theta[sf_scheme][1],
-                    Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
-                    K_theta=Ktheta_full, forcing=forcing_theta)
-
-            next_theta = np.real(self.__backward_euler(Y=Y_theta,
-                    D=D_theta, c=c_theta, u=theta, f=0.))
             next_u = self.__backward_euler(Y=Y, D=D, c=c,
                     u=u_current, f=self.f)
             u_current, old_u = next_u, u_current
-            theta, old_theta = next_theta, theta
+
+            if not Neutral_case:
+                Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
+                        Ktheta_full, np.zeros(self.M))
+                self.__apply_sf_scheme(\
+                        func=self.dictsf_scheme_theta[sf_scheme][1],
+                        Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
+                        K_theta=Ktheta_full, forcing=forcing_theta)
+
+                next_theta = np.real(self.__backward_euler(Y=Y_theta,
+                        D=D_theta, c=c_theta, u=theta, f=0.))
+                theta, old_theta = next_theta, theta
 
         return u_current, tke, all_u_star, theta, l_m
 
@@ -339,15 +344,19 @@ class Simu1dStratified():
         return next_theta, dz_theta, t_delta
 
 
-    def __initialize_tke(self, delta_sl, k):
+    def __initialize_tke(self, delta_sl: float, k: int,
+            Neutral_case: bool):
         tke = np.ones(self.M) * self.e_min
-        tke[self.z_half[:-1] <= 250] = self.e_min + 0.4*(1 - \
+        if not Neutral_case:
+            tke[self.z_half[:-1] <= 250] = self.e_min + 0.4*(1 - \
                 self.z_half[:-1][self.z_half[:-1] <= 250] / 250)**3
         # inversion of a system to find dz_tke:
-        return tke, self.__compute_dz_tke(self.e_min + 0.4,
-                tke, delta_sl, k)
+            return tke, self.__compute_dz_tke(self.e_min + 0.4,
+                    tke, delta_sl, k)
 
-    def __initialize_theta(self):
+        return tke, np.zeros(self.M+1)
+
+    def __initialize_theta(self, Neutral_case: bool):
         # approximate profile of theta: 265 then linear increasing
         theta: array = 265 + np.maximum(0, 0.01 * (self.z_half[:-1]-100))
         # But there's an angle, which is not a quadratic spline:
@@ -363,6 +372,10 @@ class Simu1dStratified():
         udiag[0] = rhs[0] = 0. # bottom Neumann condition
         ldiag[-1], diag[-1], rhs[-1] = 0., 1., 0.01 # top Neumann
         dz_theta: array = solve_linear((ldiag, diag, udiag), rhs)
+
+        if Neutral_case: # If there's no stratification, theta=const
+            theta[:] = 265.
+            dz_theta[:] = 0.
         return theta, dz_theta
 
     def __compute_tke_full(self, tke, dz_tke, u_star, delta_sl, k):
