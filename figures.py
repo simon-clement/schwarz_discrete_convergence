@@ -285,14 +285,17 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
         alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
         u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
 
-    u, phi, TKE, ustar, temperature, dz_theta, l_m, SL = \
+    u, phi, TKE, dz_tke, ustar, temperature, dz_theta, l_eps, SL = \
             simulator.FV(u_t0=u_0, phi_t0=phi_0,
                     SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
                     forcing=forcing, delta_sl=delta_sl)
 
     z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
             dz_theta, SL=SL)
-    return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
+    z_tke, tke_fv = simulator.reconstruct_TKE(TKE,
+            dz_tke, SL, sf_scheme)
+
+    return z_fv, u_fv, theta_fv, z_tke, tke_fv, ustar, l_eps
 
 def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
     """
@@ -336,7 +339,7 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
         alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
         u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
 
-    u, phi, TKE, ustar, temperature, dz_theta, l_m, SL = \
+    u, phi, TKE, dz_tke, ustar, temperature, dz_theta, l_m, SL = \
             simulator.FV(u_t0=u_0, phi_t0=phi_0, Neutral_case=True,
                     SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
                     forcing=forcing, delta_sl=delta_sl)
@@ -349,10 +352,9 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
         z_levels=DEFAULT_z_levels_stratified, delta_sl=None,
         name=None, style={}):
 
-    z_fv, u_fv, theta_fv, z_tke, TKE, ustar = \
+    z_fv, u_fv, theta_fv, z_tke, TKE, ustar, l_eps = \
             compute_with_sfStratified(sf_scheme, z_levels, dt, N,
                     delta_sl)
-
     axes[0].semilogy(np.abs(u_fv), z_fv, **style)
     axes[1].semilogy(theta_fv, z_fv, **style)
     axes[2].semilogy(TKE, z_tke, **style, label=name)
