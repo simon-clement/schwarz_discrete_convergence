@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from memoisation import memoised
 from simu1DStratified import Simu1dStratified
+from utils_linalg import solve_linear
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
 mpl.rcParams["axes.grid"] = True
@@ -84,7 +85,7 @@ def fig_consistency_comparisonStratified():
     z_levels = DEFAULT_z_levels_stratified
     z_levels = IFS_z_levels_stratified
     # z_levels_les= np.linspace(0, 400, 651)
-    z_levels_les= np.linspace(0, IFS_z_levels_stratified[-1], 651)
+    z_levels_les= np.linspace(0, z_levels[-1], 351)
     dt = 10.
     N = 3240 # 28*3600/10=3240
 
@@ -206,12 +207,14 @@ def fig_verify_FDStratified():
     show_or_save("fig_verify_FDFVStratified")
 
 def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
-        delta_sl=None):
+        delta_sl=None, z_constant=None):
     """
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
     """
     if delta_sl is None:
         delta_sl = z_levels[1]/2
+    if z_constant is None:
+        z_constant = 2*delta_sl
 
     M = z_levels.shape[0] - 1
     simulator = Simu1dStratified(z_levels=z_levels,
@@ -227,11 +230,13 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     z_tke[k] = delta_sl #
     u_deltasl = 8. # first guess before the iterations
     if sf_scheme in {"FV1 free", "FV2 free", "FV free"}:
-        zk = z_levels[k]
+        k_constant = bisect.bisect_right(z_levels[1:], z_constant)
+        zk, zkp1 = z_levels[k], z_levels[k+1]
         h_tilde = z_levels[k+1] - delta_sl
         h_kp12 = z_levels[k+1] - z_levels[k]
         z_0M = 1e-1
         u_constant = 8.
+        u_kp1 = 8.
         K_mol, kappa = simulator.K_mol, simulator.kappa
         for _ in range(15):
             u_star = kappa / np.log(1+delta_sl/z_0M) * np.abs(u_deltasl)
@@ -239,10 +244,38 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
 
             phi_0[k] = u_deltasl / (z_0M+delta_sl) / \
                     np.log(1+delta_sl/z_0M)
-            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_constant
+            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_kp1
             # (subgrid reconstruction at the top of the volume)
-            u_tilde = u_constant - h_tilde/6 * phi_0[k]
+            u_tilde = u_kp1 - h_tilde/6 * (phi_0[k]+2*phi_0[k+1])
             u_deltasl = u_tilde - h_tilde / 3 * phi_0[k]
+            u_kp1 = u_deltasl + (u_constant - u_deltasl) * \
+                    ((zkp1 - delta_sl) / (z_constant - delta_sl))**3
+            # For LES simulation, putting a linear profile between
+            # the log law and the constant profile:
+            z_linear_profile = zkp1+simulator.h_half[k+1:k_constant]
+            u_0[k+1:k_constant] = u_kp1 + (u_constant-u_kp1) * \
+                    ((z_linear_profile - zkp1) / (z_constant - zkp1))**3
+            # compute_phi: with phi[k] = phi_0[k], 
+            # with phi[k_constant] = 0,
+            # and the FV approximation
+            def compute_phi(bottom_cond, u_0, h_half):
+                """ solving the system of finite volumes:
+                phi_{m-1}/12 + 10 phi_m / 12 + phi_{m+1} / 12 =
+                        (tke_{m+1/2} - tke_{m-1/2})/h
+                """
+                ldiag = h_half[:-1] /6.
+                diag = (h_half[1:] + h_half[:-1]) * 1/3.
+                udiag = h_half[1:] /6.
+                diag = np.concatenate(([1.], diag, [1.]))
+                udiag = np.concatenate(([0.], udiag))
+                ldiag = np.concatenate((ldiag, [0.]))
+                rhs = np.concatenate(([bottom_cond],
+                    np.diff(u_0), [0.]))
+                return solve_linear((ldiag, diag, udiag), rhs)
+            phi_0[k:] = compute_phi(phi_0[k],
+                    np.concatenate(([u_tilde], u_0[k+1:])),
+                    np.concatenate(([h_tilde],
+                        simulator.h_half[k+1:-1])))
 
         neutral_tau_sl = (delta_sl / (h_kp12))* \
                 (1+z_0M/delta_sl - 1/np.log(1+delta_sl/z_0M) \
