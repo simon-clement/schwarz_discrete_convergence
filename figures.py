@@ -122,7 +122,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     k = bisect.bisect_right(z_levels[1:], delta_sl)
     z_tke[k] = delta_sl #
     u_deltasl = 8. # first guess before the iterations
-    if sf_scheme in {"FV1 free", "FV2 free", "FV free"}:
+    if sf_scheme in {"FV1 free", "FV2 free", "FV free", "FV2"}:
         k_constant = bisect.bisect_right(z_levels[1:], z_constant)
         zk, zkp1 = z_levels[k], z_levels[k+1]
         h_tilde = z_levels[k+1] - delta_sl
@@ -208,7 +208,7 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
     k = bisect.bisect_right(z_levels[1:], delta_sl)
     z_tke[k] = delta_sl #
     u_deltasl = 10. # first guess before the iterations
-    if sf_scheme in {"FV1 free", "FV2 free", "FV free"}:
+    if sf_scheme in {"FV1 free", "FV2 free", "FV free", "FV2"}:
         zk = z_levels[k]
         h_tilde = z_levels[k+1] - delta_sl
         h_kp12 = z_levels[k+1] - z_levels[k]

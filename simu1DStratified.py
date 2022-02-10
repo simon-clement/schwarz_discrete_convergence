@@ -151,7 +151,7 @@ class Simu1dStratified():
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         SL: SurfaceLayerData = self.__friction_scales(u_delta,
                 delta_sl, t_delta, SST[0], businger(), sf_scheme, k)
-        ignore_tke_sl = sf_scheme in {"FV pure",}
+        ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
 
         tke, dz_tke = self.__initialize_tke(SL,
                 Neutral_case, ignore_tke_sl)
@@ -412,6 +412,9 @@ class Simu1dStratified():
                     h_half[0]*dz_tke[1]*coeff_FV_small],
             tke + h_half[:-1]*dz_tke[1:]*coeff_FV_big + \
                     h_half[:-1]*dz_tke[:-1]*coeff_FV_small))
+        tke_full[SL.k] = tke[SL.k] - \
+                h_half[SL.k]*dz_tke[SL.k]*coeff_FV_big - \
+                    h_half[SL.k]*dz_tke[SL.k+1]*coeff_FV_small
         phi_m, phi_h, *_ = universal_funcs
 
         N2 = 9.81/283. * SL.t_star * phi_h(z_sl * SL.inv_L_MO) \
@@ -702,9 +705,9 @@ class Simu1dStratified():
         mxlm[:k_modif] = 1/l_up[:k_modif] / tke[:k_modif] * \
                 (self.kappa * SL.u_star / self.C_m * \
                 (z_sl + SL.z_0M) / phi_m(z_sl * SL.inv_L_MO))**2
-        l_down[0] = (self.kappa/self.C_m) * (self.C_m*self.c_eps)**.25 \
-                * (SL.z_0M + z_levels[0])
 
+        # limiting l_down with the distance to the bottom:
+        l_down[0] = z_levels[0]
         for j in range(1, self.M+1):
             l_down[j] = min(l_down[j-1] + h_half[j-1], mxlm[j])
         l_down[:k_modif] = mxlm[:k_modif]
@@ -715,7 +718,7 @@ class Simu1dStratified():
 
     def reconstruct_TKE(self, tke, dz_tke, SL, sf_scheme,
             universal_funcs, l_eps):
-        ignore_tke_sl = sf_scheme in {"FV pure",}
+        ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
         z_min = SL.delta_sl / 2.
         xi = [np.linspace(-h/2, h/2, 15) for h in self.h_half[:-1]]
         xi[1] = np.linspace(-self.h_half[1]/2, self.h_half[1]/2, 40)
@@ -1137,10 +1140,19 @@ class Simu1dStratified():
             K_full = self.C_m * l_m * np.sqrt(tke_full)
 
             if ignore_tke_sl:
-                Ktheta_full[0] = (self.kappa * u_star*(delta_sl+SL.z_0M))\
-                        / phi_h(delta_sl*inv_L_MO)
-                K_full[0] = (self.kappa * u_star*(delta_sl+SL.z_0M)\
-                        ) / phi_m(delta_sl*inv_L_MO)
+                # When we ignore SL, K_0 is ~ the molecular viscosity:
+                Ktheta_full[0] = (self.kappa * u_star*(SL.z_0M))\
+                        / phi_h(SL.z_0M*inv_L_MO)
+                K_full[0] = (self.kappa * u_star*(SL.z_0M)\
+                        ) / phi_m(SL.z_0M*inv_L_MO)
+                # since it does not work well, one can replace with:
+                # Ktheta_full[0] = (self.kappa * u_star*(delta_sl+SL.z_0H))\
+                #         / phi_h(delta_sl*inv_L_MO)
+                # K_full[0] = (self.kappa * u_star*(delta_sl+SL.z_0M)\
+                #         ) / phi_m(delta_sl*inv_L_MO)
+                # by doing this, phi_0 would not mean correspond
+                # to dzu(z0) neither to dzu(delta_sl)
+
 
         else:
             raise NotImplementedError("Wrong turbulence scheme")
