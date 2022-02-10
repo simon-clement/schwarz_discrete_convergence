@@ -6,4 +6,5 @@ FIGURE = {}
 FIGURE["0"] = "fig_verify_FDFV"
 FIGURE["1"] = "fig_consistency_comparison"
 FIGURE["2"] = "fig_consistency_comparisonStratified"
+FIGURE["3"] = "fig_consistency_comparisonUnstable"
 ALL_LABELS = FIGURE

@@ -282,7 +282,8 @@ class Simu1dStratified():
                 self.__apply_sf_scheme(\
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
-                        K_theta=Ktheta_full, forcing=forcing_theta)
+                        K_theta=Ktheta_full, forcing=forcing_theta,
+                        universal_funcs=businger())
 
                 next_theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
@@ -648,8 +649,8 @@ class Simu1dStratified():
                 / self.kappa / (SL.delta_sl + SL.z_0H)
         shear_sl = SL.u_star**3 * phi_m(SL.delta_sl * SL.inv_L_MO) / \
                 self.kappa / (SL.delta_sl + SL.z_0M)
-        e_sl = np.maximum((l_eps[SL.k]/self.c_eps * \
-                (shear_sl - N2_sl))**(2/3), self.e_min)
+        e_sl = np.maximum(((l_eps[SL.k]/self.c_eps * \
+                (shear_sl - N2_sl))**2)**(1/3), self.e_min)
 
         rhs_e = np.concatenate(([e_sl], [tke[m]/self.dt + shear[m]
                 for m in range(1, self.M)],
@@ -874,8 +875,7 @@ class Simu1dStratified():
         # formulas
         theta_log: complex = SST + Pr * t_star / self.kappa * \
                 (np.log(1+z_log/SL.z_0H) - \
-                psi_h(z_log*inv_L_MO) + psi_h(SL.z_0H*inv_L_MO)) \
-                        * np.sign(t_delta - SST)
+                psi_h(z_log*inv_L_MO) + psi_h(SL.z_0H*inv_L_MO))
 
         k2: int = bisect.bisect_right(z_oversampled, self.z_full[k1+1])
 
@@ -1118,8 +1118,9 @@ class Simu1dStratified():
             N2_full[:k+1] = g/theta_ref * SL.t_star * phi_h(\
                 z_levels[:k+1] * SL.inv_L_MO) / self.kappa / \
                 (z_levels[:k+1] + SL.z_0H)
-            # When energy conservation is not converned, (dzu)^2 is:
-            dzu2_full = np.abs(phi * phi)
+            # When energy conservation is not concerned, (dzu)^2 is:
+            dzu2_full = np.abs(phi*phi)
+            dzu2_full = np.concatenate(([0], shear_half))/K_full
             dzu2_full[:k+1] = (SL.u_star * phi_m(z_levels[:k+1] * \
                     SL.inv_L_MO)/self.kappa / \
                     (z_levels[:k+1] + SL.z_0M))**2
@@ -1545,9 +1546,10 @@ class Simu1dStratified():
     # Now that Y_n and Y_nm1 can be different,
     # the framework with Y, D and c is far less convenient.
     # I'll change this in a future update.
-    def __sf_YDc_FDpure_theta(self, K_theta, SL, **_):
-        phi_stab = -7.8 * self.kappa * SL.delta_sl * 9.81*\
-                    (SL.t_star / SL.t_delta) / SL.u_star**2
+    def __sf_YDc_FDpure_theta(self, K_theta, SL, universal_funcs, **_):
+        inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
+        _, _, _, psi_h, _, _ = universal_funcs
+        phi_stab = psi_h(inv_L_MO * SL.delta_sl)
         ch_du = SL.u_star * self.kappa / \
                 (np.log(1+SL.delta_sl/SL.z_0H)-phi_stab)
         Y = ((), (1.,), (0.,))
@@ -1557,9 +1559,10 @@ class Simu1dStratified():
         c = (SL.SST*ch_du / self.h_half[0],)
         return Y, D, c, Y
 
-    def __sf_YDc_FD2_theta(self, K_theta, SL, **_):
-        phi_stab = -7.8 * self.kappa * SL.delta_sl * 9.81*\
-                    (SL.t_star / SL.t_delta) / SL.u_star**2
+    def __sf_YDc_FD2_theta(self, K_theta, SL, universal_funcs, **_):
+        inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
+        _, _, _, psi_h, _, _ = universal_funcs
+        phi_stab = psi_h(inv_L_MO * SL.delta_sl)
         ch_du = SL.u_star * self.kappa / (np.log(1+SL.delta_sl/SL.z_0H)-phi_stab)
         Y = ((), (0.,), (0.,))
         D = ((), (-K_theta[1]/self.h_full[1] - ch_du / 2,),

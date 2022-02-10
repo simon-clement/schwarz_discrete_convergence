@@ -34,6 +34,71 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # less levels in the stratified case
 
+def fig_consistency_comparisonUnstable():
+    """
+        Integrates for 1 day a 1D ekman equation
+        with TKE turbulence scheme.
+    """
+    z_levels = DEFAULT_z_levels_stratified
+    z_levels = IFS_z_levels_stratified
+    z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
+    # z_levels_les= np.linspace(0, 400, 651)
+    z_levels_les= np.linspace(0, z_levels[-1], 351)
+    dt = 10.
+    N = int(8*24*3600/dt) # 28*3600/10=3240
+
+    fig, axes = plt.subplots(1,5, figsize=(7.5, 3.5))
+    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
+    col_FDpure = "g"
+    col_FV1 = "b"
+    col_FVfree = "r"
+    def style(col, linestyle='solid', **kwargs):
+        return {"color": col, "linestyle": linestyle,
+                "linewidth":1.5, **kwargs}
+
+    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
+            name="FD, M=65", style=style(col_FDpure, "dotted"), stable=False)
+    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les, stable=False,
+            name="FD, M=650", style=style(col_FDpure))
+    # plot_FVStratified(axes, "FV1", delta_sl=z_levels[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels, stable=False,
+    #         name=None, style=style(col_FV1, "dotted"))
+    # plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
+    #         name="FV1, M=650", style=style(col_FV1))
+    # plot_FVStratified(axes, "FV2", delta_sl=z_levels[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels_FV2, stable=False,
+    #         name=None, style=style("c", "dotted"))
+    # plot_FVStratified(axes, "FV2", delta_sl=z_levels_les[1],
+    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
+    #         name="FV2, M=650", style=style("c"))
+    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels, stable=False,
+    #         name=None, style=style("m", "dotted"))
+    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels_les[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
+    #         name="FV pure, M=650", style=style("m"))
+    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels, stable=False,
+            name=None, style=style(col_FVfree, "dotted"))
+    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels_les, stable=False,
+            name="FV free, M=650", style=style(col_FVfree))
+
+    axes[0].set_xlabel(r"wind speed ($|u|, m.s^{-1}$)")
+    axes[0].set_ylabel("height (m)")
+    axes[1].set_xlabel(r"Potential Temperature ($\theta$, K)")
+    axes[1].set_ylabel("height (m)")
+    axes[2].set_xlabel("energy (J)")
+    axes[2].set_ylabel("height (m)")
+    axes[2].legend(loc="upper right")
+    axes[3].set_ylim(top=0.28, bottom=0.16)
+    axes[3].set_ylabel("friction velocity (u*, $m.s^{-1}$)")
+    axes[3].set_xlabel("time (s)")
+    axes[4].set_xlabel("mixing length (m)")
+    axes[4].set_ylabel("height (m)")
+    show_or_save("fig_consistency_comparisonUnstable")
+
 def fig_consistency_comparisonStratified():
     """
         Integrates for 1 day a 1D ekman equation
@@ -100,7 +165,7 @@ def fig_consistency_comparisonStratified():
     show_or_save("fig_consistency_comparisonStratified")
 
 def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
-        delta_sl=None, z_constant=None):
+        stable=True, delta_sl=None, z_constant=None):
     """
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
     """
@@ -116,8 +181,14 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     u_0 = 8*np.ones(M)
     phi_0 = np.zeros(M+1)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
-    SST = np.concatenate(([265],
-        [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
+    if stable:
+        SST = np.concatenate(([265],
+            [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
+    else: # diurnal cycle:
+        SST = np.concatenate(([265],
+            [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
+                    for n in range(1, N+1)]))
+
     z_tke = np.copy(simulator.z_full)
     k = bisect.bisect_right(z_levels[1:], delta_sl)
     z_tke[k] = delta_sl #
@@ -248,12 +319,13 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
     return z_fv, u_fv, theta_fv, z_tke, tke_fv, ustar
 
 def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
-        z_levels=DEFAULT_z_levels_stratified, delta_sl=None,
+        z_levels=DEFAULT_z_levels_stratified,
+        stable: bool=True, delta_sl=None,
         name=None, style={}):
 
     z_fv, u_fv, theta_fv, z_tke, TKE, ustar, l_eps = \
             compute_with_sfStratified(sf_scheme, z_levels, dt, N,
-                    delta_sl)
+                    stable, delta_sl)
     axes[0].semilogy(np.abs(u_fv), z_fv, **style)
     axes[1].semilogy(theta_fv, z_fv, **style)
     axes[2].semilogy(TKE, z_tke, **style, label=name)
@@ -264,7 +336,7 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
     axes[4].semilogy(l_eps, z_leps, **style)
 
 def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
-        z_levels=DEFAULT_z_levels_stratified,
+        z_levels=DEFAULT_z_levels_stratified, stable: bool=False,
         name=None, style={}):
     if name is None:
         name = sf_scheme
@@ -274,8 +346,13 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
             K_mol=1e-4, f=1.39e-4)
     u_0 = 8*np.ones(M)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
-    SST = np.concatenate(([265],
-        [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
+    if stable:
+        SST = np.concatenate(([265],
+            [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
+    else: # diurnal cycle:
+        SST = np.concatenate(([265],
+            [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
+                    for n in range(1, N+1)]))
     u, TKE, ustar, temperature, l_m = simulator.FD(u_t0=u_0, SST=SST,
             sf_scheme=sf_scheme, forcing=forcing)
     z_tke = np.copy(simulator.z_full)
