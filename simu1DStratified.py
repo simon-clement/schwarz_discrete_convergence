@@ -289,7 +289,7 @@ class Simu1dStratified():
                         D=D_theta, c=c_theta, u=theta, f=0.))
                 theta, old_theta = next_theta, theta
 
-        return u_current, tke, all_u_star, theta, l_m
+        return u_current, tke, all_u_star, theta, l_eps
 
     def __step_u(self, u: array, phi: array,
             Ku_full: array, forcing: array,
@@ -498,15 +498,14 @@ class Simu1dStratified():
         z_sl = np.copy(self.z_full[:k+1])
         z_sl[-1] = z_sl[-1] if ignore_sl else delta_sl
 
-        N2_sl = 9.81/283. * SL.t_star * phi_h(z_sl * SL.inv_L_MO) \
-                / self.kappa / (z_sl + SL.z_0H)
+        KN2_sl = 9.81/283. * SL.t_star * SL.u_star
         shear_sl = SL.u_star**3 * phi_m(z_sl * SL.inv_L_MO) / \
                 self.kappa / (z_sl + SL.z_0M)
         e_sl = np.maximum(((l_eps[:k+1]/self.c_eps * \
-                (shear_sl - N2_sl))**2)**(1/3), self.e_min)
+                (shear_sl - KN2_sl))**2)**(1/3), self.e_min)
         # TODO \Bar{e} inside SL
-        #for now it's just not used but it's quite dirty
-        #anyway, the whole tke scheme should be changed 
+        # for now it's just not used but it's quite dirty
+        # anyway, the whole tke scheme should be changed
         # for a lighter one
 
         l_eps_half = full_to_half(l_eps)
@@ -644,13 +643,13 @@ class Simu1dStratified():
             [ -Ke_half[m] / self.h_half[m] / self.h_full[m] \
                     for m in range(1,self.M) ]))
 
-        phi_m, phi_h, *_ = universal_funcs
-        N2_sl = 9.81/283. * SL.t_star * phi_h(SL.delta_sl * SL.inv_L_MO) \
-                / self.kappa / (SL.delta_sl + SL.z_0H)
+        phi_m, *_ = universal_funcs
+        KN2_sl = 9.81/283. * SL.t_star * SL.u_star
         shear_sl = SL.u_star**3 * phi_m(SL.delta_sl * SL.inv_L_MO) / \
                 self.kappa / (SL.delta_sl + SL.z_0M)
+
         e_sl = np.maximum(((l_eps[SL.k]/self.c_eps * \
-                (shear_sl - N2_sl))**2)**(1/3), self.e_min)
+                (shear_sl - KN2_sl))**2)**(1/3), self.e_min)
 
         rhs_e = np.concatenate(([e_sl], [tke[m]/self.dt + shear[m]
                 for m in range(1, self.M)],
@@ -667,43 +666,6 @@ class Simu1dStratified():
         udiag_e[:k+1] = ldiag_e[:k] = 0.
 
         return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
-
-    def __mixing_lengths_FD(self, tke: array, dzu2: array, N2: array,
-            z_levels: array, SL: SurfaceLayerData, universal_funcs):
-        """
-            returns the mixing lengths for FD (l_m, l_eps)
-            for given entry parameters.
-            dzu2 =||du/dz||^2 should be computed similarly
-            to the shear
-            l_m, l_eps, l_up and l_down are
-            computed on full levels.
-        """
-        l_up = np.zeros(self.M+1) + \
-                (self.kappa / self.C_m) * \
-                (self.C_m*self.c_eps)**.25 * SL.z_0M
-        l_down = np.copy(l_up)
-        l_up[-1] = l_down[-1] = self.lm_min
-
-        #  Mixing length computation
-        Rod = 0.2
-        buoyancy = np.maximum(1e-12, N2)
-        mxlm = np.maximum(self.lm_min, 2.*np.sqrt(tke) / \
-                (Rod*np.sqrt(dzu2) + np.sqrt(Rod**2*dzu2+2.*buoyancy)))
-        mxlm[0] = mxlm[-1] = self.lm_min
-
-        # should not exceed linear mixing lengths:
-        for j in range(self.M - 1, -1, -1):
-            l_up[j] = min(l_up[j+1] + self.h_half[j], mxlm[j])
-        for j in range(1, self.M+1):
-            l_down[j] = min(l_down[j-1] + self.h_half[j-1], mxlm[j])
-
-        a = -(np.log(self.c_eps)-3.*np.log(self.C_m)+ \
-                4.*np.log(self.kappa))/np.log(16.)
-        l_m = np.maximum((0.5*(l_down**(1./a) + l_up**(1./a)))**a,
-                    self.lm_min)
-        l_eps = np.minimum(l_down, l_up) # l_eps
-
-        return l_m, l_eps
 
     def __mixing_lengths(self, tke: array, dzu2: array, N2: array,
             z_levels: array, SL: SurfaceLayerData, universal_funcs):
@@ -725,11 +687,7 @@ class Simu1dStratified():
         h_half = np.diff(z_levels)
         k_modif = bisect.bisect_right(z_levels, SL.delta_sl)
         z_sl = z_levels[:k_modif]
-        # bottom boundary condition of l_m:
-        phi_m, phi_h, *_ = universal_funcs
-        L_sfc = self.kappa/self.C_m * (self.C_m*self.c_eps)**.25 * \
-                (z_levels[:k_modif]+SL.z_0M) / \
-                phi_m(z_levels[:k_modif] * SL.inv_L_MO)
+        phi_m, *_ = universal_funcs
         #  Mixing length computation
         Rod = 0.2
         buoyancy = np.maximum(1e-12, N2)
@@ -740,9 +698,20 @@ class Simu1dStratified():
         for j in range(self.M - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
 
-        mxlm[:k_modif] = 1/l_up[:k_modif] / tke[:k_modif] * \
-                (self.kappa * SL.u_star / self.C_m * \
-                (z_sl + SL.z_0M) / phi_m(z_sl * SL.inv_L_MO))**2
+
+        g, theta_ref = 9.81, 283.
+        ratio = SL.u_star**(4/3) * (self.kappa/self.C_m *
+                (z_sl + SL.z_0M) / phi_m(z_sl * SL.inv_L_MO))**2 / \
+                        ((SL.u_star**2 * phi_m(z_sl * SL.inv_L_MO) \
+                        /self.c_eps/self.kappa/(z_sl + SL.z_0M) \
+                        - g/theta_ref/self.c_eps*SL.t_star) \
+                        **2)**(1/3)
+
+        mxlm[:k_modif] = (ratio/l_up[:k_modif])**(3/5)
+        mxlm[:k_modif][mxlm[:k_modif]>l_up[:k_modif]] = \
+                ratio[mxlm[:k_modif]>l_up[:k_modif]] / \
+                l_up[:k_modif][mxlm[:k_modif]>l_up[:k_modif]]**(5/3)
+
 
         # limiting l_down with the distance to the bottom:
         l_down[0] = z_levels[0]
@@ -798,8 +767,7 @@ class Simu1dStratified():
         phi_m, phi_h, *_ = universal_funcs
         z_log: array = np.array((z_min, SL.delta_sl))
 
-        N2 = 9.81/283. * SL.t_star * phi_h(z_log * SL.inv_L_MO) \
-                / self.kappa / (z_log + SL.z_0H)
+        KN2 = 9.81/283. * SL.t_star * SL.u_star
         shear = SL.u_star**3 * phi_m(z_log * SL.inv_L_MO) / \
                 self.kappa / (z_log + SL.z_0M)
 
@@ -810,7 +778,7 @@ class Simu1dStratified():
         f = interp1d(z_levels, l_eps, fill_value="extrapolate")
         l_eps_log = np.maximum(f(z_log), 0.)
         tke_log = np.maximum(((l_eps_log/self.c_eps * \
-                (shear - N2))**2)**(1/3), self.e_min)
+                (shear - KN2))**2)**(1/3), self.e_min)
 
         k2: int = bisect.bisect_right(z_oversampled,
                 self.z_full[SL.k+1])
@@ -897,9 +865,6 @@ class Simu1dStratified():
         _, _, psi_m, psi_h, *_ = businger()
 
         func_un, _ = self.dictsf_scheme[SL.sf_scheme]
-        func_theta, _ = self.dictsf_scheme_theta[SL.sf_scheme]
-        t_delta: float = func_theta(prognostic=prognostic_theta,
-                universal_funcs=businger(), SL=SL)
         u_delta: complex = func_un(prognostic=prognostic,
                 SL=SL, universal_funcs=businger())
 
@@ -1156,11 +1121,10 @@ class Simu1dStratified():
                 z_levels[:k+1] * SL.inv_L_MO) / self.kappa / \
                 (z_levels[:k+1] + SL.z_0H)
             # When energy conservation is not concerned, (dzu)^2 is:
-            dzu2_full = np.abs(phi*phi)
-            dzu2_full = np.concatenate(([0], shear_half))/K_full
-            dzu2_full[:k+1] = (SL.u_star * phi_m(z_levels[:k+1] * \
-                    SL.inv_L_MO)/self.kappa / \
-                    (z_levels[:k+1] + SL.z_0M))**2
+            dzu2_full = np.concatenate((\
+                    [np.abs(phi[0] * phi_second[0])],
+                np.abs(phi[1:-1]*(phi_prime[:-1]+phi_second[1:])),
+                [np.abs(phi[-1] * phi_prime[-1])]))
 
             l_m[:], l_eps[:] = self.__mixing_lengths(tke_full,
                     dzu2_full, N2_full,

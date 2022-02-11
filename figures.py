@@ -336,7 +336,7 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
     axes[4].semilogy(l_eps, z_leps, **style)
 
 def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
-        z_levels=DEFAULT_z_levels_stratified, stable: bool=False,
+        z_levels=DEFAULT_z_levels_stratified, stable: bool=True,
         name=None, style={}):
     if name is None:
         name = sf_scheme
@@ -353,16 +353,16 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
         SST = np.concatenate(([265],
             [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
                     for n in range(1, N+1)]))
-    u, TKE, ustar, temperature, l_m = simulator.FD(u_t0=u_0, SST=SST,
+    u, TKE, ustar, temperature, l_eps = simulator.FD(u_t0=u_0, SST=SST,
             sf_scheme=sf_scheme, forcing=forcing)
     z_tke = np.copy(simulator.z_full)
-    z_tke[0] = z_levels[1]/2 if sf_scheme != "FD2" else 0.1
+    z_tke[0] = 0.1
 
     axes[0].semilogy(np.abs(u), simulator.z_half[:-1], **style)
     axes[1].semilogy(temperature, simulator.z_half[:-1], **style)
     axes[2].semilogy(TKE, z_tke, **style, label=name)
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
-    # axes[3].semilogy(l_m, simulator.z_full, **style)
+    axes[4].semilogy(l_eps, z_tke, **style)
 
 def plot_FD(axes, sf_scheme, dt=60., N=1680,
         z_levels=DEFAULT_z_levels, name=None, style={}):
