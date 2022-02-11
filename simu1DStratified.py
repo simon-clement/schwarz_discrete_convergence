@@ -668,6 +668,43 @@ class Simu1dStratified():
 
         return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 
+    def __mixing_lengths_FD(self, tke: array, dzu2: array, N2: array,
+            z_levels: array, SL: SurfaceLayerData, universal_funcs):
+        """
+            returns the mixing lengths for FD (l_m, l_eps)
+            for given entry parameters.
+            dzu2 =||du/dz||^2 should be computed similarly
+            to the shear
+            l_m, l_eps, l_up and l_down are
+            computed on full levels.
+        """
+        l_up = np.zeros(self.M+1) + \
+                (self.kappa / self.C_m) * \
+                (self.C_m*self.c_eps)**.25 * SL.z_0M
+        l_down = np.copy(l_up)
+        l_up[-1] = l_down[-1] = self.lm_min
+
+        #  Mixing length computation
+        Rod = 0.2
+        buoyancy = np.maximum(1e-12, N2)
+        mxlm = np.maximum(self.lm_min, 2.*np.sqrt(tke) / \
+                (Rod*np.sqrt(dzu2) + np.sqrt(Rod**2*dzu2+2.*buoyancy)))
+        mxlm[0] = mxlm[-1] = self.lm_min
+
+        # should not exceed linear mixing lengths:
+        for j in range(self.M - 1, -1, -1):
+            l_up[j] = min(l_up[j+1] + self.h_half[j], mxlm[j])
+        for j in range(1, self.M+1):
+            l_down[j] = min(l_down[j-1] + self.h_half[j-1], mxlm[j])
+
+        a = -(np.log(self.c_eps)-3.*np.log(self.C_m)+ \
+                4.*np.log(self.kappa))/np.log(16.)
+        l_m = np.maximum((0.5*(l_down**(1./a) + l_up**(1./a)))**a,
+                    self.lm_min)
+        l_eps = np.minimum(l_down, l_up) # l_eps
+
+        return l_m, l_eps
+
     def __mixing_lengths(self, tke: array, dzu2: array, N2: array,
             z_levels: array, SL: SurfaceLayerData, universal_funcs):
         """
