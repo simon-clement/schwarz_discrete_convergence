@@ -395,8 +395,10 @@ class Simu1dStratified():
             # so we use a neutral e_sl assuming l_m=l_eps
             e_sl = np.maximum(SL.u_star**2 / \
                     np.sqrt(self.C_m*self.c_eps), self.e_min)
-            tke[self.z_half[:-1] <= 250] = self.e_min + e_sl*(1 - \
-                (self.z_half[:-1][self.z_half[:-1] <= 250] - \
+            z_half, k = np.copy(self.z_half), SL.k
+            z_half[k] = z_half[k] if ignore_sl else SL.delta_sl
+            tke[z_half[:-1] <= 250] = self.e_min + e_sl*(1 - \
+                (z_half[:-1][z_half[:-1] <= 250] - \
                 SL.delta_sl) / (250.- SL.delta_sl))**3
             # inversion of a system to find dz_tke:
             return tke, self.__compute_dz_tke(e_sl, tke,
@@ -733,7 +735,6 @@ class Simu1dStratified():
         for j in range(self.M - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
 
-
         g, theta_ref = 9.81, 283.
         ratio = SL.u_star**(4/3) * (self.kappa/self.C_m *
                 (z_sl + SL.z_0M) / phi_m(z_sl * SL.inv_L_MO))**2 / \
@@ -750,8 +751,8 @@ class Simu1dStratified():
             print("no solution of the link MOST-TKE")
 
         # limiting l_down with the distance to the bottom:
-        l_down[0] = z_levels[0]
-        for j in range(1, self.M+1):
+        l_down[k_modif-1] = z_levels[k_modif-1]
+        for j in range(k_modif, self.M+1):
             l_down[j] = min(l_down[j-1] + h_half[j-1], mxlm[j])
         l_down[:k_modif] = mxlm[:k_modif]
 
@@ -1159,18 +1160,23 @@ class Simu1dStratified():
                 dz_tke = self.__compute_dz_tke(tke_full[k],
                                     tke, delta_sl, k, ignore_tke_sl)
 
-            phi_m, phi_h, *_ = universal_funcs
             # dzu2 and buoyancy at full levels for mixing lenghts:
             N2_full = g/theta_ref*dz_theta
-            # in surface layer we use MOST profiles
+            # in surface layer we use MOST profiles:
+            phi_m, phi_h, *_ = universal_funcs
             N2_full[:k+1] = g/theta_ref * SL.t_star * phi_h(\
                 z_levels[:k+1] * SL.inv_L_MO) / self.kappa / \
                 (z_levels[:k+1] + SL.z_0H)
-            # When energy conservation is not concerned, (dzu)^2 is:
             dzu2_full = np.concatenate((\
                     [np.abs(phi[0] * phi_second[0])],
                 np.abs(phi[1:-1]*(phi_prime[:-1]+phi_second[1:])),
                 [np.abs(phi[-1] * phi_prime[-1])]))
+            # MOST profiles cause troubles with FV free (high res):
+            # dzu2_full[:k+1] = SL.u_star**2 * \
+            #         phi_m(z_levels[:k+1]*SL.inv_L_MO)**2 / \
+            #         self.kappa**2 * (z_levels[:k+1] + SL.z_0M)**2
+            # without this, We don't have equivalence between
+            # FV2 and FV free because of dzu2_full[k].
 
             l_m[:], l_eps[:] = self.__mixing_lengths(tke_full,
                     dzu2_full, N2_full,

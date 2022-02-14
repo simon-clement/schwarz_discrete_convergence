@@ -44,8 +44,8 @@ def fig_consistency_comparisonUnstable():
     z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
     # z_levels_les= np.linspace(0, 400, 651)
     z_levels_les= np.linspace(0, z_levels[-1], 351)
-    dt = 10.
-    N = int(8*24*3600/dt) # 28*3600/10=3240
+    dt = 50.
+    N = int(3*24*3600/dt) # 28*3600/10=3240
 
     fig, axes = plt.subplots(1,5, figsize=(7.5, 3.5))
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
@@ -55,35 +55,38 @@ def fig_consistency_comparisonUnstable():
     def style(col, linestyle='solid', **kwargs):
         return {"color": col, "linestyle": linestyle,
                 "linewidth":1.5, **kwargs}
-
-    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-            name="FD, M=65", style=style(col_FDpure, "dotted"), stable=False)
+    # High resolution:
     plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les, stable=False,
-            name="FD, M=650", style=style(col_FDpure))
+            name="FD, M=350", style=style(col_FDpure))
+    # plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
+    #         name="FV1, M=350", style=style(col_FV1))
+    plot_FVStratified(axes, "FV2", delta_sl=z_levels_les[1],
+            N=N, dt=dt, z_levels=z_levels_les, stable=False,
+            name="FV2, M=350", style=style("c"))
+    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels_les[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
+    #         name="FV pure, M=350", style=style("m"))
+    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels_les, stable=False,
+            name="FV free, M=350", style=style(col_FVfree))
+
+    # Low resolution:
+    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
+            name="FD, M="+str(z_levels.shape[0]),
+            style=style(col_FDpure, "dotted"), stable=False)
     # plot_FVStratified(axes, "FV1", delta_sl=z_levels[1]/2,
     #         N=N, dt=dt, z_levels=z_levels, stable=False,
     #         name=None, style=style(col_FV1, "dotted"))
-    # plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
-    #         name="FV1, M=650", style=style(col_FV1))
-    # plot_FVStratified(axes, "FV2", delta_sl=z_levels[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels_FV2, stable=False,
-    #         name=None, style=style("c", "dotted"))
-    # plot_FVStratified(axes, "FV2", delta_sl=z_levels_les[1],
-    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
-    #         name="FV2, M=650", style=style("c"))
+    plot_FVStratified(axes, "FV2", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels_FV2, stable=False,
+            name=None, style=style("c", "dotted"))
     # plot_FVStratified(axes, "FV pure", delta_sl=z_levels[1]/2,
     #         N=N, dt=dt, z_levels=z_levels, stable=False,
     #         name=None, style=style("m", "dotted"))
-    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels_les[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
-    #         name="FV pure, M=650", style=style("m"))
     plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels, stable=False,
             name=None, style=style(col_FVfree, "dotted"))
-    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels_les, stable=False,
-            name="FV free, M=650", style=style(col_FVfree))
 
     axes[0].set_xlabel(r"wind speed ($|u|, m.s^{-1}$)")
     axes[0].set_ylabel("height (m)")
@@ -109,8 +112,8 @@ def fig_consistency_comparisonStratified():
     z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
     # z_levels_les= np.linspace(0, 400, 651)
     z_levels_les= np.linspace(0, z_levels[-1], 351)
-    dt = 50.
-    N = 601 # 28*3600/10=3240
+    dt = 10.
+    N = 5*650 # 28*3600/10=3240
 
     fig, axes = plt.subplots(1,5, figsize=(7.5, 3.5))
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
@@ -121,34 +124,37 @@ def fig_consistency_comparisonStratified():
         return {"color": col, "linestyle": linestyle,
                 "linewidth":1.5, **kwargs}
 
-    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-            name="FD, M=65", style=style(col_FDpure, "dotted"))
+    # High resolution:
     plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les,
-            name="FD, M=650", style=style(col_FDpure))
+            name="FD, M=350", style=style(col_FDpure))
+    plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
+            N=N, dt=dt, z_levels=z_levels_les,
+            name="FV1, M=350", style=style(col_FV1))
+    plot_FVStratified(axes, "FV2", delta_sl=z_levels_les[1],
+            N=N, dt=dt, z_levels=z_levels_les,
+            name="FV2, M=350", style=style("c"))
+    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels_les[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels_les,
+    #         name="FV pure, M=350", style=style("m"))
+    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels_les,
+            name="FV free, M=350", style=style(col_FVfree))
+
+    # Low resolution:
+    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
+            name="FD, M="+str(z_levels.shape[0]), style=style(col_FDpure, "dotted"))
     plot_FVStratified(axes, "FV1", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels,
             name=None, style=style(col_FV1, "dotted"))
-    plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
-            N=N, dt=dt, z_levels=z_levels_les,
-            name="FV1, M=650", style=style(col_FV1))
     plot_FVStratified(axes, "FV2", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels_FV2,
             name=None, style=style("c", "dotted"))
-    plot_FVStratified(axes, "FV2", delta_sl=z_levels_les[1],
-            N=N, dt=dt, z_levels=z_levels_les,
-            name="FV2, M=650", style=style("c"))
-    plot_FVStratified(axes, "FV pure", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels,
-            name=None, style=style("m", "dotted"))
-    plot_FVStratified(axes, "FV pure", delta_sl=z_levels_les[1]/2,
-            N=N, dt=dt, z_levels=z_levels_les,
-            name="FV pure, M=650", style=style("m"))
+    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels,
+    #         name=None, style=style("m", "dotted"))
     plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels,
             name=None, style=style(col_FVfree, "dotted"))
-    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels_les,
-            name="FV free, M=650", style=style(col_FVfree))
 
     axes[0].set_xlabel(r"wind speed ($|u|, m.s^{-1}$)")
     axes[0].set_ylabel("height (m)")
@@ -170,6 +176,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
     """
     if delta_sl is None:
+        print("warning: no delta_sl entered")
         delta_sl = z_levels[1]/2
     if z_constant is None:
         z_constant = 2*delta_sl
@@ -395,50 +402,6 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     axes[2].semilogy(TKE, z_tke, **style, label=name)
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
 
-def fig_verify_FDFV():
-    """
-        Integrates for 1 day a 1D ekman equation
-        with TKE turbulence scheme.
-    """
-    z_levels= np.linspace(0, 1500, 41)
-    # for FV with FV interpretation of sf scheme,
-    # the first grid level is divided by 2 so that
-    # delta_{sl} is the same in all the schemes.
-    dt = 60.
-    N = 1680 # 28*60=1680
-
-    fig, axes = plt.subplots(1,4, figsize=(7.5, 3.5))
-    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
-
-    def style(col, linestyle='solid', **kwargs):
-        return {"color": col, "linestyle": linestyle,
-                "linewidth":0.8, **kwargs}
-
-    # plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-    #         name="FD, M=40", style=style('r'))
-    plot_FV(axes, "FV2", delta_sl=z_levels[1],
-            N=N, dt=dt, z_levels=z_levels,
-            name="FV2, M=40", style=style('b'))
-    plot_FV(axes, "FV1 free", delta_sl=z_levels[1]*0.99,
-            N=N, dt=dt, z_levels=z_levels,
-            name=r"FV1 free, M=40, $\delta_{sl}=0.99z_1$", style=style('r', linestyle='dashed'))
-
-    axes[0].set_ylim(top=1500., bottom=0.)
-    axes[1].set_ylim(top=1500., bottom=0.)
-    axes[0].set_xlabel("wind speed (u, $m.s^{-1}$)")
-    axes[0].set_ylabel("height (m)")
-    axes[1].set_xlabel("wind speed (v, $m.s^{-1}$)")
-    axes[1].set_ylabel("height (m)")
-    axes[2].set_xlabel("energy (J)")
-    axes[2].set_ylabel("height (m)")
-    axes[3].set_ylabel("friction velocity (u*, $m.s^{-1}$)")
-    axes[3].set_ylim(top=0.5, bottom=0.38)
-    axes[3].set_xlabel("time (s)")
-    axes[0].legend(loc="upper right")
-    axes[1].legend(loc="upper right")
-    axes[2].legend(loc="upper right")
-    show_or_save("fig_verify_FDFV")
-
 def fig_consistency_comparison():
     """
         Integrates for 1 day a 1D ekman equation
@@ -463,35 +426,39 @@ def fig_consistency_comparison():
         return {"color": col, "linestyle": linestyle,
                 "linewidth":1.5, **kwargs}
 
-    plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-            name="FD, M="+str(z_levels.shape[0] - 1),
-            style=style(col_FDpure, "dotted"))
+    # High resolution:
     plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les,
             name="FD, M=400", style=style(col_FDpure))
-    plot_FV(axes, "FV1", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels,
-            name=None, style=style(col_FV1, "dotted"))
     plot_FV(axes, "FV1", delta_sl=z_levels_les[1]/2,
             N=N, dt=dt, z_levels=z_levels_les,
             name="FV1, M=400", style=style(col_FV1))
-    plot_FV(axes, "FV2", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels_FV2,
-            name=None, style=style("c", "dotted"))
     plot_FV(axes, "FV2", delta_sl=z_levels_les[1],
             N=N, dt=dt, z_levels=z_levels_les,
             name="FV2, M=400", style=style("c"))
-    plot_FV(axes, "FV pure", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels,
-            name=None, style=style("m", "dotted"))
-    plot_FV(axes, "FV pure", delta_sl=z_levels_les[1]/2,
-            N=N, dt=dt, z_levels=z_levels_les,
-            name="FV pure, M=400", style=style("m"))
-    plot_FV(axes, "FV free", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels,
-            name=None, style=style(col_FVfree, "dotted"))
+    # plot_FV(axes, "FV pure", delta_sl=z_levels_les[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels_les,
+    #         name="FV pure, M=400", style=style("m"))
     plot_FV(axes, "FV free", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels_les,
             name="FV free, M=400", style=style(col_FVfree))
+
+    # Low resolution:
+
+    plot_FD(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
+            name="FD, M="+str(z_levels.shape[0] - 1),
+            style=style(col_FDpure, "dotted"))
+    plot_FV(axes, "FV1", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels,
+            name=None, style=style(col_FV1, "dotted"))
+    plot_FV(axes, "FV2", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels_FV2,
+            name=None, style=style("c", "dotted"))
+    # plot_FV(axes, "FV pure", delta_sl=z_levels[1]/2,
+    #         N=N, dt=dt, z_levels=z_levels,
+    #         name=None, style=style("m", "dotted"))
+    plot_FV(axes, "FV free", delta_sl=z_levels[1]/2,
+            N=N, dt=dt, z_levels=z_levels,
+            name=None, style=style(col_FVfree, "dotted"))
 
     axes[0].set_ylim(top=1500.)
     axes[1].set_ylim(top=1500.)
