@@ -12,6 +12,7 @@ from memoisation import memoised
 from simu1DStratified import Simu1dStratified
 from universal_functions import Businger_et_al_1971 as businger
 from utils_linalg import solve_linear
+import figures_unstable
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
 mpl.rcParams["axes.grid"] = True
@@ -33,6 +34,40 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     334.22, 287.51, 244.68,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # less levels in the stratified case
+
+def fig_colorplots_FDlowres():
+    """
+        plots several (2D) variables on a colorplot.
+    """
+    figures_unstable.colorplot(IFS_z_levels_stratified, False,
+            "FD pure", IFS_z_levels_stratified[1]/2, 1)
+    show_or_save("fig_colorplots_FDlowres")
+
+def fig_colorplots_FDhighres():
+    """
+        plots several (2D) variables on a colorplot.
+    """
+    z_levels= np.linspace(0, IFS_z_levels_stratified[-1], 351)
+    figures_unstable.colorplot(z_levels, False, "FD pure",
+            z_levels[1]/2, 3)
+    show_or_save("fig_colorplots_FDhighres")
+
+def fig_colorplots_FVhighres():
+    """
+        plots several (2D) variables on a colorplot.
+    """
+    z_levels= np.linspace(0, IFS_z_levels_stratified[-1], 351)
+    figures_unstable.colorplot(z_levels, True, "FV free",
+            IFS_z_levels_stratified[1]/2, 35)
+    show_or_save("fig_colorplots_FVhighres")
+
+def fig_colorplots_FVlowres():
+    """
+        plots several (2D) variables on a colorplot.
+    """
+    figures_unstable.colorplot(IFS_z_levels_stratified, True,
+            "FV free", IFS_z_levels_stratified[1]/2, 3)
+    show_or_save("fig_colorplots_FVlowres")
 
 def fig_consistency_comparisonUnstable():
     """

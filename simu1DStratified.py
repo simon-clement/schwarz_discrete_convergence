@@ -116,7 +116,8 @@ class Simu1dStratified():
     def FV(self, u_t0: array, phi_t0: array, forcing: array,
             SST:array, delta_sl: float, sf_scheme: str="FV pure",
             u_delta: float=8.+0j, t_delta: float=265.,
-            Neutral_case: bool=False, turbulence: str="TKE"):
+            Neutral_case: bool=False, turbulence: str="TKE",
+            store_all: bool=False):
         """
             Integrates in time with Backward Euler the model with TKE
             and Finite volumes.
@@ -173,6 +174,8 @@ class Simu1dStratified():
         phi, old_phi = phi_t0, np.copy(phi_t0)
         u_current: array = np.copy(u_t0)
         all_u_star = []
+        ret_u_current, ret_tke, ret_dz_tke, ret_SL = [], [], [], []
+        ret_phi, ret_theta, ret_dz_theta, ret_leps = [], [], [], []
 
         for n in range(1,N+1):
             # Compute friction scales
@@ -201,13 +204,27 @@ class Simu1dStratified():
                         dz_theta, Ktheta_full, forcing_theta,
                         SL, SL_nm1)
 
+            if store_all:
+                ret_u_current += [np.copy(u_current)]
+                ret_tke += [np.copy(tke)]
+                ret_dz_tke += [np.copy(dz_tke)]
+                ret_phi += [np.copy(phi)]
+                ret_theta += [np.copy(theta)]
+                ret_dz_theta += [np.copy(dz_theta)]
+                ret_leps += [np.copy(l_eps)]
+                ret_SL += [SL]
+
+        if store_all:
+            return ret_u_current, ret_phi, ret_tke, ret_dz_tke, \
+                    all_u_star, ret_theta, ret_dz_theta, ret_leps, \
+                    ret_SL
         return u_current, phi, tke, dz_tke, all_u_star, theta, \
                 dz_theta, l_eps, SL
 
 
     def FD(self, u_t0: array, forcing: array, SST:array,
             turbulence: str="TKE", sf_scheme: str="FD pure",
-            Neutral_case: bool=False):
+            Neutral_case: bool=False, store_all: bool=False):
         """
             Integrates in time with Backward Euler the model with KPP
             and Finite differences.
@@ -258,6 +275,7 @@ class Simu1dStratified():
         u_current: array = np.copy(u_t0)
         old_u: array = np.copy(u_current)
         all_u_star = []
+        all_u, all_tke, all_theta, all_leps = [], [], [], []
         for n in range(1,N+1):
             forcing_current: array = forcing[n]
             u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
@@ -297,6 +315,14 @@ class Simu1dStratified():
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
 
+            if store_all:
+                all_u += [np.copy(u_current)]
+                all_tke += [np.copy(tke)]
+                all_theta += [np.copy(theta)]
+                all_leps += [np.copy(l_eps)]
+
+        if store_all:
+            return all_u, all_tke, all_u_star, all_theta, all_leps
         return u_current, tke, all_u_star, theta, l_eps
 
     def __step_u(self, u: array, phi: array,
