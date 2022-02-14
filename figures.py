@@ -69,6 +69,26 @@ def fig_colorplots_FVlowres():
             "FV free", IFS_z_levels_stratified[1]/2, 3)
     show_or_save("fig_colorplots_FVlowres")
 
+def fig_colorplots_FV2highres():
+    """
+        plots several (2D) variables on a colorplot.
+    """
+    z_levels= np.linspace(0, IFS_z_levels_stratified[-1], 351)
+    figures_unstable.colorplot(z_levels, True, "FV2",
+            z_levels[1], 35)
+    show_or_save("fig_colorplots_FVhighres")
+
+def fig_colorplots_FV2lowres():
+    """
+        plots several (2D) variables on a colorplot.
+    """
+    z_levels= IFS_z_levels_stratified
+    z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
+    figures_unstable.colorplot(z_levels_FV2, True,
+            "FV2", z_levels_FV2[1], 3)
+    show_or_save("fig_colorplots_FVlowres")
+
+
 def fig_consistency_comparisonUnstable():
     """
         Integrates for 1 day a 1D ekman equation
