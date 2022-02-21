@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from memoisation import memoised
-from simu1DStratified import Simu1dStratified
+from atm1DStratified import Atm1dStratified
 from universal_functions import Businger_et_al_1971 as businger
 from utils_linalg import solve_linear
 import figures_unstable
@@ -237,7 +237,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
         z_constant = 2*delta_sl
 
     M = z_levels.shape[0] - 1
-    simulator = Simu1dStratified(z_levels=z_levels,
+    simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
             K_mol=1e-4, f=1.39e-4)
     u_0 = 8*np.ones(M)
@@ -329,7 +329,7 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
     """
     M = z_levels.shape[0] - 1
-    simulator = Simu1dStratified(z_levels=z_levels,
+    simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=10.,
             K_mol=1e-4, f=1e-4)
     u_0 = 10.*np.ones(M)
@@ -401,7 +401,7 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
     if name is None:
         name = sf_scheme
     M = z_levels.shape[0] - 1
-    simulator = Simu1dStratified(z_levels=z_levels,
+    simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
             K_mol=1e-4, f=1.39e-4)
     u_0 = 8*np.ones(M)
@@ -429,7 +429,7 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
     if name == None:
         name = sf_scheme
     M = z_levels.shape[0] - 1
-    simulator = Simu1dStratified(z_levels=z_levels,
+    simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=10., K_mol=1e-4, f=1e-4)
 
     u_0 = 10*np.ones(M)

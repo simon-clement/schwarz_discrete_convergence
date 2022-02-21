@@ -3,7 +3,7 @@ import bisect
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from simu1DStratified import Simu1dStratified
+from atm1DStratified import Atm1dStratified
 from universal_functions import Businger_et_al_1971 as businger
 from utils_linalg import solve_linear
 
@@ -70,7 +70,7 @@ def simulation_FD(sf_scheme: str, z_levels: np.ndarray, dt: float,
         N: int, stable: bool, delta_sl: float, z_constant: float,
         spinup: int, skip_dt: int, skip_dx: int):
     M = z_levels.shape[0] - 1
-    simulator = Simu1dStratified(z_levels=z_levels,
+    simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
             K_mol=1e-4, f=1.39e-4)
     u_0 = 8*np.ones(M)
@@ -105,7 +105,7 @@ def simulation_FV(sf_scheme: str, z_levels: np.ndarray, dt: float, N: int,
         performs a simulation and return all data during it.
     """
     M = z_levels.shape[0] - 1
-    simulator = Simu1dStratified(z_levels=z_levels,
+    simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
             K_mol=1e-4, f=1.39e-4)
     u_0 = 8*np.ones(M)

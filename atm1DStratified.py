@@ -1,5 +1,5 @@
 """
-    This module defines the class Simu1dStratified
+    This module defines the class Atm1dStratified
     which simulates a 1D Ekman stratified problem with various
     discretisations.
 """
@@ -34,7 +34,7 @@ class SurfaceLayerData(NamedTuple):
     k: int # index for which z_k < delta_sl < z_{k+1}
     sf_scheme: str # Name of the surface flux scheme
 
-class Simu1dStratified():
+class Atm1dStratified():
     """
         main class, instanciate it to run the simulations.
     """
