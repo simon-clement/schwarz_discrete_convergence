@@ -21,7 +21,7 @@ from ocean_models.ocean_Pade_FD import OceanPadeFD
 from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
 
 # If set to True, the simulations will run, taking ~2 days.
-REAL_FIG = True
+REAL_FIG = False
 
 def fig_lambda_Pade():
     mpl.rc('text', usetex=True)
@@ -63,13 +63,12 @@ def fig_lambda_Pade():
     sigma1   =  np.sqrt( (1j*wwdt + rr*dt)/(nu1*dt) )
     sigma2   = -np.sqrt( (1j*wwdt + rr*dt)/(nu2*dt) )
 #####
-    fig  = plt.figure()
     fig, axes = plt.subplots(1, 2, sharex=True, sharey=True,figsize=(10,2))
     ax = axes[0]
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_xlabel (r'$\omega\Delta t$', fontsize=14)
-    ax.set_xticklabels(ax.get_xticks(),fontsize=14)
-    ax.set_yticklabels(ax.get_yticks(),fontsize=14)
+    ax.tick_params(axis="x", labelsize=14)
+    ax.tick_params(axis="y", labelsize=14)
     ax.set_ylim(-0.15,1.85)
     ax.set_title(r"$\left|\mathcal{R}(\lambda_j^{(p)})\right|$")
     ax.semilogx( wwdt, np.abs(np.real(lambda1)),linewidth=2.,color='k', linestyle='dashed' ,label=r'$\lambda_1$')
@@ -81,8 +80,8 @@ def fig_lambda_Pade():
     ax = axes[1]
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_xlabel (r'$\omega\Delta t$', fontsize=14)
-    ax.set_xticklabels(ax.get_xticks(),fontsize=14)
-    ax.set_yticklabels(ax.get_yticks(),fontsize=14)
+    ax.tick_params(axis="x", labelsize=14)
+    ax.tick_params(axis="y", labelsize=14)
     ax.set_ylim(-0.15,1.85)
     ax.set_title(r"$\left|\mathcal{I}(\lambda_j^{(p)})\right|$")
     ax.semilogx( wwdt, np.abs(np.imag(lambda1)),linewidth=2.,color='k', linestyle='dashed' ,label=r'$\lambda_1^{(1)}$')
@@ -107,8 +106,7 @@ def fig_rhoDNPade():
     ax.set_ylim(0.53,1.05)
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
     ax.set_xlabel (r'$\omega$', fontsize=18)
-    ax.set_xticklabels(ax.get_xticks(),fontsize=12)
-#    ax.set_yticklabels(ax.get_yticks(),fontsize=12)
+    ax.tick_params(axis="x", labelsize=14)
     ax.set_title(r"$\rho_{\rm DN}^{\rm (P2,c)}$",fontsize=16)
 
 
@@ -389,7 +387,6 @@ def fig_rhoDN_space():
     rhoDNFV24 = np.abs( nu1*eta2FV2/(nu2*eta1FV2) )
     #
     #####========================================================
-    fig  = plt.figure()
     fig, axes = plt.subplots(2, 3, sharex=True, sharey=True,figsize=(8,4.2))
     ax = axes[0,0]
     ax.grid(True,color='k', linestyle='dotted', linewidth=0.25)
@@ -825,7 +822,6 @@ def robin_parameters_discrete_space(builder, N, dt, scheme="FD"):
             x0=np.array((0.35, -0.04)), method='Nelder-Mead')
     res_twosided_eye2 = minimize(fun=to_minimize_twosided,
             x0=np.array((0.06, -0.21)), method='Nelder-Mead')
-    print(res_twosided_eye2.x, res_twosided_eye1.x)
     if res_twosided_eye2.fun > res_twosided_eye1.fun:
         return res_twosided_eye1
     return res_twosided_eye2
@@ -1103,185 +1099,6 @@ def wAndRhoPadeRR(builder, gamma=None, N=300):
 
     return w, np.abs(varrho)
 
-
-def fig_compare_discrete_modif():
-    mpl.rc('text', usetex=True)
-    mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
-    fig, axes = plt.subplots(2, 2, figsize=[6.4, 4.4], sharex=False, sharey=True)
-    plt.subplots_adjust(left=.11, bottom=.28, right=.99, top=.92, wspace=0.19, hspace=0.34)
-    COLOR_CONT = '#FF3333FF'
-    COLOR_CONT_FD = '#AA0000FF'
-    COLOR_MODIF = '#000000FF'
-
-    for r, axes in ((0, axes[0,:]), (.1, axes[1,:])):
-        setting = Builder()
-        setting.R = r
-
-        setting.LAMBDA_1 = 1.
-        setting.LAMBDA_2 = -1.
-        setting.M1 = 200
-        setting.M2 = 200
-        setting.D1 = 1.
-        setting.D2 = 1.
-        dt = setting.DT
-        # N = 30
-        # axis_freq = get_discrete_freq(N, setting.DT)
-        axis_freq = np.exp(np.linspace(-5, np.log(pi), 10000))/dt
-
-        #########################################################
-        # LEFT CANVA: TIME COMPARISON
-        #########################################################
-
-        space_dis = FD
-        dis = setting.build(Pade, space_dis)
-
-        cont_time = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=0) #continuous in time
-        modif_time = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=2, order_equations=0, order_operators=0) # modified in time
-
-        b = 1+1/np.sqrt(2)
-        def gamma_order2(z):
-            return z - b*(z-1) - b/2 * (z-1)**2
-
-        def gamma_order1(z):
-            return z - b*(z-1)
-
-        ######################
-        # TIME SCHEME : GAMMA ORDER 2:
-        ######################
-        axis = axes[1]
-
-        full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order2) # disccrete in time
-        lineg2, = axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='1.1',
-                color=COLOR_MODIF, linestyle='solid')
-        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='1.1',
-                color=COLOR_CONT, linestyle='solid')
-
-        ######################
-        # TIME SCHEME : GAMMA ORDER 1:
-        ######################
-
-        full_discrete = rho_Pade_c(setting, w=axis_freq, gamma=gamma_order1) # disccrete in time
-
-        lineg1, = axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete), linewidth='1.1',
-                color=COLOR_MODIF, linestyle='dashed')
-        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete), linewidth='1.1',
-                color=COLOR_CONT, linestyle='dashed')
-
-        ########################
-        # TIME SCHEME : Backward Euler
-        #########################
-        dis = setting.build(BE, space_dis)
-
-        modif_time = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=2, order_equations=0, order_operators=0) # modified in time
-        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=float('inf'), order_equations=0, order_operators=0) # discrete in time
-
-        linebe, = axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_time)/np.abs(full_discrete),
-                color=COLOR_MODIF, linestyle=':', linewidth="2.3")
-        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_time)/np.abs(full_discrete),
-                color=COLOR_CONT, linestyle=':', linewidth="2.3")
-
-        axis.grid(True,color='k', linestyle='dotted', linewidth=0.25)
-        axis.set_xlim(left=0.9e-2, right=.7)
-        #axis.set_ylim(top=0.1, bottom=0.) #sharey activated : see axis.set_xlim
-        Title = r'Semi-discrete in time' #Title = r'$d\rho_{\rm RR}^{\rm (\cdot,c)}$'
-        #x_legend= r'$\left| \rho_{\rm RR}^{\rm (\cdot,c)} - \rho_{\rm RR}^{\rm (Discrete,c)}\right|/\left|\rho_{\rm RR}^{\rm (Discrete,c)}\right| $'
-        if r == 0:
-            axis.set_title(Title)
-            axis.set_xticklabels([])
-        else:
-            axis.set_xlabel(r'$\omega\Delta t$')
-
-        #########################################################
-        # RIGHT CANVA: SPACE COMPARISON
-        #########################################################
-        time_dis = BE # we don't really care, since everything is continuous in time now
-
-        ######################
-        # SPACE SCHEME : FV
-        ######################
-        dis = setting.build(time_dis, FV)
-
-        cont_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=float('inf')) #continuous in time
-
-        modif_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=2, order_operators=float('inf')) # modified in time
-
-        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=float('inf'), order_operators=float('inf'))
-
-        axis = axes[0]
-
-        axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_MODIF, linestyle='solid')
-        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_CONT, linestyle='solid')
-
-        ######################
-        # SPACE SCHEME : FD
-        ######################
-        dis = setting.build(time_dis, FD)
-
-        cont_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=0, order_operators=float('inf')) #continuous in time
-
-        modif_space = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=2, order_operators=float('inf')) # modified in time
-
-        full_discrete = dis.analytic_robin_robin_modified(w=axis_freq,
-                order_time=0, order_equations=float('inf'), order_operators=float('inf'))
-
-        axis.semilogx(axis_freq*dt, np.abs(full_discrete - modif_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_MODIF, linestyle='dashed')
-        axis.semilogx(axis_freq*dt, np.abs(full_discrete - cont_space)/np.abs(full_discrete), linewidth='2.',
-                color=COLOR_CONT_FD, linestyle='dashed')
-
-        axis.grid(True,color='k', linestyle='dotted', linewidth=0.25)
-        axis.set_xlim(left=2e-2, right=3)
-        axis.set_ylim(top=0.03, bottom=0.)
-        Title = r'Semi-discrete in space' #r'$d\rho_{\rm RR}^{\rm (c, \cdot)}$'
-        axis.set_ylabel(r'$r=' + str(r) + r'\;{\rm s}^{-1}$')
-        if r == 0:
-            #axis.legend()
-            axis.set_title(Title)
-            axis.set_xticklabels([])
-        else:
-            axis.set_xlabel(r'$\omega$')
-
-
-    from matplotlib.lines import Line2D
-    from matplotlib.patches import Patch
-    custom_lines = [
-                    Patch(facecolor=COLOR_MODIF),
-                    Patch(facecolor=COLOR_CONT),
-                    Line2D([0],[0],color="w"),
-                    Line2D([0], [0], lw=2., color='black'),
-                    Line2D([0], [0], linestyle='dashed', lw=2., color='black'),
-                    Line2D([0],[0],color="w"),
-                    Line2D([0], [0], lw=1.2, color='black'),
-                    Line2D([0], [0], linestyle='dashed', lw=1.2, color='black'),
-                    Line2D([0], [0], linestyle='dotted', lw=1.6, color='black'),
-                    ]
-
-    custom_labels = [
-            r'$(\delta \rho)_\mathbf{m}^{\rm (\cdot, \cdot)}$',
-            r'$(\delta \rho)_\mathbf{c}^{\rm (\cdot, \cdot)}$',
-            r"",
-            r"$(\delta\rho)^{\rm (c, \mathbf{FV})}$", r"$(\delta\rho)^{\rm (c, \mathbf{FD})}$",
-            r"",
-            r"$(\delta\rho)^{\rm (\mathbf{P2}, c)}$" + ", " + r"$\gamma = z - \beta (z-1)$" + r"$- \beta(\beta-1)^2(z-1)^2$",
-            r"$(\delta\rho)^{\rm (\mathbf{P2}, c)}$" + ", " + r"$\gamma = z - \beta (z-1)$",
-            r"$(\delta\rho)^{\rm (\mathbf{BE}, c)}$",]
-    fig.legend(custom_lines, custom_labels, loc=(0.10, 0.), ncol=3)
-    fig.tight_layout()   
-    fig.subplots_adjust(bottom=.28, wspace=.2)
-
-    show_or_save("fig_compare_discrete_modif")
-
 def fig_optiRates():
     mpl.rc('text', usetex=True)
     mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
@@ -1498,147 +1315,6 @@ def optiRatesGeneralL2(all_rates, all_ocean, all_atmosphere,
                 number_samples=1, NUMBER_IT=1, laplace_real_part=0, T=N*builder.DT)
         convergence_rate = L2_norm[2]/L2_norm[1]
         print(name_method, names, convergence_rate)
-
-def fig_review_contour():
-    builder = Builder()
-    builder.D1 = 0.5
-    builder.D2 = 1.
-    builder.R = 1e-3
-    builder.DT = 1.
-    N = 1000000
-    axis_freq = frequencies_for_optim(N, builder.DT, 200)
-
-    def function_to_plot(p1, p2):
-        setting = builder.copy()
-        setting.LAMBDA_1, setting.LAMBDA_2 = p1, p2
-        return np.max(np.abs(rho_BE_FD(setting, axis_freq)))
-    vfunc = np.vectorize(function_to_plot)
-        
-    delta = 0.001
-    allp1 = np.arange(0.01, 0.8, delta)
-    allp2 = np.arange(-0.6, -0.01, delta)
-    X, Y = np.meshgrid(allp1, allp2)
-    Z = vfunc(X, Y)
-    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.8))
-    fig.subplots_adjust(wspace=0.337, bottom=0.18)
-
-    CS = axes[0].contour(X, Y, Z)
-    axes[0].clabel(CS, inline=True, fontsize=10)
-    axes[0].set_title(r"$\max(\rho^{BE, FD})$")
-    axes[0].set_xlabel(r"$p_1$")
-    axes[0].set_ylabel(r"$p_2$")
-
-    def function_to_minimize(p): return function_to_plot(*p)
-
-    optimal_lams = minimize(method='Nelder-Mead',
-            fun=function_to_minimize, x0=(.3, -.05))
-    optimal_lams_old = minimize(method='Nelder-Mead',
-            fun=function_to_minimize, x0=(.1, -.85))
-    
-    builder.LAMBDA_1, builder.LAMBDA_2 = optimal_lams_old.x
-    axes[1].semilogx(axis_freq, np.abs(rho_BE_FD(builder, axis_freq)),
-            label="Local minimum, \n(p1, p2) = ({:.2f}, {:.2f})".format(*optimal_lams_old.x))
-    builder.LAMBDA_1, builder.LAMBDA_2 = optimal_lams.x
-    axes[1].semilogx(axis_freq, np.abs(rho_BE_FD(builder, axis_freq)),
-            label="Global minimum, \n(p1, p2) = ({:.2f}, {:.2f})".format(*optimal_lams.x))
-    axes[1].set_xlabel(r"$\omega$")
-    axes[1].set_ylabel(r"$\rho^{\rm (BE, FD)}_{\rm RR}$")
-    axes[1].legend()
-    axes[1].set_ylim(bottom=0.)
-    show_or_save("fig_review_contour")
-
-
-def fig_review_contournu():
-    """
-        plots the maximum of the convergence factor
-        for nu_1, nu_2 in [0,2]
-    """
-    builder = Builder()
-    builder.R = 1e-3
-    builder.DT = 1.
-    N = 1000000
-    axis_freq = frequencies_for_optim(N, builder.DT, 200)
-
-    def function_to_plot_p(nu1, nu2, index, rho):
-        setting = builder.copy()
-        setting.D1, setting.D2 = nu1, nu2
-
-        def function_to_minimize(p):
-            setting2 = setting.copy()
-            setting2.LAMBDA_1, setting2.LAMBDA_2 = p
-            return np.max(np.abs(rho(setting2, axis_freq)))
-
-        optimal_lams = minimize(method='Nelder-Mead',
-                fun=function_to_minimize, x0=(.3, -.05))
-        optimal_lams_old = minimize(method='Nelder-Mead',
-                fun=function_to_minimize, x0=(.1, -.85))
-        if optimal_lams.fun > optimal_lams_old.fun:
-            optimal_lams = optimal_lams_old
-        if index == 0:
-            return optimal_lams.fun
-        elif index == 1:
-            return optimal_lams.x[0]
-
-    def function_to_plot_DN(nu1, nu2, index, rho):
-        setting = builder.copy()
-        setting.D1, setting.D2 = nu1, nu2
-        setting.LAMBDA_1, setting.LAMBDA_2 = 1e9, 0.
-        return np.max(np.abs(rho(setting, axis_freq)))
-
-    vfunc = np.vectorize(function_to_plot_p)
-
-    delta = .05
-    newvalue = False
-    xmin, xmax, ymin, ymax = 0.1, 2., 0.1, 2.
-    allnu1 = np.arange(xmin, xmax, delta)
-    allnu2 = np.arange(ymin, ymax, delta)
-    X, Y = np.meshgrid(allnu1, allnu2)
-    from memoisation import dirty_memoised
-    ZBEFD = dirty_memoised(vfunc, X, Y, 0, rho_BE_FD,
-            name="review_contournu_ZBEFD",
-            ignore_cached=newvalue)
-
-    fig, axes = plt.subplots(1, 4, figsize=(10,3))
-    fig.subplots_adjust(bottom=0.18, left=0.08, right=0.98)
-
-    ZPadeFV = dirty_memoised(vfunc, X, Y, 0, rho_Pade_FV,
-            name="review_contournu_ZPadeFV",
-            ignore_cached=newvalue)
-    Zc = dirty_memoised(vfunc, X, Y, 0, rho_c_c,
-            name="review_contournu_Zc",
-            ignore_cached=newvalue)
-    levels = np.linspace(np.min(ZPadeFV), np.max(ZPadeFV), 9)
-    import matplotlib.cm as cm
-
-    CS = axes[0].contour(X, Y, ZBEFD, levels=levels)
-    axes[0].clabel(CS, inline=True, fontsize=10)
-    axes[0].set_title(r"$\max(\rho^{(BE, FD)}_{RR})$")
-    axes[0].set_xlabel(r"$\nu_1$")
-    axes[0].set_ylabel(r"$\nu_2$")
-
-    CS = axes[1].contour(X, Y, ZPadeFV, levels=levels)
-    axes[1].clabel(CS, inline=True, fontsize=10)
-    axes[1].set_title(r"$\max(\rho^{(P2, FV)}_{RR})$")
-    axes[1].set_xlabel(r"$\nu_1$")
-    #axes[1].set_ylabel(r"$\nu_2$")
-
-    CS = axes[2].contour(X, Y, Zc, levels=levels)
-    axes[2].clabel(CS, inline=True, fontsize=10)
-    axes[2].set_title(r"$\max(\rho^{(c,c)}_{RR})$")
-    axes[2].set_xlabel(r"$\nu_1$")
-    #axes[1].set_ylabel(r"$\nu_2$")
-
-    vfuncDN = np.vectorize(function_to_plot_DN)
-    ZDN = dirty_memoised(vfuncDN, X, Y, 0, rho_c_c,
-            name="review_contournu_ZDN",
-            ignore_cached=newvalue)
-
-    levels = np.geomspace(np.min(ZDN), np.max(ZDN), 15)
-    CS = axes[3].contour(X, Y, ZDN, levels=levels)
-    axes[3].clabel(CS, inline=True, fontsize=10)
-    axes[3].set_title(r"$\rho_{DN}^{(c,c)}$")
-    axes[3].set_xlabel(r"$\nu_1$")
-    show_or_save("fig_review_contournu")
 
 ######################################################
 # Utilities for analysing, representing discretizations
