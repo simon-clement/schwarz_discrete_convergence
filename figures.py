@@ -622,7 +622,7 @@ def find_indices(frequencies, nbpts):
 
 def frequencies_for_optim(N, dt, nbpts):
     axis_freq = get_discrete_freq(N, dt)
-    indices = find_indices(axis_freq[N//2+1:], nbpts) + N//2
+    indices = find_indices(axis_freq[N//2:], nbpts) + N//2-1
     return np.copy(axis_freq[indices])
 
 
