@@ -2,12 +2,12 @@ import numpy as np
 from scipy.linalg import solve_banded
 
 class AtmosphereBEFV():
-    def __init__(self, r, # reaction coefficient
-                 nu, # Diffusivity
-                 M, # Number of collocation points
-                 SIZE_DOMAIN, # Size of \\Omega_1
-                 LAMBDA, # Robin parameter
-                 DT): # Time step
+    def __init__(self, r: float, # reaction coefficient
+            nu: float, # Diffusivity
+            M: int, # Number of collocation points
+            SIZE_DOMAIN: float, # Size of \\Omega_1
+            LAMBDA: float, # Robin parameter
+            DT: float): # Time step
         """
             The data needed is passed through this constructor.
             The space step is SIZE_DOMAIN / (M-1)
@@ -15,7 +15,7 @@ class AtmosphereBEFV():
         """
         self.r, self.nu, self.M, self.size_domain, self.Lambda, self.dt = \
             r, nu, M, SIZE_DOMAIN, LAMBDA, DT
-        self.h = SIZE_DOMAIN / (M - 1)
+        self.h: float = SIZE_DOMAIN / (M - 1)
 
     def size_u(self):
         return self.M- 1
