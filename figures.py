@@ -8,7 +8,7 @@ import numpy as np
 from memoisation import memoised
 import matplotlib as mpl
 mpl.rc('text', usetex=True)
-mpl.rcParams['text.latex.preamble']=[r"\usepackage{amsmath}"]
+mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
 mpl.rcParams["figure.figsize"] = (8.4, 2.8)
 mpl.rcParams["axes.grid"] = True
 mpl.rcParams["grid.linestyle"] = ':'
@@ -954,7 +954,7 @@ def show_or_save(name_func):
             os.makedirs(directory, exist_ok=True)
             mpl.rcParams['savefig.directory'] = directory
             fig = plt.get_current_fig_manager()
-            fig.canvas.set_window_title(name_fig) 
+            fig.set_window_title(name_fig)
         except:
             print("cannot set default directory or name")
         plt.show()
