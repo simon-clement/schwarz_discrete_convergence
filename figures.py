@@ -130,15 +130,21 @@ def fig_RobinTwoSided():
                     + rho_c_FD(setting, axis_freq, overlap_M=overlap_M, k_c=k_c)
         return np.abs(combined)
 
-    def optimal_robin_parameter(builder, func, w, x0, **kwargs):
+    def optimal_robin_parameter(builder, func, w, x0_eye1, x0_eye2,
+            **kwargs):
         from scipy.optimize import minimize_scalar, minimize
         def to_optimize(x0):
             setting = builder.copy()
             setting.LAMBDA_1 = x0[0]
             setting.LAMBDA_2 = x0[1]
             return np.max(np.abs(func(setting, w, **kwargs)))
-        optimal_lam = minimize(method='Nelder-Mead', fun=to_optimize, x0=x0)
-        return optimal_lam
+        optimal_lam_eye1 = minimize(method='Nelder-Mead',
+                fun=to_optimize, x0=x0_eye1)
+        optimal_lam_eye2 = minimize(method='Nelder-Mead',
+                fun=to_optimize, x0=x0_eye2)
+        if optimal_lam_eye1.fun < optimal_lam_eye2.fun:
+            return optimal_lam_eye1
+        return optimal_lam_eye2
 
 
     def discrete_robin(builder, func, w, p1, p2, **kwargs):
@@ -160,12 +166,19 @@ def fig_RobinTwoSided():
 
     def callrho(fun, p1p2, **kwargs):
         return discrete_robin(setting, fun, axis_freq, p1p2[0], p1p2[1], **kwargs)
+    eye1 = (1., -0.05)
+    eye2 = (0.05, -1.)
 
-    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1))
-    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1), k_c=k_c)
-    s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq, (0.1, -0.1))
-    discrete = optimal_robin_parameter(setting, rho_Pade_FD, axis_freq, (0.1, -0.1), k_c=k_c)
-    combined = optimal_robin_parameter(setting, combined_Pade, axis_freq, (0.1, -0.1), k_c=k_c)
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
+            eye1, eye2)
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq,
+            eye1, eye2, k_c=k_c)
+    s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq,
+            eye1, eye2)
+    discrete = optimal_robin_parameter(setting, rho_Pade_FD, axis_freq,
+            eye1, eye2, k_c=k_c)
+    combined = optimal_robin_parameter(setting, combined_Pade, axis_freq,
+            eye1, eye2, k_c=k_c)
     ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont,
             label="Continuous: {:.3f}".format(callrho(rho_Pade_FD,
                 cont.x, overlap_M=overlap_M, k_c=k_c)))
@@ -216,9 +229,11 @@ def fig_RobinTwoSided():
         return np.abs(rho_s_c(builder, s_modified1, s_modified2, w=axis_freq, overlap_L=overlap_L,
             continuous_interface_op=False, k_c=k_c))
 
-    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq, (0.1, -0.1), continuous_interface_op=False, k_c=k_c)
-    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, (0.1, -0.1), k_c=k_c)
-    modified = optimal_robin_parameter(setting, modified_FD, axis_freq, (0.1, -0.1), overlap_L=0, k_c=k_c)
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
+            eye1, eye2, continuous_interface_op=False, k_c=k_c)
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, eye1, eye2, k_c=k_c)
+    modified = optimal_robin_parameter(setting, modified_FD, axis_freq,
+            eye1, eye2, overlap_L=0, k_c=k_c)
     ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont_discop,
             label="Continuous (disc. op.): {:.3f}".format(callrho(rho_c_FD,
                 cont.x, overlap_M=overlap_M, k_c=k_c)))
