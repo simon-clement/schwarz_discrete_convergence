@@ -7,6 +7,7 @@ from numpy import pi
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import bisect
+import multiprocessing
 from scipy.optimize import minimize_scalar, minimize
 from memoisation import memoised
 from simulator import frequency_simulation, simulation_L2norm
@@ -1248,7 +1249,6 @@ def fig_optiRatesL2():
     all_rates = rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD
     all_ocean = OceanBEFV, OceanBEFV, OceanBEFV, OceanBEFD
     all_atmosphere = AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFD
-    import multiprocessing
     p = multiprocessing.Process(target=optiRatesGeneralL2,
             args=(all_rates, all_ocean, all_atmosphere,
             "BE", caracs))
@@ -1311,13 +1311,18 @@ def optiRatesGeneralL2(all_rates, all_ocean, all_atmosphere,
         setting.LAMBDA_1 = optimal_lam.x[0]
         setting.LAMBDA_2 = optimal_lam.x[1]
 
-        builder = setting.copy()
-        ocean, atmosphere = builder.build(oce_class, atm_class)
+        def print_cv_rate(builder, oce_class, atm_class, names):
+            ocean, atmosphere = builder.build(oce_class, atm_class)
 
-        L2_norm = memoised(simulation_L2norm, atmosphere, ocean,
-                number_samples=1, NUMBER_IT=1, laplace_real_part=0, T=N*builder.DT)
-        convergence_rate = L2_norm[2]/L2_norm[1]
-        print(name_method, names, convergence_rate)
+            L2_norm = memoised(simulation_L2norm, atmosphere, ocean,
+                    number_samples=1, NUMBER_IT=1, laplace_real_part=0,
+                    T=N*builder.DT)
+            convergence_rate = L2_norm[2]/L2_norm[1]
+            print(name_method, names, convergence_rate)
+
+        p = multiprocessing.Process(target=print_cv_rate,
+                args=(setting.copy(), oce_class, atm_class, names))
+        p.start()
 
 ######################################################
 # Utilities for analysing, representing discretizations
