@@ -32,7 +32,11 @@ col_combined=col["blue"]
 col_modified=col["purple"]
 col_numeric = col["grey"]
 import matplotlib.pyplot as plt
-from simulator import frequency_simulation
+from simulator import frequency_simulation, schwarz_simulator
+from cv_factor_onestep import rho_c_c, rho_c_FV, rho_c_FD, DNWR_c_c
+from ocean_models.ocean_Pade_FD import OceanPadeFD
+from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
+from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD, DNWR_Pade_c, DNWR_Pade_FD
 
 REAL_FIG = True
 k_c=1
@@ -53,11 +57,6 @@ def fig_introDiscreteAnalysis():
     fig.subplots_adjust(bottom=0.15, right=0.97, hspace=0.65, wspace=0.28)
     fig.delaxes(ax= axes[2])
     lw_important = 2.1
-    from cv_factor_onestep import rho_c_c, rho_c_FV, rho_c_FD, DNWR_c_c
-    from ocean_models.ocean_Pade_FD import OceanPadeFD
-    from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
-    from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD, DNWR_Pade_c, DNWR_Pade_FD
-
     ax = axes[1]
 
     setting.LAMBDA_1=1e10 # >=0
@@ -90,6 +89,114 @@ def fig_introDiscreteAnalysis():
 
     fig.legend(loc="upper left", bbox_to_anchor=(0.7, 0.6))
     show_or_save("fig_introDiscreteAnalysis")
+
+def fig_tableL2norms():
+    setting = Builder()
+    N = 10000
+    overlap_M = 0
+    res_x = 60
+
+    h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
+    assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
+
+    if overlap_M > 0:
+        setting.D1 = setting.D2
+    axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
+
+    dt = setting.DT
+
+    from cv_factor_onestep import rho_c_FD, rho_c_c
+    from cv_factor_pade import rho_Pade_c, rho_Pade_FD
+
+    def combined_Pade(setting, axis_freq, overlap_M=0, k_c=k_c):
+        combined = - rho_c_c(setting, axis_freq, overlap_L=overlap_M*h) \
+                    + rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h) \
+                    + rho_c_FD(setting, axis_freq, overlap_M=overlap_M, k_c=k_c)
+        return np.abs(combined)
+
+    def optimal_robin_parameter(builder, func, w, x0_eye1, x0_eye2,
+            **kwargs):
+        from scipy.optimize import minimize_scalar, minimize
+        def to_optimize(x0):
+            setting2 = builder.copy()
+            setting2.LAMBDA_1 = x0[0]
+            setting2.LAMBDA_2 = x0[1]
+            return np.max(np.abs(func(setting2, w, **kwargs)))
+        optimal_lam_eye1 = minimize(method='Nelder-Mead',
+                fun=to_optimize, x0=x0_eye1)
+        optimal_lam_eye2 = minimize(method='Nelder-Mead',
+                fun=to_optimize, x0=x0_eye2)
+        if optimal_lam_eye1.fun < optimal_lam_eye2.fun:
+            return optimal_lam_eye1
+        return optimal_lam_eye2
+
+
+    def discrete_robin(builder, func, w, p1, p2, **kwargs):
+        setting2 = builder.copy()
+        setting2.LAMBDA_1 = p1
+        setting2.LAMBDA_2 = p2
+        return np.max(np.abs(func(setting2, w, **kwargs)))
+
+    def callrho(fun, p1p2, **kwargs):
+        return discrete_robin(setting, fun, axis_freq, p1p2[0], p1p2[1], **kwargs)
+    eye1 = (1., -0.05)
+    eye2 = (0.05, -1.)
+
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
+            eye1, eye2)
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq,
+            eye1, eye2, k_c=k_c)
+    s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq,
+            eye1, eye2)
+    discrete = optimal_robin_parameter(setting, rho_Pade_FD, axis_freq,
+            eye1, eye2, k_c=k_c)
+    combined = optimal_robin_parameter(setting, combined_Pade, axis_freq,
+            eye1, eye2, k_c=k_c)
+    # EXPERIMENTS:
+    def validation(robin_param, *args_print):
+        builder = setting.copy()
+        builder.LAMBDA_1, builder.LAMBDA_2 = robin_param
+        ocean, atmosphere = builder.build(OceanPadeFD, AtmospherePadeFD)
+        errors = schwarz_simulator(atmosphere, ocean, T=N*dt, NUMBER_IT=1)
+        print(np.linalg.norm(errors[2])/np.linalg.norm(errors[1]),
+                *args_print)
+    validation(cont.x, "continuous", cont.fun)
+    validation(s_d_space.x, "s_d_space", s_d_space.fun)
+    validation(s_d_time.x, "s_d_time", s_d_time.fun)
+    validation(discrete.x, "discrete", discrete.fun)
+    validation(combined.x, "combined", combined.fun)
+
+    #################################
+    # MODIFIED PART
+    #################################
+
+    from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
+    def maxrho(func, p, **kwargs):
+        builder = setting.copy()
+        builder.LAMBDA_1, builder.LAMBDA_2 = p, -p
+        return np.max(np.abs(func(builder, **kwargs)))
+
+    def modified_FD(builder, axis_freq, overlap_L, k_c):
+        Gamma_1 = builder.DT * builder.D1 / h**2
+        Gamma_2 = builder.DT * builder.D2 / h**2
+        # Finite differences:
+        d1 = 1/12
+        d2 = 1/360
+
+        s_c = 1j*axis_freq # BE_s(dt, axis_freq)
+        s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
+        s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
+        return np.abs(rho_s_c(builder, s_modified1, s_modified2, w=axis_freq, overlap_L=overlap_L,
+            continuous_interface_op=False, k_c=k_c))
+
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
+            eye1, eye2, continuous_interface_op=False, k_c=k_c)
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, eye1, eye2, k_c=k_c)
+    modified = optimal_robin_parameter(setting, modified_FD, axis_freq,
+            eye1, eye2, overlap_L=0, k_c=k_c)
+    validation(cont.x, "cont", cont.fun)
+    validation(s_d_space.x, "s_d_space", s_d_space.fun)
+    validation(modified.x, "modified", modified.fun)
 
 def fig_RobinTwoSided():
     symb_cont = "o"
