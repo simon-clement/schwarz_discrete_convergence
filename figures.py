@@ -43,7 +43,7 @@ k_c=1
 
 def fig_introDiscreteAnalysis():
     setting = Builder()
-    N = 10000
+    N = 1000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
@@ -92,7 +92,7 @@ def fig_introDiscreteAnalysis():
 
 def fig_tableL2norms():
     setting = Builder()
-    N = 100000 # TODO keep the same N everywhere
+    N = 1000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
@@ -209,7 +209,7 @@ def fig_RobinTwoSided():
     size_symb = 80
 
     setting = Builder()
-    N = 10000
+    N = 1000
     overlap_M = 0
     res_x = 60
 
@@ -359,7 +359,7 @@ def fig_RobinTwoSided():
 
 def fig_dependency_maxrho_combined():
     setting = Builder()
-    N = 10000
+    N = 1000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
@@ -423,7 +423,7 @@ def fig_dependency_maxrho_combined():
         return np.max(np.abs(func(builder, **kwargs)))
 
     ax = axes[ 0]
-    all_p1 = np.linspace(0.05,.32,300)
+    all_p1 = np.linspace(0.08,.34,300)
     discrete = [maxrho(rho_Pade_FD, p, w=axis_freq, overlap_M=overlap_M, k_c=k_c) for p in all_p1]
     semidiscrete_time = [maxrho(rho_Pade_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
     semidiscrete_space = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M, k_c=k_c) for p in all_p1]
@@ -481,7 +481,7 @@ def fig_dependency_maxrho_combined():
 
 def fig_dependency_maxrho_modified():
     setting = Builder()
-    N = 10000
+    N = 1000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
@@ -508,7 +508,7 @@ def fig_dependency_maxrho_modified():
 
     from cv_factor_onestep import DNWR_c_c, DNWR_s_c, DNWR_c_FD
     ax = axes[1]
-    all_theta = np.linspace(0.54,0.6,300)
+    all_theta = np.linspace(0.54,0.58,300)
     discrete = np.array([np.max(np.abs(DNWR_c_FD(setting, axis_freq, theta=theta, k_c=k_c)))
         for theta in all_theta])
     continuous = [np.max(np.abs(DNWR_s_c(setting, s_c, s_c, w=axis_freq,
@@ -533,7 +533,7 @@ def fig_dependency_maxrho_modified():
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
     ax = axes[0]
-    all_p1 = np.linspace(0.24,.27,300)
+    all_p1 = np.linspace(0.3,.32,300)
     def maxrho(func, p, **kwargs):
         builder = setting.copy()
         builder.LAMBDA_1, builder.LAMBDA_2 = p, -p
@@ -608,7 +608,7 @@ def fig_modif_time():
     from cv_factor_onestep import rho_s_c, rho_c_c
     from cv_factor_pade import rho_Pade_c
     setting = Builder()
-    N = 10000
+    N = 1000
     overlap_M = 0
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
@@ -679,7 +679,7 @@ def fig_modif_space():
     from cv_factor_onestep import rho_c_FD, rho_s_c, rho_c_c
     setting = Builder()
     #setting.M1 = setting.M2 = 21 # warning, we change the parameter to highlight the differences
-    N = 10000
+    N = 1000
     overlap_M = 0
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
@@ -760,7 +760,7 @@ def fig_modif_space():
 
 def fig_combinedRate():
     setting = Builder()
-    N = 10000
+    N = 1000
     w = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
     overlap_M=0
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
