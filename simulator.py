@@ -100,6 +100,12 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
     elif init == "dirac":
         interface_ocean = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_ocean-1)))
         interface_atm = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_atm-1)))
+    elif init == "white damped":
+        interface_ocean = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))
+        interface_atm = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))
+        damp_func = np.exp(-np.geomspace(1e-5, 35, N_atm))
+        interface_ocean[1:] *= damp_func
+        interface_atm[1:] *= damp_func
     else:
         raise
 
