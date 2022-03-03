@@ -1248,11 +1248,8 @@ def fig_optiRatesL2():
     all_rates = rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD
     all_ocean = OceanBEFV, OceanBEFV, OceanBEFV, OceanBEFD
     all_atmosphere = AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFD
-    import multiprocessing
-    p = multiprocessing.Process(target=optiRatesGeneralL2,
-            args=(all_rates, all_ocean, all_atmosphere,
-            "BE", caracs))
-    p.start()
+    
+    optiRatesGeneralL2(all_rates, all_ocean, all_atmosphere, "BE", caracs=caracs)
 
     ###########################
     # Pade
