@@ -19,7 +19,6 @@ class OceanPadeFV():
             r, nu, M, SIZE_DOMAIN, LAMBDA, DT
         self.h = SIZE_DOMAIN / (M - 1)
         from cv_factor_pade import rho_Pade_FV
-        self.discrete_rate = rho_Pade_FV
         self.gamma_start = GAMMA_START
         self.gamma_coefs = tuple(GAMMA_COEFFS)
 

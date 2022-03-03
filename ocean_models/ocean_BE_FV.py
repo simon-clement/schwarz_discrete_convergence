@@ -17,7 +17,6 @@ class OceanBEFV():
             r, nu, M, SIZE_DOMAIN, LAMBDA, DT
         self.h = SIZE_DOMAIN / (M - 1)
         from cv_factor_onestep import rho_BE_FV
-        self.discrete_rate = rho_BE_FV
 
     def size_u(self):
         return self.M - 1

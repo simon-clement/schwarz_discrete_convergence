@@ -19,7 +19,6 @@ class OceanBEFD():
         self.k_c = 0 if abs(K_c) < 1e-10 else 1
         self.h = SIZE_DOMAIN / (M - 1)
         from cv_factor_onestep import rho_BE_FD
-        self.discrete_rate = rho_BE_FD
 
     def size_u(self):
         return self.M

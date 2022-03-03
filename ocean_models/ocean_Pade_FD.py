@@ -21,7 +21,6 @@ class OceanPadeFD():
         self.k_c = 0 if abs(K_c) < 1e-10 else 1
         self.h = SIZE_DOMAIN / (M - 1)
         from cv_factor_pade import rho_Pade_FD
-        self.discrete_rate = rho_Pade_FD
         self.gamma_start = GAMMA_START
         self.gamma_coefs = tuple(GAMMA_COEFFS) # tuples can be compared easily
 
