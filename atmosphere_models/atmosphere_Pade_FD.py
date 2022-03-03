@@ -1,15 +1,16 @@
 import numpy as np
 from scipy.linalg import solve_banded
+from typing import List, Tuple
 
 class AtmospherePadeFD():
-    def __init__(self, r, # reaction coefficient
-                 nu, # Diffusivity
-                 M, # Number of collocation points
-                 SIZE_DOMAIN, # Size of \\Omega_1
-                 LAMBDA,
-                 DT, K_c=0, # Time step
-                 GAMMA_START=0, # convolution starts at n-gamma_start
-                 GAMMA_COEFFS=[1+1/np.sqrt(2), -1/np.sqrt(2)]): # kernel gamma_coeffs: coeffs[i]*u[start+i]
+    def __init__(self, r: float, # reaction coefficient
+            nu: float, # Diffusivity
+            M: int, # Number of collocation points
+            SIZE_DOMAIN: float, # Size of \\Omega_1
+            LAMBDA: float,
+            DT: float, K_c: int=0, # Time step
+            GAMMA_START: int=0, # convolution starts at n-gamma_start
+            GAMMA_COEFFS: List[float]=[1+1/np.sqrt(2), -1/np.sqrt(2)]): # kernel gamma_coeffs: coeffs[i]*u[start+i]
         """
             The data needed is passed through this constructor.
             The space step is SIZE_DOMAIN / (M-1)
@@ -21,7 +22,7 @@ class AtmospherePadeFD():
         self.k_c = 0 if abs(K_c) < 1e-10 else 1
         self.h = SIZE_DOMAIN / (M - 1)
         self.gamma_start = GAMMA_START
-        self.gamma_coefs = tuple(GAMMA_COEFFS)
+        self.gamma_coefs: Tuple[float] = tuple(GAMMA_COEFFS)
 
     def size_u(self):
         return self.M

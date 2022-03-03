@@ -2,12 +2,12 @@ import numpy as np
 from scipy.linalg import solve_banded
 
 class OceanBEFD():
-    def __init__(self, r, # reaction coefficient
-                 nu, # Diffusivity
-                 M, # Number of collocation points
-                 SIZE_DOMAIN, # Size of \\Omega_1
-                 LAMBDA,
-                 DT, K_c=0): # Time step
+    def __init__(self, r: float, # reaction coefficient
+            nu: float, # Diffusivity
+            M: int, # Number of collocation points
+            SIZE_DOMAIN: float, # Size of \\Omega_1
+            LAMBDA: float,
+            DT: float, K_c: int=0): # Time step
         """
             The data needed is passed through this constructor.
             The space step is SIZE_DOMAIN / (M-1)
