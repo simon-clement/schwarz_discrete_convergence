@@ -622,7 +622,7 @@ def find_indices(frequencies, nbpts):
 
 def frequencies_for_optim(N, dt, nbpts):
     axis_freq = get_discrete_freq(N, dt)
-    indices = find_indices(axis_freq[N//2:], nbpts) + N//2-1
+    indices = find_indices(axis_freq[N//2:], nbpts) + N//2 - 1
     return np.copy(axis_freq[indices])
 
 
@@ -1248,7 +1248,7 @@ def fig_optiRatesL2():
     all_rates = rho_c_c, rho_BE_c, rho_BE_FV, rho_BE_FD
     all_ocean = OceanBEFV, OceanBEFV, OceanBEFV, OceanBEFD
     all_atmosphere = AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFV, AtmosphereBEFD
-    
+
     optiRatesGeneralL2(all_rates, all_ocean, all_atmosphere, "BE", caracs=caracs)
 
     ###########################
