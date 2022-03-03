@@ -65,7 +65,7 @@ def fig_introDiscreteAnalysis():
     ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=theta)), lw=lw_important, color=col_cont)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD, K_c=k_c)
     if REAL_FIG:
-        alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+        alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=1, NUMBER_IT=1,
                 laplace_real_part=0, T=N*setting.DT, init="white", relaxation=theta, ignore_cached=False)
         ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), color=col_numeric)
     ax.semilogx(axis_freq, np.abs(DNWR_Pade_FD(setting, axis_freq, theta=theta, k_c=k_c)), "--", lw=lw_important, color=col_discrete)
@@ -79,7 +79,7 @@ def fig_introDiscreteAnalysis():
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important, label="Continuous convergence rate", color=col_cont)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD, K_c=k_c)
     if REAL_FIG:
-        alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=4, NUMBER_IT=1,
+        alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=1, NUMBER_IT=1,
                 laplace_real_part=0, T=N*setting.DT, init="white")
         ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), label="Numerical simulation",color=col_numeric)
     ax.semilogx(axis_freq, np.abs(rho_Pade_FD(setting, axis_freq, overlap_M=0, k_c=k_c)), "--", lw=lw_important, label="Discrete convergence rate",color=col_discrete)
@@ -963,10 +963,10 @@ class Builder():
         The comparison is thus then quite easy
     """
     def __init__(self): # changing defaults will result in needing to recompute all cache
-        self.SIZE_DOMAIN_1 = 200
-        self.SIZE_DOMAIN_2 = 200
-        self.M1 = 201 # to have h=1 the number of points M_j must be 101
-        self.M2 = 201
+        self.SIZE_DOMAIN_1 = 100
+        self.SIZE_DOMAIN_2 = 100
+        self.M1 = 101 # to have h=1 the number of points M_j must be 101
+        self.M2 = 101
         self.D1 = .5
         self.D2 = 1.
         self.R = 1e-3
