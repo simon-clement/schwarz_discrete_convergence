@@ -92,9 +92,8 @@ def fig_introDiscreteAnalysis():
 
 def fig_tableL2norms():
     setting = Builder()
-    N = 10000
+    N = 100000 # TODO keep the same N everywhere
     overlap_M = 0
-    res_x = 60
 
     h = setting.SIZE_DOMAIN_1 / (setting.M1 - 1)
     assert abs(h - setting.SIZE_DOMAIN_2 / (setting.M2 - 1)) < 1e-10
@@ -157,7 +156,9 @@ def fig_tableL2norms():
         builder = setting.copy()
         builder.LAMBDA_1, builder.LAMBDA_2 = robin_param
         ocean, atmosphere = builder.build(OceanPadeFD, AtmospherePadeFD)
-        errors = schwarz_simulator(atmosphere, ocean, T=N*dt, NUMBER_IT=1)
+        errors = schwarz_simulator(atmosphere, ocean, T=N*dt, NUMBER_IT=3)
+        print(np.linalg.norm(errors[4])/np.linalg.norm(errors[3]))
+        print(np.linalg.norm(errors[3])/np.linalg.norm(errors[2]))
         print(np.linalg.norm(errors[2])/np.linalg.norm(errors[1]),
                 *args_print)
     validation(cont.x, "continuous", cont.fun)
