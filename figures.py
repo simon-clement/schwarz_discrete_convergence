@@ -201,46 +201,105 @@ def relative_acceleration_modified(builder, N):
 def fig_robustness():
     N = 1000
     builder = Builder()
+    COMPUTE_AGAIN = False
 
     def function_to_plot_combined(nu1, nu2):
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_combined(setting, N)
 
-    delta = .1
-    #TODO essayer de se placer dans un cas défavorable
-    # nu1min, nu1max, nu2min, nu2max = 0.1, 2., 0.1, 2.
-    nu1min, nu1max, nu2min, nu2max = .01, 1., .01, 1.
-    allnu1 = np.arange(nu1min, nu1max, delta)
-    allnu2 = np.arange(nu2min, nu2max, delta)
+    resolution = 50
+    nu1min, nu1max, nu2min, nu2max = .1, 4., .1, 4.
+    allnu1 = np.linspace(nu1min, nu1max, resolution)
+    allnu2 = np.linspace(nu2min, nu2max, resolution)
     X, Y = np.meshgrid(allnu1, allnu2)
 
-    vfunc = np.vectorize(function_to_plot_combined)
-    Z = vfunc(X, Y)
+    name_file = "cache_npy/direct_combined_nu.npy"
+    if COMPUTE_AGAIN:
+        vfunc = np.vectorize(function_to_plot_combined)
+        Z = vfunc(X, Y)
+        np.save(name_file, Z)
+    else:
+        Z = np.load(name_file)
 
-    fig, axes = plt.subplots(1, 2)
-    # fig.subplots_adjust(bottom=0.18, left=0.08, right=0.98)
-    print(np.max(Z))
+    fig, axes = plt.subplots(2, 2, figsize=(8, 5))
+    fig.subplots_adjust(hspace=0.5)
     levels = np.linspace(np.min(Z), np.max(Z), 9)
-    CS = axes[0].contour(X, Y, Z, levels=levels)
-    axes[0].clabel(CS, inline=True, fontsize=10)
-    axes[0].set_title(r"Combined")
-    axes[0].set_xlabel(r"$\nu_1$")
-    axes[0].set_ylabel(r"$\nu_2$")
+    levels = [0., 0.1, 0.12, 0.13, 0.14]
+    CS = axes[0, 0].contour(X, Y, Z, levels=levels)
+    axes[0, 0].clabel(CS, inline=True, fontsize=10)
+    axes[0, 0].set_title(r"Combined")
+    axes[0, 0].set_xlabel(r"$\nu_1$")
+    axes[0, 0].set_ylabel(r"$\nu_2$")
 
     def function_to_plot_modified(nu1, nu2):
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_modified(setting, N)
-    vfunc = np.vectorize(function_to_plot_modified)
-    Z = vfunc(X, Y)
-    print(np.max(Z))
+
+    name_file = "cache_npy/direct_modified_nu.npy"
+    if COMPUTE_AGAIN:
+        vfunc = np.vectorize(function_to_plot_modified)
+        Z = vfunc(X, Y)
+        np.save(name_file, Z)
+    else:
+        Z = np.load(name_file)
+    levels = [0., 0.01, 0.02]
+    CS = axes[0, 1].contour(X, Y, Z, levels=levels)
+    axes[0, 1].clabel(CS, inline=True, fontsize=10)
+    axes[0, 1].set_title(r"Modified")
+    axes[0, 1].set_xlabel(r"$\nu_1$")
+    axes[0, 1].set_ylabel(r"$\nu_2$")
+
+    def function_to_plot_combined(h, dt):
+        setting = builder.copy()
+        setting.h, setting.DT = h, dt
+        setting.M1 = setting.M2 = 1001
+        setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
+        setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
+        return relative_acceleration_combined(setting, N)
+
+    hmin, hmax, dtmin, dtmax = .1, 10., .1, 50.
+    allh = np.linspace(hmin, hmax, resolution)
+    alldt = np.linspace(dtmin, dtmax, resolution)
+    X, Y = np.meshgrid(allh, alldt)
+
+    name_file = "cache_npy/direct_combined_hdt.npy"
+    if COMPUTE_AGAIN:
+        vfunc = np.vectorize(function_to_plot_combined)
+        Z = vfunc(X, Y)
+        np.save(name_file, Z)
+    else:
+        Z = np.load(name_file)
+    levels = [-0.5, -0.3, -0.1, 0.1, 0.3]
+    CS = axes[1, 0].contour(X, Y, Z, levels=levels)
+    axes[1, 0].clabel(CS, inline=True, fontsize=10)
+    axes[1, 0].set_title(r"Combined")
+    axes[1, 0].set_xlabel(r"$h$")
+    axes[1, 0].set_ylabel(r"$\Delta t$")
+
+    def function_to_plot_modified(h, dt):
+        setting = builder.copy()
+        setting.h, setting.DT = h, dt
+        setting.M1 = setting.M2 = 1001
+        setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
+        setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
+        return relative_acceleration_modified(setting, N)
+    name_file = "cache_npy/direct_modified_hdt.npy"
+    if COMPUTE_AGAIN:
+        vfunc = np.vectorize(function_to_plot_modified)
+        Z = vfunc(X, Y)
+        np.save(name_file, Z)
+    else:
+        Z = np.load(name_file)
+
     levels = np.linspace(np.min(Z), np.max(Z), 9)
-    CS = axes[1].contour(X, Y, Z, levels=levels)
-    axes[1].clabel(CS, inline=True, fontsize=10)
-    axes[1].set_title(r"Modified")
-    axes[1].set_xlabel(r"$\nu_1$")
-    axes[1].set_ylabel(r"$\nu_2$")
+    levels = [-0.01, 0., 0.01, 0.02]
+    CS = axes[1, 1].contour(X, Y, Z, levels=levels)
+    axes[1, 1].clabel(CS, inline=True, fontsize=10)
+    axes[1, 1].set_title(r"Modified")
+    axes[1, 1].set_xlabel(r"$h$")
+    axes[1, 1].set_ylabel(r"$\Delta t$")
 
     show_or_save('fig_robustness')
 
