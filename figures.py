@@ -40,11 +40,13 @@ symb_discrete = "P"
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar, minimize
 from simulator import frequency_simulation, schwarz_simulator
-from cv_factor_onestep import rho_c_c, rho_c_FV, rho_c_FD, DNWR_c_c
+from cv_factor_onestep import rho_c_c, rho_c_FV, rho_c_FD, DNWR_c_c, \
+        DNWR_s_c, DNWR_c_FD
 from cv_factor_onestep import rho_s_c
 from ocean_models.ocean_Pade_FD import OceanPadeFD
 from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
-from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD, DNWR_Pade_c, DNWR_Pade_FD
+from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD, \
+        DNWR_Pade_c, DNWR_Pade_FD
 
 REAL_FIG = True
 k_c=1
@@ -122,7 +124,7 @@ def fig_introDiscreteAnalysis():
     fig.legend(loc="upper left", bbox_to_anchor=(0.7, 0.6))
     show_or_save("fig_introDiscreteAnalysis")
 
-def combined_Pade(setting, axis_freq, overlap_M=0, k_c=1):
+def combined_Pade(setting, axis_freq, overlap_M=0, k_c=k_c):
     """
         Returns the combined cv factor.
         Setting.h must be provided.
@@ -134,6 +136,26 @@ def combined_Pade(setting, axis_freq, overlap_M=0, k_c=1):
                 + rho_c_FD(setting, axis_freq,
                         overlap_M=overlap_M, k_c=k_c)
     return np.abs(combined)
+
+def combined_Pade_DNWR(setting, axis_freq, theta, k_c=k_c):
+    builder = setting.copy()
+    combined = - DNWR_c_c(builder, axis_freq, theta=theta) \
+                + DNWR_Pade_c(builder, axis_freq, theta=theta) \
+                + DNWR_c_FD(builder, axis_freq, theta=theta, k_c=k_c)
+    return np.abs(combined)
+
+def modified_FD_DNWR(builder, axis_freq, theta, k_c=k_c):
+    Gamma_1 = builder.DT * builder.D1 / builder.h**2
+    Gamma_2 = builder.DT * builder.D2 / builder.h**2
+    # Finite differences:
+    d1 = 1/12
+    d2 = 1/360
+    s_c = 1j*axis_freq
+    s_modified1 = s_c - d1 * builder.DT/Gamma_1 * (s_c + builder.R)**2
+    s_modified2 = s_c - d1 * builder.DT/Gamma_2 * (s_c + builder.R)**2
+    return np.abs(DNWR_s_c(builder, s_modified1, s_modified2,
+        w=axis_freq, theta=theta, continuous_interface_op=False,
+        k_c=k_c))
 
 def modified_FD(builder, axis_freq, overlap_L=0, k_c=k_c):
     Gamma_1 = builder.DT * builder.D1 / builder.h**2
@@ -173,6 +195,30 @@ def relative_acceleration_combined(builder, N):
     # 3. relative difference
     return (cont_rho - combined_rho) / cont_rho
 
+def relative_acceleration_combined_DNWR(builder, N):
+    """
+        with the parameters contained in builder,
+        compute the relative difference between
+        the max of the discrete convergence rates,
+        obtained with the continuous analysis on one hand
+        and with the combined analysis on the other hand.
+    """
+    axis_freq = get_discrete_freq(N, builder.DT)[int(N//2)+1:]
+    #optimization routine:
+
+    # 1.a optimization in the continuous case
+    cont_theta = optimal_DNWR_parameter(builder, DNWR_c_c, axis_freq)
+    # 1.b optimization in the combined case
+    combined_theta = optimal_DNWR_parameter(builder, combined_Pade_DNWR,
+            axis_freq, k_c=k_c)
+    # 2. computation of the discrete rate associated
+    cont_rho = np.max(np.abs(DNWR_Pade_FD(builder, axis_freq,
+            cont_theta, k_c=k_c)))
+    combined_rho = np.max(np.abs(DNWR_Pade_FD(builder, axis_freq,
+            combined_theta, k_c=k_c)))
+    # 3. relative difference
+    return (cont_rho - combined_rho) / cont_rho
+
 def relative_acceleration_modified(builder, N):
     """
         with the parameters contained in builder,
@@ -195,6 +241,31 @@ def relative_acceleration_modified(builder, N):
             *cont.x, k_c=k_c))
     modified_rho = np.max(rho_robin(builder, rho_Pade_FD, axis_freq,
             *modified.x, k_c=k_c))
+    # 3. relative difference
+    return (cont_rho - modified_rho) / cont_rho
+
+def relative_acceleration_modified_DNWR(builder, N):
+    """
+        with the parameters contained in builder,
+        compute the relative difference between
+        the max of the discrete convergence rates,
+        obtained with the continuous analysis on one hand
+        and with the combined analysis on the other hand.
+    """
+    axis_freq = get_discrete_freq(N, builder.DT)[int(N//2)+1:]
+    #optimization routine:
+
+    # 1.a optimization in the continuous case (disc. op.)
+    cont_theta = optimal_DNWR_parameter(builder, DNWR_c_c,
+            axis_freq, continuous_interface_op=False, k_c=k_c)
+    # 1.b optimization in the modified case
+    modified_theta = optimal_DNWR_parameter(builder, modified_FD_DNWR,
+            axis_freq, k_c=k_c)
+    # 2. computation of the discrete rate associated
+    cont_rho = np.max(np.abs(DNWR_Pade_FD(builder, axis_freq,
+            cont_theta, k_c=k_c)))
+    modified_rho = np.max(np.abs(DNWR_Pade_FD(builder, axis_freq,
+            modified_theta, k_c=k_c)))
     # 3. relative difference
     return (cont_rho - modified_rho) / cont_rho
 
@@ -222,13 +293,13 @@ def fig_robustness():
     else:
         Z = np.load(name_file)
 
-    fig, axes = plt.subplots(2, 2, figsize=(8, 5))
+    fig, axes = plt.subplots(2, 4, figsize=(8, 5))
     fig.subplots_adjust(hspace=0.5)
     levels = np.linspace(np.min(Z), np.max(Z), 9)
     levels = [0., 0.1, 0.12, 0.13, 0.14]
     CS = axes[0, 0].contour(X, Y, Z, levels=levels)
     axes[0, 0].clabel(CS, inline=True, fontsize=10)
-    axes[0, 0].set_title(r"Combined")
+    axes[0, 0].set_title(r"Combined, RR")
     axes[0, 0].set_xlabel(r"$\nu_1$")
     axes[0, 0].set_ylabel(r"$\nu_2$")
 
@@ -245,11 +316,10 @@ def fig_robustness():
     else:
         Z = np.load(name_file)
     levels = [0., 0.01, 0.02]
-    CS = axes[0, 1].contour(X, Y, Z, levels=levels)
-    axes[0, 1].clabel(CS, inline=True, fontsize=10)
-    axes[0, 1].set_title(r"Modified")
-    axes[0, 1].set_xlabel(r"$\nu_1$")
-    axes[0, 1].set_ylabel(r"$\nu_2$")
+    CS = axes[0, 2].contour(X, Y, Z, levels=levels)
+    axes[0, 2].clabel(CS, inline=True, fontsize=10)
+    axes[0, 2].set_title(r"Modified, RR")
+    axes[0, 2].set_xlabel(r"$\nu_1$")
 
     def function_to_plot_combined(h, dt):
         setting = builder.copy()
@@ -274,7 +344,7 @@ def fig_robustness():
     levels = [-0.5, -0.3, -0.1, 0.1, 0.3]
     CS = axes[1, 0].contour(X, Y, Z, levels=levels)
     axes[1, 0].clabel(CS, inline=True, fontsize=10)
-    axes[1, 0].set_title(r"Combined")
+    axes[1, 0].set_title(r"Combined, RR")
     axes[1, 0].set_xlabel(r"$h$")
     axes[1, 0].set_ylabel(r"$\Delta t$")
 
@@ -295,11 +365,102 @@ def fig_robustness():
 
     levels = np.linspace(np.min(Z), np.max(Z), 9)
     levels = [-0.01, 0., 0.01, 0.02]
+    CS = axes[1, 2].contour(X, Y, Z, levels=levels)
+    axes[1, 2].clabel(CS, inline=True, fontsize=10)
+    axes[1, 2].set_title(r"Modified, RR")
+    axes[1, 2].set_xlabel(r"$h$")
+
+    def function_to_plot_combined(nu1, nu2):
+        setting = builder.copy()
+        setting.D1, setting.D2 = nu1, nu2
+        return relative_acceleration_combined_DNWR(setting, N)
+
+    resolution = 50
+    nu1min, nu1max, nu2min, nu2max = .1, 4., .1, 4.
+    allnu1 = np.linspace(nu1min, nu1max, resolution)
+    allnu2 = np.linspace(nu2min, nu2max, resolution)
+    X, Y = np.meshgrid(allnu1, allnu2)
+
+    name_file = "cache_npy/direct_combined_nu_DNWR.npy"
+    if COMPUTE_AGAIN:
+        vfunc = np.vectorize(function_to_plot_combined)
+        Z = vfunc(X, Y)
+        np.save(name_file, Z)
+    else:
+        Z = np.load(name_file)
+
+    levels = np.linspace(np.min(Z), np.max(Z), 9)
+    levels = [0., 0.1, 0.2, 0.3]
+    CS = axes[0, 1].contour(X, Y, Z, levels=levels)
+    axes[0, 1].clabel(CS, inline=True, fontsize=10)
+    axes[0, 1].set_title(r"Combined, DNWR")
+    axes[0, 1].set_xlabel(r"$\nu_1$")
+
+    def function_to_plot_modified(nu1, nu2):
+        setting = builder.copy()
+        setting.D1, setting.D2 = nu1, nu2
+        return relative_acceleration_modified_DNWR(setting, N)
+
+    name_file = "cache_npy/direct_modified_nu_DNWR.npy"
+    if COMPUTE_AGAIN:
+        vfunc = np.vectorize(function_to_plot_modified)
+        Z = vfunc(X, Y)
+        np.save(name_file, Z)
+    else:
+        Z = np.load(name_file)
+    levels = [-0.02, -0.01, 0., 0.01, 0.02]
+    CS = axes[0, 3].contour(X, Y, Z, levels=levels)
+    axes[0, 3].clabel(CS, inline=True, fontsize=10)
+    axes[0, 3].set_title(r"Modified, DNWR")
+    axes[0, 3].set_xlabel(r"$\nu_1$")
+
+    def function_to_plot_combined(h, dt):
+        setting = builder.copy()
+        setting.h, setting.DT = h, dt
+        setting.M1 = setting.M2 = 1001
+        setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
+        setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
+        return relative_acceleration_combined_DNWR(setting, N)
+
+    hmin, hmax, dtmin, dtmax = .1, 10., .1, 50.
+    allh = np.linspace(hmin, hmax, resolution)
+    alldt = np.linspace(dtmin, dtmax, resolution)
+    X, Y = np.meshgrid(allh, alldt)
+
+    name_file = "cache_npy/direct_combined_hdt_DNWR.npy"
+    if COMPUTE_AGAIN:
+        vfunc = np.vectorize(function_to_plot_combined)
+        Z = vfunc(X, Y)
+        np.save(name_file, Z)
+    else:
+        Z = np.load(name_file)
+    levels = [-0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4]
     CS = axes[1, 1].contour(X, Y, Z, levels=levels)
     axes[1, 1].clabel(CS, inline=True, fontsize=10)
-    axes[1, 1].set_title(r"Modified")
+    axes[1, 1].set_title(r"Combined, DNWR")
     axes[1, 1].set_xlabel(r"$h$")
-    axes[1, 1].set_ylabel(r"$\Delta t$")
+
+    def function_to_plot_modified(h, dt):
+        setting = builder.copy()
+        setting.h, setting.DT = h, dt
+        setting.M1 = setting.M2 = 1001
+        setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
+        setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
+        return relative_acceleration_modified_DNWR(setting, N)
+    name_file = "cache_npy/direct_modified_hdt_DNWR.npy"
+    if COMPUTE_AGAIN:
+        vfunc = np.vectorize(function_to_plot_modified)
+        Z = vfunc(X, Y)
+        np.save(name_file, Z)
+    else:
+        Z = np.load(name_file)
+
+    levels = np.linspace(np.min(Z), np.max(Z), 9)
+    levels = [-0.01, 0., 0.01, 0.02]
+    CS = axes[1, 3].contour(X, Y, Z, levels=levels)
+    axes[1, 3].clabel(CS, inline=True, fontsize=10)
+    axes[1, 3].set_title(r"Modified, DNWR")
+    axes[1, 3].set_xlabel(r"$h$")
 
     show_or_save('fig_robustness')
 

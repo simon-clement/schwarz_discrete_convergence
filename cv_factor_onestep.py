@@ -28,8 +28,9 @@ def rho_c_FV(builder, w, overlap_M=0):
 def rho_c_FD(builder, w, k_c, overlap_M=0):
     return rho_s_FD(builder, 1j*w,1j*w, k_c, overlap_M=overlap_M)
 
-def DNWR_c_c(builder, w, theta):
-    return DNWR_s_c(builder, 1j*w,1j*w, theta)
+def DNWR_c_c(builder, w, theta, continuous_interface_op=True, k_c=1):
+    return DNWR_s_c(builder, 1j*w,1j*w, theta, w=w,
+            continuous_interface_op=continuous_interface_op, k_c=k_c)
 
 def DNWR_c_FD(builder, w, theta, k_c):
     return DNWR_s_FD(builder, 1j*w,1j*w, theta, k_c=k_c)
