@@ -48,6 +48,30 @@ from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD, DNWR_Pade_c, DN
 REAL_FIG = True
 k_c=1
 
+def rho_robin(builder, func, w, p1, p2, **kwargs):
+    """
+        Returns the cv factor defined with func where
+        p1, p2 override the robin parameters of builder.
+    """
+    setting2 = builder.copy()
+    setting2.LAMBDA_1 = p1
+    setting2.LAMBDA_2 = p2
+    return np.max(np.abs(func(setting2, w, **kwargs)))
+
+def optimal_robin_parameter(builder, func, axis_freq, **kwargs):
+    x0_eye1 = (1., -0.05)
+    x0_eye2 = (0.05, -1.)
+    def to_optimize(x):
+        return rho_robin(builder, func, axis_freq, x[0], x[1],
+                **kwargs)
+    optimal_lam_eye1 = minimize(method='Nelder-Mead',
+            fun=to_optimize, x0=x0_eye1)
+    optimal_lam_eye2 = minimize(method='Nelder-Mead',
+            fun=to_optimize, x0=x0_eye2)
+    if optimal_lam_eye1.fun < optimal_lam_eye2.fun:
+        return optimal_lam_eye1
+    return optimal_lam_eye2
+
 def fig_introDiscreteAnalysis():
     setting = Builder()
     N = 1000
@@ -82,7 +106,7 @@ def fig_introDiscreteAnalysis():
 
     ax = axes[0]
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
-            rho_c_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
+            rho_c_c, axis_freq, overlap_L=overlap_M*h).x
     ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important, label="Continuous convergence rate", color=col_cont)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD, K_c=k_c)
     if REAL_FIG:
@@ -96,6 +120,19 @@ def fig_introDiscreteAnalysis():
 
     fig.legend(loc="upper left", bbox_to_anchor=(0.7, 0.6))
     show_or_save("fig_introDiscreteAnalysis")
+
+def combined_Pade(setting, axis_freq, overlap_M=0, k_c=1):
+    """
+        Returns the combined cv factor.
+        Setting.h must be provided.
+    """
+    combined = - rho_c_c(setting, axis_freq,
+            overlap_L=overlap_M*setting.h) \
+                + rho_Pade_c(setting, axis_freq,
+                        overlap_L=overlap_M*setting.h) \
+                + rho_c_FD(setting, axis_freq,
+                        overlap_M=overlap_M, k_c=k_c)
+    return np.abs(combined)
 
 def fig_L2normsRR():
     #######
@@ -115,45 +152,14 @@ def fig_L2normsRR():
     #######
     # Optimization
     #######
-    def combined_Pade(setting, axis_freq, overlap_M=0, k_c=k_c):
-        combined = - rho_c_c(setting, axis_freq, overlap_L=overlap_M*h) \
-                    + rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h) \
-                    + rho_c_FD(setting, axis_freq, overlap_M=overlap_M, k_c=k_c)
-        return np.abs(combined)
-
-    def optimal_robin_parameter(builder, func, w, x0_eye1, x0_eye2,
-            **kwargs):
-        def to_optimize(x0):
-            setting2 = builder.copy()
-            setting2.LAMBDA_1 = x0[0]
-            setting2.LAMBDA_2 = x0[1]
-            return np.max(np.abs(func(setting2, w, **kwargs)))
-        optimal_lam_eye1 = minimize(method='Nelder-Mead',
-                fun=to_optimize, x0=x0_eye1)
-        optimal_lam_eye2 = minimize(method='Nelder-Mead',
-                fun=to_optimize, x0=x0_eye2)
-        if optimal_lam_eye1.fun < optimal_lam_eye2.fun:
-            return optimal_lam_eye1
-        return optimal_lam_eye2
-
-
-    def discrete_robin(builder, func, w, p1, p2, **kwargs):
-        setting2 = builder.copy()
-        setting2.LAMBDA_1 = p1
-        setting2.LAMBDA_2 = p2
-        return np.max(np.abs(func(setting2, w, **kwargs)))
-
     def callrho(fun, p1p2, **kwargs):
-        return discrete_robin(setting, fun, axis_freq, p1p2[0], p1p2[1], **kwargs)
-    eye1 = (1., -0.05)
-    eye2 = (0.05, -1.)
+        return rho_robin(setting, fun, axis_freq, p1p2[0], p1p2[1], **kwargs)
 
-    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
-            eye1, eye2)
-    discrete = optimal_robin_parameter(setting, rho_Pade_FD, axis_freq,
-            eye1, eye2, k_c=k_c)
-    combined = optimal_robin_parameter(setting, combined_Pade, axis_freq,
-            eye1, eye2, k_c=k_c)
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq)
+    discrete = optimal_robin_parameter(setting, rho_Pade_FD,
+            axis_freq, k_c=k_c)
+    combined = optimal_robin_parameter(setting, combined_Pade,
+            axis_freq, k_c=k_c)
 
     ######
     # validation
@@ -239,61 +245,30 @@ def fig_RobinTwoSided():
     from cv_factor_onestep import rho_c_FD, rho_c_c
     from cv_factor_pade import rho_Pade_c, rho_Pade_FD
 
-    def combined_Pade(setting, axis_freq, overlap_M=0, k_c=k_c):
-        combined = - rho_c_c(setting, axis_freq, overlap_L=overlap_M*h) \
-                    + rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h) \
-                    + rho_c_FD(setting, axis_freq, overlap_M=overlap_M, k_c=k_c)
-        return np.abs(combined)
-
-    def optimal_robin_parameter(builder, func, w, x0_eye1, x0_eye2,
-            **kwargs):
-        from scipy.optimize import minimize_scalar, minimize
-        def to_optimize(x0):
-            setting = builder.copy()
-            setting.LAMBDA_1 = x0[0]
-            setting.LAMBDA_2 = x0[1]
-            return np.max(np.abs(func(setting, w, **kwargs)))
-        optimal_lam_eye1 = minimize(method='Nelder-Mead',
-                fun=to_optimize, x0=x0_eye1)
-        optimal_lam_eye2 = minimize(method='Nelder-Mead',
-                fun=to_optimize, x0=x0_eye2)
-        if optimal_lam_eye1.fun < optimal_lam_eye2.fun:
-            return optimal_lam_eye1
-        return optimal_lam_eye2
-
-
-    def discrete_robin(builder, func, w, p1, p2, **kwargs):
-        setting = builder.copy()
-        setting.LAMBDA_1 = p1
-        setting.LAMBDA_2 = p2
-        return np.max(np.abs(func(setting, w, **kwargs)))
-
     ax = axes[0]
     p1min, p1max = 0.03, 1.5
     p2min, p2max = -.4, -.01
     p1_range = np.arange(p1min, p1max, (p1max - p1min)/res_x)
     p2_range = np.arange(p2min, p2max, (p2max - p2min)/res_x)
-    Z = [[discrete_robin(setting, rho_Pade_FD, axis_freq, p1, p2, overlap_M=0, k_c=k_c)
+    Z = [[rho_robin(setting, rho_Pade_FD, axis_freq, p1, p2, overlap_M=0, k_c=k_c)
             for p2 in p2_range] for p1 in p1_range]
     p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
     p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
     fig.colorbar(ax.contour(p1_arr, p2_arr, Z, zorder=-1), ax=ax)
 
     def callrho(fun, p1p2, **kwargs):
-        return discrete_robin(setting, fun, axis_freq, p1p2[0], p1p2[1], **kwargs)
+        return rho_robin(setting, fun, axis_freq, p1p2[0], p1p2[1], **kwargs)
     eye1 = (1., -0.05)
     eye2 = (0.05, -1.)
 
-    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
-            eye1, eye2)
+    cont = optimal_robin_parameter(setting, rho_c_c, axis_freq)
     s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq,
-            eye1, eye2, k_c=k_c)
-    s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq,
-            eye1, eye2)
+            k_c=k_c)
+    s_d_time = optimal_robin_parameter(setting, rho_Pade_c, axis_freq)
     discrete = optimal_robin_parameter(setting, rho_Pade_FD, axis_freq,
-            eye1, eye2, k_c=k_c)
+            k_c=k_c)
     combined = optimal_robin_parameter(setting, combined_Pade, axis_freq,
-            eye1, eye2, k_c=k_c)
+            k_c=k_c)
     ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont,
             label="Continuous: {:.3f}".format(callrho(rho_Pade_FD,
                 cont.x, overlap_M=overlap_M, k_c=k_c)))
@@ -325,7 +300,7 @@ def fig_RobinTwoSided():
     p2min, p2max = -.1, -.0
     p1_range = np.arange(p1min, p1max, (p1max - p1min)/res_x)
     p2_range = np.arange(p2min, p2max, (p2max - p2min)/res_x)
-    Z = [[discrete_robin(setting, rho_c_FD, axis_freq, p1, p2, overlap_M=0, k_c=k_c)
+    Z = [[rho_robin(setting, rho_c_FD, axis_freq, p1, p2, overlap_M=0, k_c=k_c)
             for p2 in p2_range] for p1 in p1_range]
     p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
     p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
@@ -345,10 +320,10 @@ def fig_RobinTwoSided():
             continuous_interface_op=False, k_c=k_c))
 
     cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
-            eye1, eye2, continuous_interface_op=False, k_c=k_c)
-    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, eye1, eye2, k_c=k_c)
+            continuous_interface_op=False, k_c=k_c)
+    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, k_c=k_c)
     modified = optimal_robin_parameter(setting, modified_FD, axis_freq,
-            eye1, eye2, overlap_L=0, k_c=k_c)
+            overlap_L=0, k_c=k_c)
     ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont_discop,
             label="Continuous (disc. op.): {:.3f}".format(callrho(rho_c_FD,
                 cont.x, overlap_M=overlap_M, k_c=k_c)))
@@ -384,11 +359,6 @@ def fig_dependency_maxrho_combined():
     from cv_factor_onestep import rho_c_FD, rho_c_c, DNWR_c_c, DNWR_c_FD
     from cv_factor_pade import rho_Pade_c, rho_Pade_FD, DNWR_Pade_c, DNWR_Pade_FD
 
-    def combined_Pade(setting, overlap_M, k_c):
-        combined = - rho_c_c(setting, axis_freq, overlap_L=overlap_M*h) \
-                    + rho_Pade_c(setting, axis_freq, overlap_L=overlap_M*h) \
-                    + rho_c_FD(setting, axis_freq, overlap_M=overlap_M, k_c=k_c)
-        return np.abs(combined)
     def combined_Pade_DNWR(setting, axis_freq, theta, k_c):
         builder = setting.copy()
         combined = - DNWR_c_c(builder, axis_freq, theta=theta) \
@@ -435,7 +405,8 @@ def fig_dependency_maxrho_combined():
     semidiscrete_time = [maxrho(rho_Pade_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
     semidiscrete_space = [maxrho(rho_c_FD, p, w=axis_freq, overlap_M=overlap_M, k_c=k_c) for p in all_p1]
     continuous = [maxrho(rho_c_c, p, w=axis_freq, overlap_L=overlap_M*h) for p in all_p1]
-    combined = [maxrho(combined_Pade, p, overlap_M=overlap_M, k_c=k_c) for p in all_p1]
+    combined = [maxrho(combined_Pade, p, overlap_M=overlap_M,
+        k_c=k_c, axis_freq=axis_freq) for p in all_p1]
 
     ax.plot(all_p1, continuous, label="Continuous", lw=lw_important, color=col_cont)
     ax.plot(all_p1, discrete, lw=lw_important, label="Discrete", color=col_discrete)
@@ -601,16 +572,6 @@ def optimal_DNWR_parameter(builder, func, w, **kwargs):
     optimal_lam = minimize_scalar(to_optimize)
     return optimal_lam.x
 
-def optimal_robin_parameter(builder, func, w, x0, **kwargs):
-    from scipy.optimize import minimize_scalar, minimize
-    def to_optimize(x0):
-        setting = builder.copy()
-        setting.LAMBDA_1 = x0[0]
-        setting.LAMBDA_2 = x0[1]
-        return np.max(np.abs(func(setting, w, **kwargs)))
-    optimal_lam = minimize(method='Nelder-Mead', fun=to_optimize, x0=x0)
-    return optimal_lam.x
-
 def fig_modif_time():
     from cv_factor_onestep import rho_s_c, rho_c_c
     from cv_factor_pade import rho_Pade_c
@@ -621,7 +582,7 @@ def fig_modif_time():
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
 
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
-            rho_Pade_c, axis_freq, (0.1, -0.1), overlap_L=overlap_M*h)
+            rho_Pade_c, axis_freq, overlap_L=overlap_M*h).x
 
     fig, axes = plt.subplots(1, 3)
     fig.subplots_adjust(bottom=0.15, right=0.97, hspace=0.65, wspace=0.28)
@@ -693,7 +654,7 @@ def fig_modif_space():
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
 
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
-            rho_c_FD, axis_freq, (.1, -.1), overlap_M=overlap_M, k_c=k_c)
+            rho_c_FD, axis_freq, overlap_M=overlap_M, k_c=k_c).x
 
     fig, axes = plt.subplots(1, 3)
     fig.subplots_adjust(bottom=0.15, right=0.97, hspace=0.65, wspace=0.28)
@@ -779,11 +740,6 @@ def fig_combinedRate():
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, DNWR_c_c, DNWR_c_FD
     from cv_factor_pade import rho_Pade_c, rho_Pade_FD, DNWR_Pade_c, DNWR_Pade_FD
-    def combined_Pade(builder, w, overlap_M, k_c):
-        combined = - rho_c_c(builder, w, overlap_L=overlap_M*h) \
-                    + rho_Pade_c(builder, w, overlap_L=overlap_M*h) \
-                    + rho_c_FD(builder, w, overlap_M=overlap_M, k_c=k_c)
-        return combined
 
     def to_minimize_Pade(LAMBDAS, overlap_M, k_c):
         builder = setting.copy()
@@ -974,6 +930,7 @@ class Builder():
         self.SIZE_DOMAIN_2 = 100
         self.M1 = 101 # to have h=1 the number of points M_j must be 101
         self.M2 = 101
+        self.h = 1.
         self.D1 = .5
         self.D2 = 1.
         self.R = 1e-3
