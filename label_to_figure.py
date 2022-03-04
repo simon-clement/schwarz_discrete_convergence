@@ -12,4 +12,5 @@ FIGURE["6"] = "fig_dependency_maxrho_combined"
 FIGURE["7"] = "fig_RobinTwoSided"
 FIGURE["8"] = "fig_L2normsRR"
 FIGURE["9"] = "fig_robustness"
+FIGURE["10"] = "fig_robustness_r"
 ALL_LABELS = FIGURE

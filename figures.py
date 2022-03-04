@@ -269,6 +269,57 @@ def relative_acceleration_modified_DNWR(builder, N):
     # 3. relative difference
     return (cont_rho - modified_rho) / cont_rho
 
+def fig_robustness_r():
+    N = 1000
+    builder = Builder()
+    COMPUTE_AGAIN = False
+    def function_to_plot(r, func):
+        setting = builder.copy()
+        setting.R = r
+        return func(setting, N)
+
+    resolution = 80
+    rmin, rmax = 1e-6, 1.
+    allr = np.geomspace(rmin, rmax, resolution)
+
+    name_fileRR = "cache_npy/direct_combined_rRR.npy"
+    name_fileDNWR = "cache_npy/direct_combined_rDNWR.npy"
+    name_fileRR_modif = "cache_npy/direct_modified_rRR.npy"
+    name_fileDNWR_modif = "cache_npy/direct_modified_rDNWR.npy"
+    if COMPUTE_AGAIN:
+        Z_combinedRR = [function_to_plot(r,
+            relative_acceleration_combined) for r in allr]
+        Z_combinedDNWR = [function_to_plot(r,
+            relative_acceleration_combined_DNWR) for r in allr]
+        Z_modifiedRR = [function_to_plot(r,
+            relative_acceleration_modified) for r in allr]
+        Z_modifiedDNWR = [function_to_plot(r,
+            relative_acceleration_modified_DNWR) for r in allr]
+        np.save(name_fileRR, Z_combinedRR)
+        np.save(name_fileDNWR, Z_combinedDNWR)
+        np.save(name_fileRR_modif, Z_modifiedRR)
+        np.save(name_fileDNWR_modif, Z_modifiedDNWR)
+    else:
+        Z_combinedRR = np.load(name_fileRR)
+        Z_combinedDNWR = np.load(name_fileDNWR)
+        Z_modifiedDNWR = np.load(name_fileDNWR_modif)
+        Z_modifiedRR = np.load(name_fileRR_modif)
+
+    fig, ax = plt.subplots(1, 1, figsize=(6., 2.))
+    fig.subplots_adjust(bottom=0.23)
+    ax.loglog(allr, Z_combinedRR, label="Combined, RR",
+            color=col_combined)
+    ax.loglog(allr, Z_combinedDNWR, "--", label="Combined, DNWR",
+            color=col_combined)
+    ax.loglog(allr, Z_modifiedRR, label="Modified, RR",
+            color=col_modified)
+    ax.loglog(allr, Z_modifiedDNWR, "--", label="Modified, DNWR",
+            color=col_modified)
+    ax.set_xlabel(r"$r$")
+    ax.set_ylabel(r"Relative acceleration")
+    ax.legend()
+    show_or_save("fig_robustness_r")
+
 def fig_robustness():
     N = 1000
     builder = Builder()
