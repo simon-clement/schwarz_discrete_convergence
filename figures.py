@@ -134,6 +134,36 @@ def combined_Pade(setting, axis_freq, overlap_M=0, k_c=1):
                         overlap_M=overlap_M, k_c=k_c)
     return np.abs(combined)
 
+def relative_acceleration_combined(builder, N):
+    """
+        with the parameters contained in builder,
+        compute the relative difference between
+        the max of the discrete convergence rates,
+        obtained with the continuous analysis on one hand
+        and with the combined analysis on the other hand.
+    """
+    axis_freq = get_discrete_freq(N, builder.DT)[int(N//2)+1:]
+    #optimization routine:
+
+    # 1.a optimization in the continuous case
+    cont = optimal_robin_parameter(builder, rho_c_c,
+            axis_freq, k_c=k_c)
+    # 1.b optimization in the combined case
+    combined = optimal_robin_parameter(builder, combined_Pade,
+            axis_freq, k_c=k_c)
+    # 2. computation of the discrete rate associated
+    cont_rho = np.max(rho_robin(builder, rho_Pade_FD, axis_freq,
+            *cont.x, k_c=k_c))
+    combined_rho = np.max(rho_robin(builder, rho_Pade_FD, axis_freq,
+            *combined.x, k_c=k_c))
+    # 3. relative difference
+    return (cont_rho - combined_rho) / cont_rho
+
+
+def fig_robustness():
+    N = 1000
+    builder = Builder()
+
 def fig_L2normsRR():
     #######
     # initialization
