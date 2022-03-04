@@ -41,6 +41,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar, minimize
 from simulator import frequency_simulation, schwarz_simulator
 from cv_factor_onestep import rho_c_c, rho_c_FV, rho_c_FD, DNWR_c_c
+from cv_factor_onestep import rho_s_c
 from ocean_models.ocean_Pade_FD import OceanPadeFD
 from atmosphere_models.atmosphere_Pade_FD import AtmospherePadeFD
 from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD, DNWR_Pade_c, DNWR_Pade_FD
@@ -134,6 +135,19 @@ def combined_Pade(setting, axis_freq, overlap_M=0, k_c=1):
                         overlap_M=overlap_M, k_c=k_c)
     return np.abs(combined)
 
+def modified_FD(builder, axis_freq, overlap_L=0, k_c=k_c):
+    Gamma_1 = builder.DT * builder.D1 / builder.h**2
+    Gamma_2 = builder.DT * builder.D2 / builder.h**2
+    # Finite differences:
+    d1 = 1/12
+    d2 = 1/360
+    s_c = 1j*axis_freq
+    s_modified1 = s_c - d1 * builder.DT/Gamma_1 * (s_c + builder.R)**2
+    s_modified2 = s_c - d1 * builder.DT/Gamma_2 * (s_c + builder.R)**2
+    return np.abs(rho_s_c(builder, s_modified1, s_modified2,
+        w=axis_freq, overlap_L=overlap_L,
+        continuous_interface_op=False, k_c=k_c))
+
 def relative_acceleration_combined(builder, N):
     """
         with the parameters contained in builder,
@@ -159,10 +173,76 @@ def relative_acceleration_combined(builder, N):
     # 3. relative difference
     return (cont_rho - combined_rho) / cont_rho
 
+def relative_acceleration_modified(builder, N):
+    """
+        with the parameters contained in builder,
+        compute the relative difference between
+        the max of the discrete convergence rates,
+        obtained with the continuous analysis on one hand
+        and with the combined analysis on the other hand.
+    """
+    axis_freq = get_discrete_freq(N, builder.DT)[int(N//2)+1:]
+    #optimization routine:
+
+    # 1.a optimization in the continuous case (disc. op.)
+    cont = optimal_robin_parameter(builder, rho_c_c,
+            axis_freq, continuous_interface_op=False, k_c=k_c)
+    # 1.b optimization in the modified case
+    modified = optimal_robin_parameter(builder, modified_FD,
+            axis_freq, k_c=k_c)
+    # 2. computation of the discrete rate associated
+    cont_rho = np.max(rho_robin(builder, rho_Pade_FD, axis_freq,
+            *cont.x, k_c=k_c))
+    modified_rho = np.max(rho_robin(builder, rho_Pade_FD, axis_freq,
+            *modified.x, k_c=k_c))
+    # 3. relative difference
+    return (cont_rho - modified_rho) / cont_rho
 
 def fig_robustness():
     N = 1000
     builder = Builder()
+
+    def function_to_plot_combined(nu1, nu2):
+        setting = builder.copy()
+        setting.D1, setting.D2 = nu1, nu2
+        return relative_acceleration_combined(setting, N)
+
+    delta = .1
+    #TODO essayer de se placer dans un cas défavorable
+    # nu1min, nu1max, nu2min, nu2max = 0.1, 2., 0.1, 2.
+    nu1min, nu1max, nu2min, nu2max = .01, 1., .01, 1.
+    allnu1 = np.arange(nu1min, nu1max, delta)
+    allnu2 = np.arange(nu2min, nu2max, delta)
+    X, Y = np.meshgrid(allnu1, allnu2)
+
+    vfunc = np.vectorize(function_to_plot_combined)
+    Z = vfunc(X, Y)
+
+    fig, axes = plt.subplots(1, 2)
+    # fig.subplots_adjust(bottom=0.18, left=0.08, right=0.98)
+    print(np.max(Z))
+    levels = np.linspace(np.min(Z), np.max(Z), 9)
+    CS = axes[0].contour(X, Y, Z, levels=levels)
+    axes[0].clabel(CS, inline=True, fontsize=10)
+    axes[0].set_title(r"Combined")
+    axes[0].set_xlabel(r"$\nu_1$")
+    axes[0].set_ylabel(r"$\nu_2$")
+
+    def function_to_plot_modified(nu1, nu2):
+        setting = builder.copy()
+        setting.D1, setting.D2 = nu1, nu2
+        return relative_acceleration_modified(setting, N)
+    vfunc = np.vectorize(function_to_plot_modified)
+    Z = vfunc(X, Y)
+    print(np.max(Z))
+    levels = np.linspace(np.min(Z), np.max(Z), 9)
+    CS = axes[1].contour(X, Y, Z, levels=levels)
+    axes[1].clabel(CS, inline=True, fontsize=10)
+    axes[1].set_title(r"Modified")
+    axes[1].set_xlabel(r"$\nu_1$")
+    axes[1].set_ylabel(r"$\nu_2$")
+
+    show_or_save('fig_robustness')
 
 def fig_L2normsRR():
     #######
@@ -319,7 +399,6 @@ def fig_RobinTwoSided():
     ax.legend()
     ax.set_title("Combined")
 
-    from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
     def maxrho(func, p, **kwargs):
         builder = setting.copy()
         builder.LAMBDA_1, builder.LAMBDA_2 = p, -p
@@ -335,19 +414,6 @@ def fig_RobinTwoSided():
     p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
     p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
     fig.colorbar(ax.contour(p1_arr, p2_arr, Z, zorder=-1), ax=ax)
-
-    def modified_FD(builder, axis_freq, overlap_L, k_c):
-        Gamma_1 = builder.DT * builder.D1 / h**2
-        Gamma_2 = builder.DT * builder.D2 / h**2
-        # Finite differences:
-        d1 = 1/12
-        d2 = 1/360
-
-        s_c = 1j*axis_freq # BE_s(dt, axis_freq)
-        s_modified1 = s_c - d1 * dt/Gamma_1 * (s_c + setting.R)**2
-        s_modified2 = s_c - d1 * dt/Gamma_2 * (s_c + setting.R)**2
-        return np.abs(rho_s_c(builder, s_modified1, s_modified2, w=axis_freq, overlap_L=overlap_L,
-            continuous_interface_op=False, k_c=k_c))
 
     cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
             continuous_interface_op=False, k_c=k_c)
