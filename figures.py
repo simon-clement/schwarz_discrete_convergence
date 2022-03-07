@@ -287,6 +287,15 @@ def fig_robustness_r():
     name_fileDNWR = "cache_npy/direct_combined_rDNWR.npy"
     name_fileRR_modif = "cache_npy/direct_modified_rRR.npy"
     name_fileDNWR_modif = "cache_npy/direct_modified_rDNWR.npy"
+    if not COMPUTE_AGAIN:
+        try:
+            Z_combinedRR = np.load(name_fileRR)
+            Z_combinedDNWR = np.load(name_fileDNWR)
+            Z_modifiedDNWR = np.load(name_fileDNWR_modif)
+            Z_modifiedRR = np.load(name_fileRR_modif)
+        except(FileNotFoundError):
+            COMPUTE_AGAIN = True
+
     if COMPUTE_AGAIN:
         Z_combinedRR = [function_to_plot(r,
             relative_acceleration_combined) for r in allr]
@@ -300,11 +309,6 @@ def fig_robustness_r():
         np.save(name_fileDNWR, Z_combinedDNWR)
         np.save(name_fileRR_modif, Z_modifiedRR)
         np.save(name_fileDNWR_modif, Z_modifiedDNWR)
-    else:
-        Z_combinedRR = np.load(name_fileRR)
-        Z_combinedDNWR = np.load(name_fileDNWR)
-        Z_modifiedDNWR = np.load(name_fileDNWR_modif)
-        Z_modifiedRR = np.load(name_fileRR_modif)
 
     fig, ax = plt.subplots(1, 1, figsize=(6., 2.))
     fig.subplots_adjust(bottom=0.23)
@@ -338,12 +342,16 @@ def fig_robustness():
     X, Y = np.meshgrid(allnu1, allnu2)
 
     name_file = "cache_npy/direct_combined_nu.npy"
+    if not COMPUTE_AGAIN:
+        try:
+            Z = np.load(name_file)
+        except(FileNotFoundError):
+            COMPUTE_AGAIN = True
+
     if COMPUTE_AGAIN:
         vfunc = np.vectorize(function_to_plot_combined)
         Z = vfunc(X, Y)
         np.save(name_file, Z)
-    else:
-        Z = np.load(name_file)
 
     fig, axes = plt.subplots(2, 4, figsize=(8, 5))
     fig.subplots_adjust(hspace=0.5)
@@ -361,12 +369,17 @@ def fig_robustness():
         return relative_acceleration_modified(setting, N)
 
     name_file = "cache_npy/direct_modified_nu.npy"
+    if not COMPUTE_AGAIN:
+        try:
+            Z = np.load(name_file)
+        except(FileNotFoundError):
+            COMPUTE_AGAIN=True
+
     if COMPUTE_AGAIN:
         vfunc = np.vectorize(function_to_plot_modified)
         Z = vfunc(X, Y)
         np.save(name_file, Z)
-    else:
-        Z = np.load(name_file)
+
     levels = [0., 0.01, 0.02]
     CS = axes[0, 2].contour(X, Y, Z, levels=levels)
     axes[0, 2].clabel(CS, inline=True, fontsize=10)
