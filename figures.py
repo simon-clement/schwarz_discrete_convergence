@@ -95,7 +95,7 @@ def fig_introDiscreteAnalysis():
 
     setting.LAMBDA_1=1e10 # >=0
     setting.LAMBDA_2=-0. # <= 0
-    theta = optimal_DNWR_parameter(setting, DNWR_c_c, axis_freq)
+    theta = optimal_DNWR_parameter(setting, DNWR_c_c, axis_freq).x
     ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, axis_freq, theta=theta)), lw=lw_important, color=col_cont)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD, K_c=k_c)
     if REAL_FIG:
@@ -207,10 +207,10 @@ def relative_acceleration_combined_DNWR(builder, N):
     #optimization routine:
 
     # 1.a optimization in the continuous case
-    cont_theta = optimal_DNWR_parameter(builder, DNWR_c_c, axis_freq)
+    cont_theta = optimal_DNWR_parameter(builder, DNWR_c_c, axis_freq).x
     # 1.b optimization in the combined case
     combined_theta = optimal_DNWR_parameter(builder, combined_Pade_DNWR,
-            axis_freq, k_c=k_c)
+            axis_freq, k_c=k_c).x
     # 2. computation of the discrete rate associated
     cont_rho = np.max(np.abs(DNWR_Pade_FD(builder, axis_freq,
             cont_theta, k_c=k_c)))
@@ -257,10 +257,10 @@ def relative_acceleration_modified_DNWR(builder, N):
 
     # 1.a optimization in the continuous case (disc. op.)
     cont_theta = optimal_DNWR_parameter(builder, DNWR_c_c,
-            axis_freq, continuous_interface_op=False, k_c=k_c)
+            axis_freq, continuous_interface_op=False, k_c=k_c).x
     # 1.b optimization in the modified case
     modified_theta = optimal_DNWR_parameter(builder, modified_FD_DNWR,
-            axis_freq, k_c=k_c)
+            axis_freq, k_c=k_c).x
     # 2. computation of the discrete rate associated
     cont_rho = np.max(np.abs(DNWR_Pade_FD(builder, axis_freq,
             cont_theta, k_c=k_c)))
@@ -936,8 +936,7 @@ def optimal_DNWR_parameter(builder, func, w, **kwargs):
     from scipy.optimize import minimize_scalar
     def to_optimize(x0):
         return np.max(np.abs(func(builder, w, x0, **kwargs)))
-    optimal_lam = minimize_scalar(to_optimize)
-    return optimal_lam.x
+    return minimize_scalar(to_optimize)
 
 def fig_modif_time():
     from cv_factor_onestep import rho_s_c, rho_c_c
@@ -977,7 +976,7 @@ def fig_modif_time():
     ax = axes[1]
     from cv_factor_pade import DNWR_Pade_c
     from cv_factor_onestep import DNWR_c_c, DNWR_s_c
-    theta = optimal_DNWR_parameter(setting, DNWR_Pade_c, axis_freq)
+    theta = optimal_DNWR_parameter(setting, DNWR_Pade_c, axis_freq).x
 
     discrete = np.abs(DNWR_Pade_c(setting, axis_freq, theta=theta))
     continuous = np.abs(DNWR_c_c(setting, axis_freq, theta=theta))
@@ -1059,7 +1058,7 @@ def fig_modif_space():
     ax = axes[1]
     overlap_M = 0
 
-    theta = optimal_DNWR_parameter(setting, DNWR_c_FD, axis_freq, k_c=k_c)
+    theta = optimal_DNWR_parameter(setting, DNWR_c_FD, axis_freq, k_c=k_c).x
 
     ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, w=axis_freq, theta=theta)), label="Continuous", color=col_cont)
     ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, w=axis_freq, s_1=1j*axis_freq, s_2=1j*axis_freq, theta=theta, continuous_interface_op=False, k_c=k_c)), label="Continuous (disc. op.)", color=col_cont_discop)
