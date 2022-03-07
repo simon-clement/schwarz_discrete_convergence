@@ -562,7 +562,6 @@ def fig_L2normsRR():
         NUMBER_IT, setting, N)
 
     NUMBER_IT_DNWR=5
-    setting.LAMBDA_1 = 1e10
     errors_cont_DNWR = memoised(L2_evolutionPadeFD_DNWR,
             cont_DNWR.x, NUMBER_IT_DNWR, setting, N)
     errors_combined_DNWR = memoised(L2_evolutionPadeFD_DNWR,
@@ -576,9 +575,9 @@ def fig_L2normsRR():
     k_scatter = np.arange(0, NUMBER_IT+2)
     k = k_scatter[1:]
     size_symb = 80
-    fig, axes = plt.subplots(1, 2, figsize=(4.8, 2.8))
+    fig, axes = plt.subplots(1, 2, figsize=(8.8, 2.8))
     ax = axes[0]
-    fig.subplots_adjust(left=.15, bottom=.15, right=.963, top=.963)
+    fig.subplots_adjust(left=.08, bottom=.15, right=.963, top=.963)
 
     lab_cont=ax.scatter(k_scatter, errors_cont,
             marker=symb_cont, alpha=1., s=size_symb,
@@ -597,7 +596,7 @@ def fig_L2normsRR():
     lab_L2cont=ax.semilogy(k, errors_cont[1]* cont.fun**(k-1),
             "--", color=col_cont, label=r"$\propto \max(\rho_{\rm RR}^{(c,c)})^k$")
     lab_L2discrete=ax.semilogy(k, errors_discrete[1]* discrete.fun**(k-1),
-            "--", color=col_discrete, label=r"$\propto \max(\rho^{(DIRK, FD)})^k$")
+            "--", color=col_discrete, label=r"$\propto \max(\rho_{\rm RR}^{(DIRK, FD)})^k$")
     lab_L2combined=ax.semilogy(k, errors_combined[1]* combined.fun**(k-1),
             "--", color=col_combined, label=r"$\propto \max(\rho^{(DIRK, FD)}_{\rm combined})^k$")
 
@@ -628,10 +627,11 @@ def fig_L2normsRR():
     lab_L2cont=ax.semilogy(k, errors_cont_DNWR[1]* cont_DNWR.fun**(k-1),
             "--", color=col_cont, label=r"$\propto \max(\rho_{\rm DNWR}^{(c,c)})^k$")
     lab_L2discrete=ax.semilogy(k, errors_discrete_DNWR[1]* discrete_DNWR.fun**(k-1),
-            "--", color=col_discrete, label=r"$\propto \max(\rho^{(DIRK, FD)})^k$")
+            "--", color=col_discrete, label=r"$\propto \max(\rho_{\rm DNWR}^{(DIRK, FD)})^k$")
     lab_L2combined=ax.semilogy(k, errors_combined_DNWR[1]* combined_DNWR.fun**(k-1),
             "--", color=col_combined, label=r"$\propto \max(\rho^{(DIRK, FD)}_{\rm combined})^k$")
 
+    ax.set_ylim(bottom=2.5e-6, top=1e2)
     ax.set_xlabel("Iteration $k$")
     # ax.set_ylabel(r"$||e^k||_2$")
     legend = [lab_cont, lab_discrete, lab_combined,
