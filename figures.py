@@ -542,6 +542,13 @@ def fig_L2normsRR():
     combined = optimal_robin_parameter(setting, combined_Pade,
             axis_freq, k_c=k_c)
 
+    cont_DNWR = optimal_DNWR_parameter(setting, DNWR_c_c, axis_freq)
+    discrete_DNWR = optimal_DNWR_parameter(setting, DNWR_Pade_FD,
+            axis_freq, k_c=k_c)
+    combined_DNWR = optimal_DNWR_parameter(setting,
+            combined_Pade_DNWR,
+            axis_freq, k_c=k_c)
+
     ######
     # validation
     ######
@@ -553,31 +560,41 @@ def fig_L2normsRR():
     errors_discrete = memoised(L2_evolutionPadeFD, tuple(discrete.x),
         NUMBER_IT, setting, N)
 
+    NUMBER_IT_DNWR=5
+    setting.LAMBDA_1 = 1e10
+    errors_cont_DNWR = memoised(L2_evolutionPadeFD_DNWR,
+            cont_DNWR.x, NUMBER_IT_DNWR, setting, N)
+    errors_combined_DNWR = memoised(L2_evolutionPadeFD_DNWR,
+            combined_DNWR.x, NUMBER_IT_DNWR, setting, N)
+    errors_discrete_DNWR = memoised(L2_evolutionPadeFD_DNWR,
+            discrete_DNWR.x, NUMBER_IT_DNWR, setting, N)
+
     ########
     # Plotting
     ########
     k_scatter = np.arange(0, NUMBER_IT+2)
     k = k_scatter[1:]
     size_symb = 80
-    fig, ax = plt.subplots(1, 1, figsize=(4.8, 2.8))
+    fig, axes = plt.subplots(1, 2, figsize=(4.8, 2.8))
+    ax = axes[0]
     fig.subplots_adjust(left=.15, bottom=.15, right=.963, top=.963)
 
     lab_cont=ax.scatter(k_scatter, errors_cont,
             marker=symb_cont, alpha=1., s=size_symb,
-            c=col_cont, label="Continuous")
+            c=col_cont, label="Continuous (RR)")
 
     lab_discrete=ax.scatter(k_scatter, errors_discrete,
             marker=symb_discrete, alpha=1., s=size_symb,
-            c=col_discrete, label="Discrete")
+            c=col_discrete, label="Discrete (RR)")
 
     lab_combined=ax.scatter(k_scatter, errors_combined,
             marker=symb_combined,
             alpha=1., s=size_symb, edgecolors=col_combined,
-            facecolors="none", linewidth=2., label="Combined")
+            facecolors="none", linewidth=2., label="Combined (RR)")
 
     # upper bound:
     lab_L2cont=ax.semilogy(k, errors_cont[1]* cont.fun**(k-1),
-            "--", color=col_cont, label=r"$\propto \max(\rho^{(c,c)})^k$")
+            "--", color=col_cont, label=r"$\propto \max(\rho_{\rm RR}^{(c,c)})^k$")
     lab_L2discrete=ax.semilogy(k, errors_discrete[1]* discrete.fun**(k-1),
             "--", color=col_discrete, label=r"$\propto \max(\rho^{(DIRK, FD)})^k$")
     lab_L2combined=ax.semilogy(k, errors_combined[1]* combined.fun**(k-1),
@@ -589,6 +606,38 @@ def fig_L2normsRR():
             lab_L2cont[0], lab_L2discrete[0], lab_L2combined[0]]
     ax.legend([lab for lab in legend],
             [lab.get_label() for lab in legend],)
+
+    ax = axes[1]
+    k_scatter = np.arange(0, NUMBER_IT_DNWR+2)
+    k = k_scatter[1:]
+    lab_cont=ax.scatter(k_scatter, errors_cont_DNWR,
+            marker=symb_cont, alpha=1., s=size_symb,
+            c=col_cont, label="Continuous (DNWR)")
+
+    lab_discrete=ax.scatter(k_scatter, errors_discrete_DNWR,
+            marker=symb_discrete, alpha=1., s=size_symb,
+            c=col_discrete, label="Discrete (DNWR)")
+
+    lab_combined=ax.scatter(k_scatter, errors_combined_DNWR,
+            marker=symb_combined,
+            alpha=1., s=size_symb, edgecolors=col_combined,
+            facecolors="none", linewidth=2., label="Combined (DNWR)")
+
+    # upper bound:
+    lab_L2cont=ax.semilogy(k, errors_cont_DNWR[1]* cont_DNWR.fun**(k-1),
+            "--", color=col_cont, label=r"$\propto \max(\rho_{\rm DNWR}^{(c,c)})^k$")
+    lab_L2discrete=ax.semilogy(k, errors_discrete_DNWR[1]* discrete_DNWR.fun**(k-1),
+            "--", color=col_discrete, label=r"$\propto \max(\rho^{(DIRK, FD)})^k$")
+    lab_L2combined=ax.semilogy(k, errors_combined_DNWR[1]* combined_DNWR.fun**(k-1),
+            "--", color=col_combined, label=r"$\propto \max(\rho^{(DIRK, FD)}_{\rm combined})^k$")
+
+    ax.set_xlabel("Iteration $k$")
+    # ax.set_ylabel(r"$||e^k||_2$")
+    legend = [lab_cont, lab_discrete, lab_combined,
+            lab_L2cont[0], lab_L2discrete[0], lab_L2combined[0]]
+    ax.legend([lab for lab in legend],
+            [lab.get_label() for lab in legend],)
+
     show_or_save("fig_L2normsRR")
 
 def L2_evolutionPadeFD(robin_param, NUMBER_IT, setting, N):
@@ -597,6 +646,14 @@ def L2_evolutionPadeFD(robin_param, NUMBER_IT, setting, N):
     ocean, atmosphere = builder.build(OceanPadeFD, AtmospherePadeFD)
     errors = schwarz_simulator(atmosphere, ocean, T=N*builder.DT,
             NUMBER_IT=NUMBER_IT)
+    return np.linalg.norm(errors, axis=-1)
+
+def L2_evolutionPadeFD_DNWR(theta, NUMBER_IT, setting, N):
+    builder = setting.copy()
+    builder.LAMBDA_1, builder.LAMBDA_2 = 1e10, -0.
+    ocean, atmosphere = builder.build(OceanPadeFD, AtmospherePadeFD)
+    errors = schwarz_simulator(atmosphere, ocean, T=N*builder.DT,
+            NUMBER_IT=NUMBER_IT, relaxation=theta)
     return np.linalg.norm(errors, axis=-1)
 
 def fig_RobinTwoSided():
