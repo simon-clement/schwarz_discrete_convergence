@@ -89,9 +89,14 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
 
     # random initialization of the interface: we excite the high frequencies with white noise
     np.random.seed(seed)
+    def rand(N):
+        return np.concatenate(([0], 2 * (np.random.rand(N) - 0.5)))
+
     if init == "white":
-        interface_ocean = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))
-        interface_atm = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))
+        interface_ocean = p2 * rand(N_ocean) + \
+                ocean.nu * rand(N_ocean)
+        interface_atm =  p1 * rand(N_atm) + \
+                atmosphere.nu * rand(N_atm)
     elif init == "GP":
         cov = np.array([[ np.exp(-.1*np.abs(i-j)) for i in range(N_atm)] for j in range(N_atm)])
         rand1, rand2 = np.random.default_rng().multivariate_normal(np.zeros(N_atm), cov, 2)
@@ -101,28 +106,34 @@ def schwarz_simulator(atmosphere, ocean, seed=9380, T=3600, NUMBER_IT=3, init="w
         interface_ocean = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_ocean-1)))
         interface_atm = np.concatenate(([0, np.random.rand(1)[0]], np.zeros(N_atm-1)))
     elif init == "white damped":
-        interface_ocean = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))
-        interface_atm = ((np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))) + 1j*(np.concatenate(([0], 2 * (np.random.rand(N_atm) - 0.5)))))
+        interface_ocean = p2 * rand(N_ocean) + \
+                ocean.nu * rand(N_ocean)
+        interface_atm =  p1 * rand(N_atm) + \
+                atmosphere.nu * rand(N_atm)
         damp_func = np.exp(-np.geomspace(1e-5, 35, N_atm))
         interface_ocean[1:] *= damp_func
         interface_atm[1:] *= damp_func
     else:
         raise
+    factor_interface_atm = np.sqrt(p1**2 + atmosphere.nu**2)
 
-    all_interface_atm = [interface_atm]
+    all_interface_atm = [interface_atm/factor_interface_atm]
     relaxing_ocean = interface_atm
 
     # Beginning of schwarz iterations:
     for k in range(NUMBER_IT+1):
         # integration in time of the atmosphere model:
-        sol_atm, deriv_atm = atmosphere.integrate_large_window(interface=interface_ocean)
-        interface_atm = relaxation * (p1*sol_atm + atmosphere.nu * deriv_atm) + \
+        sol_atm, deriv_atm = atmosphere.integrate_large_window(\
+                interface=interface_ocean)
+        interface_atm = relaxation * (p1*sol_atm + \
+                            atmosphere.nu * deriv_atm) + \
                     (1 - relaxation) * relaxing_ocean
 
-        sol_ocean, deriv_ocean = ocean.integrate_large_window(interface=interface_atm)
+        sol_ocean, deriv_ocean = ocean.integrate_large_window(\
+                interface=interface_atm)
         interface_ocean = p2 * sol_ocean + ocean.nu * deriv_ocean
         relaxing_ocean = p1 * sol_ocean + ocean.nu * deriv_ocean
-        all_interface_atm += [interface_atm]
+        all_interface_atm += [interface_atm/factor_interface_atm]
 
     return np.array(all_interface_atm)
 

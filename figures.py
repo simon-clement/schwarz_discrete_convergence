@@ -120,6 +120,7 @@ def fig_introDiscreteAnalysis():
     ax.set_title(r"$RR, "+ ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
+    ax.set_ylim(top=0.38, bottom=-0.01)
 
     fig.legend(loc="upper left", bbox_to_anchor=(0.7, 0.6))
     show_or_save("fig_introDiscreteAnalysis")
