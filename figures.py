@@ -36,6 +36,38 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # less levels in the stratified case
 
+def fig_launchOcean():
+    dt = 30.
+    f = 0.
+    #TODO T0, alpha, N0
+    T0, alpha, N0 = 16., 0.0002, 0.01
+    z_levels = np.linspace(-50., 0., 51)
+    simulator_oce = Ocean1dStratified(z_levels=z_levels,
+            dt=dt, u_geostrophy=0., f=f, alpha=alpha,
+            N0=N0)
+
+    N = 3600
+    time = dt * np.arange(N+1)
+    rho0, cp, Qswmax = 1024., 3985., 0.
+    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
+            Qswmax / (rho0*cp)
+    u_0 = np.zeros(simulator_oce.M)
+    phi_0 = np.zeros(simulator_oce.M+1)
+    theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
+    dz_theta_0 =  np.concatenate(([0.],
+        np.ones(simulator_oce.M-1) * N0**2 / alpha / 9.81, [0.]))
+    heatloss = np.zeros(N+1)
+    tau_m = 0.01**2 * np.ones(N+1) + 0j
+    sf_scheme = "FV test"
+
+    delta_sl = 0.
+
+    simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
+            dz_theta_t0=dz_theta_0, solar_flux=srflx,
+            heatloss=heatloss, tau_m=tau_m, sf_scheme=sf_scheme)
+
+
+
 def fig_debugOcean():
     z_levels_atm = np.linspace(0, 400, 3)
     z_levels_oce = -np.flipud(z_levels_atm)
