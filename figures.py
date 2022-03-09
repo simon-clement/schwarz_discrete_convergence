@@ -14,6 +14,7 @@ from ocean1DStratified import Ocean1dStratified
 from universal_functions import Businger_et_al_1971 as businger
 from utils_linalg import solve_linear
 import figures_unstable
+from fortran.visu import import_data
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
 mpl.rcParams["axes.grid"] = True
@@ -56,12 +57,27 @@ def fig_launchOcean():
     dz_theta_0 =  np.concatenate(([0.],
         np.ones(simulator_oce.M-1) * N0**2 / alpha / 9.81, [0.]))
     heatloss = np.zeros(N+1)
-    tau_m = 0.01**2 * np.ones(N+1) + 0j
+    tau_m = rho0 * 0.01**2 * np.ones(N+1) + 0j
     sf_scheme = "FV test"
 
     simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
             heatloss=heatloss, tau_m=tau_m, sf_scheme=sf_scheme)
+
+    #### Getting fortran part ####
+    name_file = "fortran/t_final_tke.out"
+    ret_for, z_for = import_data(name_file)
+
+    ### Getting python part ###
+    ret_py, z_py = simulator_oce.var_z_toplot
+
+    #### Plotting both #####
+    fig, ax = plt.subplots(1, 1)
+    ax.plot(ret_for, z_for, label="Fortran")
+    ax.plot(ret_py, z_py, "--", label="Python")
+    ax.legend()
+    show_or_save("fig_launchOcean")
+
 
 def fig_colorplots_FDlowres():
     """

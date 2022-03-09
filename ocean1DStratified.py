@@ -171,7 +171,7 @@ class Ocean1dStratified():
         forcing = 1j*self.u_g*np.ones((N+1, self.M))
 
         k = bisect.bisect_left(self.z_full, delta_sl)
-        SL = SurfaceLayerData(np.sqrt(np.abs(tau_m[0])),
+        SL = SurfaceLayerData(np.sqrt(np.abs(tau_m[0])/self.rho0),
                 np.sqrt(solar_flux[0]*self.rho0*self.C_p),
                 0.1, 0.1, 0., None, None, None, 0.,
                 self.M, sf_scheme, tau_m)
@@ -200,7 +200,7 @@ class Ocean1dStratified():
         for n in range(1,N+1):
             # Compute friction scales:
             SL_nm1 = SL
-            SL = SurfaceLayerData(np.sqrt(np.abs(tau_m[n])),
+            SL = SurfaceLayerData(np.sqrt(np.abs(tau_m[n]/self.rho0)),
                     np.sqrt(solar_flux[n]*self.rho0*self.C_p),
                     0.1, 0.1, 0., None, None, None, 0.,
                     self.M, sf_scheme, tau_m[n])
@@ -246,6 +246,8 @@ class Ocean1dStratified():
             return ret_u_current, ret_phi, ret_tke, ret_dz_tke, \
                     all_u_star, ret_theta, ret_dz_theta, ret_leps, \
                     ret_SL
+
+        self.var_z_toplot = theta, self.z_half[:-1]
         return u_current, phi, tke, dz_tke, all_u_star, theta, \
                 dz_theta, l_eps, SL
 
