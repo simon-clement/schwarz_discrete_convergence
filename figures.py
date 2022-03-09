@@ -39,7 +39,6 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
 def fig_launchOcean():
     dt = 30.
     f = 0.
-    #TODO T0, alpha, N0
     T0, alpha, N0 = 16., 0.0002, 0.01
     z_levels = np.linspace(-50., 0., 51)
     simulator_oce = Ocean1dStratified(z_levels=z_levels,
@@ -60,67 +59,9 @@ def fig_launchOcean():
     tau_m = 0.01**2 * np.ones(N+1) + 0j
     sf_scheme = "FV test"
 
-    delta_sl = 0.
-
     simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
             heatloss=heatloss, tau_m=tau_m, sf_scheme=sf_scheme)
-
-
-
-def fig_debugOcean():
-    z_levels_atm = np.linspace(0, 400, 3)
-    z_levels_oce = -np.flipud(z_levels_atm)
-    sf_scheme = "FV1"
-    dt = 10.
-    N = 1
-    stable=True
-    delta_sl_atm = z_levels_atm[1]/2
-    delta_sl_oce = - delta_sl_atm
-
-    M = z_levels_atm.shape[0] - 1
-    simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
-            dt=dt, u_geostrophy=8.,
-            K_mol=1e-4, f=1.39e-4)
-    simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
-            dt=dt, u_geostrophy=8.,
-            K_mol=1e-4, f=1.39e-4)
-    u_0 = 8*np.ones(M)
-    phi_0 = np.zeros(M+1)
-    forcing = 1j*simulator_atm.f*simulator_atm.u_g*np.ones((N+1, M))
-    if stable:
-        SST = np.concatenate(([265],
-            [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
-    else: # diurnal cycle:
-        SST = np.concatenate(([265],
-            [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
-                    for n in range(1, N+1)]))
-
-    ua, phia, TKEa, dz_tkea, ustara, temperaturea, dz_thetaa, l_epsa, SLa = \
-            simulator_atm.FV(u_t0=u_0, phi_t0=phi_0,
-                    SST=SST, sf_scheme=sf_scheme, u_delta=8.,
-                    forcing=forcing, delta_sl=delta_sl_atm,
-                    Neutral_case=not stable,
-                    turbulence="TKE")
-
-    u, phi, TKE, dz_tke, ustar, temperature, dz_theta, l_eps, SL = \
-            simulator_oce.FV(u_t0=u_0, phi_t0=phi_0,
-                    SST=SST, sf_scheme=sf_scheme, u_delta=8.,
-                    forcing=forcing, delta_sl=delta_sl_oce,
-                    Neutral_case=not stable,
-                    turbulence="TKE")
-    def compare(vara, var):
-        # print(vara)
-        # print(np.flipud(var))
-        print(np.linalg.norm(vara-np.flipud(var))/np.linalg.norm(var))
-    compare(temperaturea, temperature)
-
-    # z_fv, u_fv, theta_fv = simulator_atm.reconstruct_FV(u, phi, temperature,
-    #         dz_theta, SL=SL)
-    # z_tke, tke_fv = simulator_atm.reconstruct_TKE(TKE,
-    #         dz_tke, SL, sf_scheme, businger(), l_eps)
-    # z_tke = simulator.z_full
-
 
 def fig_colorplots_FDlowres():
     """
