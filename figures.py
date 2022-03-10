@@ -226,7 +226,7 @@ def relative_acceleration_modified(builder, N):
         compute the relative difference between
         the max of the discrete convergence rates,
         obtained with the continuous analysis on one hand
-        and with the combined analysis on the other hand.
+        and with the modified analysis on the other hand.
     """
     axis_freq = get_discrete_freq(N, builder.DT)[int(N//2)+1:]
     #optimization routine:
@@ -251,7 +251,7 @@ def relative_acceleration_modified_DNWR(builder, N):
         compute the relative difference between
         the max of the discrete convergence rates,
         obtained with the continuous analysis on one hand
-        and with the combined analysis on the other hand.
+        and with the modified analysis on the other hand.
     """
     axis_freq = get_discrete_freq(N, builder.DT)[int(N//2)+1:]
     #optimization routine:
