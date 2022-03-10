@@ -8,7 +8,7 @@ class AtmospherePadeFD():
             M: int, # Number of collocation points
             SIZE_DOMAIN: float, # Size of \\Omega_1
             LAMBDA: float,
-            DT: float, K_c: int=0, # Time step
+            DT: float, K_c: int, # Time step
             GAMMA_START: int=0, # convolution starts at n-gamma_start
             GAMMA_COEFFS: List[float]=[1+1/np.sqrt(2), -1/np.sqrt(2)]): # kernel gamma_coeffs: coeffs[i]*u[start+i]
         """

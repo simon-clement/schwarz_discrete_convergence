@@ -7,7 +7,7 @@ class AtmosphereBEFD():
             M: int, # Number of collocation points
             SIZE_DOMAIN: float, # Size of \\Omega_1
             LAMBDA: float,
-            DT: float, K_c: int=0): # Time step
+            DT: float, K_c: int): # Time step
         """
             The data needed is passed through this constructor.
             The space step is SIZE_DOMAIN / (M-1)

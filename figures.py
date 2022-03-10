@@ -657,7 +657,8 @@ def fig_L2normsRR():
 def L2_evolutionPadeFD(robin_param, NUMBER_IT, setting, N):
     builder = setting.copy()
     builder.LAMBDA_1, builder.LAMBDA_2 = robin_param
-    ocean, atmosphere = builder.build(OceanPadeFD, AtmospherePadeFD)
+    ocean, atmosphere = builder.build(OceanPadeFD, AtmospherePadeFD,
+            K_c=k_c)
     errors = schwarz_simulator(atmosphere, ocean, T=N*builder.DT,
             NUMBER_IT=NUMBER_IT)
     return np.linalg.norm(errors, axis=-1)
@@ -665,7 +666,8 @@ def L2_evolutionPadeFD(robin_param, NUMBER_IT, setting, N):
 def L2_evolutionPadeFD_DNWR(theta, NUMBER_IT, setting, N):
     builder = setting.copy()
     builder.LAMBDA_1, builder.LAMBDA_2 = 1e10, -0.
-    ocean, atmosphere = builder.build(OceanPadeFD, AtmospherePadeFD)
+    ocean, atmosphere = builder.build(OceanPadeFD, AtmospherePadeFD,
+            K_c=k_c)
     errors = schwarz_simulator(atmosphere, ocean, T=N*builder.DT,
             NUMBER_IT=NUMBER_IT, relaxation=theta)
     return np.linalg.norm(errors, axis=-1)
@@ -1247,7 +1249,8 @@ def fig_validate_DNWR():
 
     ax = axes[0]
     axis_freq = get_discrete_freq(N, setting.DT)
-    ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD)
+    ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD,
+            K_c=k_c)
     alpha_w = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=0, relaxation=.7)
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
@@ -1266,7 +1269,8 @@ def fig_validate_DNWR():
     from cv_factor_pade import rho_Pade_c, rho_Pade_FV, DNWR_Pade_c, DNWR_Pade_FD
 
     ax = axes[1]
-    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
+    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD,
+            K_c=k_c)
     alpha_w = frequency_simulation(atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white", relaxation=.7)
     ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]))
@@ -1294,7 +1298,8 @@ def fig_validate_overlap():
 
     ax = axes[0]
     axis_freq = get_discrete_freq(N, setting.DT)
-    ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD)
+    ocean, atmosphere = setting.build(OceanBEFD, AtmosphereBEFD,
+            K_c=k_c)
     alpha_w_overlap = frequency_simulation( atmosphere, ocean, number_samples=1, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="dirac", overlap=1)
     ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
@@ -1319,7 +1324,8 @@ def fig_validate_overlap():
     from cv_factor_pade import rho_Pade_c, rho_Pade_FV, rho_Pade_FD
 
     ax = axes[1]
-    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD)
+    ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD,
+            K_c=k_c)
     alpha_w_overlap = frequency_simulation(atmosphere, ocean, number_samples=4, NUMBER_IT=1,
             laplace_real_part=0, T=N*setting.DT, init="white", overlap=1)
     ax.semilogx(axis_freq, np.abs(alpha_w_overlap[2]/alpha_w_overlap[1]))
