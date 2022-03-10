@@ -30,7 +30,7 @@ class OceanBEFD():
 
     def integrate_large_window(self, interface,
             initial_prognostic=None, initial_diagnostic=None,
-            forcing=None, boundary=None): 
+            forcing=None, boundary=None):
         """
             Given the information, returns the interface information after integration in time.
 

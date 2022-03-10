@@ -566,7 +566,7 @@ def fig_L2normsRR():
     ######
     # validation
     ######
-    NUMBER_IT=5
+    NUMBER_IT=7
     errors_cont = memoised(L2_evolutionPadeFD, tuple(cont.x),
         NUMBER_IT, setting, N)
     errors_combined = memoised(L2_evolutionPadeFD, tuple(combined.x),
@@ -574,14 +574,13 @@ def fig_L2normsRR():
     errors_discrete = memoised(L2_evolutionPadeFD, tuple(discrete.x),
         NUMBER_IT, setting, N)
 
-    NUMBER_IT_DNWR=5
+    NUMBER_IT_DNWR=7
     errors_cont_DNWR = memoised(L2_evolutionPadeFD_DNWR,
             cont_DNWR.x, NUMBER_IT_DNWR, setting, N)
     errors_combined_DNWR = memoised(L2_evolutionPadeFD_DNWR,
             combined_DNWR.x, NUMBER_IT_DNWR, setting, N)
     errors_discrete_DNWR = memoised(L2_evolutionPadeFD_DNWR,
             discrete_DNWR.x, NUMBER_IT_DNWR, setting, N)
-
     ########
     # Plotting
     ########
@@ -590,67 +589,65 @@ def fig_L2normsRR():
     size_symb = 80
     fig, axes = plt.subplots(1, 2, figsize=(8.8, 2.8))
     ax = axes[0]
-    fig.subplots_adjust(left=.08, bottom=.15, right=.963, top=.963)
+    fig.subplots_adjust(left=.08, bottom=.15, right=.783, top=.863)
 
     lab_cont=ax.scatter(k_scatter, errors_cont,
             marker=symb_cont, alpha=1., s=size_symb,
-            c=col_cont, label="Continuous (RR)")
+            c=col_cont, label="Continuous")
 
     lab_discrete=ax.scatter(k_scatter, errors_discrete,
             marker=symb_discrete, alpha=1., s=size_symb,
-            c=col_discrete, label="Discrete (RR)")
+            c=col_discrete, label="Discrete")
 
     lab_combined=ax.scatter(k_scatter, errors_combined,
             marker=symb_combined,
             alpha=1., s=size_symb, edgecolors=col_combined,
-            facecolors="none", linewidth=2., label="Combined (RR)")
+            facecolors="none", linewidth=2., label="Combined")
 
     # upper bound:
     lab_L2cont=ax.semilogy(k, errors_cont[1]* cont.fun**(k-1),
-            "--", color=col_cont, label=r"$\propto \max(\rho_{\rm RR}^{(c,c)})^k$")
+            "--", color=col_cont, label=r"$\propto \max(\rho^{(c,c)})^k$")
     lab_L2discrete=ax.semilogy(k, errors_discrete[1]* discrete.fun**(k-1),
-            "--", color=col_discrete, label=r"$\propto \max(\rho_{\rm RR}^{(DIRK, FD)})^k$")
+            "--", color=col_discrete, label=r"$\propto \max(\rho^{(DIRK, FD)})^k$")
     lab_L2combined=ax.semilogy(k, errors_combined[1]* combined.fun**(k-1),
             "--", color=col_combined, label=r"$\propto \max(\rho^{(DIRK, FD)}_{\rm combined})^k$")
 
+    ax.minorticks_off()
     ax.set_xlabel("Iteration $k$")
     ax.set_ylabel(r"$||e^k||_2$")
+    ax.set_title("RR")
     legend = [lab_cont, lab_discrete, lab_combined,
             lab_L2cont[0], lab_L2discrete[0], lab_L2combined[0]]
-    ax.legend([lab for lab in legend],
-            [lab.get_label() for lab in legend],)
+    fig.legend(legend,
+            [lab.get_label() for lab in legend], loc="center right")
 
     ax = axes[1]
     k_scatter = np.arange(0, NUMBER_IT_DNWR+2)
     k = k_scatter[1:]
     lab_cont=ax.scatter(k_scatter, errors_cont_DNWR,
             marker=symb_cont, alpha=1., s=size_symb,
-            c=col_cont, label="Continuous (DNWR)")
+            c=col_cont)
 
     lab_discrete=ax.scatter(k_scatter, errors_discrete_DNWR,
             marker=symb_discrete, alpha=1., s=size_symb,
-            c=col_discrete, label="Discrete (DNWR)")
+            c=col_discrete)
 
     lab_combined=ax.scatter(k_scatter, errors_combined_DNWR,
             marker=symb_combined,
             alpha=1., s=size_symb, edgecolors=col_combined,
-            facecolors="none", linewidth=2., label="Combined (DNWR)")
+            facecolors="none", linewidth=2.)
 
     # upper bound:
     lab_L2cont=ax.semilogy(k, errors_cont_DNWR[1]* cont_DNWR.fun**(k-1),
-            "--", color=col_cont, label=r"$\propto \max(\rho_{\rm DNWR}^{(c,c)})^k$")
+            "--", color=col_cont)
     lab_L2discrete=ax.semilogy(k, errors_discrete_DNWR[1]* discrete_DNWR.fun**(k-1),
-            "--", color=col_discrete, label=r"$\propto \max(\rho_{\rm DNWR}^{(DIRK, FD)})^k$")
+            "--", color=col_discrete)
     lab_L2combined=ax.semilogy(k, errors_combined_DNWR[1]* combined_DNWR.fun**(k-1),
-            "--", color=col_combined, label=r"$\propto \max(\rho^{(DIRK, FD)}_{\rm combined})^k$")
+            "--", color=col_combined)
 
     ax.set_ylim(bottom=2.5e-6, top=1e2)
     ax.set_xlabel("Iteration $k$")
-    # ax.set_ylabel(r"$||e^k||_2$")
-    legend = [lab_cont, lab_discrete, lab_combined,
-            lab_L2cont[0], lab_L2discrete[0], lab_L2combined[0]]
-    ax.legend([lab for lab in legend],
-            [lab.get_label() for lab in legend],)
+    ax.set_title("DNWR")
 
     show_or_save("fig_L2normsRR")
 
