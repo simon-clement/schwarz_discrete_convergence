@@ -97,7 +97,7 @@ program scm_oce
      lin_eos = .TRUE.; T0=16.; alpha=0.0002; N0=0.01   !++ Linear EOS
      ustars  = 0.01; heatloss=0.;Qswmax=0.
      !
-	   nb_steps     =  1       !++ nombre de pas de temps  192 heures = 8 jours
+	   nb_steps     =  0       !++ nombre de pas de temps  192 heures = 8 jours
      output_freq  =   120         !++ frequence de stockage de la solution (toutes les heures ici)
      nout         = INT( (nb_steps-1)/output_freq  + 1 )              !++ nombre d'instants stockes pendant la simulation
      dTdz_bot(1)  = N0*N0/(alpha*grav)
@@ -186,6 +186,7 @@ program scm_oce
                  FC(k)=0.D0
              enddo
           endif
+          print*, Akt
 !
 ! Bottom flux
 !------
@@ -214,7 +215,7 @@ program scm_oce
                                   /(Hz(N)+FC(N-1)*(1.-CF(N-1)))
           do k=N-1,1,-1
              t(k,nnew,itrc)=t(k,nnew,itrc)+CF(k)*t(k+1,nnew,itrc)  !<-- tracer value of implicit diffusion
-          enddo
+             enddo
 !
 ! Nudging (toward tnudge)
 !------
@@ -296,6 +297,12 @@ program scm_oce
       ENDDO
 
       open(1, file = 't_final_tke.out')
+        DO k=1,N
+          write(1,*) t(k,nnew,1), z_r(k)
+        ENDDO
+      close(1)
+
+      open(1, file = 'output_debug.out')
         DO k=1,N
           write(1,*) t(k,nnew,1), z_r(k)
         ENDDO

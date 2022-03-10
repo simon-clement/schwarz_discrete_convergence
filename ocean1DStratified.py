@@ -226,11 +226,12 @@ class Ocean1dStratified():
                 # integrate in time potential temperature
                 swr_frac = self.shortwave_fractional_decay()
                 forcing_theta = swr_frac * solar_flux[n]
-                forcing_theta[-1] =  solar_flux[n] - \
-                        heatloss[n]/self.rho0/self.C_p
+                # forcing_theta[-1] =  solar_flux[n] - \
+                #         heatloss[n]/self.rho0/self.C_p
+                print(Ktheta_full)
                 theta, dz_theta, t_delta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
-                        SL, SL_nm1)
+                        SL, SL_nm1, solar_flux[n], heatloss[n])
 
             if store_all:
                 ret_u_current += [np.copy(u_current)]
@@ -247,7 +248,9 @@ class Ocean1dStratified():
                     all_u_star, ret_theta, ret_dz_theta, ret_leps, \
                     ret_SL
 
+        # self.var_z_toplot = theta, self.z_half[:-1]
         self.var_z_toplot = theta, self.z_half[:-1]
+        self.var_z_toplot = dz_theta, self.z_full
         return u_current, phi, tke, dz_tke, all_u_star, theta, \
                 dz_theta, l_eps, SL
 
@@ -333,7 +336,9 @@ class Ocean1dStratified():
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
                         K_theta=Ktheta_full, forcing=forcing_theta,
-                        universal_funcs=businger())
+                        universal_funcs=businger(),
+                        Q0=heatloss,
+                        Qs=solar_flux*self.rho0*self.C_p)
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
@@ -392,7 +397,8 @@ class Ocean1dStratified():
 
     def __step_theta(self, theta: array, dz_theta: array,
             Ktheta_full: array, forcing_theta: array,
-            SL: SurfaceLayerData, SL_nm1: SurfaceLayerData):
+            SL: SurfaceLayerData, SL_nm1: SurfaceLayerData,
+            solar_flux, heatloss):
         """
         One step of integration in time for potential temperature (FV)
         theta: average on the cells (centered at z_half),
@@ -412,7 +418,9 @@ class Ocean1dStratified():
                 func=self.dictsf_scheme_theta[SL.sf_scheme][1],
                 Y=Y_theta, D=D_theta, c=c_theta, Y_nm1=Y_nm1,
                 K_theta=Ktheta_full, forcing_theta=forcing_theta,
-                universal_funcs=businger(), SL=SL, SL_nm1=SL_nm1)
+                universal_funcs=businger(), SL=SL, SL_nm1=SL_nm1,
+                Q0=heatloss,
+                Qs=solar_flux*self.rho0*self.C_p)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
                 Y_nm1=Y_nm1))
@@ -1608,12 +1616,14 @@ class Ocean1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FVtest_theta(self, K_theta, SL, universal_funcs,
-            forcing_theta, Q0=0., Qs=0., **_):
+            forcing_theta, Q0, Qs, **_):
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((0.,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
                 K_theta[self.M]), #KdzT = - (Q0-Qs)/(rho Cp)
                 (K_theta[self.M] / self.h_half[self.M-1], 0))
-        # Q0 and Qs are already taken into account in forcing
+        # Q0 and Qs are already taken into account in forcing?
+        # Q0: total heat
+        # QS: solar part
         c = (forcing_theta[self.M-1], (Q0 - Qs)/(self.rho0*self.C_p))
         return Y, D, c, Y

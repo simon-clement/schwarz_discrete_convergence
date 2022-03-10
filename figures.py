@@ -46,7 +46,8 @@ def fig_launchOcean():
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
             N0=N0)
 
-    N = 3600
+    N_FOR = 0
+    N = N_FOR + 1
     time = dt * np.arange(N+1)
     rho0, cp, Qswmax = 1024., 3985., 0.
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
@@ -54,8 +55,7 @@ def fig_launchOcean():
     u_0 = np.zeros(simulator_oce.M)
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
-    dz_theta_0 =  np.concatenate(([0.],
-        np.ones(simulator_oce.M-1) * N0**2 / alpha / 9.81, [0.]))
+    dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.zeros(N+1)
     tau_m = rho0 * 0.01**2 * np.ones(N+1) + 0j
     sf_scheme = "FV test"
@@ -65,7 +65,7 @@ def fig_launchOcean():
             heatloss=heatloss, tau_m=tau_m, sf_scheme=sf_scheme)
 
     #### Getting fortran part ####
-    name_file = "fortran/t_final_tke.out"
+    name_file = "fortran/output_debug.out"
     ret_for, z_for = import_data(name_file)
 
     ### Getting python part ###
