@@ -279,9 +279,9 @@ def fig_robustness_r():
         setting.R = r
         return func(setting, N)
 
-    resolution = 80
+    resolution_r = 80
     rmin, rmax = 1e-6, 1.
-    allr = np.geomspace(rmin, rmax, resolution)
+    allr = np.geomspace(rmin, rmax, resolution_r)
 
     name_fileRR = "cache_npy/direct_combined_rRR.npy"
     name_fileDNWR = "cache_npy/direct_combined_rDNWR.npy"
@@ -329,33 +329,36 @@ def fig_robustness():
     N = 1000
     builder = Builder()
     COMPUTE_AGAIN = False
+    def load_or_compute(function_to_plot):
+        name_file = "cache_npy/" + function_to_plot.__name__ + ".npy"
+        compute_again_local = COMPUTE_AGAIN
+        try:
+            Z = np.load(name_file)
+        except FileNotFoundError:
+            compute_again_local = True
 
-    def function_to_plot_combined(nu1, nu2):
+        if compute_again_local or COMPUTE_AGAIN:
+            vfunc = np.vectorize(function_to_plot)
+            Z = vfunc(X, Y)
+            np.save(name_file, Z)
+        return Z
+
+    def function_to_plot_combinednu(nu1, nu2):
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_combined(setting, N)
 
-    resolution = 50
+    resolution_nu = 50
+    resolution_hdt = 50
     nu1min, nu1max, nu2min, nu2max = .1, 4., .1, 4.
-    allnu1 = np.linspace(nu1min, nu1max, resolution)
-    allnu2 = np.linspace(nu2min, nu2max, resolution)
+    allnu1 = np.linspace(nu1min, nu1max, resolution_nu)
+    allnu2 = np.linspace(nu2min, nu2max, resolution_nu)
     X, Y = np.meshgrid(allnu1, allnu2)
 
-    name_file = "cache_npy/direct_combined_nu.npy"
-    if not COMPUTE_AGAIN:
-        try:
-            Z = np.load(name_file)
-        except(FileNotFoundError):
-            COMPUTE_AGAIN = True
-
-    if COMPUTE_AGAIN:
-        vfunc = np.vectorize(function_to_plot_combined)
-        Z = vfunc(X, Y)
-        np.save(name_file, Z)
+    Z = load_or_compute(function_to_plot_combinednu)
 
     fig, axes = plt.subplots(2, 4, figsize=(8, 5))
     fig.subplots_adjust(hspace=0.5)
-    levels = np.linspace(np.min(Z), np.max(Z), 9)
     levels = [0., 0.1, 0.12, 0.13, 0.14]
     CS = axes[0, 0].contour(X, Y, Z, levels=levels)
     axes[0, 0].clabel(CS, inline=True, fontsize=10)
@@ -363,22 +366,12 @@ def fig_robustness():
     axes[0, 0].set_xlabel(r"$\nu_1$")
     axes[0, 0].set_ylabel(r"$\nu_2$")
 
-    def function_to_plot_modified(nu1, nu2):
+    def function_to_plot_modifiednu(nu1, nu2):
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_modified(setting, N)
 
-    name_file = "cache_npy/direct_modified_nu.npy"
-    if not COMPUTE_AGAIN:
-        try:
-            Z = np.load(name_file)
-        except(FileNotFoundError):
-            COMPUTE_AGAIN=True
-
-    if COMPUTE_AGAIN:
-        vfunc = np.vectorize(function_to_plot_modified)
-        Z = vfunc(X, Y)
-        np.save(name_file, Z)
+    Z = load_or_compute(function_to_plot_modifiednu)
 
     levels = [0., 0.01, 0.02]
     CS = axes[0, 2].contour(X, Y, Z, levels=levels)
@@ -386,146 +379,121 @@ def fig_robustness():
     axes[0, 2].set_title(r"Modified, RR")
     axes[0, 2].set_xlabel(r"$\nu_1$")
 
-    def function_to_plot_combined(h, dt):
+    def function_to_plot_combinedhdt(courant, dt):
         setting = builder.copy()
+        h = np.sqrt(setting.D1 * setting. DT / courant)
         setting.h, setting.DT = h, dt
         setting.M1 = setting.M2 = 1001
         setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
         setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
         return relative_acceleration_combined(setting, N)
 
-    hmin, hmax, dtmin, dtmax = .1, 10., .1, 50.
-    allh = np.linspace(hmin, hmax, resolution)
-    alldt = np.linspace(dtmin, dtmax, resolution)
-    X, Y = np.meshgrid(allh, alldt)
+    courantmin, courantmax, dtmin, dtmax = 1e-2, 1e3, 1e-2, 1e2
+    allcourant = np.geomspace(courantmin, courantmax, resolution_hdt)
+    alldt = np.geomspace(dtmin, dtmax, resolution_hdt)
+    X, Y = np.meshgrid(allcourant, alldt)
 
-    name_file = "cache_npy/direct_combined_hdt.npy"
-    if COMPUTE_AGAIN:
-        vfunc = np.vectorize(function_to_plot_combined)
-        Z = vfunc(X, Y)
-        np.save(name_file, Z)
-    else:
-        Z = np.load(name_file)
-    levels = [-0.5, -0.3, -0.1, 0.1, 0.3]
-    CS = axes[1, 0].contour(X, Y, Z, levels=levels)
+    Z = load_or_compute(function_to_plot_combinedhdt)
+
+    levels = [-0.5, -0.1, 0., 0.1, 0.2, 0.3]
+    CS = axes[1, 0].contour(X, Y, Z)
     axes[1, 0].clabel(CS, inline=True, fontsize=10)
     axes[1, 0].set_title(r"Combined, RR")
-    axes[1, 0].set_xlabel(r"$h$")
+    axes[1, 0].set_xlabel(r"$\frac{\nu_1 \Delta t}{h}$")
     axes[1, 0].set_ylabel(r"$\Delta t$")
+    axes[1, 0].set_xscale('log')
+    axes[1, 0].set_yscale('log')
 
-    def function_to_plot_modified(h, dt):
+    def function_to_plot_modifiedhdt(courant, dt):
         setting = builder.copy()
+        h = np.sqrt(setting.D1 * setting. DT / courant)
         setting.h, setting.DT = h, dt
         setting.M1 = setting.M2 = 1001
         setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
         setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
         return relative_acceleration_modified(setting, N)
-    name_file = "cache_npy/direct_modified_hdt.npy"
-    if COMPUTE_AGAIN:
-        vfunc = np.vectorize(function_to_plot_modified)
-        Z = vfunc(X, Y)
-        np.save(name_file, Z)
-    else:
-        Z = np.load(name_file)
 
-    levels = np.linspace(np.min(Z), np.max(Z), 9)
-    levels = [-0.01, 0., 0.01, 0.02]
-    CS = axes[1, 2].contour(X, Y, Z, levels=levels)
+    Z = load_or_compute(function_to_plot_modifiedhdt)
+
+    # levels = [-0.01, 0., 0.01, 0.02]
+    CS = axes[1, 2].contour(X, Y, Z)
     axes[1, 2].clabel(CS, inline=True, fontsize=10)
     axes[1, 2].set_title(r"Modified, RR")
-    axes[1, 2].set_xlabel(r"$h$")
+    axes[1, 2].set_xlabel(r"$\frac{\nu_1 \Delta t}{h}$")
+    axes[1, 2].set_xscale('log')
+    axes[1, 2].set_yscale('log')
 
-    def function_to_plot_combined(nu1, nu2):
+    def function_to_plot_combinednuDNWR(nu1, nu2):
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_combined_DNWR(setting, N)
 
-    resolution = 50
     nu1min, nu1max, nu2min, nu2max = .1, 4., .1, 4.
-    allnu1 = np.linspace(nu1min, nu1max, resolution)
-    allnu2 = np.linspace(nu2min, nu2max, resolution)
+    allnu1 = np.linspace(nu1min, nu1max, resolution_nu)
+    allnu2 = np.linspace(nu2min, nu2max, resolution_nu)
     X, Y = np.meshgrid(allnu1, allnu2)
 
-    name_file = "cache_npy/direct_combined_nu_DNWR.npy"
-    if COMPUTE_AGAIN:
-        vfunc = np.vectorize(function_to_plot_combined)
-        Z = vfunc(X, Y)
-        np.save(name_file, Z)
-    else:
-        Z = np.load(name_file)
+    Z = load_or_compute(function_to_plot_combinednuDNWR)
 
-    levels = np.linspace(np.min(Z), np.max(Z), 9)
     levels = [0., 0.1, 0.2, 0.3]
     CS = axes[0, 1].contour(X, Y, Z, levels=levels)
     axes[0, 1].clabel(CS, inline=True, fontsize=10)
     axes[0, 1].set_title(r"Combined, DNWR")
     axes[0, 1].set_xlabel(r"$\nu_1$")
 
-    def function_to_plot_modified(nu1, nu2):
+    def function_to_plot_modifiednuDNWR(nu1, nu2):
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_modified_DNWR(setting, N)
 
-    name_file = "cache_npy/direct_modified_nu_DNWR.npy"
-    if COMPUTE_AGAIN:
-        vfunc = np.vectorize(function_to_plot_modified)
-        Z = vfunc(X, Y)
-        np.save(name_file, Z)
-    else:
-        Z = np.load(name_file)
+    Z = load_or_compute(function_to_plot_modifiednuDNWR)
+
     levels = [-0.02, -0.01, 0., 0.01, 0.02]
     CS = axes[0, 3].contour(X, Y, Z, levels=levels)
     axes[0, 3].clabel(CS, inline=True, fontsize=10)
     axes[0, 3].set_title(r"Modified, DNWR")
     axes[0, 3].set_xlabel(r"$\nu_1$")
 
-    def function_to_plot_combined(h, dt):
+    def function_to_plot_combinedhdtDNWR(courant, dt):
         setting = builder.copy()
+        h = np.sqrt(setting.D1 * setting. DT / courant)
         setting.h, setting.DT = h, dt
         setting.M1 = setting.M2 = 1001
         setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
         setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
         return relative_acceleration_combined_DNWR(setting, N)
 
-    hmin, hmax, dtmin, dtmax = .1, 10., .1, 50.
-    allh = np.linspace(hmin, hmax, resolution)
-    alldt = np.linspace(dtmin, dtmax, resolution)
-    X, Y = np.meshgrid(allh, alldt)
+    courantmin, courantmax, dtmin, dtmax = 1e-2, 1e3, 1e-2, 1e2
+    allcourant = np.geomspace(courantmin, courantmax, resolution_hdt)
+    alldt = np.geomspace(dtmin, dtmax, resolution_hdt)
+    X, Y = np.meshgrid(allcourant, alldt)
 
-    name_file = "cache_npy/direct_combined_hdt_DNWR.npy"
-    if COMPUTE_AGAIN:
-        vfunc = np.vectorize(function_to_plot_combined)
-        Z = vfunc(X, Y)
-        np.save(name_file, Z)
-    else:
-        Z = np.load(name_file)
-    levels = [-0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4]
-    CS = axes[1, 1].contour(X, Y, Z, levels=levels)
+    Z = load_or_compute(function_to_plot_combinedhdtDNWR)
+    # levels = [-0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4]
+    CS = axes[1, 1].contour(X, Y, Z)
     axes[1, 1].clabel(CS, inline=True, fontsize=10)
     axes[1, 1].set_title(r"Combined, DNWR")
-    axes[1, 1].set_xlabel(r"$h$")
+    axes[1, 1].set_xlabel(r"$\frac{\nu_1 \Delta t}{h}$")
+    axes[1, 1].set_xscale('log')
+    axes[1, 1].set_yscale('log')
 
-    def function_to_plot_modified(h, dt):
+    def function_to_plot_modifiedhdtDNWR(courant, dt):
         setting = builder.copy()
+        h = np.sqrt(setting.D1 * setting. DT / courant)
         setting.h, setting.DT = h, dt
         setting.M1 = setting.M2 = 1001
         setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
         setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
         return relative_acceleration_modified_DNWR(setting, N)
-    name_file = "cache_npy/direct_modified_hdt_DNWR.npy"
-    if COMPUTE_AGAIN:
-        vfunc = np.vectorize(function_to_plot_modified)
-        Z = vfunc(X, Y)
-        np.save(name_file, Z)
-    else:
-        Z = np.load(name_file)
+    Z = load_or_compute(function_to_plot_modifiedhdtDNWR)
 
-    levels = np.linspace(np.min(Z), np.max(Z), 9)
-    levels = [-0.01, 0., 0.01, 0.02]
-    CS = axes[1, 3].contour(X, Y, Z, levels=levels)
+    # levels = [-0.01, 0., 0.01, 0.02]
+    CS = axes[1, 3].contour(X, Y, Z)
     axes[1, 3].clabel(CS, inline=True, fontsize=10)
     axes[1, 3].set_title(r"Modified, DNWR")
-    axes[1, 3].set_xlabel(r"$h$")
+    axes[1, 3].set_xlabel(r"$\frac{\nu_1 \Delta t}{h}$")
+    axes[1, 3].set_xscale('log')
+    axes[1, 3].set_yscale('log')
 
     show_or_save('fig_robustness')
 
