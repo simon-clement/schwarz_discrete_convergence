@@ -329,13 +329,18 @@ def fig_robustness():
     N = 1000
     builder = Builder()
     COMPUTE_AGAIN = False
-    def load_or_compute(function_to_plot):
+    def load_or_compute(function_to_plot, expected_shape):
         name_file = "cache_npy/" + function_to_plot.__name__ + ".npy"
-        compute_again_local = COMPUTE_AGAIN
+        compute_again_local = True
         try:
             Z = np.load(name_file)
+            assert Z.shape == expected_shape
         except FileNotFoundError:
-            compute_again_local = True
+            pass
+        except AssertionError:
+            print(name_file + " corresponds to another resolution.")
+        else:
+            compute_again_local = False
 
         if compute_again_local or COMPUTE_AGAIN:
             vfunc = np.vectorize(function_to_plot)
@@ -343,41 +348,49 @@ def fig_robustness():
             np.save(name_file, Z)
         return Z
 
-    def function_to_plot_combinednu(nu1, nu2):
+    def function_to_plot_combinednu(nu1_over_nu2, nu2):
+        nu1 = nu1_over_nu2 * nu2
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_combined(setting, N)
 
-    resolution_nu = 50
-    resolution_hdt = 50
-    nu1min, nu1max, nu2min, nu2max = .1, 4., .1, 4.
-    allnu1 = np.linspace(nu1min, nu1max, resolution_nu)
-    allnu2 = np.linspace(nu2min, nu2max, resolution_nu)
-    X, Y = np.meshgrid(allnu1, allnu2)
+    resolution_nu = 100
+    resolution_hdt = 80
+    expected_shape_nu = (resolution_nu, resolution_nu)
+    expected_shape_hdt = (resolution_hdt, resolution_hdt)
+    ratio_nu_min, ratio_nu_max, nu2_min, nu2_max = 1e-2, 1e2, 1e-2, 1e2
+    allratio_nu = np.geomspace(ratio_nu_min, ratio_nu_max, resolution_nu)
+    allnu2 = np.geomspace(nu2_min, nu2_max, resolution_nu)
+    X, Y = np.meshgrid(allratio_nu, allnu2)
 
-    Z = load_or_compute(function_to_plot_combinednu)
+    Z = load_or_compute(function_to_plot_combinednu, expected_shape_nu)
 
     fig, axes = plt.subplots(2, 4, figsize=(8, 5))
-    fig.subplots_adjust(hspace=0.5)
-    levels = [0., 0.1, 0.12, 0.13, 0.14]
+    fig.subplots_adjust(hspace=0.5, wspace=0.3)
+    levels = [-0.3, -0.15, 0., 0.15, 0.3]
     CS = axes[0, 0].contour(X, Y, Z, levels=levels)
-    axes[0, 0].clabel(CS, inline=True, fontsize=10)
+    axes[0, 0].clabel(CS, inline=False, fontsize=10)
     axes[0, 0].set_title(r"Combined, RR")
-    axes[0, 0].set_xlabel(r"$\nu_1$")
+    axes[0, 0].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 0].set_ylabel(r"$\nu_2$")
+    axes[0, 0].set_xscale('log')
+    axes[0, 0].set_yscale('log')
 
-    def function_to_plot_modifiednu(nu1, nu2):
+    def function_to_plot_modifiednu(nu1_over_nu2, nu2):
+        nu1 = nu1_over_nu2 * nu2
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_modified(setting, N)
 
-    Z = load_or_compute(function_to_plot_modifiednu)
+    Z = load_or_compute(function_to_plot_modifiednu, expected_shape_nu)
 
-    levels = [0., 0.01, 0.02]
+    levels = [-0.02, -0.01, 0., 0.01, 0.02]
     CS = axes[0, 2].contour(X, Y, Z, levels=levels)
-    axes[0, 2].clabel(CS, inline=True, fontsize=10)
+    axes[0, 2].clabel(CS, inline=False, fontsize=10)
     axes[0, 2].set_title(r"Modified, RR")
-    axes[0, 2].set_xlabel(r"$\nu_1$")
+    axes[0, 2].set_xlabel(r"$\nu_1/\nu_2$")
+    axes[0, 2].set_xscale('log')
+    axes[0, 2].set_yscale('log')
 
     def function_to_plot_combinedhdt(courant, dt):
         setting = builder.copy()
@@ -393,13 +406,13 @@ def fig_robustness():
     alldt = np.geomspace(dtmin, dtmax, resolution_hdt)
     X, Y = np.meshgrid(allcourant, alldt)
 
-    Z = load_or_compute(function_to_plot_combinedhdt)
+    Z = load_or_compute(function_to_plot_combinedhdt, expected_shape_hdt)
 
-    levels = [-0.5, -0.1, 0., 0.1, 0.2, 0.3]
-    CS = axes[1, 0].contour(X, Y, Z)
-    axes[1, 0].clabel(CS, inline=True, fontsize=10)
+    levels = [-0.3, -0.15, 0., 0.15, 0.3]
+    CS = axes[1, 0].contour(X, Y, Z, levels=levels)
+    axes[1, 0].clabel(CS, inline=False, fontsize=10)
     axes[1, 0].set_title(r"Combined, RR")
-    axes[1, 0].set_xlabel(r"$\frac{\nu_1 \Delta t}{h}$")
+    axes[1, 0].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 0].set_ylabel(r"$\Delta t$")
     axes[1, 0].set_xscale('log')
     axes[1, 0].set_yscale('log')
@@ -413,46 +426,51 @@ def fig_robustness():
         setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
         return relative_acceleration_modified(setting, N)
 
-    Z = load_or_compute(function_to_plot_modifiedhdt)
+    Z = load_or_compute(function_to_plot_modifiedhdt, expected_shape_hdt)
 
-    # levels = [-0.01, 0., 0.01, 0.02]
-    CS = axes[1, 2].contour(X, Y, Z)
-    axes[1, 2].clabel(CS, inline=True, fontsize=10)
+    levels = [-0.03, -0.015, 0., 0.015, 0.03]
+    CS = axes[1, 2].contour(X, Y, Z, levels=levels)
+    axes[1, 2].clabel(CS, inline=False, fontsize=10)
     axes[1, 2].set_title(r"Modified, RR")
-    axes[1, 2].set_xlabel(r"$\frac{\nu_1 \Delta t}{h}$")
+    axes[1, 2].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 2].set_xscale('log')
     axes[1, 2].set_yscale('log')
 
-    def function_to_plot_combinednuDNWR(nu1, nu2):
+    def function_to_plot_combinednuDNWR(nu1_over_nu2, nu2):
+        nu1 = nu1_over_nu2 * nu2
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_combined_DNWR(setting, N)
 
-    nu1min, nu1max, nu2min, nu2max = .1, 4., .1, 4.
-    allnu1 = np.linspace(nu1min, nu1max, resolution_nu)
-    allnu2 = np.linspace(nu2min, nu2max, resolution_nu)
-    X, Y = np.meshgrid(allnu1, allnu2)
+    ratio_nu_min, ratio_nu_max, nu2_min, nu2_max = 1e-2, 1e2, 1e-2, 1e2
+    allratio_nu = np.geomspace(ratio_nu_min, ratio_nu_max, resolution_nu)
+    allnu2 = np.geomspace(nu2_min, nu2_max, resolution_nu)
+    X, Y = np.meshgrid(allratio_nu, allnu2)
 
-    Z = load_or_compute(function_to_plot_combinednuDNWR)
+    Z = load_or_compute(function_to_plot_combinednuDNWR, expected_shape_nu)
 
-    levels = [0., 0.1, 0.2, 0.3]
+    levels = [-0.3, -0.15, 0., 0.15, 0.3]
     CS = axes[0, 1].contour(X, Y, Z, levels=levels)
-    axes[0, 1].clabel(CS, inline=True, fontsize=10)
+    axes[0, 1].clabel(CS, inline=False, fontsize=10)
     axes[0, 1].set_title(r"Combined, DNWR")
-    axes[0, 1].set_xlabel(r"$\nu_1$")
+    axes[0, 1].set_xlabel(r"$\nu_1/\nu_2$")
+    axes[0, 1].set_xscale('log')
+    axes[0, 1].set_yscale('log')
 
     def function_to_plot_modifiednuDNWR(nu1, nu2):
         setting = builder.copy()
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_modified_DNWR(setting, N)
 
-    Z = load_or_compute(function_to_plot_modifiednuDNWR)
+    Z = load_or_compute(function_to_plot_modifiednuDNWR, expected_shape_nu)
 
-    levels = [-0.02, -0.01, 0., 0.01, 0.02]
+    levels = [-0.03, -0.015, 0., 0.015, 0.03]
     CS = axes[0, 3].contour(X, Y, Z, levels=levels)
-    axes[0, 3].clabel(CS, inline=True, fontsize=10)
+    axes[0, 3].clabel(CS, inline=False, fontsize=10)
     axes[0, 3].set_title(r"Modified, DNWR")
-    axes[0, 3].set_xlabel(r"$\nu_1$")
+    axes[0, 3].set_xlabel(r"$\nu_1/\nu_2$")
+    axes[0, 3].set_xscale('log')
+    axes[0, 3].set_yscale('log')
 
     def function_to_plot_combinedhdtDNWR(courant, dt):
         setting = builder.copy()
@@ -468,12 +486,12 @@ def fig_robustness():
     alldt = np.geomspace(dtmin, dtmax, resolution_hdt)
     X, Y = np.meshgrid(allcourant, alldt)
 
-    Z = load_or_compute(function_to_plot_combinedhdtDNWR)
-    # levels = [-0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4]
-    CS = axes[1, 1].contour(X, Y, Z)
-    axes[1, 1].clabel(CS, inline=True, fontsize=10)
+    Z = load_or_compute(function_to_plot_combinedhdtDNWR, expected_shape_hdt)
+    levels = [-0.3, -0.15, 0., 0.15, 0.3]
+    CS = axes[1, 1].contour(X, Y, Z, levels=levels)
+    axes[1, 1].clabel(CS, inline=False, fontsize=10)
     axes[1, 1].set_title(r"Combined, DNWR")
-    axes[1, 1].set_xlabel(r"$\frac{\nu_1 \Delta t}{h}$")
+    axes[1, 1].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 1].set_xscale('log')
     axes[1, 1].set_yscale('log')
 
@@ -485,15 +503,18 @@ def fig_robustness():
         setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
         setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
         return relative_acceleration_modified_DNWR(setting, N)
-    Z = load_or_compute(function_to_plot_modifiedhdtDNWR)
+    Z = load_or_compute(function_to_plot_modifiedhdtDNWR, expected_shape_hdt)
 
-    # levels = [-0.01, 0., 0.01, 0.02]
-    CS = axes[1, 3].contour(X, Y, Z)
-    axes[1, 3].clabel(CS, inline=True, fontsize=10)
+    levels = [-0.02, -0.01, 0., 0.01, 0.02]
+    CS = axes[1, 3].contour(X, Y, Z, levels=levels)
+    axes[1, 3].clabel(CS, inline=False, fontsize=10)
     axes[1, 3].set_title(r"Modified, DNWR")
-    axes[1, 3].set_xlabel(r"$\frac{\nu_1 \Delta t}{h}$")
+    axes[1, 3].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 3].set_xscale('log')
     axes[1, 3].set_yscale('log')
+    for ax_hz in axes:
+        for ax in ax_hz:
+            ax.minorticks_off()
 
     show_or_save('fig_robustness')
 
