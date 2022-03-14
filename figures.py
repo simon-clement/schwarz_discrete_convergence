@@ -695,8 +695,9 @@ def fig_RobinTwoSided():
         setting.D1 = setting.D2
     axis_freq = get_discrete_freq(N, setting.DT)[int(N//2)+1:]
 
-    fig, axes = plt.subplots(1, 2)
-    fig.subplots_adjust(right=0.97, hspace=0.65, wspace=0.28)
+    fig, axes = plt.subplots()
+    fig.subplots_adjust(right=0.97, hspace=0.65, wspace=0.28,
+            bottom=0.154)
 
     dt = setting.DT
 
@@ -707,9 +708,9 @@ def fig_RobinTwoSided():
     from cv_factor_onestep import rho_c_FD, rho_c_c
     from cv_factor_pade import rho_Pade_c, rho_Pade_FD
 
-    ax = axes[0]
-    p1min, p1max = 0.03, 1.5
-    p2min, p2max = -.4, -.01
+    ax = axes
+    p1min, p1max = 0.03, 1.7
+    p2min, p2max = -.5, -.01
     p1_range = np.arange(p1min, p1max, (p1max - p1min)/res_x)
     p2_range = np.arange(p2min, p2max, (p2max - p2min)/res_x)
     Z = [[rho_robin(setting, rho_Pade_FD, axis_freq, p1, p2, overlap_M=0, k_c=k_c)
@@ -746,44 +747,29 @@ def fig_RobinTwoSided():
             edgecolors=col_combined, facecolors="none", linewidth=2.,
             label="Combined: {:.3f}".format(callrho(rho_Pade_FD,
                 combined.x, k_c=k_c, overlap_M=overlap_M)))
-    ax.set_xlabel(r"$p_1$")
-    ax.set_ylabel(r"$p_2$")
-    ax.legend()
-    ax.set_title("Combined")
 
     def maxrho(func, p, **kwargs):
         builder = setting.copy()
         builder.LAMBDA_1, builder.LAMBDA_2 = p, -p
         return np.max(np.abs(func(builder, **kwargs)))
 
-    ax = axes[1]
-    p1min, p1max = 1.2, 1.6
-    p2min, p2max = -.1, -.0
-    p1_range = np.arange(p1min, p1max, (p1max - p1min)/res_x)
-    p2_range = np.arange(p2min, p2max, (p2max - p2min)/res_x)
-    Z = [[rho_robin(setting, rho_c_FD, axis_freq, p1, p2, overlap_M=0, k_c=k_c)
-            for p2 in p2_range] for p1 in p1_range]
-    p1_arr = [[p1 for p2 in p2_range] for p1 in p1_range]
-    p2_arr = [[p2 for p2 in p2_range] for p1 in p1_range]
-    fig.colorbar(ax.contour(p1_arr, p2_arr, Z, zorder=-1), ax=ax)
+    ####################
+    # MODIFIED PART
+    ####################
 
     cont = optimal_robin_parameter(setting, rho_c_c, axis_freq,
             continuous_interface_op=False, k_c=k_c)
-    s_d_space = optimal_robin_parameter(setting, rho_c_FD, axis_freq, k_c=k_c)
     modified = optimal_robin_parameter(setting, modified_FD, axis_freq,
             overlap_L=0, k_c=k_c)
     ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont_discop,
-            label="Continuous (disc. op.): {:.3f}".format(callrho(rho_c_FD,
+            label="Continuous (disc. op.): {:.3f}".format(callrho(rho_Pade_FD,
                 cont.x, overlap_M=overlap_M, k_c=k_c)))
-    ax.scatter(*s_d_space.x, marker=symb_sdspace, alpha=1., s=size_symb, c=col_sdspace,
-            label="S-d space: {:.3f}".format(s_d_space.fun))
     ax.scatter(*modified.x, marker=symb_modified, alpha=1., s=size_symb, edgecolors=col_modified, facecolors="none", linewidth=2.,
-            label="Modified: {:.3f}".format(callrho(rho_c_FD,
+            label="Modified: {:.3f}".format(callrho(rho_Pade_FD,
                 modified.x, overlap_M=overlap_M, k_c=k_c)))
     ax.set_xlabel(r"$p_1$")
     ax.set_ylabel(r"$p_2$")
-    ax.legend()
-    ax.set_title("Modified")
+    ax.legend(loc="lower center")
 
     show_or_save("fig_RobinTwoSided")
 
