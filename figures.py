@@ -816,8 +816,8 @@ def fig_dependency_maxrho_combined():
     ax.set_xlabel(r"$\theta$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title("DNWR")
-    print("thetas: continuous: {}, discrete :{}, combined:{}, s-d space:{}, s-d time:{}".format(*all_theta[minima_indices]))
-    print("rho_DNWR: continuous: {}, discrete :{}, combined:{}, s-d space:{}, s-d time:{}".format(*np.array(discrete)[minima_indices]))
+    print("thetas: continuous: {:.4f}, discrete :{:.4f}, combined:{:.4f}, s-d space:{:.4f}, s-d time:{:.4f}".format(*all_theta[minima_indices]))
+    print("rho_DNWR: continuous: {:.4f}, discrete :{:.4f}, combined:{:.4f}, s-d space:{:.4f}, s-d time:{:.4f}".format(*np.array(discrete)[minima_indices]))
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
     def maxrho(func, p, **kwargs):
@@ -851,8 +851,8 @@ def fig_dependency_maxrho_combined():
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title(r"$RR$")
 
-    print("p1: continuous: {}, discrete :{}, combined:{}, s-d space:{}, s-d time:{}".format(*all_p1[minima_indices]))
-    print("rho_RR: continuous: {}, discrete :{}, combined:{}, s-d space:{}, s-d time:{}".format(*np.array(discrete)[minima_indices]))
+    print("p1: continuous: {:.4f}, discrete :{:.4f}, combined:{:.4f}, s-d space:{:.4f}, s-d time:{:.4f}".format(*all_p1[minima_indices]))
+    print("rho_RR: continuous: {:.4f}, discrete :{:.4f}, combined:{:.4f}, s-d space:{:.4f}, s-d time:{:.4f}".format(*np.array(discrete)[minima_indices]))
 
     # ax = axes[1, 0]
     # overlap_M = 1
@@ -932,8 +932,8 @@ def fig_dependency_maxrho_modified():
     # ax.hlines(y=discrete[minima_indices], xmin=xmin, xmax=xmax,
     #         colors=col_minimas, linestyle='dashed')
     ax.set_title("DNWR")
-    print("thetas: s-d space: {}, continuous :{}, modified:{}".format(*all_theta[minima_indices]))
-    print("rho_DNWR: s-d space: {}, continuous :{}, modified:{}".format(*np.array(discrete)[minima_indices]))
+    print("thetas: s-d space: {:.4f}, continuous :{:.4f}, modified:{:.4f}".format(*all_theta[minima_indices]))
+    print("rho_DNWR: s-d space: {:.4f}, continuous :{:.4f}, modified:{:.4f}".format(*np.array(discrete)[minima_indices]))
 
     from cv_factor_onestep import rho_c_FD, rho_c_c, rho_s_c
     ax = axes[0]
