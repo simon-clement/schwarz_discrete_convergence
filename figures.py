@@ -312,16 +312,16 @@ def fig_robustness_r():
 
     fig, ax = plt.subplots(1, 1, figsize=(6., 2.))
     fig.subplots_adjust(bottom=0.23)
-    ax.loglog(allr, Z_combinedRR, label="Combined, RR",
-            color=col_combined)
-    ax.loglog(allr, Z_combinedDNWR, "--", label="Combined, DNWR",
-            color=col_combined)
-    ax.loglog(allr, Z_modifiedRR, label="Modified, RR",
-            color=col_modified)
-    ax.loglog(allr, Z_modifiedDNWR, "--", label="Modified, DNWR",
-            color=col_modified)
+    ax.loglog(allr, 100*np.array(Z_combinedRR),
+            label="Combined, RR", color=col_combined)
+    ax.loglog(allr, 100*np.array(Z_combinedDNWR), "--",
+            label="Combined, DNWR", color=col_combined)
+    ax.loglog(allr, 100*np.array(Z_modifiedRR),
+            label="Modified, RR", color=col_modified)
+    ax.loglog(allr, 100*np.array(Z_modifiedDNWR), "--",
+            label="Modified, DNWR", color=col_modified)
     ax.set_xlabel(r"$r$")
-    ax.set_ylabel(r"Relative acceleration")
+    ax.set_ylabel(r"Relative reduction (%)")
     ax.legend()
     show_or_save("fig_robustness_r")
 
@@ -329,6 +329,7 @@ def fig_robustness():
     N = 1000
     builder = Builder()
     COMPUTE_AGAIN = False
+
     def load_or_compute(function_to_plot, expected_shape):
         name_file = "cache_npy/" + function_to_plot.__name__ + ".npy"
         compute_again_local = True
@@ -354,6 +355,9 @@ def fig_robustness():
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_combined(setting, N)
 
+    levels_modified = np.arange(-8, 5.5, 1)
+    levels_combined = np.arange(-130, 50, 10)
+
     resolution_nu = 100
     resolution_hdt = 80
     expected_shape_nu = (resolution_nu, resolution_nu)
@@ -363,13 +367,14 @@ def fig_robustness():
     allnu2 = np.geomspace(nu2_min, nu2_max, resolution_nu)
     X, Y = np.meshgrid(allratio_nu, allnu2)
 
-    Z = load_or_compute(function_to_plot_combinednu, expected_shape_nu)
+    Z = 100*load_or_compute(function_to_plot_combinednu, expected_shape_nu)
 
     fig, axes = plt.subplots(2, 4, figsize=(8, 5))
-    fig.subplots_adjust(hspace=0.5, wspace=0.3)
-    levels = [-0.3, -0.15, 0., 0.15, 0.3]
-    CS = axes[0, 0].contour(X, Y, Z, levels=levels)
-    axes[0, 0].clabel(CS, inline=False, fontsize=10)
+    fig.subplots_adjust(hspace=0.5, wspace=0.3, right=0.98, left=0.088)
+    CS = axes[0, 0].contour(X, Y, Z, levels=levels_combined)
+    CS.collections[13].set_linewidth(4)
+    CS.collections[13].set_linestyle("dashed")
+    CS.collections[13].set_color("k")
     axes[0, 0].set_title(r"Combined, RR")
     axes[0, 0].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 0].set_ylabel(r"$\nu_2$")
@@ -382,11 +387,12 @@ def fig_robustness():
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_modified(setting, N)
 
-    Z = load_or_compute(function_to_plot_modifiednu, expected_shape_nu)
+    Z = 100*load_or_compute(function_to_plot_modifiednu, expected_shape_nu)
 
-    levels = [-0.02, -0.01, 0., 0.01, 0.02]
-    CS = axes[0, 2].contour(X, Y, Z, levels=levels)
-    axes[0, 2].clabel(CS, inline=False, fontsize=10)
+    CS = axes[0, 2].contour(X, Y, Z, levels=levels_modified)
+    CS.collections[8].set_linewidth(4)
+    CS.collections[8].set_linestyle("dashed")
+    CS.collections[8].set_color("k")
     axes[0, 2].set_title(r"Modified, RR")
     axes[0, 2].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 2].set_xscale('log')
@@ -406,11 +412,12 @@ def fig_robustness():
     alldt = np.geomspace(dtmin, dtmax, resolution_hdt)
     X, Y = np.meshgrid(allcourant, alldt)
 
-    Z = load_or_compute(function_to_plot_combinedhdt, expected_shape_hdt)
+    Z = 100*load_or_compute(function_to_plot_combinedhdt, expected_shape_hdt)
 
-    levels = [-0.3, -0.15, 0., 0.15, 0.3]
-    CS = axes[1, 0].contour(X, Y, Z, levels=levels)
-    axes[1, 0].clabel(CS, inline=False, fontsize=10)
+    CS = axes[1, 0].contour(X, Y, Z, levels=levels_combined)
+    CS.collections[13].set_linewidth(4)
+    CS.collections[13].set_linestyle("dashed")
+    CS.collections[13].set_color("k")
     axes[1, 0].set_title(r"Combined, RR")
     axes[1, 0].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 0].set_ylabel(r"$\Delta t$")
@@ -426,11 +433,12 @@ def fig_robustness():
         setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
         return relative_acceleration_modified(setting, N)
 
-    Z = load_or_compute(function_to_plot_modifiedhdt, expected_shape_hdt)
+    Z = 100*load_or_compute(function_to_plot_modifiedhdt, expected_shape_hdt)
 
-    levels = [-0.03, -0.015, 0., 0.015, 0.03]
-    CS = axes[1, 2].contour(X, Y, Z, levels=levels)
-    axes[1, 2].clabel(CS, inline=False, fontsize=10)
+    CS = axes[1, 2].contour(X, Y, Z, levels=levels_modified)
+    CS.collections[8].set_linewidth(4)
+    CS.collections[8].set_linestyle("dashed")
+    CS.collections[8].set_color("k")
     axes[1, 2].set_title(r"Modified, RR")
     axes[1, 2].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 2].set_xscale('log')
@@ -447,11 +455,12 @@ def fig_robustness():
     allnu2 = np.geomspace(nu2_min, nu2_max, resolution_nu)
     X, Y = np.meshgrid(allratio_nu, allnu2)
 
-    Z = load_or_compute(function_to_plot_combinednuDNWR, expected_shape_nu)
+    Z = 100*load_or_compute(function_to_plot_combinednuDNWR, expected_shape_nu)
 
-    levels = [-0.3, -0.15, 0., 0.15, 0.3]
-    CS = axes[0, 1].contour(X, Y, Z, levels=levels)
-    axes[0, 1].clabel(CS, inline=False, fontsize=10)
+    CS = axes[0, 1].contour(X, Y, Z, levels=levels_combined)
+    CS.collections[13].set_linewidth(4)
+    CS.collections[13].set_linestyle("dashed")
+    CS.collections[13].set_color("k")
     axes[0, 1].set_title(r"Combined, DNWR")
     axes[0, 1].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 1].set_xscale('log')
@@ -462,11 +471,12 @@ def fig_robustness():
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_modified_DNWR(setting, N)
 
-    Z = load_or_compute(function_to_plot_modifiednuDNWR, expected_shape_nu)
+    Z = 100*load_or_compute(function_to_plot_modifiednuDNWR, expected_shape_nu)
 
-    levels = [-0.03, -0.015, 0., 0.015, 0.03]
-    CS = axes[0, 3].contour(X, Y, Z, levels=levels)
-    axes[0, 3].clabel(CS, inline=False, fontsize=10)
+    CS = axes[0, 3].contour(X, Y, Z, levels=levels_modified)
+    CS.collections[8].set_linewidth(4)
+    CS.collections[8].set_linestyle("dashed")
+    CS.collections[8].set_color("k")
     axes[0, 3].set_title(r"Modified, DNWR")
     axes[0, 3].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 3].set_xscale('log')
@@ -486,14 +496,16 @@ def fig_robustness():
     alldt = np.geomspace(dtmin, dtmax, resolution_hdt)
     X, Y = np.meshgrid(allcourant, alldt)
 
-    Z = load_or_compute(function_to_plot_combinedhdtDNWR, expected_shape_hdt)
-    levels = [-0.3, -0.15, 0., 0.15, 0.3]
-    CS = axes[1, 1].contour(X, Y, Z, levels=levels)
-    axes[1, 1].clabel(CS, inline=False, fontsize=10)
+    Z = 100*load_or_compute(function_to_plot_combinedhdtDNWR, expected_shape_hdt)
+    CS = axes[1, 1].contour(X, Y, Z, levels=levels_combined)
+    CS.collections[13].set_linewidth(4)
+    CS.collections[13].set_linestyle("dashed")
+    CS.collections[13].set_color("k")
     axes[1, 1].set_title(r"Combined, DNWR")
     axes[1, 1].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 1].set_xscale('log')
     axes[1, 1].set_yscale('log')
+    CS_combined = CS
 
     def function_to_plot_modifiedhdtDNWR(courant, dt):
         setting = builder.copy()
@@ -503,18 +515,28 @@ def fig_robustness():
         setting.SIZE_DOMAIN_1 = setting.h*(setting.M1-1)
         setting.SIZE_DOMAIN_2 = setting.h*(setting.M2-1)
         return relative_acceleration_modified_DNWR(setting, N)
-    Z = load_or_compute(function_to_plot_modifiedhdtDNWR, expected_shape_hdt)
+    Z = 100*load_or_compute(function_to_plot_modifiedhdtDNWR, expected_shape_hdt)
 
-    levels = [-0.02, -0.01, 0., 0.01, 0.02]
-    CS = axes[1, 3].contour(X, Y, Z, levels=levels)
-    axes[1, 3].clabel(CS, inline=False, fontsize=10)
+    CS = axes[1, 3].contour(X, Y, Z, levels=levels_modified)
+    CS.collections[8].set_linewidth(4)
+    CS.collections[8].set_linestyle("dashed")
+    CS.collections[8].set_color("k")
     axes[1, 3].set_title(r"Modified, DNWR")
     axes[1, 3].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 3].set_xscale('log')
     axes[1, 3].set_yscale('log')
+    CS_modified = CS
+
     for ax_hz in axes:
         for ax in ax_hz:
             ax.minorticks_off()
+
+    cbar_comb = fig.colorbar(CS_combined, ax=axes[:, :2],
+            aspect=40., shrink=0.7)
+    cbar_mod = fig.colorbar(CS_modified, ax=axes[:, 2:],
+            aspect=40., shrink=0.7)
+    cbar_mod.ax.set_title(r"(\%)")
+    cbar_comb.ax.set_title(r"(\%)")
 
     show_or_save('fig_robustness')
 
