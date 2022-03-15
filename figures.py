@@ -5,8 +5,10 @@
     a future change in the default values won't affect old figures...
 """
 import numpy as np
-from memoisation import memoised
 import matplotlib as mpl
+from matplotlib import cm
+from memoisation import memoised
+from matplotlib.colors import ListedColormap
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath}"
 mpl.rcParams["figure.figsize"] = (8.4, 2.8)
@@ -321,7 +323,7 @@ def fig_robustness_r():
     ax.loglog(allr, 100*np.array(Z_modifiedDNWR), "--",
             label="Modified, DNWR", color=col_modified)
     ax.set_xlabel(r"$r$")
-    ax.set_ylabel(r"Relative reduction (%)")
+    ax.set_ylabel(r"Relative reduction (\%)")
     ax.legend()
     show_or_save("fig_robustness_r")
 
@@ -329,7 +331,8 @@ def fig_robustness():
     N = 1000
     builder = Builder()
     COMPUTE_AGAIN = False
-
+    cmap_combined = cm.get_cmap('viridis', 8)
+    cmap_modified = cm.get_cmap('viridis', 8)
     def load_or_compute(function_to_plot, expected_shape):
         name_file = "cache_npy/" + function_to_plot.__name__ + ".npy"
         compute_again_local = True
@@ -355,8 +358,26 @@ def fig_robustness():
         setting.D1, setting.D2 = nu1, nu2
         return relative_acceleration_combined(setting, N)
 
-    levels_modified = np.arange(-8, 5.5, 1)
+    levels_modified = np.arange(-8, 4., 1)
     levels_combined = np.arange(-130, 50, 10)
+    N_comb  = levels_combined.shape[0]
+    N_modif  = levels_modified.shape[0]
+    cmap_default = cm.get_cmap('viridis', N_comb)
+    cmap_comb = cmap_default(np.linspace(0, 1, N_comb))
+    cmap_modif = cmap_default(np.linspace(0, 1, N_modif))
+    color_0 = np.array([0., 0., 0., 1])
+
+    import bisect
+    index_0comb = bisect.bisect_left(levels_combined, 0)
+    index_0modif = bisect.bisect_left(levels_modified, 0)
+    assert abs(levels_modified[index_0modif]) < 1e-10
+    assert abs(levels_combined[index_0comb]) < 1e-10
+
+    cmap_comb[index_0comb] = color_0
+    cmap_modif[index_0modif] = color_0
+    cmap_comb = ListedColormap(cmap_comb)
+    cmap_modif = ListedColormap(cmap_modif)
+
 
     resolution_nu = 100
     resolution_hdt = 80
@@ -371,10 +392,11 @@ def fig_robustness():
 
     fig, axes = plt.subplots(2, 4, figsize=(8, 5))
     fig.subplots_adjust(hspace=0.5, wspace=0.3, right=0.98, left=0.088)
-    CS = axes[0, 0].contour(X, Y, Z, levels=levels_combined)
-    CS.collections[13].set_linewidth(4)
+    CS = axes[0, 0].contour(X, Y, Z, levels=levels_combined,
+            cmap=cmap_comb)
+
+    CS.collections[13].set_linewidth(3)
     CS.collections[13].set_linestyle("dashed")
-    CS.collections[13].set_color("k")
     axes[0, 0].set_title(r"Combined, RR")
     axes[0, 0].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 0].set_ylabel(r"$\nu_2$")
@@ -389,10 +411,10 @@ def fig_robustness():
 
     Z = 100*load_or_compute(function_to_plot_modifiednu, expected_shape_nu)
 
-    CS = axes[0, 2].contour(X, Y, Z, levels=levels_modified)
-    CS.collections[8].set_linewidth(4)
+    CS = axes[0, 2].contour(X, Y, Z, levels=levels_modified,
+            cmap=cmap_modif)
+    CS.collections[8].set_linewidth(3)
     CS.collections[8].set_linestyle("dashed")
-    CS.collections[8].set_color("k")
     axes[0, 2].set_title(r"Modified, RR")
     axes[0, 2].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 2].set_xscale('log')
@@ -414,10 +436,10 @@ def fig_robustness():
 
     Z = 100*load_or_compute(function_to_plot_combinedhdt, expected_shape_hdt)
 
-    CS = axes[1, 0].contour(X, Y, Z, levels=levels_combined)
-    CS.collections[13].set_linewidth(4)
+    CS = axes[1, 0].contour(X, Y, Z, levels=levels_combined,
+            cmap=cmap_comb)
+    CS.collections[13].set_linewidth(3)
     CS.collections[13].set_linestyle("dashed")
-    CS.collections[13].set_color("k")
     axes[1, 0].set_title(r"Combined, RR")
     axes[1, 0].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 0].set_ylabel(r"$\Delta t$")
@@ -435,10 +457,10 @@ def fig_robustness():
 
     Z = 100*load_or_compute(function_to_plot_modifiedhdt, expected_shape_hdt)
 
-    CS = axes[1, 2].contour(X, Y, Z, levels=levels_modified)
-    CS.collections[8].set_linewidth(4)
+    CS = axes[1, 2].contour(X, Y, Z, levels=levels_modified,
+            cmap=cmap_modif)
+    CS.collections[8].set_linewidth(3)
     CS.collections[8].set_linestyle("dashed")
-    CS.collections[8].set_color("k")
     axes[1, 2].set_title(r"Modified, RR")
     axes[1, 2].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 2].set_xscale('log')
@@ -457,10 +479,10 @@ def fig_robustness():
 
     Z = 100*load_or_compute(function_to_plot_combinednuDNWR, expected_shape_nu)
 
-    CS = axes[0, 1].contour(X, Y, Z, levels=levels_combined)
-    CS.collections[13].set_linewidth(4)
+    CS = axes[0, 1].contour(X, Y, Z, levels=levels_combined,
+            cmap=cmap_comb)
+    CS.collections[13].set_linewidth(3)
     CS.collections[13].set_linestyle("dashed")
-    CS.collections[13].set_color("k")
     axes[0, 1].set_title(r"Combined, DNWR")
     axes[0, 1].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 1].set_xscale('log')
@@ -473,10 +495,10 @@ def fig_robustness():
 
     Z = 100*load_or_compute(function_to_plot_modifiednuDNWR, expected_shape_nu)
 
-    CS = axes[0, 3].contour(X, Y, Z, levels=levels_modified)
-    CS.collections[8].set_linewidth(4)
+    CS = axes[0, 3].contour(X, Y, Z, levels=levels_modified,
+            cmap=cmap_modif)
+    CS.collections[8].set_linewidth(3)
     CS.collections[8].set_linestyle("dashed")
-    CS.collections[8].set_color("k")
     axes[0, 3].set_title(r"Modified, DNWR")
     axes[0, 3].set_xlabel(r"$\nu_1/\nu_2$")
     axes[0, 3].set_xscale('log')
@@ -497,10 +519,10 @@ def fig_robustness():
     X, Y = np.meshgrid(allcourant, alldt)
 
     Z = 100*load_or_compute(function_to_plot_combinedhdtDNWR, expected_shape_hdt)
-    CS = axes[1, 1].contour(X, Y, Z, levels=levels_combined)
-    CS.collections[13].set_linewidth(4)
+    CS = axes[1, 1].contour(X, Y, Z, levels=levels_combined,
+            cmap=cmap_comb)
+    CS.collections[13].set_linewidth(3)
     CS.collections[13].set_linestyle("dashed")
-    CS.collections[13].set_color("k")
     axes[1, 1].set_title(r"Combined, DNWR")
     axes[1, 1].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 1].set_xscale('log')
@@ -517,10 +539,10 @@ def fig_robustness():
         return relative_acceleration_modified_DNWR(setting, N)
     Z = 100*load_or_compute(function_to_plot_modifiedhdtDNWR, expected_shape_hdt)
 
-    CS = axes[1, 3].contour(X, Y, Z, levels=levels_modified)
-    CS.collections[8].set_linewidth(4)
+    CS = axes[1, 3].contour(X, Y, Z, levels=levels_modified,
+            cmap=cmap_modif)
+    CS.collections[8].set_linewidth(3)
     CS.collections[8].set_linestyle("dashed")
-    CS.collections[8].set_color("k")
     axes[1, 3].set_title(r"Modified, DNWR")
     axes[1, 3].set_xlabel(r"$\frac{\nu_1 \Delta t}{h^2}$")
     axes[1, 3].set_xscale('log')
@@ -533,8 +555,13 @@ def fig_robustness():
 
     cbar_comb = fig.colorbar(CS_combined, ax=axes[:, :2],
             aspect=40., shrink=0.7)
+
+    cbar_comb.ax.get_children()[1].set_linewidths(5.0)
+
     cbar_mod = fig.colorbar(CS_modified, ax=axes[:, 2:],
             aspect=40., shrink=0.7)
+    cbar_mod.ax.get_children()[1].set_linewidths(7.0)
+
     cbar_mod.ax.set_title(r"(\%)")
     cbar_comb.ax.set_title(r"(\%)")
 
