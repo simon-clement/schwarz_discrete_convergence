@@ -800,28 +800,11 @@ class Ocean1dStratified():
         for j in range(1, self.M+1):
             l_down[j] = min(l_down[j-1] + h_half[j-1], mxlm[j])
 
-        g, theta_ref = 9.81, 283.
-        ratio = SL.u_star**(4/3) * (self.kappa/self.C_m *
-                (z_sl + SL.z_0M) / phi_m(z_sl * SL.inv_L_MO))**2 / \
-                        ((SL.u_star**2 * phi_m(z_sl * SL.inv_L_MO) \
-                        /self.c_eps/self.kappa/(z_sl + SL.z_0M) \
-                        - g/theta_ref/self.c_eps*SL.t_star) \
-                        **2)**(1/3)
-
-        mxlm[k_modif:] = (ratio/l_down[k_modif:])**(3/5)
-        mask_min_is_ldown = mxlm[k_modif:]>l_down[k_modif:]
-        mxlm[k_modif:][mask_min_is_ldown] = \
-                (ratio/ l_down[k_modif:]**(5/3))[mask_min_is_ldown]
-        if (mxlm[k_modif:] < l_down[k_modif:])[mask_min_is_ldown].any():
-            print("no solution of the link MOST-TKE")
-
         # limiting l_up with the distance to the surface:
         mxl0 = 0.04
         l_up[k_modif] = max(mxl0, np.abs(tau_m/self.rho0)*self.kappa*2e5/9.81)
         for j in range(k_modif - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
-
-        l_up[k_modif:] = mxlm[k_modif:]
 
         l_m = np.maximum(np.sqrt(l_up*l_down), self.lm_min)
         l_eps = np.minimum(l_down, l_up)
