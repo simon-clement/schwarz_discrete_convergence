@@ -606,7 +606,7 @@ class Ocean1dStratified():
         if TEST_CASE > 0:
             ebb = 67.83
             e_sl = np.maximum(self.e_min,
-                    ebb*np.abs(tau_m)*np.ones_like(e_sl))
+                    ebb*np.abs(tau_m/self.rho0)*np.ones_like(e_sl))
         e_bottom = np.maximum(self.e_min, ebb*tau_b)
 
         l_eps_half = full_to_half(l_eps)
@@ -683,7 +683,7 @@ class Ocean1dStratified():
         even_ldiag[k-1] = 1.
         even_lldiag[k-1] = h_tilde*coeff_FV_small
         even_rhs[k] = e_sl[0]
-        # first grid levels above delta_sl:
+        # first grid levels below delta_sl:
         even_diag[k-1] = (self.h_half[k-2]+h_tilde)*coeff_FV_big/self.dt + \
                 Ke_full[k-1]/ h_tilde + \
                 Ke_full[k-1] / self.h_half[k-2]
@@ -817,7 +817,7 @@ class Ocean1dStratified():
 
         # limiting l_up with the distance to the surface:
         mxl0 = 0.04
-        l_up[k_modif] = max(mxl0, np.abs(tau_m)*self.kappa*2e5/9.81)
+        l_up[k_modif] = max(mxl0, np.abs(tau_m/self.rho0)*self.kappa*2e5/9.81)
         for j in range(k_modif - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
 
@@ -1108,7 +1108,7 @@ class Ocean1dStratified():
             Ktheta_full: array = np.maximum(self.Ktheta_min,
                     self.C_m * apdlr * l_m * np.sqrt(tke))
 
-            K_full: array = np.maximum(self.Km_min,
+            Ku_full: array = np.maximum(self.Km_min,
                     self.C_m * l_m * np.sqrt(tke))
 
         else:
@@ -1510,15 +1510,12 @@ class Ocean1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FVtest(self, K_u, forcing, SL, **_):
-        u_star, u_delta = SL.u_star, SL.u_delta
         Y = ((0., 0.), (0., 0.), (1.,))
         # dont forget equation is dtYu - Du = c
         D = ((0.,),
-            (-K_u[self.M-1]/self.h_half[self.M-1],
-            -self.rho0 * K_u[self.M]), # TODO verify rho
-            (K_u[self.M] / self.h_half[self.M-1], 0.),
-            (np.abs(SL.tau_m),))
-        c = (forcing[self.M-1], 0.)
+            (-K_u[self.M-1]/self.h_half[self.M-1], -K_u[self.M]),
+            (K_u[self.M] / self.h_half[self.M-1], 0.),)
+        c = (forcing[self.M-1], SL.tau_m/self.rho0)
         return Y, D, c, Y
 
 
