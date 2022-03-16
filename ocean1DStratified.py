@@ -51,7 +51,7 @@ class Ocean1dStratified():
     def __init__(self, z_levels: array,
             N0: float, alpha: float, dt: float=30.,
             u_geostrophy: float=10., default_h_cl: float=1e4,
-            K_mol: float=1e-7, C_p: float=3985., f: float=1e-4) -> None:
+            K_mol: float=1e-4, C_p: float=3985., f: float=1e-4) -> None:
         """
             z_levels starts at bottom of ocean and contains
             all the full levels $z_m$ until $z_M=0$.
@@ -82,7 +82,8 @@ class Ocean1dStratified():
         self.u_g: float = u_geostrophy
         self.f: float = f
         self.C_p: float = C_p
-        self.e_min: float = 1e-6
+        self.e_min: float = 1e-6 # min value of tke
+        self.e0_min: float = 1e-4 # min value of surface tke
         self.Km_min: float = 1e-4
         self.Ktheta_min: float = 1e-5
         self.C_m: float = 0.1
@@ -95,10 +96,7 @@ class Ocean1dStratified():
         self.alpha: float = alpha
         self.dTdz_bot: float = N0*N0/(alpha*9.81)
         self.implicit_coriolis: float = 0.55 # semi-implicit coefficient
-        self.lm_min: float = self.K_mol / self.C_m / \
-                np.sqrt(self.e_min)
-        self.leps_min: float = self.K_mol / self.C_m / \
-                np.sqrt(self.e_min)
+        self.mxl_min: float = self.K_mol / ( self.C_m * np.sqrt(self.e_min) )
         # For each name of sf_scheme, two corresponding
         # methods defined at the bottom of this class:
         # sf_udelta_* is how we compute u(delta_sl) and
@@ -228,7 +226,6 @@ class Ocean1dStratified():
                 forcing_theta = swr_frac * solar_flux[n]
                 # forcing_theta[-1] =  solar_flux[n] - \
                 #         heatloss[n]/self.rho0/self.C_p
-                print(Ktheta_full)
                 theta, dz_theta, t_delta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
                         SL, SL_nm1, solar_flux[n], heatloss[n])
@@ -449,19 +446,6 @@ class Ocean1dStratified():
         have a continuous profile.
         """
         tke = np.ones(self.M) * self.e_min
-        if not Neutral_case:
-            # N2 and inv_L_MO are 0 at initialization
-            # so we use a neutral e_sl assuming l_m=l_eps
-            e_sl = np.maximum(SL.u_star**2 / \
-                    np.sqrt(self.C_m*self.c_eps), self.e_min)
-            z_half, k = np.copy(self.z_half), SL.k
-            z_half[k] = z_half[k] if ignore_sl else SL.delta_sl
-            tke[-z_half[:-1] <= 250] = self.e_min + e_sl*(1 - \
-                (-z_half[:-1][-z_half[:-1] <= 250] - \
-                (-SL.delta_sl)) / (250.- (-SL.delta_sl)))**3
-            # inversion of a system to find dz_tke:
-            return tke, self.__compute_dz_tke(e_sl, tke,
-                    SL.delta_sl, SL.k, ignore_sl)
         return tke, np.zeros(self.M+1)
 
     def __initialize_theta(self, Neutral_case: bool):
@@ -605,7 +589,7 @@ class Ocean1dStratified():
                 (shear_sl - KN2_sl))**2)**(1/3), self.e_min)
         if TEST_CASE > 0:
             ebb = 67.83
-            e_sl = np.maximum(self.e_min,
+            e_sl = np.maximum(self.e0_min,
                     ebb*np.abs(tau_m/self.rho0)*np.ones_like(e_sl))
         e_bottom = np.maximum(self.e_min, ebb*tau_b)
 
@@ -777,36 +761,27 @@ class Ocean1dStratified():
             z_levels[k] can be set to delta_sl
             for a better link with the surface layer.
         """
-        l_down = (self.kappa/self.C_m) * (self.C_m*self.c_eps)**.25 \
-                * (SL.z_0M + np.zeros_like(z_levels))
+        l_down = self.mxl_min * np.ones_like(z_levels)
         l_up = np.copy(l_down)
-        l_up[0] = l_down[0] = self.lm_min
         assert z_levels[-1] >= SL.delta_sl
         # to take into account surface layer we allow to change
         # z levels in this method
         h_half = np.diff(z_levels)
-        k_modif = bisect.bisect_left(z_levels, SL.delta_sl)
-        z_sl = z_levels[k_modif:]
-        phi_m, *_ = universal_funcs
-        #  Mixing length computation
-        Rod = 0.2
-        buoyancy = np.maximum(1e-12, N2)
-        # mxlm = np.maximum(self.lm_min, 2.*np.sqrt(tke) / \
-        #         (Rod*np.sqrt(dzu2) + np.sqrt(Rod**2*dzu2+2.*buoyancy)))
-        mxlm = np.maximum(self.lm_min,
+        buoyancy = np.maximum(1e-20, N2)
+        mxlm = np.maximum(self.mxl_min,
                 np.sqrt(2.*tke) / np.sqrt(buoyancy))
-        mxlm[0] = self.lm_min
+        mxlm[0] = self.mxl_min
         # should not exceed linear mixing lengths:
         for j in range(1, self.M+1):
             l_down[j] = min(l_down[j-1] + h_half[j-1], mxlm[j])
 
         # limiting l_up with the distance to the surface:
         mxl0 = 0.04
-        l_up[k_modif] = max(mxl0, np.abs(tau_m/self.rho0)*self.kappa*2e5/9.81)
-        for j in range(k_modif - 1, -1, -1):
+        l_up[self.M] = max(mxl0, np.abs(tau_m/self.rho0)*self.kappa*2e5/9.81)
+        for j in range(self.M - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
 
-        l_m = np.maximum(np.sqrt(l_up*l_down), self.lm_min)
+        l_m = np.sqrt(l_up*l_down)
         l_eps = np.minimum(l_down, l_up)
         return l_m, l_eps
 
