@@ -1179,10 +1179,16 @@ class Ocean1dStratified():
             # For energy conservation: shear from Burchard (2002)
             shear_half = np.abs(K_full[1:] * phi[1:] * phi_prime \
                         + K_full[:-1] * phi[:-1] * phi_second)
+            shear_half = np.abs(full_to_half(K_full*phi*phi))
 
-            # computing buoyancy on half levels:
-            g, theta_ref = 9.81, 283.
-            buoy_half = full_to_half(Ktheta_full*g/theta_ref*dz_theta)
+            # linear equation of state:
+            # rho1 = rho0 * (1 - alpha * theta_full - T0)
+            # dzrho1 = rho0 * - alpha * dz_theta
+            g = 9.81
+            dz_rho = - self.rho0 * self.alpha * dz_theta
+            N2_full = -g/self.rho0 * dz_rho
+
+            buoy_half = full_to_half(Ktheta_full*N2_full)
 
             tke[:], dz_tke[:], tke_full = \
                     self.__integrate_tke_FV(tke, dz_tke,
@@ -1198,12 +1204,6 @@ class Ocean1dStratified():
                 tke = np.maximum(tke, self.e_min)
                 dz_tke = self.__compute_dz_tke(tke_full[k],
                                     tke, delta_sl, k, ignore_tke_sl)
-
-            # linear equation of state:
-            # rho1 = rho0 * (1 - alpha * theta_full - T0)
-            # dzrho1 = rho0 * - alpha * dz_theta
-            dz_rho = - self.rho0 * self.alpha * dz_theta
-            N2_full = -g/self.rho0 * dz_rho
 
             dzu2_full = np.concatenate((\
                     [np.abs(phi[0] * phi_second[0])],
