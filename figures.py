@@ -38,6 +38,7 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     10.00))) - 10. # less levels in the stratified case
 
 def fig_launchOcean():
+    PLOT_FOR = True
     dt = 30.
     f = 0.
     T0, alpha, N0 = 16., 0.0002, 0.01
@@ -46,7 +47,7 @@ def fig_launchOcean():
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
             N0=N0)
 
-    N_FOR = 0
+    N_FOR = nb_steps = 30
     N = N_FOR + 1
     time = dt * np.arange(N+1)
     rho0, cp, Qswmax = 1024., 3985., 0.
@@ -73,7 +74,8 @@ def fig_launchOcean():
 
     #### Plotting both #####
     fig, ax = plt.subplots(1, 1)
-    ax.plot(ret_for, z_for, label="Fortran")
+    if PLOT_FOR:
+        ax.plot(ret_for, z_for, label="Fortran")
     ax.plot(ret_py, z_py, "--", label="Python")
     ax.legend()
     show_or_save("fig_launchOcean")
