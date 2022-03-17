@@ -177,7 +177,7 @@ class Ocean1dStratified():
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
 
         import tkeOcean1D
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FD")
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FV")
 
         theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
 
@@ -194,7 +194,7 @@ class Ocean1dStratified():
         phi, old_phi = phi_t0, np.copy(phi_t0)
         u_current: array = np.copy(u_t0)
         all_u_star = []
-        ret_u_current, ret_tke, ret_SL = [], [], [], []
+        ret_u_current, ret_tke, ret_SL = [], [], []
         ret_phi, ret_theta, ret_dz_theta, ret_leps = [], [], [], []
 
         for n in range(1,N+1):
@@ -246,7 +246,13 @@ class Ocean1dStratified():
                     all_u_star, ret_theta, ret_dz_theta, ret_leps, \
                     ret_SL
 
+        # FV output:
         self.var_z_toplot = tke.tke_full, self.z_full
+        # self.var_z_toplot = theta, self.z_half[:-1]
+        # self.var_z_toplot = u_current, self.z_half[:-1]
+        # self.var_z_toplot = Ku_full, self.z_full
+        # self.var_z_toplot = Ktheta_full, self.z_full
+        # self.var_z_toplot = l_eps, self.z_full
         return u_current, phi, tke.tke_full, all_u_star, theta, \
                 dz_theta, l_eps, SL
 

@@ -47,7 +47,7 @@ def fig_launchOcean():
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
             N0=N0)
 
-    N_FOR = nb_steps = 30
+    N_FOR = nb_steps = 3000
     N = N_FOR + 1
     time = dt * np.arange(N+1)
     rho0, cp, Qswmax = 1024., 3985., 0.
@@ -59,10 +59,10 @@ def fig_launchOcean():
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.zeros(N+1)
     tau_m = rho0 * 0.01**2 * np.ones(N+1) + 0j
-    sf_scheme = "FD test"
 
-    simulator_oce.FD(u_t0=u_0, theta_t0=theta_0, solar_flux=srflx,
-            heatloss=heatloss, tau_m=tau_m, sf_scheme=sf_scheme)
+    simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
+            dz_theta_t0=dz_theta_0, solar_flux=srflx,
+            heatloss=heatloss, tau_m=tau_m, sf_scheme="FV test")
 
     #### Getting fortran part ####
     name_file = "fortran/output_debug.out"
