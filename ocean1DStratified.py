@@ -628,8 +628,8 @@ class Ocean1dStratified():
             ####### TKE SCHEME #############
             du = np.diff(u_current)
             du_old = np.diff(old_u)
-            shear = np.concatenate(([0],
-                [np.abs(K_full[m]/self.h_full[m]**2 * du[m-1] * \
+            dzu2 = np.concatenate(([0],
+                [np.abs(du[m-1] / self.h_full[m]**2  * \
                         (du[m-1]+du_old[m-1])/2) \
                         for m in range(1, self.M)], [0]))
             dz_theta = np.diff(theta) / self.h_full[1:-1]
@@ -643,14 +643,15 @@ class Ocean1dStratified():
                 [N2[-1]]))
 
             tke.integrate_tke(self, SL, universal_funcs,
-                    shear, K_full, l_eps, Ktheta_full, N2,
+                    dzu2*K_full, K_full, l_eps, Ktheta_full, N2,
                     tau_m, tau_b)
             l_m[:], l_eps[:] = self.__mixing_lengths(tke.tke_full,
-                    shear/K_full, N2, self.z_full, SL,
+                    dzu2, N2, self.z_full, SL,
                     universal_funcs, tau_m)
+            l_m[-1] = l_eps[-1] = 0.
 
             apdlr = self.__stability_temperature_phi_z(\
-                    N2, K_full, shear)
+                    N2, K_full, dzu2*K_full)
 
             Ktheta_full: array = np.maximum(self.Ktheta_min,
                     self.C_m * apdlr * l_m * np.sqrt(tke.tke_full))
