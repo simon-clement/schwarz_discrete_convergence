@@ -303,7 +303,12 @@ program scm_oce
 
       open(1, file = 'output_debug.out')
         DO k=1,N
-          write(1,*) turb(k, nnew, 1), z_r(k)
+        write(1,*) turb(k,nnew,1), z_w(k) ! tke
+        ! write(1,*) t(k,nnew,1), z_r(k)! theta
+        ! write(1,*) u(k, nnew), z_r(k)! u
+        ! write(1,*) Akv(k), z_w(k) ! Ku
+        ! write(1,*) Akt(k, 1), z_w(k) ! Ktheta
+        ! write(1,*) sqrt(turb(k, nnew, 1)) / turb(k,nnew,2), z_w(k) ! l_eps
         ENDDO
       close(1)
 

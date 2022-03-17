@@ -350,8 +350,14 @@ class Ocean1dStratified():
 
         if store_all:
             return all_u, all_tke, all_u_star, all_theta, all_leps
+        # FD output:
+        # self.var_z_toplot = u_current, self.z_half[:-1]
+        # self.var_z_toplot = theta, self.z_half[:-1]
         self.var_z_toplot = tke.tke_full, self.z_full
-        return u_current, tke, all_u_star, theta, l_eps
+        # self.var_z_toplot = l_eps, self.z_full
+        # self.var_z_toplot = Ktheta_full, self.z_full
+        # self.var_z_toplot = Ku_full, self.z_full
+        return u_current, tke.tke_full, all_u_star, theta, l_eps
 
     def __step_u(self, u: array, phi: array,
             Ku_full: array, forcing: array,
