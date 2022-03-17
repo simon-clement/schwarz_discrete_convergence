@@ -59,10 +59,9 @@ def fig_launchOcean():
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.zeros(N+1)
     tau_m = rho0 * 0.01**2 * np.ones(N+1) + 0j
-    sf_scheme = "FV test"
+    sf_scheme = "FD test"
 
-    simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
-            dz_theta_t0=dz_theta_0, solar_flux=srflx,
+    simulator_oce.FD(u_t0=u_0, theta_t0=theta_0, solar_flux=srflx,
             heatloss=heatloss, tau_m=tau_m, sf_scheme=sf_scheme)
 
     #### Getting fortran part ####
