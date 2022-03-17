@@ -87,7 +87,7 @@ class Ocean1dStratified():
         self.C_m: float = 0.1
         self.C_s: float = 0.143
         self.C_1: float = 0.143
-        self.C_e: float = 0.34
+        self.C_e: float = self.C_m # used to be 0.34
         self.c_eps: float = np.sqrt(2.)/2.
         self.rho0: float = 1024.
         self.N0: float = N0
@@ -661,7 +661,8 @@ class Ocean1dStratified():
 
             Ktheta_full: array = np.maximum(self.Ktheta_min,
                     self.C_m * apdlr * l_m * np.sqrt(tke.tke_full))
-            Ku_full: array = self.C_m * l_m * np.sqrt(tke.tke_full)
+            Ku_full: array = np.maximum(self.Ku_min,
+                    self.C_m * l_m * np.sqrt(tke.tke_full))
 
         else:
             raise NotImplementedError("Wrong turbulence scheme")

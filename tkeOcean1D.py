@@ -30,6 +30,7 @@ class TkeOcean1D:
         self.dz_tke: array = np.zeros(M+1) * self.e_min
         assert discretization in {"FV", "FD"}
         self.discretization: str = discretization
+        self.Patankar = False
 
     def integrate_tke(self, ocean: oce1D.Ocean1dStratified,
             SL: oce1D.SurfaceLayerData,
@@ -71,7 +72,8 @@ class TkeOcean1D:
             Ktheta_full = N2 = np.zeros(self.M)
         Ke_half = ocean.C_e / ocean.C_m * (K_full[1:] + K_full[:-1])/2
         diag_e = np.concatenate(([1],
-                    [1/ocean.dt + ocean.c_eps*np.sqrt(self.tke[m])/l_eps[m] \
+                    [1/ocean.dt + \
+                    ocean.c_eps*np.sqrt(self.tke_full[m])/l_eps[m] \
                     + (Ke_half[m]/ocean.h_half[m] + \
                         Ke_half[m-1]/ocean.h_half[m-1]) \
                         / ocean.h_full[m] for m in range(1, self.M)],
@@ -90,17 +92,19 @@ class TkeOcean1D:
             e_sl = max(self.e0_min, ebb*np.abs(tau_m/ocean.rho0))
         e_bottom = max(self.e_min, ebb*tau_b)
 
-        rhs_e = np.concatenate(([e_bottom], [self.tke[m]/ocean.dt + shear[m]
+        rhs_e = np.concatenate(([e_bottom],
+            [self.tke_full[m]/ocean.dt + shear[m]
                 for m in range(1, self.M)], [e_sl]))
-        for m in range(1, self.M):
-            if shear[m] <= Ktheta_full[m] * N2[m]: # Patankar trick
-                diag_e[m] += Ktheta_full[m] * N2[m] / self.tke[m]
+        for m in range(1, self.M): # Patankar trick ?
+            if shear[m] <= Ktheta_full[m] * N2[m] and self.Patankar:
+                diag_e[m] += Ktheta_full[m] * N2[m] / self.tke_full[m]
             else: # normal handling of buoyancy
                 rhs_e[m] -=  Ktheta_full[m] * N2[m]
         ldiag_e[-1] = 0.
         diag_e[-1] = 1.
 
-        self.tke_full = solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
+        self.tke_full = np.maximum(self.e_min,
+                solve_linear((ldiag_e, diag_e, udiag_e), rhs_e))
         return self.tke_full
 
     def __integrate_tke_FV(self, ocean: oce1D.Ocean1dStratified,
@@ -127,7 +131,8 @@ class TkeOcean1D:
             may appear.)
         """
         # deciding in which cells we use Patankar's trick
-        PATANKAR = np.zeros_like(shear_half)# NEVER USE (shear_half <= buoy_half)
+        PATANKAR = (shear_half <= buoy_half) if self.Patankar else \
+                np.zeros_like(shear_half)
         # Turbulent viscosity of tke :
         Ke_full = K_full * ocean.C_e / ocean.C_m
         # Bottom value:
