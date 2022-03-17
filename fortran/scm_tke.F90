@@ -186,8 +186,8 @@ subroutine tke_stp( e3t     ,      &            ! Cell thickness           [m]
        DO jk = 0, jpk
           zemlm     = MIN ( zmxld(jk),  zmxlm(jk) )
           zemlp     = SQRT( zmxld(jk) * zmxlm(jk) )
-          zmxlm(jk) = zemlm
-          zmxld(jk) = zemlp
+          zmxlm(jk) = zemlp
+          zmxld(jk) = zemlm
        END DO
 
        !                     !<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
