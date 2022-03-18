@@ -420,8 +420,8 @@ class Ocean1dStratified():
                 Y_nm1=Y_nm1))
 
         next_theta = theta + self.dt * \
-                np.diff(prognostic_theta[1:] * Ktheta_full) \
-                / self.h_half[:-1]
+                np.diff(prognostic_theta[:-1] * Ktheta_full) \
+                / self.h_half[:-1] + forcing_theta
 
         next_theta[SL.k-1:] = prognostic_theta[SL.k+1:]
         dz_theta = prognostic_theta[:SL.k+1]
