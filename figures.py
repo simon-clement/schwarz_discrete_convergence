@@ -37,8 +37,7 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # less levels in the stratified case
 
-def fig_launchOcean():
-    PLOT_FOR = True
+def fig_comodoParamsWindInduced():
     dt = 30.
     f = 0.
     T0, alpha, N0 = 16., 0.0002, 0.01
@@ -47,7 +46,7 @@ def fig_launchOcean():
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
             N0=N0)
 
-    N_FOR = nb_steps = 3000
+    N_FOR = nb_steps = int(30 * 3600 / dt)
     N = N_FOR + 1
     time = dt * np.arange(N+1)
     rho0, cp, Qswmax = 1024., 3985., 0.
@@ -60,22 +59,83 @@ def fig_launchOcean():
     heatloss = np.zeros(N+1)
     tau_m = rho0 * 0.01**2 * np.ones(N+1) + 0j
 
-    simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
+    u_current, phi, tke, all_u_star, theta, \
+                dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
+            u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
+            dz_theta_t0=dz_theta_0, solar_flux=srflx,
+            heatloss=heatloss, tau_m=tau_m, sf_scheme="FV test")
+    zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
+            phi, theta, dz_theta, SL, ignore_loglaw=True)
+
+    u_currentFD, tke, all_u_star, thetaFD, \
+                l_eps, viscosityFD = simulator_oce.FD(\
+            u_t0=u_0, theta_t0=theta_0,
+            solar_flux=srflx,
+            heatloss=heatloss, tau_m=tau_m, sf_scheme="FD test")
+
+    fig, axes = plt.subplots(1, 2)
+    #### Getting fortran part ####
+    name_file = "fortran/output_debug.out"
+    t_for, zt_for = import_data("fortran/t_final_tke.out")
+    Kt_for, zKt_for = import_data("fortran/Akt_final_tke.out")
+    axes[0].plot(t_for, zt_for, label="Temperature Fortran")
+    axes[1].plot(Kt_for, zKt_for, label="Diffusivity Fortran")
+
+    #### Python plotting ####
+    axes[0].plot(thetaFV, zFV, "--",
+            label="Temperature Python FV")
+    axes[0].plot(thetaFD, simulator_oce.z_half[:-1], "--",
+            label="Temperature Python FD")
+    axes[1].plot(viscosity, simulator_oce.z_full, "--",
+            label="Diffusivity Python FV")
+    axes[1].plot(viscosityFD, simulator_oce.z_full, "--",
+            label="Diffusivity Python FD")
+
+    axes[0].legend()
+    axes[1].legend()
+    show_or_save("fig_comodoParamsWindInduced")
+
+def fig_launchOcean():
+    PLOT_FOR = True
+    dt = 30.
+    f = 0.
+    T0, alpha, N0 = 16., 0.0002, 0.01
+    z_levels = np.linspace(-50., 0., 51)
+    simulator_oce = Ocean1dStratified(z_levels=z_levels,
+            dt=dt, u_geostrophy=0., f=f, alpha=alpha,
+            N0=N0)
+
+    N_FOR = nb_steps = 3600
+    N = N_FOR + 1
+    time = dt * np.arange(N+1)
+    rho0, cp, Qswmax = 1024., 3985., 0.
+    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
+            Qswmax / (rho0*cp)
+    u_0 = np.zeros(simulator_oce.M)
+    phi_0 = np.zeros(simulator_oce.M+1)
+    theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
+    dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
+    heatloss = np.zeros(N+1)
+    tau_m = rho0 * 0.01**2 * np.ones(N+1) + 0j
+
+    u_current, phi, tke, all_u_star, theta, \
+                dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
+            u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
             heatloss=heatloss, tau_m=tau_m, sf_scheme="FV test")
 
-    #### Getting fortran part ####
-    name_file = "fortran/output_debug.out"
-    ret_for, z_for = import_data(name_file)
+    zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
+            phi, theta, dz_theta, SL, ignore_loglaw=True)
 
-    ### Getting python part ###
-    ret_py, z_py = simulator_oce.var_z_toplot
+    #### Getting fortran part ####
+    name_file = "fortran/t_final_tke.out"
+    ret_for, z_for = import_data(name_file)
 
     #### Plotting both #####
     fig, ax = plt.subplots(1, 1)
     if PLOT_FOR:
         ax.plot(ret_for, z_for, label="Fortran")
-    ax.plot(ret_py, z_py, "--", label="Python")
+    ax.plot(thetaFV, zFV, "--", label="Python")
     ax.legend()
     show_or_save("fig_launchOcean")
 

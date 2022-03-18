@@ -13,9 +13,6 @@ from utils_linalg import solve_linear
 from utils_linalg import full_to_half
 from universal_functions import Businger_et_al_1971 as businger
 
-def pr(var, name="oce"):
-    print(np.flipud(var), name)
-
 array = np.ndarray
 # TKE coefficients:
 """
@@ -246,15 +243,8 @@ class Ocean1dStratified():
                     all_u_star, ret_theta, ret_dz_theta, ret_leps, \
                     ret_SL
 
-        # FV output:
-        self.var_z_toplot = tke.tke_full, self.z_full
-        # self.var_z_toplot = theta, self.z_half[:-1]
-        # self.var_z_toplot = u_current, self.z_half[:-1]
-        # self.var_z_toplot = Ku_full, self.z_full
-        # self.var_z_toplot = Ktheta_full, self.z_full
-        # self.var_z_toplot = l_eps, self.z_full
         return u_current, phi, tke.tke_full, all_u_star, theta, \
-                dz_theta, l_eps, SL
+                dz_theta, l_eps, SL, Ktheta_full
 
 
     def FD(self, u_t0: array, theta_t0: array,
@@ -356,14 +346,9 @@ class Ocean1dStratified():
 
         if store_all:
             return all_u, all_tke, all_u_star, all_theta, all_leps
-        # FD output:
-        # self.var_z_toplot = u_current, self.z_half[:-1]
-        # self.var_z_toplot = theta, self.z_half[:-1]
-        self.var_z_toplot = tke.tke_full, self.z_full
-        # self.var_z_toplot = l_eps, self.z_full
-        # self.var_z_toplot = Ktheta_full, self.z_full
-        # self.var_z_toplot = Ku_full, self.z_full
-        return u_current, tke.tke_full, all_u_star, theta, l_eps
+
+        return u_current, tke.tke_full, all_u_star, theta, l_eps, \
+                Ktheta_full
 
     def __step_u(self, u: array, phi: array,
             Ku_full: array, forcing: array,
@@ -512,7 +497,7 @@ class Ocean1dStratified():
         z_oversampled = np.concatenate([np.array(xi[m]) + self.z_half[m]
                                             for m in range(1, self.M)])
         u_star, t_star, _, _, inv_L_MO, _, _, \
-                SST, delta_sl, k1, sf_scheme = SL
+                SST, delta_sl, k1, sf_scheme, _ = SL
         if sf_scheme in {"FV1", "FV pure"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
             k_1m: int = bisect.bisect_right(allxi[0], z_min)
