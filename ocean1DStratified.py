@@ -1061,27 +1061,29 @@ class Ocean1dStratified():
         return Y, D, c, Y
 
 
-    def __sf_YDc_FVpure(self, K_u, forcing, SL, **_):
+    def __sf_YDc_FVpure(self, K_u, forcing, SL, wind_atm, **_):
         u_star, u_delta = SL.u_star, SL.u_delta
+        norm_jump = np.abs(wind_atm - u_delta)
         Y = ((0., 0.), (0., 0.), (1.,))
         # we have a +K|u|/u*^2 for symmetry with atmosphere
         D = ((self.h_half[self.M-1]/24,),
             (-K_u[self.M-1]/self.h_half[self.M-1],
-            K_u[self.M]*np.abs(u_delta)/u_star**2 \
+            K_u[self.M]*norm_jump/u_star**2 \
                     - self.h_half[self.M-1]/24),
             (K_u[self.M] / self.h_half[self.M-1], 1.), (0.,))
-        c = (forcing[self.M-1], 0.)
+        c = (forcing[self.M-1], wind_atm)
         return Y, D, c, Y
 
-    def __sf_YDc_FV1(self, K_u, forcing, SL, **_):
+    def __sf_YDc_FV1(self, K_u, forcing, SL, wind_atm, **_):
         u_star, u_delta = SL.u_star, SL.u_delta
+        norm_jump = np.abs(wind_atm - u_delta)
         Y = ((0., 0.), (0., 0.), (1.,))
         # we have a +K|u|/u*^2 for symmetry with atmosphere
         D = ((0.,),
             (-K_u[self.M-1]/self.h_half[self.M-1],
-            K_u[self.M]*np.abs(u_delta)/u_star**2),
+            K_u[self.M]*norm_jump/u_star**2),
             (K_u[self.M] / self.h_half[self.M-1], 1.), (0.,))
-        c = (forcing[self.M-1], 0.)
+        c = (forcing[self.M-1], wind_atm)
         return Y, D, c, Y
 
     def __sf_YDc_FVtest(self, K_u, forcing, SL, **_):
@@ -1129,8 +1131,8 @@ class Ocean1dStratified():
     # Now that Y_n and Y_nm1 can be different,
     # the framework with Y, D and c is far less convenient.
     # I'll change this in a future update.
-    def __sf_YDc_FDpure_theta(self, K_theta, SL, universal_funcs_o,
-            universal_funcs_a, **_):
+    def __get_ch_du(self, SL, universal_funcs_o,
+            universal_funcs_a):
         _, _, _, psih_o, _, _ = universal_funcs_o
         _, _, _, psih_a, _, _ = universal_funcs_a
         delta_sl_a, za_0H = SL.SL_a.delta_sl, SL.SL_a.z_0H
@@ -1141,7 +1143,11 @@ class Ocean1dStratified():
         rhs_32 = np.log(1-delta_sl_a/za_0H) - psih_a(zeta_a) + \
                 lambda_t * (np.log(1-SL.delta_sl/SL.z_0M) - \
                     psih_o(SL.delta_sl*SL.inv_L_MO))
-        ch_du = SL.u_star * self.kappa / rhs_32
+        return SL.u_star * self.kappa / rhs_32
+
+    def __sf_YDc_FDpure_theta(self, K_theta, SL, forcing_theta,
+            **kwargs):
+        ch_du = self.__get_ch_du(SL, **kwargs)
 
         Y = ((0.), (1.,), ())
         D = ((K_theta[self.M-1] / self.h_full[self.M-1] / \
@@ -1150,22 +1156,12 @@ class Ocean1dStratified():
                     self.h_half[self.M-1] - \
                     ch_du /self.h_half[self.M-1],),
                 ())
-        c = (SL.SL_a.t_delta*ch_du / self.h_half[self.M - 1],)
+        c = (SL.SL_a.t_delta*ch_du / self.h_half[self.M - 1] +
+                forcing_theta[self.M-1],)
         return Y, D, c, Y
 
-    def __sf_YDc_FD2_theta(self, K_theta, SL, universal_funcs_o,
-            universal_funcs_a, **_):
-        _, _, _, psih_o, _, _ = universal_funcs_o
-        _, _, _, psih_a, _, _ = universal_funcs_a
-        delta_sl_a, za_0H = SL.SL_a.delta_sl, SL.SL_a.z_0H
-        zeta_a = delta_sl_a * SL.SL_a.inv_L_MO
-        c_p_atm = 1004.
-        lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
-        # Pelletier et al, 2021, equation (32):
-        rhs_32 = np.log(1-delta_sl_a/za_0H) - psih_a(zeta_a) + \
-                lambda_t * (np.log(1-SL.delta_sl/SL.z_0M) - \
-                    psih_o(SL.delta_sl*SL.inv_L_MO))
-        ch_du = SL.u_star * self.kappa / rhs_32
+    def __sf_YDc_FD2_theta(self, K_theta, SL, **kwargs):
+        ch_du = self.__get_ch_du(SL, **kwargs)
         Y = ((0.,), (0.,), ())
         D = ((K_theta[self.M-1]/self.h_full[self.M-1] - ch_du / 2,),
                 (-K_theta[self.M-1]/self.h_full[self.M-1] - ch_du / 2,),
@@ -1173,36 +1169,26 @@ class Ocean1dStratified():
         c = (ch_du * SL.SL_a.t_delta,)
         return Y, D, c, Y
 
-    def __sf_YDc_FVpure_theta(self, K_theta, SL,
-            universal_funcs, **_):
-        _, _, _, psi_h, _, _ = universal_funcs
-        inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
-        #TODO verify that using (-delta_sl) here is sufficient
-        ch_du = SL.u_star * self.kappa / \
-                (np.log(1-SL.delta_sl/SL.z_0H)-psi_h(SL.delta_sl*inv_L_MO))
-
+    def __sf_YDc_FVpure_theta(self, K_theta, SL, forcing_theta,
+            **kwargs):
+        ch_du = self.__get_ch_du(SL, **kwargs)
         Y = ((0., 0.), (0., 0.), (1.,))
-        D = ((-self.h_half[self.M-1]/24,),
+        D = ((self.h_half[self.M-1]/24,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
-            -K_theta[self.M]/ch_du+self.h_half[self.M-1]/24),
-                (K_theta[self.M] / self.h_half[self.M-1], -1.))
-        c = (0., SL.SST)
+            K_theta[self.M]/ch_du-self.h_half[self.M-1]/24),
+                (K_theta[self.M] / self.h_half[self.M-1], 1.))
+        c = (forcing_theta[self.M-1], SL.SL_a.ta_delta)
         return Y, D, c, Y
 
-    def __sf_YDc_FV1_theta(self, K_theta, SL,
-            universal_funcs, **_):
-        _, _, _, psi_h, _, _ = universal_funcs
-        inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
-        #TODO verify that using (-delta_sl) here is sufficient
-        ch_du = SL.u_star * self.kappa / \
-                (np.log(1-SL.delta_sl/SL.z_0H)-psi_h(SL.delta_sl*inv_L_MO))
-
+    def __sf_YDc_FV1_theta(self, K_theta, SL, forcing_theta,
+            **kwargs):
+        ch_du = self.__get_ch_du(SL, **kwargs)
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((0.,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
-            -K_theta[self.M]/ch_du),
-                (K_theta[self.M] / self.h_half[self.M-1], -1.))
-        c = (0., SL.SST) # TODO verify sign
+            K_theta[self.M]/ch_du),
+                (K_theta[self.M] / self.h_half[self.M-1], 1.))
+        c = (forcing_theta[self.M-1], SL.SL_a.ta_delta)
         return Y, D, c, Y
 
     def __sf_YDc_FDtest_theta(self, K_theta,
