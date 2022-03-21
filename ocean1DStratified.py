@@ -35,7 +35,7 @@ class SurfaceLayerData(NamedTuple):
     u_delta: complex # value of u at z=delta_sl
     t_delta: float # value of theta at z=delta_sl
     SST: float # Sea Surface Temperature (z=0)
-    delta_sl: float # Height of the Surface Layer
+    delta_sl: float # Depth of the Surface Layer (<0)
     k: int # index for which z_k < delta_sl < z_{k+1}
     sf_scheme: str # Name of the surface flux scheme
     tau_m: complex
@@ -46,13 +46,11 @@ class Ocean1dStratified():
     """
     def __init__(self, z_levels: array,
             N0: float, alpha: float, dt: float=30.,
-            u_geostrophy: float=10., default_h_cl: float=1e4,
+            u_geostrophy: float=10.,
             K_mol: float=1e-4, C_p: float=3985., f: float=1e-4) -> None:
         """
             z_levels starts at bottom of ocean and contains
             all the full levels $z_m$ until $z_M=0$.
-            h_cl is the default height of the planetary boundary
-            layer if f=0; (???)
             dt is the time step
             u_geostrophy is used as a top boundary condition
             K_mol is the background diffusivity
@@ -70,7 +68,6 @@ class Ocean1dStratified():
         self.h_full: array = np.diff(self.z_half,
                 prepend=2*z_levels[0] - self.z_half[0])
         self.M: int = self.z_full.shape[0] - 1
-        self.defaulth_cl: float = default_h_cl
         self.dt: float = dt
         self.K_mol: float = K_mol
         self.kappa: float = 0.4
@@ -613,8 +610,8 @@ class Ocean1dStratified():
         u_star, delta_sl = SL.u_star, SL.delta_sl
         if turbulence =="KPP":
             c_1 = 0.2 # constant for h_cl=c_1*u_star/f
-            h_cl: float = self.defaulth_cl if np.abs(self.f) < 1e-10 \
-                    else c_1*u_star/self.f
+            assert abs(self.f) > 1e-10
+            h_cl: float = c_1*u_star/self.f
             G_full: array = self.kappa * np.abs(self.z_full) * \
                     (1 - np.abs(self.z_full)/h_cl)**2 \
                     * np.heaviside(1 - np.abs(self.z_full)/h_cl, 1)
@@ -905,40 +902,62 @@ class Ocean1dStratified():
         c_sf = np.array(c_sf)
         c[-c_sf.shape[0]:] = c_sf
 
-    def __friction_scales(self, u_delta: float, delta_sl: float,
-            t_delta: float, SST: float,
-            universal_funcs, sf_scheme: str, k: int) -> SurfaceLayerData:
+    def __friction_scales(self,
+            ua_delta: float, delta_sl_a: float,
+            ta_delta: float, univ_funcs_a,
+            uo_delta: float, delta_sl_o: float,
+            to_delta: float, univ_funcs_o,
+            sf_scheme: str, k: int) -> SurfaceLayerData:
         """
         Computes (u*, t*) with a fixed point algorithm.
         returns a SurfaceLayerData containing all the necessary data.
         universal_funcs is the tuple (phim, phih, psim, psih, Psim, Psih)
         defined in universal_functions.py
         other parameters are defined in the SurfaceLayerData class.
-        for now it is exactly the same as in atmosphere,
-        except |delta_sl| is used instead of delta_sl.
+        It is possible to give to this method
+        {u, t}a_delta={u, t}a(z=0) together with delta_sl_a = 0.
         """
-        _, _, psim, psis, *_ = universal_funcs
-        t_star: float = (t_delta-SST) * \
-                (0.0180 if t_delta > SST else 0.0327)
-        z_0M = 0.1
-        z_0H = 0.1
-        u_star: float = (self.kappa *np.abs(u_delta) / \
-                np.log(1 - delta_sl/z_0M ) )
+        _, _, psim_a, psis_a, *_ = univ_funcs_a
+        _, _, psim_o, psis_o, *_ = univ_funcs_o
+        # ATMOSPHERIC friction scales:
+        t_star: float = (ta_delta-to_delta) * \
+                (0.0180 if ta_delta > to_delta else 0.0327)
+        u_star: float = (self.kappa *np.abs(ua_delta - uo_delta) / \
+                np.log(1 - delta_sl_a/.1 ) )
+        alpha_eos = 1.8e-4
+        lambda_u = np.sqrt(1/self.rho0) # u_o* = lambda_u u_a*
+        c_p_atm = 1004.
+        lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
+        mu_m = 6.7e-2
         for _ in range(12):
-            zeta = - self.kappa * delta_sl * 9.81*\
-                    (t_star / t_delta) / u_star**2
-            Cd    = self.kappa**2 / \
-                    (np.log(1-delta_sl/z_0M) - psim(zeta))**2
-            Ch    = self.kappa * np.sqrt(Cd) / \
-                    (np.log(1-delta_sl/z_0H) - psis(zeta))
-            u_star = np.sqrt(Cd) * np.abs(u_delta)
-            t_star = ( Ch / np.sqrt(Cd) ) * (t_delta - SST)
-            z_0M = z_0H = self.K_mol / self.kappa / u_star
-        inv_L_MO = t_star / t_delta / u_star**2 * \
-                self.kappa * 9.81
-        return SurfaceLayerData(u_star, t_star, z_0M, z_0H,
-                inv_L_MO, u_delta, t_delta, SST, delta_sl, k,
-                sf_scheme)
+            uo_star, to_star = lambda_u*u_star, lambda_t*t_star
+            inv_L_a = 9.81 * self.kappa * t_star \
+                    / ta_delta / u_star**2
+            inv_L_o = 9.81 * self.kappa * alpha_eos * \
+                    to_star / uo_star**2
+            za_0M = za_0H = self.K_mol / self.kappa / u_star / mu_m
+            zo_0M = zo_0H = self.K_mol / self.kappa / uo_star
+            zeta_a, zeta_o = delta_sl_a*inv_L_a, -delta_sl_o*inv_L_o
+            # Pelletier et al, 2021, equations 31, 32:
+            rhs_31 = np.log(1-delta_sl_a/za_0M) - psim_a(zeta_a) + \
+                    lambda_u * (np.log(1-delta_sl_o/zo_0M) - \
+                        psim_o(zeta_o))
+            rhs_32 = np.log(1-delta_sl_a/za_0H) - psis_a(zeta_a) + \
+                    lambda_t * (np.log(1-delta_sl_o/zo_0M) - \
+                        psis_o(zeta_o))
+
+            Cd    = self.kappa**2 / rhs_31**2
+            Ch    = self.kappa * np.sqrt(Cd) / rhs_32
+            u_star = np.sqrt(Cd) * np.abs(ua_delta-uo_delta)
+            t_star = ( Ch / np.sqrt(Cd) ) * (ta_delta - to_delta)
+
+        uo_star, to_star = lambda_u*u_star, lambda_t*t_star
+        inv_L_o = 9.81 * self.kappa * alpha_eos * \
+                to_star / uo_star**2
+        zo_0M = zo_0H = self.K_mol / self.kappa / uo_star
+        return SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
+                inv_L_o, uo_delta, to_delta, None, delta_sl_o, k,
+                sf_scheme, None)
 
     def shortwave_fractional_decay(self):
         """
