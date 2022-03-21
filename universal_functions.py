@@ -9,6 +9,30 @@ This module defines several universal functions:
 """
 import numpy as np
 
+def Large_et_al_2019():
+    fm = lambda zeta : (1-14*zeta)**(1/3)
+    fh = lambda zeta : (1-25*zeta)**(1/3)
+    def phi_m(zeta):
+        return 5*zeta + 1 if zeta >= 0 else 1/fm(zeta)
+    def phi_h(zeta):
+        return 5*zeta + 1 if zeta >= 0 else 1/fh(zeta)
+    def psi_m(zeta):
+        sq3 = np.sqrt(3)
+        return sq3 * np.arctan(sq3) - \
+                sq3 * np.arctan(sq3/3*(2*fm(zeta)+1)) + 1.5 * \
+                np.log((fm(zeta)**2 + fm(zeta) + 1)/3)
+    def psi_h(zeta):
+        sq3 = np.sqrt(3)
+        return sq3 * np.arctan(sq3) - \
+                sq3 * np.arctan(sq3/3*(2*fh(zeta)+1)) + 1.5 * \
+                np.log((fh(zeta)**2 + fh(zeta) + 1)/3)
+    Psi_m, Psi_h = None, None
+    return (np.vectorize(phi_m, otypes=[float]),
+            np.vectorize(phi_h, otypes=[float]),
+            np.vectorize(psi_m, otypes=[float]),
+            np.vectorize(psi_h, otypes=[float]),
+            Psi_m, Psi_h)
+
 def Businger_et_al_1971():
     fm = lambda zeta : (1-15*zeta)**(1/4)
     fh = lambda zeta : (1-9*zeta)**(1/2)
