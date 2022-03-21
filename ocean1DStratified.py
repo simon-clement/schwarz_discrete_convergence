@@ -1024,23 +1024,30 @@ class Ocean1dStratified():
     # they represent the first j lines of the matrices.
     # for Y and D, the tuples are (lower diag, diag, upper diag)
 
-    def __sf_YDc_FDpure(self, K_u, forcing, SL, **_):
+    def __sf_YDc_FDpure(self, K_u, forcing, SL, wind_atm, **_):
+        # wind_atm: wind at the surface or at 10m.
+        # It should be the same as given to __friction_scales.
         u_star, u_delta = SL.u_star, SL.u_delta
+        norm_jump = np.abs(wind_atm - u_delta)
         Y = ((0.,), (1.,), ())
-        D = ((K_u[self.M-1]/self.h_full[self.M-1]/self.h_half[self.M-1],),
-            (u_star**2 / np.abs(u_delta)/self.h_half[self.M-1] - \
-            K_u[self.M-1]/self.h_full[self.M-1]/self.h_half[self.M-1],), ())
-        c = (forcing[self.M - 1],)
+        D = ((K_u[self.M-1] / self.h_full[self.M-1] / \
+                    self.h_half[self.M-1],),
+            (- u_star**2 / norm_jump / self.h_half[self.M-1] - \
+            K_u[self.M-1] / self.h_full[self.M-1] / \
+                    self.h_half[self.M-1],), ())
+        c = (forcing[self.M - 1] + u_star*wind_atm / norm_jump / \
+                    self.h_half[self.M-1],)
         return Y, D, c, Y
 
-    def __sf_YDc_FD2(self, K_u, SL, **_):
+    def __sf_YDc_FD2(self, K_u, SL, wind_atm, **_):
         u_star, u_delta = SL.u_star, SL.u_delta
         Y = ((0.,), (0.,), ())
+        norm_jump =  np.abs(wind_atm - u_delta)
         D = ((K_u[self.M-1]/self.h_full[self.M-1] + \
-                u_star**2 / np.abs(u_delta) / 2,),
+                -u_star**2 / norm_jump / 2,),
             (-K_u[self.M-1]/self.h_full[self.M-1] + \
-                u_star**2 / np.abs(u_delta) / 2,), ())
-        c = (0.,)
+                -u_star**2 / norm_jump / 2,), ())
+        c = (u_star**2 * wind_atm / norm_jump,)
         return Y, D, c, Y
 
     def __sf_YDc_FDtest(self, K_u, forcing, SL, **_):
@@ -1122,33 +1129,48 @@ class Ocean1dStratified():
     # Now that Y_n and Y_nm1 can be different,
     # the framework with Y, D and c is far less convenient.
     # I'll change this in a future update.
-    def __sf_YDc_FDpure_theta(self, K_theta, SL, universal_funcs, **_):
-        inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
-        _, _, _, psi_h, _, _ = universal_funcs
-        phi_stab = psi_h(inv_L_MO * SL.delta_sl)
-        #TODO verify that using (-delta_sl) here is sufficient
-        ch_du = SL.u_star * self.kappa / \
-                (np.log(1-SL.delta_sl/SL.z_0H)-phi_stab)
+    def __sf_YDc_FDpure_theta(self, K_theta, SL, universal_funcs_o,
+            universal_funcs_a, **_):
+        _, _, _, psih_o, _, _ = universal_funcs_o
+        _, _, _, psih_a, _, _ = universal_funcs_a
+        delta_sl_a, za_0H = SL.SL_a.delta_sl, SL.SL_a.z_0H
+        zeta_a = delta_sl_a * SL.SL_a.inv_L_MO
+        c_p_atm = 1004.
+        lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
+        # Pelletier et al, 2021, equation (32):
+        rhs_32 = np.log(1-delta_sl_a/za_0H) - psih_a(zeta_a) + \
+                lambda_t * (np.log(1-SL.delta_sl/SL.z_0M) - \
+                    psih_o(SL.delta_sl*SL.inv_L_MO))
+        ch_du = SL.u_star * self.kappa / rhs_32
+
         Y = ((0.), (1.,), ())
-        D = ((K_theta[self.M-1]/self.h_full[self.M-1]/self.h_half[self.M-1],),
-                (-K_theta[self.M-1]/self.h_full[self.M-1]/self.h_half[self.M-1] + \
-                ch_du /self.h_half[0],),
+        D = ((K_theta[self.M-1] / self.h_full[self.M-1] / \
+                    self.h_half[self.M-1],),
+                (-K_theta[self.M-1] / self.h_full[self.M-1] / \
+                    self.h_half[self.M-1] - \
+                    ch_du /self.h_half[self.M-1],),
                 ())
-        c = (- SL.SST*ch_du / self.h_half[0],)
+        c = (SL.SL_a.t_delta*ch_du / self.h_half[self.M - 1],)
         return Y, D, c, Y
 
-    def __sf_YDc_FD2_theta(self, K_theta, SL, universal_funcs, **_):
-        inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
-        _, _, _, psi_h, _, _ = universal_funcs
-        phi_stab = psi_h(inv_L_MO * SL.delta_sl)
-        #TODO verify that using (-delta_sl) here is sufficient
-        ch_du = SL.u_star * self.kappa / \
-                (np.log(1-SL.delta_sl/SL.z_0H)-phi_stab)
+    def __sf_YDc_FD2_theta(self, K_theta, SL, universal_funcs_o,
+            universal_funcs_a, **_):
+        _, _, _, psih_o, _, _ = universal_funcs_o
+        _, _, _, psih_a, _, _ = universal_funcs_a
+        delta_sl_a, za_0H = SL.SL_a.delta_sl, SL.SL_a.z_0H
+        zeta_a = delta_sl_a * SL.SL_a.inv_L_MO
+        c_p_atm = 1004.
+        lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
+        # Pelletier et al, 2021, equation (32):
+        rhs_32 = np.log(1-delta_sl_a/za_0H) - psih_a(zeta_a) + \
+                lambda_t * (np.log(1-SL.delta_sl/SL.z_0M) - \
+                    psih_o(SL.delta_sl*SL.inv_L_MO))
+        ch_du = SL.u_star * self.kappa / rhs_32
         Y = ((0.,), (0.,), ())
-        D = ((K_theta[self.M-1]/self.h_full[self.M-1] + ch_du / 2,),
-                (-K_theta[self.M-1]/self.h_full[self.M-1] + ch_du / 2,),
+        D = ((K_theta[self.M-1]/self.h_full[self.M-1] - ch_du / 2,),
+                (-K_theta[self.M-1]/self.h_full[self.M-1] - ch_du / 2,),
                 ())
-        c = (-ch_du * SL.SST,)
+        c = (ch_du * SL.SL_a.t_delta,)
         return Y, D, c, Y
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL,
