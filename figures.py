@@ -61,21 +61,24 @@ def fig_comodoParamsConstantCooling():
     heatloss = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
     # this heatloss will be divided by (rho0*cp)
     # Q0_{comodo} = -heatloss / (rho cp)
-    tau_m = np.zeros(N+1) + 0j
+    wind_10m = np.zeros(N+1) + 0j
+    temp_10m = np.ones(N+1) * 240
 
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
-            heatloss=heatloss, tau_m=tau_m, sf_scheme="FV test")
+            heatloss=heatloss, wind_10m=wind_10m,
+            temp_10m=temp_10m, sf_scheme="FV test")
     zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
             phi, theta, dz_theta, SL, ignore_loglaw=True)
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
             u_t0=u_0, theta_t0=theta_0,
-            solar_flux=srflx,
-            heatloss=heatloss, tau_m=tau_m, sf_scheme="FD test")
+            solar_flux=srflx, wind_10m=wind_10m,
+            temp_10m=temp_10m, 
+            heatloss=heatloss, sf_scheme="FD test")
 
     fig, axes = plt.subplots(1, 2)
     axes[0].plot(thetaFV, zFV, "--",
@@ -112,21 +115,23 @@ def fig_comodoParamsWindInduced():
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.zeros(N+1)
-    tau_m = rho0 * 0.01**2 * np.ones(N+1) + 0j
+    wind_10m = np.ones(N+1) * 2. + 0j
+    temp_10m = np.ones(N+1) * 240
 
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
-            heatloss=heatloss, tau_m=tau_m, sf_scheme="FV test")
+            heatloss=heatloss, wind_10m=wind_10m, temp_10m=temp_10m,
+            sf_scheme="FV test")
     zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
             phi, theta, dz_theta, SL, ignore_loglaw=True)
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
             u_t0=u_0, theta_t0=theta_0,
-            solar_flux=srflx,
-            heatloss=heatloss, tau_m=tau_m, sf_scheme="FD test")
+            solar_flux=srflx, wind_10m=wind_10m, temp_10m=temp_10m,
+            heatloss=heatloss, sf_scheme="FD test")
 
     fig, axes = plt.subplots(1, 2)
     #### Getting fortran part ####
@@ -171,13 +176,15 @@ def fig_launchOcean():
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.zeros(N+1)
-    tau_m = rho0 * 0.01**2 * np.ones(N+1) + 0j
+    wind_10m = np.ones(N+1) * 2. + 0j
+    temp_10m = np.ones(N+1) * 240
 
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
-            heatloss=heatloss, tau_m=tau_m, sf_scheme="FV test")
+            heatloss=heatloss, wind_10m=wind_10m,
+            temp_10m=temp_10m, sf_scheme="FV test")
 
     zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
             phi, theta, dz_theta, SL, ignore_loglaw=True)

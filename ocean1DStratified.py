@@ -12,6 +12,7 @@ from utils_linalg import add_banded as add
 from utils_linalg import solve_linear
 from utils_linalg import full_to_half
 from universal_functions import Businger_et_al_1971 as businger
+from universal_functions import Large_et_al_2019 as large_ocean
 
 array = np.ndarray
 # TKE coefficients:
@@ -34,11 +35,10 @@ class SurfaceLayerData(NamedTuple):
     inv_L_MO: float # inverse of Obukhov length:
     u_delta: complex # value of u at z=delta_sl
     t_delta: float # value of theta at z=delta_sl
-    SST: float # Sea Surface Temperature (z=0)
     delta_sl: float # Depth of the Surface Layer (<0)
     k: int # index for which z_k < delta_sl < z_{k+1}
     sf_scheme: str # Name of the surface flux scheme
-    tau_m: complex
+    SL_a: 'SurfaceLayerData' # data of atmosphere part
 
 class Ocean1dStratified():
     """
@@ -123,7 +123,8 @@ class Ocean1dStratified():
 
     def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
             dz_theta_t0: array, solar_flux: array,
-            heatloss: array, tau_m: array, delta_sl: float=0.,
+            heatloss: array, wind_10m: array, temp_10m: array,
+            delta_sl: float=0.,
             sf_scheme: str="FV test", Neutral_case: bool=False,
             turbulence: str="TKE", store_all: bool=False):
         """
@@ -136,7 +137,7 @@ class Ocean1dStratified():
             dz_theta_t0: derivative of theta (given like phi_t0)
             solar_flux: SW radiation (from the sun) Qs/(rho0 Cp)
             heatloss: Heat transfer at surface Q_0(t)
-            tau_m: wind stress
+            wind_10m, temp_10m: wind, temperature at 10m in atmosphere
             delta_sl: height of the surface layer.
                 Make sure it is coherent with sf_scheme.
             sf_scheme is the surface flux scheme:
@@ -157,17 +158,24 @@ class Ocean1dStratified():
         elif sf_scheme in {"FV1", "FV pure"}:
             assert abs(delta_sl - self.z_full[-2]/2) < 1e-10
         assert turbulence in {"TKE", "KPP"}
-        N: int = tau_m.shape[0] - 1 # number of time steps
+        N: int = wind_10m.shape[0] - 1 # number of time steps
+        assert temp_10m.shape[0] == N + 1
         assert solar_flux.shape[0] == N + 1
         assert heatloss.shape[0] == N + 1
+        func_un, _ = self.dictsf_scheme[sf_scheme]
+        func_theta, _ = self.dictsf_scheme_theta[sf_scheme]
 
         forcing = 1j*self.u_g*np.ones((N+1, self.M))
 
         k = bisect.bisect_left(self.z_full, delta_sl)
-        SL = SurfaceLayerData(np.sqrt(np.abs(tau_m[0])/self.rho0),
-                np.sqrt(solar_flux[0]*self.rho0*self.C_p),
-                0.1, 0.1, 0., None, None, None, 0.,
-                self.M, sf_scheme, tau_m)
+
+        SL = self.__friction_scales(ua_delta=wind_10m[0],
+                delta_sl_a=10., ta_delta=temp_10m[0],
+                univ_funcs_a=businger(),
+                uo_delta=u_t0[-1], delta_sl_o=delta_sl,
+                to_delta=theta_t0[-1], univ_funcs_o=large_ocean(),
+                sf_scheme=sf_scheme, k=k)
+
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
 
         import tkeOcean1D
@@ -180,10 +188,8 @@ class Ocean1dStratified():
 
         z_levels_sl = np.copy(self.z_full)
         z_levels_sl[k] = self.z_full[k] if ignore_tke_sl else delta_sl
-        l_m, l_eps = self.__mixing_lengths(
-                tke.tke_full,
-                phi_t0*phi_t0, 9.81*dz_theta/283.,
-                z_levels_sl, SL, businger(), tau_m[0])
+        l_m = self.mxl_min*np.ones(self.M+1)
+        l_eps = self.mxl_min*np.ones(self.M+1)
 
         phi, old_phi = phi_t0, np.copy(phi_t0)
         u_current: array = np.copy(u_t0)
@@ -194,10 +200,14 @@ class Ocean1dStratified():
         for n in range(1,N+1):
             # Compute friction scales:
             SL_nm1 = SL
-            SL = SurfaceLayerData(np.sqrt(np.abs(tau_m[n]/self.rho0)),
-                    np.sqrt(solar_flux[n]*self.rho0*self.C_p),
-                    0.1, 0.1, 0., None, None, None, 0.,
-                    self.M, sf_scheme, tau_m[n])
+            u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
+            t_delta = func_theta(prognostic=theta)
+            SL = self.__friction_scales(ua_delta=wind_10m[n],
+                    delta_sl_a=10., ta_delta=temp_10m[n],
+                    univ_funcs_a=businger(),
+                    uo_delta=u_delta, delta_sl_o=delta_sl,
+                    to_delta=t_delta, univ_funcs_o=large_ocean(),
+                    sf_scheme=sf_scheme, k=k)
             all_u_star += [SL.u_star]
 
             # Compute viscosities
@@ -207,8 +217,7 @@ class Ocean1dStratified():
                     K_full=Ku_full, tke=tke,
                     dz_theta=dz_theta, Ktheta_full=Ktheta_full,
                     universal_funcs=businger(),
-                    ignore_tke_sl=ignore_tke_sl,
-                    tau_m=tau_m[n], tau_b=0.)
+                    ignore_tke_sl=ignore_tke_sl, tau_b=0.)
 
             old_phi = phi
             # integrate in time momentum
@@ -245,7 +254,8 @@ class Ocean1dStratified():
 
 
     def FD(self, u_t0: array, theta_t0: array,
-            solar_flux: array, heatloss: array, tau_m: array,
+            solar_flux: array, heatloss: array,
+            wind_10m: array, temp_10m: array,
             turbulence: str="TKE", sf_scheme: str="FD pure",
             Neutral_case: bool=False, store_all: bool=False):
         """
@@ -254,6 +264,7 @@ class Ocean1dStratified():
 
             u_t0 should be given at half-levels (follow self.z_half)
             forcing should be given at half-levels for all times
+            wind_10m, temp_10m: wind, temperature at 10m in atmosphere
             SST: Surface Temperature for all times
             turbulence should be one of:
                 "TKE" (for 1.5-equation TKE)
@@ -269,8 +280,9 @@ class Ocean1dStratified():
         assert sf_scheme in self.dictsf_scheme
         assert sf_scheme in {"FD2", "FD pure", "FD test"}
         assert turbulence in {"TKE", "KPP"}
-        N: int = tau_m.shape[0] - 1 # number of time steps
+        N: int = wind_10m.shape[0] - 1 # number of time steps
         assert solar_flux.shape[0] == N + 1
+        assert temp_10m.shape[0] == N + 1
         assert heatloss.shape[0] == N + 1
 
         forcing = 1j*self.u_g*np.ones((N+1, self.M))
@@ -295,10 +307,14 @@ class Ocean1dStratified():
         all_u_star = []
         all_u, all_tke, all_theta, all_leps = [], [], [], []
         for n in range(1,N+1):
-            SL = SurfaceLayerData(np.sqrt(np.abs(tau_m[n]/self.rho0)),
-                    np.sqrt(solar_flux[n]*self.rho0*self.C_p),
-                    0.1, 0.1, 0., None, None, None, 0.,
-                    self.M, sf_scheme, tau_m[n])
+            u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
+            t_delta = func_theta(prognostic=theta)
+            SL = self.__friction_scales(ua_delta=wind_10m[n],
+                    delta_sl_a=10., ta_delta=temp_10m[n],
+                    univ_funcs_a=businger(),
+                    uo_delta=u_delta, delta_sl_o=delta_sl,
+                    to_delta=t_delta, univ_funcs_o=large_ocean(),
+                    sf_scheme=sf_scheme, k=self.M)
             all_u_star += [SL.u_star]
 
             # Compute viscosities:
@@ -306,8 +322,7 @@ class Ocean1dStratified():
                     u_current=u_current, old_u=old_u,
                     K_full=Ku_full, tke=tke, theta=theta,
                     Ktheta_full=Ktheta_full, l_m=l_m, l_eps=l_eps,
-                    universal_funcs=businger(), tau_m=tau_m[n],
-                    tau_b=0.)
+                    universal_funcs=businger(), tau_b=0.)
 
             # integrate in time momentum:
             Y, D, c = self.__matrices_u_FD(Ku_full, forcing[n])
@@ -431,8 +446,7 @@ class Ocean1dStratified():
         return next_theta, dz_theta
 
     def __mixing_lengths(self, tke: array, dzu2: array, N2: array,
-            z_levels: array, SL: SurfaceLayerData, universal_funcs,
-            tau_m: float):
+            z_levels: array, SL: SurfaceLayerData, universal_funcs):
         """
             returns the mixing lengths (l_m, l_eps)
             for given entry parameters.
@@ -458,7 +472,8 @@ class Ocean1dStratified():
 
         # limiting l_up with the distance to the surface:
         mxl0 = 0.04
-        l_up[self.M] = max(mxl0, np.abs(tau_m/self.rho0)*self.kappa*2e5/9.81)
+        l_up[self.M] = max(mxl0,
+                np.abs(SL.SL_a.u_star**2)*self.kappa*2e5/9.81)
         for j in range(self.M - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
 
@@ -494,7 +509,7 @@ class Ocean1dStratified():
         z_oversampled = np.concatenate([np.array(xi[m]) + self.z_half[m]
                                             for m in range(1, self.M)])
         u_star, t_star, _, _, inv_L_MO, _, _, \
-                SST, delta_sl, k1, sf_scheme, _ = SL
+                delta_sl, k1, sf_scheme, SL_a = SL
         if sf_scheme in {"FV1", "FV pure"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
             k_1m: int = bisect.bisect_right(allxi[0], z_min)
@@ -530,7 +545,7 @@ class Ocean1dStratified():
                             * u_delta/np.abs(SL.u_delta)
         # u_delta/|SL.udelta| is u^{n+1}/|u^n| like in the
         # formulas
-        theta_log: complex = SST + Pr * t_star / self.kappa * \
+        theta_log: complex = SL_a.t_delta + Pr * t_star / self.kappa * \
                 (np.log(1+z_log/SL.z_0H) - \
                 psi_h(z_log*inv_L_MO) + psi_h(SL.z_0H*inv_L_MO))
 
@@ -599,7 +614,7 @@ class Ocean1dStratified():
             tke=None, theta: array=None,
             Ktheta_full: array=None, l_m: array=None,
             l_eps: array=None, universal_funcs=None,
-            tau_m: float=None, tau_b: float=None):
+            tau_b: float=None):
         """
             Computes the turbulent viscosity on full levels K_full.
             It differs between FD and FV because of the
@@ -638,10 +653,9 @@ class Ocean1dStratified():
 
             tke.integrate_tke(self, SL, universal_funcs,
                     dzu2*K_full, K_full, l_eps, Ktheta_full, N2,
-                    tau_m, tau_b)
+                    self.rho0*SL.SL_a.u_star**2, tau_b)
             l_m[:], l_eps[:] = self.__mixing_lengths(tke.tke_full,
-                    dzu2, N2, self.z_full, SL,
-                    universal_funcs, tau_m)
+                    dzu2, N2, self.z_full, SL, universal_funcs)
             l_m[-1] = l_eps[-1] = 0.
 
             apdlr = self.__stability_temperature_phi_z(\
@@ -724,7 +738,7 @@ class Ocean1dStratified():
             l_m: array=None, l_eps: array=None,
             dz_theta: array=None, Ktheta_full: array=None,
             universal_funcs: tuple=None,
-            ignore_tke_sl: bool=False, tau_m=None,
+            ignore_tke_sl: bool=False,
             tau_b=None):
         """
             Computes the turbulent viscosity on full levels K_full.
@@ -739,8 +753,8 @@ class Ocean1dStratified():
         u_star, delta_sl, inv_L_MO = SL.u_star, SL.delta_sl, SL.inv_L_MO
         if turbulence == "KPP":
             c_1 = 0.2 # constant for h_cl in atmosphere
-            h_cl: float = self.defaulth_cl if np.abs(self.f) < 1e-10 \
-                    else np.abs(c_1*u_star/self.f)
+            assert abs(self.f) > 1e-10
+            h_cl: float = np.abs(c_1*u_star/self.f)
             G_full: array = self.kappa * np.abs(self.z_full) * \
                     (1 - np.abs(self.z_full)/h_cl)**2 \
                     * np.heaviside(1 - np.abs(self.z_full)/h_cl, 1)
@@ -779,7 +793,7 @@ class Ocean1dStratified():
             buoy_half = full_to_half(Ktheta_full*N2_full)
             tke.integrate_tke(self, SL, universal_funcs,
                     shear_full, K_full, l_eps, Ktheta_full,
-                    N2_full, tau_m, tau_b)
+                    N2_full, self.rho0*SL.SL_a.u_star**2, tau_b)
 
             # MOST profiles cause troubles with FV free (high res):
             # dzu2_full[:k+1] = SL.u_star**2 * \
@@ -790,7 +804,7 @@ class Ocean1dStratified():
 
             l_m[:], l_eps[:] = self.__mixing_lengths(tke.tke_full,
                     shear_full / K_full, N2_full,
-                    z_levels, SL, universal_funcs, tau_m)
+                    z_levels, SL, universal_funcs)
 
             apdlr = self.__stability_temperature_phi_z(\
                     N2_full, K_full, shear_full)
@@ -923,7 +937,7 @@ class Ocean1dStratified():
         t_star: float = (ta_delta-to_delta) * \
                 (0.0180 if ta_delta > to_delta else 0.0327)
         u_star: float = (self.kappa *np.abs(ua_delta - uo_delta) / \
-                np.log(1 - delta_sl_a/.1 ) )
+                np.log(1 + delta_sl_a/.1 ) )
         alpha_eos = 1.8e-4
         lambda_u = np.sqrt(1/self.rho0) # u_o* = lambda_u u_a*
         c_p_atm = 1004.
@@ -939,10 +953,10 @@ class Ocean1dStratified():
             zo_0M = zo_0H = self.K_mol / self.kappa / uo_star
             zeta_a, zeta_o = delta_sl_a*inv_L_a, -delta_sl_o*inv_L_o
             # Pelletier et al, 2021, equations 31, 32:
-            rhs_31 = np.log(1-delta_sl_a/za_0M) - psim_a(zeta_a) + \
+            rhs_31 = np.log(1+delta_sl_a/za_0M) - psim_a(zeta_a) + \
                     lambda_u * (np.log(1-delta_sl_o/zo_0M) - \
                         psim_o(zeta_o))
-            rhs_32 = np.log(1-delta_sl_a/za_0H) - psis_a(zeta_a) + \
+            rhs_32 = np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a) + \
                     lambda_t * (np.log(1-delta_sl_o/zo_0M) - \
                         psis_o(zeta_o))
 
@@ -954,10 +968,14 @@ class Ocean1dStratified():
         uo_star, to_star = lambda_u*u_star, lambda_t*t_star
         inv_L_o = 9.81 * self.kappa * alpha_eos * \
                 to_star / uo_star**2
+        za_0M = za_0H = self.K_mol / self.kappa / u_star / mu_m
         zo_0M = zo_0H = self.K_mol / self.kappa / uo_star
+        SL_a = SurfaceLayerData(u_star, t_star, za_0M, za_0H,
+                inv_L_a, ua_delta, ta_delta, delta_sl_a, None,
+                None, None)
         return SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
-                inv_L_o, uo_delta, to_delta, None, delta_sl_o, k,
-                sf_scheme, None)
+                inv_L_o, uo_delta, to_delta, delta_sl_o, k,
+                sf_scheme, SL_a)
 
     def shortwave_fractional_decay(self):
         """
@@ -1057,7 +1075,7 @@ class Ocean1dStratified():
             (- K_u[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
         c = (forcing[self.M - 1] + \
-                SL.tau_m/self.rho0/self.h_half[self.M-1] ,)
+                SL.SL_a.u_star**2/self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
 
@@ -1092,7 +1110,7 @@ class Ocean1dStratified():
         D = ((0.,),
             (-K_u[self.M-1]/self.h_half[self.M-1], -K_u[self.M]),
             (K_u[self.M] / self.h_half[self.M-1], 0.),)
-        c = (forcing[self.M-1], SL.tau_m/self.rho0)
+        c = (forcing[self.M-1], SL.SL_a.u_star**2)
         return Y, D, c, Y
 
 
@@ -1140,7 +1158,7 @@ class Ocean1dStratified():
         c_p_atm = 1004.
         lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
         # Pelletier et al, 2021, equation (32):
-        rhs_32 = np.log(1-delta_sl_a/za_0H) - psih_a(zeta_a) + \
+        rhs_32 = np.log(1+delta_sl_a/za_0H) - psih_a(zeta_a) + \
                 lambda_t * (np.log(1-SL.delta_sl/SL.z_0M) - \
                     psih_o(SL.delta_sl*SL.inv_L_MO))
         return SL.u_star * self.kappa / rhs_32
