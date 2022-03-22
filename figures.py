@@ -115,8 +115,8 @@ def fig_comodoParamsWindInduced():
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.zeros(N+1)
-    wind_10m = np.ones(N+1) * 2. + 0j
-    temp_10m = np.ones(N+1) * 240
+    wind_10m = np.ones(N+1) * 15. + 0j
+    temp_10m = np.ones(N+1) * T0
 
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\

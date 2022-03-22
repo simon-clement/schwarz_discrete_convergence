@@ -10,8 +10,8 @@ This module defines several universal functions:
 import numpy as np
 
 def Large_et_al_2019():
-    fm = lambda zeta : (1-14*zeta)**(1/3)
-    fh = lambda zeta : (1-25*zeta)**(1/3)
+    fm = lambda zeta : np.cbrt(1-14*zeta)
+    fh = lambda zeta : np.cbrt(1-25*zeta)
     def phi_m(zeta):
         return 5*zeta + 1 if zeta >= 0 else 1/fm(zeta)
     def phi_h(zeta):
