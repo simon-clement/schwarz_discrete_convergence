@@ -15,15 +15,6 @@ from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
 
 array = np.ndarray
-# TKE coefficients:
-"""
-    if TEST_CASE=0,
-    it should be the final code.
-    Otherwise, it is a test case of
-    number >0.
-"""
-TEST_CASE = 1
-
 class SurfaceLayerData(NamedTuple):
     """
         Handles the data of the SL at one time step.
@@ -124,7 +115,7 @@ class Ocean1dStratified():
     def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
             dz_theta_t0: array, solar_flux: array,
             heatloss: array, wind_10m: array, temp_10m: array,
-            delta_sl: float=0.,
+            delta_sl: float=0., TEST_CASE: int=0,
             sf_scheme: str="FV test", Neutral_case: bool=False,
             turbulence: str="TKE", store_all: bool=False):
         """
@@ -148,6 +139,9 @@ class Ocean1dStratified():
                 - "KPP" (for simple K-profile parametrization)
             If Neutral_case is True, no temperature profile
             is computed and t_star = 0
+            TEST_CASE: 0 -> normal bulk code
+            TEST_CASE: 1 -> ua_star forced = 0.01
+            TEST_CASE: 2 -> ua_star forced = 0.0
         """
         assert u_t0.shape[0] == self.M
         assert phi_t0.shape[0] == self.M + 1
@@ -179,7 +173,7 @@ class Ocean1dStratified():
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
 
         import tkeOcean1D
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FV")
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FV", TEST_CASE=TEST_CASE)
 
         theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
 
@@ -208,6 +202,19 @@ class Ocean1dStratified():
                     uo_delta=u_delta, delta_sl_o=delta_sl,
                     to_delta=t_delta, univ_funcs_o=large_ocean(),
                     sf_scheme=sf_scheme, k=k)
+            if TEST_CASE == 1: # Comodo{WindInduced}
+                SL_a = SurfaceLayerData(.01, 0., None, None,
+                        0., None, None, 10., None, None, None)
+                SL = SurfaceLayerData(0.01/np.sqrt(self.rho0), 0.,
+                        .1, .1, 0., None, None, 0., self.M,
+                        sf_scheme, SL_a)
+            if TEST_CASE == 2: # Comodo{WindInduced}
+                SL_a = SurfaceLayerData(0., 0., None, None,
+                        0., None, None, 10., None, None, None)
+                SL = SurfaceLayerData(0./np.sqrt(self.rho0), 0., .1,
+                        .1, 0., None, None, 0., self.M,
+                        sf_scheme, SL_a)
+
             all_u_star += [SL.u_star]
 
             # Compute viscosities
@@ -256,6 +263,7 @@ class Ocean1dStratified():
     def FD(self, u_t0: array, theta_t0: array,
             solar_flux: array, heatloss: array,
             wind_10m: array, temp_10m: array,
+            TEST_CASE: int=0,
             turbulence: str="TKE", sf_scheme: str="FD pure",
             Neutral_case: bool=False, store_all: bool=False):
         """
@@ -294,7 +302,7 @@ class Ocean1dStratified():
                 else self.z_full[self.M-1]
         ###### Initialization #####
         import tkeOcean1D
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FD")
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FD", TEST_CASE=TEST_CASE)
         theta: array = np.copy(theta_t0)
         # Initializing viscosities and mixing lengths:
         Ku_full: array = self.Ku_min + np.zeros(self.M+1)
@@ -315,6 +323,19 @@ class Ocean1dStratified():
                     uo_delta=u_delta, delta_sl_o=delta_sl,
                     to_delta=t_delta, univ_funcs_o=large_ocean(),
                     sf_scheme=sf_scheme, k=self.M)
+
+            if TEST_CASE == 1: # Comodo{WindInduced}
+                SL_a = SurfaceLayerData(.01, 0., None, None,
+                        0., None, None, 10., None, None, None)
+                SL = SurfaceLayerData(0.01/np.sqrt(self.rho0),
+                        0., .1, .1, 0., None, None, 0., self.M,
+                        sf_scheme, SL_a)
+            if TEST_CASE == 2: # Comodo{WindInduced}
+                SL_a = SurfaceLayerData(0., 0., None, None,
+                        0., None, None, 10., None, None, None)
+                SL = SurfaceLayerData(0./np.sqrt(self.rho0),
+                        0., .1, .1, 0., None, None, 0., self.M,
+                        sf_scheme, SL_a)
             all_u_star += [SL.u_star]
 
             # Compute viscosities:

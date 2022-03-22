@@ -68,14 +68,14 @@ def fig_comodoParamsConstantCooling():
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
-            heatloss=heatloss, wind_10m=wind_10m,
+            heatloss=heatloss, wind_10m=wind_10m, TEST_CASE=2,
             temp_10m=temp_10m, sf_scheme="FV test")
     zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
             phi, theta, dz_theta, SL, ignore_loglaw=True)
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
-            u_t0=u_0, theta_t0=theta_0,
+            u_t0=u_0, theta_t0=theta_0, TEST_CASE=2,
             solar_flux=srflx, wind_10m=wind_10m,
             temp_10m=temp_10m, 
             heatloss=heatloss, sf_scheme="FD test")
@@ -115,13 +115,14 @@ def fig_comodoParamsWindInduced():
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.zeros(N+1)
-    wind_10m = np.ones(N+1) * 15. + 0j
+    wind_10m = np.ones(N+1) * 11.6 + 0j
     temp_10m = np.ones(N+1) * T0
 
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
+            TEST_CASE=1,
             heatloss=heatloss, wind_10m=wind_10m, temp_10m=temp_10m,
             sf_scheme="FV test")
     zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
@@ -129,7 +130,7 @@ def fig_comodoParamsWindInduced():
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
-            u_t0=u_0, theta_t0=theta_0,
+            u_t0=u_0, theta_t0=theta_0, TEST_CASE=1,
             solar_flux=srflx, wind_10m=wind_10m, temp_10m=temp_10m,
             heatloss=heatloss, sf_scheme="FD test")
 

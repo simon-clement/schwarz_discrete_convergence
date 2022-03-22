@@ -17,7 +17,7 @@ class TkeOcean1D:
         Integrates the TKE in time with self.integrate_tke(),
         yields the TKE with self.tke_full.
     """
-    def __init__(self, M, discretization="FV"):
+    def __init__(self, M, discretization="FV", TEST_CASE: int=0):
         """
             M: number of cells
             discretization: "FV" or "FD"
@@ -31,6 +31,7 @@ class TkeOcean1D:
         assert discretization in {"FV", "FD"}
         self.discretization: str = discretization
         self.Patankar = False
+        self.TEST_CASE = TEST_CASE
 
     def integrate_tke(self, ocean: oce1D.Ocean1dStratified,
             SL: oce1D.SurfaceLayerData,
@@ -87,8 +88,8 @@ class TkeOcean1D:
             [ -Ke_half[m] / ocean.h_half[m] / ocean.h_full[m] \
                     for m in range(1,self.M) ]))
 
-        if oce1D.TEST_CASE > 0:
-            ebb = 67.83
+        ebb = 67.83
+        if self.TEST_CASE > 0:
             e_sl = max(self.e0_min, ebb*np.abs(tau_m/ocean.rho0))
         e_bottom = max(self.e_min, ebb*tau_b)
 
@@ -146,8 +147,8 @@ class TkeOcean1D:
                 ocean.kappa / (-z_sl + SL.z_0M)
         e_sl = np.maximum(((l_eps[k:]/ocean.c_eps * \
                 (shear_sl - KN2_sl))**2)**(1/3), ocean.e_min)
-        if oce1D.TEST_CASE > 0:
-            ebb = 67.83
+        ebb = 67.83
+        if self.TEST_CASE > 0:
             e_sl = np.maximum(self.e0_min,
                     ebb*np.abs(tau_m/ocean.rho0)*np.ones_like(e_sl))
         e_top = e_sl[0]
