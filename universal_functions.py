@@ -10,28 +10,45 @@ This module defines several universal functions:
 import numpy as np
 
 def Large_et_al_2019():
-    fm = lambda zeta : np.cbrt(1-14*zeta)
-    fh = lambda zeta : np.cbrt(1-25*zeta)
     def phi_m(zeta):
-        return 5*zeta + 1 if zeta >= 0 else 1/fm(zeta)
+        Cm = np.cbrt(1-14*zeta)
+        return 5*zeta + 1 if zeta >= 0 else 1/Cm
     def phi_h(zeta):
-        return 5*zeta + 1 if zeta >= 0 else 1/fh(zeta)
+        Ch = np.cbrt(1-25*zeta)
+        return 5*zeta + 1 if zeta >= 0 else 1/Ch
     def psi_m(zeta):
+        Cm = np.cbrt(1-14*zeta)
         sq3 = np.sqrt(3)
-        return sq3 * np.arctan(sq3) - \
-                sq3 * np.arctan(sq3/3*(2*fm(zeta)+1)) + 1.5 * \
-                np.log((fm(zeta)**2 + fm(zeta) + 1)/3)
+        return -5*zeta if zeta >=0 else sq3 * np.arctan(sq3) - \
+                sq3 * np.arctan(sq3/3*(2*Cm+1)) + 1.5 * \
+                np.log((Cm**2 + Cm + 1)/3)
     def psi_h(zeta):
         sq3 = np.sqrt(3)
-        return sq3 * np.arctan(sq3) - \
-                sq3 * np.arctan(sq3/3*(2*fh(zeta)+1)) + 1.5 * \
-                np.log((fh(zeta)**2 + fh(zeta) + 1)/3)
-    Psi_m, Psi_h = None, None
+        Ch = np.cbrt(1-25*zeta)
+        return -5*zeta if zeta >=0 else sq3 * np.arctan(sq3) - \
+                sq3 * np.arctan(sq3/3*(2*Ch+1)) + 1.5 * \
+                np.log((Ch**2 + Ch + 1)/3)
+    def Psi_m(zeta):
+        Cm = np.cbrt(1-14*zeta)
+        sq3 = np.sqrt(3)
+        return -5*zeta/2 if zeta >=0 else sq3 * np.arctan(sq3) - \
+                sq3 * np.arctan(sq3/3*(2*Cm+1)) + 1.5 * \
+                np.log((Cm**2 + Cm + 1)/3) - (2*Cm+1)*(Cm-1) / \
+                2/(Cm**2 + Cm + 1)
+    def Psi_h(zeta):
+        sq3 = np.sqrt(3)
+        Ch = np.cbrt(1-25*zeta)
+        return -5*zeta/2 if zeta >=0 else sq3 * np.arctan(sq3) - \
+                sq3 * np.arctan(sq3/3*(2*Ch+1)) + 1.5 * \
+                np.log((Ch**2 + Ch + 1)/3) - (2*Ch+1)*(Ch-1) / \
+                2/(Ch**2 + Ch + 1)
+
     return (np.vectorize(phi_m, otypes=[float]),
             np.vectorize(phi_h, otypes=[float]),
             np.vectorize(psi_m, otypes=[float]),
             np.vectorize(psi_h, otypes=[float]),
-            Psi_m, Psi_h)
+            np.vectorize(Psi_m, otypes=[float]),
+            np.vectorize(Psi_h, otypes=[float]))
 
 def Businger_et_al_1971():
     fm = lambda zeta : (1-15*zeta)**(1/4)
