@@ -223,7 +223,7 @@ class Ocean1dStratified():
                     old_phi=old_phi, l_m=l_m, l_eps=l_eps,
                     K_full=Ku_full, tke=tke,
                     dz_theta=dz_theta, Ktheta_full=Ktheta_full,
-                    universal_funcs=businger(),
+                    universal_funcs=large_ocean(),
                     ignore_tke_sl=ignore_tke_sl, tau_b=0.)
 
             old_phi = phi
@@ -343,7 +343,7 @@ class Ocean1dStratified():
                     u_current=u_current, old_u=old_u,
                     K_full=Ku_full, tke=tke, theta=theta,
                     Ktheta_full=Ktheta_full, l_m=l_m, l_eps=l_eps,
-                    universal_funcs=businger(), tau_b=0.)
+                    universal_funcs=large_ocean(), tau_b=0.)
 
             # integrate in time momentum:
             Y, D, c = self.__matrices_u_FD(Ku_full, forcing[n])
@@ -364,7 +364,7 @@ class Ocean1dStratified():
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
                         K_theta=Ktheta_full, forcing_theta=forcing_theta,
-                        universal_funcs=businger(),
+                        universal_funcs=large_ocean(),
                         Q0=heatloss[n],
                         Qs=solar_flux[n]*self.rho0*self.C_p)
 
@@ -403,7 +403,7 @@ class Ocean1dStratified():
         self.__apply_sf_scheme(\
                 func=func_YDc, Y=Y, D=D, c=c, K_u=Ku_full,
                 forcing=forcing, SL=SL, SL_nm1=SL_nm1, Y_nm1=Y_nm1,
-                universal_funcs=businger())
+                universal_funcs=large_ocean())
 
         prognostic = self.__backward_euler(Y=Y, D=D, c=c,
                 u=prognostic, f=self.f, Y_nm1=Y_nm1)
@@ -445,7 +445,7 @@ class Ocean1dStratified():
                 func=self.dictsf_scheme_theta[SL.sf_scheme][1],
                 Y=Y_theta, D=D_theta, c=c_theta, Y_nm1=Y_nm1,
                 K_theta=Ktheta_full, forcing_theta=forcing_theta,
-                universal_funcs=businger(), SL=SL, SL_nm1=SL_nm1,
+                universal_funcs=large_ocean(), SL=SL, SL_nm1=SL_nm1,
                 Q0=heatloss,
                 Qs=solar_flux*self.rho0*self.C_p)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
@@ -463,7 +463,7 @@ class Ocean1dStratified():
                     prognostic_theta[SL.k]/Ktheta_full[SL.k+1:]))
         func_theta, _ = self.dictsf_scheme_theta[SL.sf_scheme]
         t_delta: float = func_theta(prognostic=prognostic_theta,
-                universal_funcs=businger(), SL=SL)
+                universal_funcs=large_ocean(), SL=SL)
         return next_theta, dz_theta
 
     def __mixing_lengths(self, tke: array, dzu2: array, N2: array,
@@ -553,11 +553,11 @@ class Ocean1dStratified():
         # we get the MOST profiles)
         z_log: array = np.geomspace(z_min, delta_sl, 20)
 
-        _, _, psi_m, psi_h, *_ = businger()
+        _, _, psi_m, psi_h, *_ = large_ocean()
 
         func_un, _ = self.dictsf_scheme[SL.sf_scheme]
         u_delta: complex = func_un(prognostic=prognostic,
-                SL=SL, universal_funcs=businger())
+                SL=SL, universal_funcs=large_ocean())
 
         Pr = 1.# 4.8/7.8
         u_log: complex = u_star/self.kappa * \
@@ -581,7 +581,7 @@ class Ocean1dStratified():
             tilde_h = self.z_full[k1+1] - delta_sl
             assert 0 < tilde_h <= self.h_half[k1]
             xi = np.linspace(-tilde_h/2, tilde_h/2, 15)
-            tau_slu, tau_slt = self.__tau_sl(SL, businger())
+            tau_slu, tau_slt = self.__tau_sl(SL, large_ocean())
             alpha_slu = tilde_h/self.h_half[k1] + tau_slu
             alpha_slt = tilde_h/self.h_half[k1] + tau_slt
 
@@ -1028,6 +1028,32 @@ class Ocean1dStratified():
                 swdk2 = 0.
             swr_frac[k]=swdk1+swdk2
         return swr_frac
+
+    def __tau_sl(self, SL: SurfaceLayerData,
+            universal_funcs) -> (float, float):
+        delta_sl, inv_L_MO = SL.delta_sl, SL.inv_L_MO
+        _, _, psi_m, psi_h, Psi_m, Psi_h = universal_funcs
+        assert self.z_full[SL.k-1] < delta_sl
+        assert delta_sl <= self.z_full[SL.k]
+        zk = self.z_full[SL.k]
+        def brackets_u(z):
+            return (-z+SL.z_0M)*np.log(1-z/SL.z_0M) + z - \
+                    z*Psi_m(-z*inv_L_MO)
+        def brackets_theta(z):
+            return (-z+SL.z_0H)*np.log(1-z/SL.z_0H) + z - \
+                    z*Psi_h(-z*inv_L_MO)
+        denom_u = np.log(1-delta_sl/SL.z_0M) \
+                - psi_m(-delta_sl*inv_L_MO)
+        denom_theta = np.log(1-delta_sl/SL.z_0H)\
+                - psi_h(-delta_sl*inv_L_MO)
+
+        tau_slu = (brackets_u(zk) - brackets_u(delta_sl)) / \
+                self.h_half[SL.k-1] / denom_u
+        tau_slt = (brackets_theta(zk) -brackets_theta(delta_sl)) / \
+                self.h_half[SL.k-1] / denom_theta
+
+        return tau_slu, tau_slt
+
 
     ####### DEFINITION OF SF SCHEMES : VALUE OF u(delta_sl) #####
     # The method must use the prognostic variables and delta_sl
