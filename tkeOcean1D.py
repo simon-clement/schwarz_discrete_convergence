@@ -17,10 +17,13 @@ class TkeOcean1D:
         Integrates the TKE in time with self.integrate_tke(),
         yields the TKE with self.tke_full.
     """
-    def __init__(self, M, discretization="FV", TEST_CASE: int=0):
+    def __init__(self, M, discretization="FV",
+            TEST_CASE: int=0, ignore_sl: bool=True):
         """
             M: number of cells
             discretization: "FV" or "FD"
+            ignore_sl: if there's a special treatment of FV free,
+                put ignore_sl to False.
         """
         self.e_min: float = 1e-6 # min value of tke
         self.e0_min: float = 1e-4 # min value of surface tke
@@ -32,6 +35,7 @@ class TkeOcean1D:
         self.discretization: str = discretization
         self.Patankar = False
         self.TEST_CASE = TEST_CASE
+        self.ignore_sl = ignore_sl
 
     def integrate_tke(self, ocean: oce1D.Ocean1dStratified,
             SL: oce1D.SurfaceLayerData,
@@ -57,7 +61,7 @@ class TkeOcean1D:
             buoy_half = full_to_half(Ktheta_full*N2_full)
             shear_half = full_to_half(shear)
             self.__integrate_tke_FV(ocean, shear_half, K_full,
-                SL, l_eps, buoy_half, True,
+                SL, l_eps, buoy_half, self.ignore_sl,
                 universal_funcs, tau_m, tau_b)
 
     def __integrate_tke_FD(self, ocean: oce1D.Ocean1dStratified,
@@ -152,6 +156,9 @@ class TkeOcean1D:
         ebb = 67.83
         if self.TEST_CASE > 0:
             e_sl = np.maximum(self.e0_min,
+                    ebb*np.abs(tau_m/ocean.rho0)*np.ones_like(e_sl))
+        else:
+            e_sl = np.maximum(self.e0_min, # this accounts for waves
                     ebb*np.abs(tau_m/ocean.rho0)*np.ones_like(e_sl))
         e_top = e_sl[0]
         e_bottom = np.maximum(self.e_min, ebb*tau_b)

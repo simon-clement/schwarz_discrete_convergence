@@ -182,9 +182,11 @@ class Ocean1dStratified():
                 sf_scheme=sf_scheme, k=k)
 
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
+        ignore_tke_sl = True
 
         import tkeOcean1D
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FV", TEST_CASE=TEST_CASE)
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
+                TEST_CASE=TEST_CASE, ignore_sl=ignore_tke_sl)
 
         theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
 
@@ -467,7 +469,6 @@ class Ocean1dStratified():
         """
         prognostic_theta: array = np.concatenate((
             dz_theta[0:SL.k+1], theta[SL.k-1:]))
-        assert theta[SL.k-1:].shape[0] == 1
         Y_theta, D_theta, c_theta = self.__matrices_theta_FV(
                 Ktheta_full, forcing_theta)
         Y_nm1 = tuple(np.copy(y) for y in Y_theta)
@@ -483,9 +484,11 @@ class Ocean1dStratified():
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
                 Y_nm1=Y_nm1))
 
-        next_theta = theta + self.dt * \
-                np.diff(prognostic_theta[:-1] * Ktheta_full) \
-                / self.h_half[:-1] + forcing_theta
+        next_theta = np.zeros_like(theta)
+        next_theta[:SL.k] = theta[:SL.k] + self.dt * \
+                np.diff(prognostic_theta[:SL.k+1] * \
+                        Ktheta_full[:SL.k+1]) \
+                        / self.h_half[:SL.k] + forcing_theta[:SL.k]
 
         next_theta[SL.k-1:] = prognostic_theta[SL.k+1:]
         dz_theta = prognostic_theta[:SL.k+1]
@@ -529,6 +532,8 @@ class Ocean1dStratified():
         # limiting l_up with the distance to the surface:
         for j in range(self.M - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
+        # molecular diffusivity at z0:
+        l_up[self.M] = self.mxl_min
 
         l_m = np.sqrt(l_up*l_down)
         l_eps = np.minimum(l_down, l_up)
@@ -720,7 +725,6 @@ class Ocean1dStratified():
                     self.C_m * apdlr * l_m * np.sqrt(tke.tke_full))
             Ku_full: array = np.maximum(self.Ku_min,
                     self.C_m * l_m * np.sqrt(tke.tke_full))
-
         else:
             raise NotImplementedError("Wrong turbulence scheme")
         return Ku_full, Ktheta_full
@@ -873,11 +877,11 @@ class Ocean1dStratified():
                 phi_m, phi_h, *_ = large_ocean()
                 # TODO remark that we don't need this,
                 # we need to adjust l_m, l_eps to ensure this.
-                K_full[SL.k] = (self.kappa * \
+                K_full_replacement = (self.kappa * \
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
                        phi_m(-SL.delta_sl*SL.inv_L_MO)
-                Ktheta_full[SL.k] = (self.kappa * \
+                Ktheta_full_replacement = (self.kappa * \
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
                        phi_h(-SL.delta_sl*SL.inv_L_MO)
@@ -993,7 +997,7 @@ class Ocean1dStratified():
             guaranteed.
         """
         k = bisect.bisect_left(self.z_full, delta_sl_o)
-        k_const = k-4
+        k_const = k-1 # change it if high-resolution
         # For high-res simulation, putting a quadratic profile
         #  between MOST and the constant profile :
         def func_z(z):
