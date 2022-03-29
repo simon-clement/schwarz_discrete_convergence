@@ -440,11 +440,12 @@ class Ocean1dStratified():
         prognostic = self.__backward_euler(Y=Y, D=D, c=c,
                 u=prognostic, f=self.f, Y_nm1=Y_nm1)
 
-        next_u = 1/(1+self.dt*1j*self.f*self.implicit_coriolis) * \
+        next_u = np.zeros_like(u)
+        next_u[:SL.k] = 1/(1+self.dt*1j*self.f*self.implicit_coriolis) * \
                 ((1 - self.dt*1j*self.f*(1-self.implicit_coriolis)) * \
-                u + self.dt * \
-                (np.diff(prognostic[:-1] * Ku_full) / self.h_half[:-1] \
-                + forcing))
+                u[:SL.k] + self.dt * \
+                (np.diff(prognostic[:SL.k+1] * Ku_full[:SL.k+1]) / self.h_half[:SL.k] \
+                + forcing[:SL.k]))
 
         next_u[SL.k-1:] = prognostic[SL.k+1:]
         phi = prognostic[:SL.k+1]
@@ -1344,8 +1345,11 @@ class Ocean1dStratified():
                         K_u[k] / tilde_h, 1.),#DIAG
                 (K_u[k] / tilde_h / self.h_full[k-1], 0.))#UPPER DIAG
 
-        rhs_part_tilde = (SL.u_zM * (1 - alpha)/alpha - \
-                SL_nm1.u_zM *(1-alpha_nm1)/alpha_nm1)/self.dt
+        rhs_n = SL.u_zM * (1 - alpha)/alpha
+        rhs_nm1 = SL_nm1.u_zM * (1 - alpha_nm1)/alpha_nm1
+        rhs_part_tilde = (rhs_n - rhs_nm1)/self.dt + 1j*self.f * \
+                (self.implicit_coriolis*rhs_n + \
+                (1 - self.implicit_coriolis) * rhs_nm1)
         c = ( (forcing[k-1] - forcing[k-2])/self.h_full[k-1],
                 forcing[k-1] + rhs_part_tilde, -SL.u_zM)
 
@@ -1557,8 +1561,9 @@ class Ocean1dStratified():
                         K_theta[k] / tilde_h, 1.),#DIAG
                 (K_theta[k] / tilde_h / self.h_full[k-1], 0.))#UPPER DIAG
 
-        rhs_part_tilde = (SL.t_zM * (1 - alpha)/alpha - \
-                SL_nm1.t_zM *(1-alpha_nm1)/alpha_nm1)/self.dt
+        rhs_n = SL.t_zM * (1 - alpha)/alpha
+        rhs_nm1 = SL_nm1.t_zM * (1 - alpha_nm1)/alpha_nm1
+        rhs_part_tilde = (rhs_n - rhs_nm1)/self.dt
         c = ( (forcing_theta[k-1] - forcing_theta[k-2])/self.h_full[k-1],
                 forcing_theta[k-1] + rhs_part_tilde,
                 -SL.t_zM - alpha / ch_du * Qs / self.rho0 / self.C_p)
