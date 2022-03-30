@@ -789,7 +789,7 @@ def fig_RobinTwoSided():
     modified = optimal_robin_parameter(setting, modified_FD, axis_freq,
             overlap_L=0, k_c=k_c)
     ax.scatter(*cont.x, marker=symb_cont, alpha=1., s=size_symb, c=col_cont_discop,
-            label="Continuous (disc. op.): {:.3f}".format(callrho(rho_Pade_FD,
+            label="CDTO: {:.3f}".format(callrho(rho_Pade_FD,
                 cont.x, overlap_M=overlap_M, k_c=k_c)))
     ax.scatter(*modified.x, marker=symb_modified, alpha=1., s=size_symb, edgecolors=col_modified, facecolors="none", linewidth=2.,
             label="Modified: {:.3f}".format(callrho(rho_Pade_FD,
@@ -970,7 +970,7 @@ def fig_dependency_maxrho_modified():
     modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2, w=axis_freq,
         overlap_L=overlap_M*h, continuous_interface_op=False, k_c=k_c) for p in all_p1]
     lab_cont = ax.plot(all_p1, continuous, lw=lw_important,
-            label="Continuous (disc. op.)", color=col_cont_discop, zorder=0)
+            label="CDTO", color=col_cont_discop, zorder=0)
     lab_discrete = ax.plot(all_p1, discrete, lw=lw_important,
             label="S-d space",color=col_sdspace, zorder=0)
     lab_modified = ax.plot(all_p1, modified_in_space, "--",
@@ -1127,7 +1127,7 @@ def fig_modif_space():
     theta = optimal_DNWR_parameter(setting, DNWR_c_FD, axis_freq, k_c=k_c).x
 
     ax.semilogx(axis_freq, np.abs(DNWR_c_c(setting, w=axis_freq, theta=theta)), label="Continuous", color=col_cont)
-    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, w=axis_freq, s_1=1j*axis_freq, s_2=1j*axis_freq, theta=theta, continuous_interface_op=False, k_c=k_c)), label="Continuous (disc. op.)", color=col_cont_discop)
+    ax.semilogx(axis_freq, np.abs(DNWR_s_c(setting, w=axis_freq, s_1=1j*axis_freq, s_2=1j*axis_freq, theta=theta, continuous_interface_op=False, k_c=k_c)), label="CDTO", color=col_cont_discop)
     modified_in_space = np.abs(DNWR_s_c(setting, w=axis_freq, s_1=s_modified1, s_2=s_modified2, theta=theta, continuous_interface_op=False, k_c=k_c))
     ax.semilogx(axis_freq, np.abs(DNWR_c_FD(setting, axis_freq, theta=theta, k_c=k_c)), label="Semi-discrete in space", color=col_sdspace)
     ax.semilogx(axis_freq, modified_in_space, "--", label="Modified in space", color=col_modified)
