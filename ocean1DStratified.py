@@ -440,7 +440,7 @@ class Ocean1dStratified():
         prognostic = self.__backward_euler(Y=Y, D=D, c=c,
                 u=prognostic, f=self.f, Y_nm1=Y_nm1)
 
-        next_u = np.zeros_like(u)
+        next_u = np.zeros_like(u) + 0j
         next_u[:SL.k] = 1/(1+self.dt*1j*self.f*self.implicit_coriolis) * \
                 ((1 - self.dt*1j*self.f*(1-self.implicit_coriolis)) * \
                 u[:SL.k] + self.dt * \
@@ -1099,12 +1099,13 @@ class Ocean1dStratified():
         for _ in range(12):
             uo_star, to_star = lambda_u*u_star, lambda_t*t_star
             inv_L_a = 9.81 * self.kappa * t_star \
-                    / ta_delta / u_star**2
+                    / (ta_delta+273) / u_star**2
             inv_L_o = 9.81 * self.kappa * alpha_eos * \
                     to_star / uo_star**2
             za_0M = za_0H = self.K_mol / self.kappa / u_star / mu_m
             zo_0M = zo_0H = self.K_mol / self.kappa / uo_star
-            zeta_a, zeta_o = delta_sl_a*inv_L_a, -delta_sl_o*inv_L_o
+            zeta_a = np.clip(delta_sl_a*inv_L_a, -50., 50.)
+            zeta_o = np.clip(-delta_sl_o*inv_L_o, -50., 50.)
             # Pelletier et al, 2021, equations 31, 32:
             rhs_31 = np.log(1+delta_sl_a/za_0M) - psim_a(zeta_a) + \
                     lambda_u * (np.log(1-delta_sl_o/zo_0M) - \
@@ -1113,14 +1114,14 @@ class Ocean1dStratified():
                     lambda_t * (np.log(1-delta_sl_o/zo_0M) - \
                         psis_o(zeta_o))
 
-            Cd    = self.kappa**2 / rhs_31**2
-            Ch    = self.kappa * np.sqrt(Cd) / rhs_32
-            u_star = np.sqrt(Cd) * np.abs(ua_delta-uo_delta)
-            t_star = ( Ch / np.sqrt(Cd) ) * (ta_delta - to_delta)
+            sqrt_Cd    = self.kappa / rhs_31
+            Ch    = self.kappa * sqrt_Cd / rhs_32
+            u_star = np.abs(sqrt_Cd) * np.abs(ua_delta-uo_delta)
+            t_star = ( Ch / np.abs(sqrt_Cd)) * (ta_delta - to_delta)
 
         uo_star, to_star = lambda_u*u_star, lambda_t*t_star
         inv_L_a = 9.81 * self.kappa * t_star \
-                    / ta_delta / u_star**2
+                    / (ta_delta+273.) / u_star**2
         inv_L_o = 9.81 * self.kappa * alpha_eos * \
                 to_star / uo_star**2
         za_0M = za_0H = self.K_mol / self.kappa / u_star / mu_m
@@ -1591,4 +1592,3 @@ class Ocean1dStratified():
         c = np.concatenate((c, SL.t_zM * \
                 (self.h_half[k:-1] - ratio_norms)))
         return Y, D, c, Y_nm1
-

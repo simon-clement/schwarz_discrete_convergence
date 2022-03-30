@@ -17,7 +17,7 @@ import figures_unstable
 from fortran.visu import import_data
 from validation_oce1D import fig_comodoParamsConstantCooling
 from validation_oce1D import fig_comodoParamsWindInduced
-from validation_oce1D import fig_windInduced
+from validation_oce1D import fig_windInduced, fig_constantCooling
 
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
