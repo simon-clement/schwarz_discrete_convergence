@@ -836,11 +836,11 @@ def fig_dependency_maxrho_combined():
         theta, k_c=k_c))) for theta in all_theta])
     continuous = [np.max(np.abs(DNWR_c_c(setting, axis_freq, theta))) for theta in all_theta]
     combined = [np.max(np.abs(combined_Pade_DNWR(setting, axis_freq, theta, k_c=k_c))) for theta in all_theta]
-    ax.plot(all_theta, continuous, lw=lw_important, color=col_cont)
-    ax.plot(all_theta, discrete, lw=lw_important, color=col_discrete)
-    ax.plot(all_theta, combined, "--", lw=lw_important, color=col_combined)
-    ax.plot(all_theta, semidiscrete_space, "--", color=col_sdspace)
-    ax.plot(all_theta, semidiscrete_time, "--", color=col_sdtime)
+    ax.plot(all_theta, continuous, lw=lw_important, color=col_cont, zorder=0)
+    ax.plot(all_theta, discrete, lw=lw_important, color=col_discrete, zorder=0)
+    ax.plot(all_theta, combined, "--", lw=lw_important, color=col_combined, zorder=0)
+    ax.plot(all_theta, semidiscrete_space, "--", color=col_sdspace, zorder=0)
+    ax.plot(all_theta, semidiscrete_time, "--", color=col_sdtime, zorder=0)
     minima_indices = [np.argmin(continuous), np.argmin(discrete),
             np.argmin(combined), np.argmin(semidiscrete_space), np.argmin(semidiscrete_time)]
     col_minimas = [col_cont, col_discrete, col_combined, col_sdspace, col_sdtime]
@@ -848,7 +848,8 @@ def fig_dependency_maxrho_combined():
     ax.vlines(x=all_theta[minima_indices], ymin=ymin, ymax=ymax, colors=col_minimas, linestyle="dotted")
     size_symb = 80
     ax.scatter(x=all_theta[minima_indices], s=size_symb,
-            y=discrete[minima_indices], c=col_minimas, marker='+')
+            y=discrete[minima_indices], c=col_minimas,
+            marker='x', zorder=1)
 
     ax.set_xlabel(r"$\theta$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
@@ -872,11 +873,11 @@ def fig_dependency_maxrho_combined():
     combined = [maxrho(combined_Pade, p, overlap_M=overlap_M,
         k_c=k_c, axis_freq=axis_freq) for p in all_p1]
 
-    ax.plot(all_p1, continuous, label="Continuous", lw=lw_important, color=col_cont)
-    ax.plot(all_p1, discrete, lw=lw_important, label="Discrete", color=col_discrete)
-    ax.plot(all_p1, combined, "--", lw=lw_important, label="Combined", color=col_combined)
-    ax.plot(all_p1, semidiscrete_space, "--", label="S-d space", color=col_sdspace)
-    ax.plot(all_p1, semidiscrete_time, "--", label="S-d time", color=col_sdtime)
+    ax.plot(all_p1, continuous, label="Continuous", lw=lw_important, color=col_cont, zorder=0)
+    ax.plot(all_p1, discrete, lw=lw_important, label="Discrete", color=col_discrete, zorder=0)
+    ax.plot(all_p1, combined, "--", lw=lw_important, label="Combined", color=col_combined, zorder=0)
+    ax.plot(all_p1, semidiscrete_space, "--", label="S-d space", color=col_sdspace, zorder=0)
+    ax.plot(all_p1, semidiscrete_time, "--", label="S-d time", color=col_sdtime, zorder=0)
     minima_indices = [np.argmin(continuous), np.argmin(discrete),
             np.argmin(combined), np.argmin(semidiscrete_space), np.argmin(semidiscrete_time)]
     col_minimas = [col_cont, col_discrete, col_combined, col_sdspace, col_sdtime]
@@ -884,13 +885,14 @@ def fig_dependency_maxrho_combined():
     ax.vlines(x=all_p1[minima_indices], ymin=ymin, ymax=ymax,
             colors=col_minimas, linestyle="dotted")
     ax.scatter(x=all_p1[minima_indices], s=size_symb,
-            y=discrete[minima_indices], c=col_minimas, marker='+')
+            y=discrete[minima_indices], c=col_minimas,
+            marker='x', zorder=1)
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     ax.set_title(r"$RR$")
     lab_dotted = ax.vlines(x=[], ymin=ymin, ymax=ymax, colors="k",
             linestyle="dotted", label="Optimized parameter")
-    lab_scatter = ax.scatter(x=[], y=[], c="k", marker='+',
+    lab_scatter = ax.scatter(x=[], y=[], c="k", marker='x',
             label="Actual convergence rates")
 
     print("p1: continuous: {:.4f}, discrete :{:.4f}, combined:{:.4f}, s-d space:{:.4f}, s-d time:{:.4f}".format(*all_p1[minima_indices]))
@@ -935,9 +937,9 @@ def fig_dependency_maxrho_modified():
         theta=theta, continuous_interface_op=False, k_c=k_c))) for theta in all_theta]
     modified_in_space = [np.max(np.abs(DNWR_s_c(setting, s_modified1, s_modified2, w=axis_freq,
         theta=theta, continuous_interface_op=False, k_c=k_c))) for theta in all_theta]
-    ax.plot(all_theta, continuous, lw=lw_important, color=col_cont_discop)
-    ax.plot(all_theta, discrete, lw=lw_important, color=col_sdspace)
-    ax.plot(all_theta, modified_in_space, "--", lw=lw_important, color=col_modified)
+    ax.plot(all_theta, continuous, lw=lw_important, color=col_cont_discop, zorder=0)
+    ax.plot(all_theta, discrete, lw=lw_important, color=col_sdspace, zorder=0)
+    ax.plot(all_theta, modified_in_space, "--", lw=lw_important, color=col_modified, zorder=0)
     ax.set_xlabel(r"$\theta$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
     minima_indices = [np.argmin(discrete), np.argmin(continuous), np.argmin(modified_in_space)]
@@ -947,7 +949,7 @@ def fig_dependency_maxrho_modified():
 
     size_symb = 80
     ax.scatter(x=all_theta[minima_indices], s=size_symb,
-            y=discrete[minima_indices], c=col_minimas, marker='+')
+            y=discrete[minima_indices], c=col_minimas, marker='x', zorder=1)
 
     ax.set_title("DNWR")
     print("thetas: s-d space: {:.4f}, continuous :{:.4f}, modified:{:.4f}".format(*all_theta[minima_indices]))
@@ -968,24 +970,24 @@ def fig_dependency_maxrho_modified():
     modified_in_space = [maxrho(rho_s_c, p, s_1=s_modified1, s_2=s_modified2, w=axis_freq,
         overlap_L=overlap_M*h, continuous_interface_op=False, k_c=k_c) for p in all_p1]
     lab_cont = ax.plot(all_p1, continuous, lw=lw_important,
-            label="Continuous (disc. op.)", color=col_cont_discop)
+            label="Continuous (disc. op.)", color=col_cont_discop, zorder=0)
     lab_discrete = ax.plot(all_p1, discrete, lw=lw_important,
-            label="S-d space",color=col_sdspace)
+            label="S-d space",color=col_sdspace, zorder=0)
     lab_modified = ax.plot(all_p1, modified_in_space, "--",
-            lw=lw_important, label="Modified",color=col_modified)
+            lw=lw_important, label="Modified",color=col_modified, zorder=0)
     minima_indices = [np.argmin(discrete), np.argmin(continuous), np.argmin(modified_in_space)]
     col_minimas = [col_sdspace, col_cont_discop, col_modified]
     ymin, ymax = ax.get_ylim()
     lab_dotted = ax.vlines(x=all_p1[minima_indices],
             ymin=ymin, ymax=ymax,
-            colors=col_minimas, linestyle="dotted")
+            colors=col_minimas, linestyle="dotted", zorder=1)
 
     ax.scatter(x=all_p1[minima_indices], s=size_symb,
-            y=discrete[minima_indices], c=col_minimas, marker='+')
+            y=discrete[minima_indices], c=col_minimas, marker='x')
 
     lab_dotted = ax.vlines(x=[], ymin=ymin, ymax=ymax,
             colors="k", linestyle="dotted", label="Optimized parameter")
-    lab_scatter = ax.scatter(x=[], y=[], c="k", marker='+', label="Actual convergence rate")
+    lab_scatter = ax.scatter(x=[], y=[], c="k", marker='x', label="Actual convergence rate")
 
     ax.set_xlabel(r"$p_1 = -p_2$")
     ax.set_ylabel(r"$\max_\omega (\rho)$")
