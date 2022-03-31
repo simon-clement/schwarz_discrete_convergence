@@ -9,7 +9,7 @@ import bisect
 import numpy as np
 from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
-from utils_linalg import solve_linear
+from utils_linalg import solve_linear, orientation
 from utils_linalg import full_to_half
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
@@ -26,6 +26,8 @@ class SurfaceLayerData(NamedTuple):
     inv_L_MO: float # inverse of Obukhov length:
     u_delta: complex # value of u at z=delta_sl
     t_delta: float # value of theta at z=delta_sl
+    u_zM: complex # value of u at z=z_M (surface)
+    t_zM: float # value of theta at z=z_M (surface)
     delta_sl: float # Depth of the Surface Layer (<0)
     k: int # index for which z_k < delta_sl < z_{k+1}
     sf_scheme: str # Name of the surface flux scheme
@@ -96,7 +98,9 @@ class Ocean1dStratified():
                 "FV1" : (self.__sf_udelta_FV1,
                                 self.__sf_YDc_FV1),
                 "FV test" : (self.__sf_udelta_FVtest,
-                                self.__sf_YDc_FVtest)}
+                                self.__sf_YDc_FVtest),
+                "FV free" : (self.__sf_udelta_FVfree,
+                                self.__sf_YDc_FVfree)}
         self.dictsf_scheme_theta = {
                 "FD pure" : (self.__sf_thetadelta_FDpure,
                                 self.__sf_YDc_FDpure_theta),
@@ -109,13 +113,16 @@ class Ocean1dStratified():
                 "FV1" : (self.__sf_thetadelta_FV1,
                                 self.__sf_YDc_FV1_theta),
                 "FV test" : (self.__sf_thetadelta_FVtest,
-                                self.__sf_YDc_FVtest_theta)
+                                self.__sf_YDc_FVtest_theta),
+                "FV free" : (self.__sf_thetadelta_FVfree,
+                                self.__sf_YDc_FVfree_theta)
                 }
 
     def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
             dz_theta_t0: array, solar_flux: array,
+            u_delta: float, t_delta: float,
             heatloss: array, wind_10m: array, temp_10m: array,
-            delta_sl: float=0., TEST_CASE: int=0,
+            delta_sl: float=None, TEST_CASE: int=0,
             sf_scheme: str="FV test", Neutral_case: bool=False,
             turbulence: str="TKE", store_all: bool=False):
         """
@@ -126,8 +133,11 @@ class Ocean1dStratified():
             phi_t0: derivative of u (given at self.z_full)
             theta_t0: average of cells (centered like u_t0)
             dz_theta_t0: derivative of theta (given like phi_t0)
+            u_delta: for FV free, it is necessay to have u(delta)
+            t_delta: for FV free, it is necessay to have theta(delta)
             solar_flux: SW radiation (from the sun) Qs/(rho0 Cp)
-            heatloss: Heat transfer at surface Q_0(t)
+            heatloss: Heat transfer at surface Q_0(t) that
+                can override t*u* in {FD, FV} test
             wind_10m, temp_10m: wind, temperature at 10m in atmosphere
             delta_sl: height of the surface layer.
                 Make sure it is coherent with sf_scheme.
@@ -147,6 +157,9 @@ class Ocean1dStratified():
         assert phi_t0.shape[0] == self.M + 1
         assert sf_scheme in self.dictsf_scheme_theta
         assert sf_scheme in self.dictsf_scheme
+        if delta_sl is None:
+            delta_sl = self.z_full[-2] if sf_scheme == "FV2" \
+                    else self.z_half[-2]
         if sf_scheme in {"FV2",}:
             assert abs(delta_sl - self.z_full[-2]) < 1e-10
         elif sf_scheme in {"FV1", "FV pure"}:
@@ -155,9 +168,7 @@ class Ocean1dStratified():
         N: int = wind_10m.shape[0] - 1 # number of time steps
         assert temp_10m.shape[0] == N + 1
         assert solar_flux.shape[0] == N + 1
-        assert heatloss.shape[0] == N + 1
-        func_un, _ = self.dictsf_scheme[sf_scheme]
-        func_theta, _ = self.dictsf_scheme_theta[sf_scheme]
+        assert heatloss is None or heatloss.shape[0] == N + 1
 
         forcing = 1j*self.u_g*np.ones((N+1, self.M))
 
@@ -166,8 +177,8 @@ class Ocean1dStratified():
         SL = self.__friction_scales(ua_delta=wind_10m[0],
                 delta_sl_a=10., ta_delta=temp_10m[0],
                 univ_funcs_a=businger(),
-                uo_delta=u_t0[-1], delta_sl_o=delta_sl,
-                to_delta=theta_t0[-1], univ_funcs_o=large_ocean(),
+                uo_delta=u_delta, delta_sl_o=delta_sl,
+                to_delta=t_delta, univ_funcs_o=large_ocean(),
                 sf_scheme=sf_scheme, k=k)
 
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
@@ -194,8 +205,6 @@ class Ocean1dStratified():
         for n in range(1,N+1):
             # Compute friction scales:
             SL_nm1 = SL
-            u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
-            t_delta = func_theta(prognostic=theta)
             SL = self.__friction_scales(ua_delta=wind_10m[n],
                     delta_sl_a=10., ta_delta=temp_10m[n],
                     univ_funcs_a=businger(),
@@ -204,16 +213,17 @@ class Ocean1dStratified():
                     sf_scheme=sf_scheme, k=k)
             if TEST_CASE == 1: # Comodo{WindInduced}
                 SL_a = SurfaceLayerData(.01*np.sqrt(self.rho0), 0.,
-                        None, None, 0., None, None, 10., None, None,
-                        None)
+                        None, None, 0., None, None, None, None, 10.,
+                        None, None, None)
                 SL = SurfaceLayerData(0.01, 0.,
-                        .1, .1, 0., None, None, 0., self.M,
-                        sf_scheme, SL_a)
-            if TEST_CASE == 2: # Comodo{WindInduced}
+                        .1, .1, 0., None, None, None, None,
+                        0., self.M, sf_scheme, SL_a)
+            if TEST_CASE == 2: # Comodo{ConstantCooling}
                 SL_a = SurfaceLayerData(0., 0., None, None,
-                        0., None, None, 10., None, None, None)
+                        0., None, None, None, None,
+                        10., None, None, None)
                 SL = SurfaceLayerData(0./np.sqrt(self.rho0), 0., .1,
-                        .1, 0., None, None, 0., self.M,
+                        .1, 0., None, None, None, None, 0., self.M,
                         sf_scheme, SL_a)
 
             all_u_star += [SL.u_star]
@@ -239,9 +249,24 @@ class Ocean1dStratified():
                 forcing_theta = swr_frac * solar_flux[n]
                 # forcing_theta[-1] =  solar_flux[n] - \
                 #         heatloss[n]/self.rho0/self.C_p
+                Q0 = SL.t_star*SL.u_star if heatloss is None \
+                        else heatloss[n]
                 theta, dz_theta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
-                        SL, SL_nm1, solar_flux[n], heatloss[n])
+                        SL, SL_nm1, solar_flux[n], Q0)
+
+            # Refreshing u_delta, t_delta for next friction scales:
+            func_un, _ = self.dictsf_scheme[sf_scheme]
+            func_theta, _ = self.dictsf_scheme_theta[sf_scheme]
+            prognostic_u: array = np.concatenate((phi[0:SL.k+1],
+                u_current[SL.k-1:]))
+            prognostic_theta: array = np.concatenate((dz_theta[0:SL.k+1],
+                theta[SL.k-1:]))
+            u_delta = func_un(prognostic=prognostic_u,
+                    delta_sl=delta_sl, SL=SL,
+                    universal_funcs=large_ocean())
+            t_delta = func_theta(prognostic=prognostic_theta, SL=SL,
+                    universal_funcs=large_ocean())
 
             if store_all:
                 ret_u_current += [np.copy(u_current)]
@@ -292,7 +317,7 @@ class Ocean1dStratified():
         N: int = wind_10m.shape[0] - 1 # number of time steps
         assert solar_flux.shape[0] == N + 1
         assert temp_10m.shape[0] == N + 1
-        assert heatloss.shape[0] == N + 1
+        assert heatloss is None or heatloss.shape[0] == N + 1
 
         forcing = 1j*self.u_g*np.ones((N+1, self.M))
         # methods to get u(delta) and theta(delta):
@@ -327,17 +352,18 @@ class Ocean1dStratified():
 
             if TEST_CASE == 1: # Comodo{WindInduced}
                 SL_a = SurfaceLayerData(.01*np.sqrt(self.rho0), 0.,
-                        None, None, 0., None, None, 10.,
+                        None, None, 0., None, None, None, None, 10.,
                         None, None, None)
                 SL = SurfaceLayerData(0.01,
-                        0., .1, .1, 0., None, None, 0., self.M,
-                        sf_scheme, SL_a)
+                        0., .1, .1, 0., None, None, None, None,
+                        0., self.M, sf_scheme, SL_a)
             if TEST_CASE == 2: # Comodo{WindInduced}
                 SL_a = SurfaceLayerData(0., 0., None, None,
-                        0., None, None, 10., None, None, None)
+                        0., None, None, None, None, 10.,
+                        None, None, None)
                 SL = SurfaceLayerData(0./np.sqrt(self.rho0),
-                        0., .1, .1, 0., None, None, 0., self.M,
-                        sf_scheme, SL_a)
+                        0., .1, .1, 0., None, None, None, None,
+                        0., self.M, sf_scheme, SL_a)
             all_u_star += [SL.u_star]
 
             # Compute viscosities:
@@ -362,12 +388,14 @@ class Ocean1dStratified():
                 # integrate in time potential temperature:
                 Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
                         Ktheta_full, np.zeros(self.M))
+                Q0 = SL.t_star*SL.u_star if heatloss is None \
+                        else heatloss[n]
                 self.__apply_sf_scheme(\
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
                         K_theta=Ktheta_full, forcing_theta=forcing_theta,
                         universal_funcs=large_ocean(),
-                        Q0=heatloss[n],
+                        universal_funcs_a=businger(), Q0=Q0,
                         Qs=solar_flux[n]*self.rho0*self.C_p)
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
@@ -427,7 +455,7 @@ class Ocean1dStratified():
     def __step_theta(self, theta: array, dz_theta: array,
             Ktheta_full: array, forcing_theta: array,
             SL: SurfaceLayerData, SL_nm1: SurfaceLayerData,
-            solar_flux, heatloss):
+            solar_flux, Q0):
         """
         One step of integration in time for potential temperature (FV)
         theta: average on the cells (centered at z_half),
@@ -447,8 +475,9 @@ class Ocean1dStratified():
                 func=self.dictsf_scheme_theta[SL.sf_scheme][1],
                 Y=Y_theta, D=D_theta, c=c_theta, Y_nm1=Y_nm1,
                 K_theta=Ktheta_full, forcing_theta=forcing_theta,
-                universal_funcs=large_ocean(), SL=SL, SL_nm1=SL_nm1,
-                Q0=heatloss,
+                universal_funcs=large_ocean(),
+                universal_funcs_a=businger(), SL=SL, SL_nm1=SL_nm1,
+                Q0=Q0,
                 Qs=solar_flux*self.rho0*self.C_p)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
@@ -518,9 +547,8 @@ class Ocean1dStratified():
                         (xi^2 - h_half[m]^2/12)
             where xi = linspace(-h_half[m]/2, h_half[m]/2, 10, endpoint=True)
         """
-        z_min = 0.2
+        z_max = -0.02
         xi = [np.linspace(-h/2, h/2, 15) for h in self.h_half[:-1]]
-        xi[1] = np.linspace(-self.h_half[1]/2, self.h_half[1]/2, 40)
         sub_discrete: List[array] = [u_bar[m] + (phi[m+1] + phi[m]) * xi[m]/2 \
                 + (phi[m+1] - phi[m]) / (2 * self.h_half[m]) * \
                 (xi[m]**2 - self.h_half[m]**2/12) for m in range(self.M)]
@@ -528,52 +556,51 @@ class Ocean1dStratified():
         sub_discrete_theta: List[array] = [theta[m] + (dz_theta[m+1] + dz_theta[m]) * xi[m]/2 \
                 + (dz_theta[m+1] - dz_theta[m]) / (2 * self.h_half[m]) * \
                 (xi[m]**2 - self.h_half[m]**2/12) for m in range(self.M)]
-        u_oversampled = np.concatenate(sub_discrete[1:])
-        theta_oversampled = np.concatenate(sub_discrete_theta[1:])
-        z_oversampled = np.concatenate([np.array(xi[m]) + self.z_half[m]
-                                            for m in range(1, self.M)])
-        u_star, t_star, _, _, inv_L_MO, _, _, \
-                delta_sl, k1, sf_scheme, SL_a = SL
-        if sf_scheme in {"FV1", "FV pure"} or ignore_loglaw:
+        u_star, t_star, _, _, inv_L_MO, _, _, u_zM, t_zM, \
+                delta_sl, k1, sf_scheme, _ = SL
+        if sf_scheme in {"FV1", "FV pure", "FV test"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
-            k_1m: int = bisect.bisect_right(allxi[0], z_min)
-            allxi[0] = allxi[0][k_1m:]
-            sub_discrete_theta[0] = sub_discrete_theta[0][k_1m:]
-            sub_discrete[0] = sub_discrete[0][k_1m:]
+            k_1m: int = bisect.bisect_left(allxi[-1], z_max)
+            allxi[-1] = allxi[-1][:k_1m]
+            sub_discrete_theta[-1] = sub_discrete_theta[-1][:k_1m]
+            sub_discrete[-1] = sub_discrete[-1][:k_1m]
             return np.concatenate(allxi), \
                     np.concatenate(sub_discrete), \
                     np.concatenate(sub_discrete_theta), \
 
-
         if delta_sl is None:
-            delta_sl = self.z_half[0] if sf_scheme in\
-                    {"FV pure", "FV1"} else self.z_full[1]
+            delta_sl = self.z_full[-2] if sf_scheme == "FV2" \
+                    else self.z_half[-2]
 
-        prognostic: array = np.concatenate((u_bar[:SL.k+1],
-            phi[SL.k:]))
+        u_oversampled = np.concatenate(sub_discrete[:-1])
+        theta_oversampled = np.concatenate(sub_discrete_theta[:-1])
+        z_oversampled = np.concatenate([np.array(xi[m]) +\
+                self.z_half[m] for m in range(self.M)])
 
+        prognostic: array = np.concatenate((phi[0:SL.k+1],
+            u_bar[SL.k-1:]))
         # getting information of the surface layer (from which
         # we get the MOST profiles)
-        z_log: array = np.geomspace(z_min, delta_sl, 20)
+        z_log: array = np.geomspace(delta_sl, z_max, 20)
 
         _, _, psi_m, psi_h, *_ = large_ocean()
 
         func_un, _ = self.dictsf_scheme[SL.sf_scheme]
+
         u_delta: complex = func_un(prognostic=prognostic,
                 SL=SL, universal_funcs=large_ocean())
 
-        Pr = 1.# 4.8/7.8
-        u_log: complex = u_star/self.kappa * \
-                (np.log(1+z_log/SL.z_0M) - \
-                psi_m(z_log*inv_L_MO) + psi_m(SL.z_0M*inv_L_MO)) \
-                            * u_delta/np.abs(SL.u_delta)
-        # u_delta/|SL.udelta| is u^{n+1}/|u^n| like in the
-        # formulas
-        theta_log: complex = SL_a.t_delta + Pr * t_star / self.kappa * \
-                (np.log(1+z_log/SL.z_0H) - \
-                psi_h(z_log*inv_L_MO) + psi_h(SL.z_0H*inv_L_MO))
+        abs_uzM_m_uz: array = u_star/self.kappa * \
+                (np.log(1-z_log/SL.z_0M) - psi_m(-z_log*inv_L_MO))
+        u_log: array = u_zM - abs_uzM_m_uz * \
+                (u_zM - u_delta) / np.abs(u_zM - SL.u_delta)
 
-        k2: int = bisect.bisect_right(z_oversampled, self.z_full[k1+1])
+        tzM_m_tz: array = t_star/self.kappa * \
+                (np.log(1-z_log/SL.z_0H) - psi_h(-z_log*inv_L_MO))
+        theta_log: array = SL.t_zM - tzM_m_tz
+
+        # index of z_{k-1} in z_oversampled:
+        k2: int = bisect.bisect_left(z_oversampled, self.z_full[k1-1])
 
         z_freepart = []
         u_freepart = []
@@ -581,34 +608,38 @@ class Ocean1dStratified():
 
         if sf_scheme in {"FV free", }:
             # between the log profile and the next grid level:
-            tilde_h = self.z_full[k1+1] - delta_sl
-            assert 0 < tilde_h <= self.h_half[k1]
+            tilde_h = delta_sl - self.z_full[k1-1]
+            assert 0 < tilde_h <= self.h_half[k1-1]
             xi = np.linspace(-tilde_h/2, tilde_h/2, 15)
             tau_slu, tau_slt = self.__tau_sl(SL, large_ocean())
-            alpha_slu = tilde_h/self.h_half[k1] + tau_slu
-            alpha_slt = tilde_h/self.h_half[k1] + tau_slt
+            alpha_slu = tilde_h/self.h_half[k1-1] + tau_slu
+            alpha_slt = tilde_h/self.h_half[k1-1] + tau_slt
 
-            u_tilde = 1/alpha_slu * (u_bar[k1] + tilde_h * tau_slu * \
-                    (phi[k1]/3 + phi[k1+1]/6))
-            theta_tilde = 1/alpha_slt * (theta[k1] + tilde_h * tau_slt * \
-                    (dz_theta[k1]/3 + dz_theta[k1+1]/6) - (1-alpha_slt)*SST)
+            u_tilde = 1/alpha_slu * (u_bar[k1-1] - tilde_h * tau_slu * \
+                    (phi[k1]/3 + phi[k1-1]/6) - (1-alpha_slu)*u_zM)
+            theta_tilde = 1/alpha_slt * (theta[k1-1] - \
+                    tilde_h * tau_slt * \
+                    (dz_theta[k1]/3 + dz_theta[k1-1]/6) - \
+                    (1-alpha_slt)*t_zM)
 
-            u_freepart = u_tilde + (phi[k1+1] + phi[k1]) * xi/2 \
-                    + (phi[k1+1] - phi[k1]) / (2 * tilde_h) * \
+            u_freepart = u_tilde + (phi[k1] + phi[k1-1]) * xi/2 \
+                    + (phi[k1] - phi[k1-1]) / (2 * tilde_h) * \
                     (xi**2 - tilde_h**2/12)
 
-            theta_freepart = theta_tilde + (dz_theta[k1+1] + dz_theta[k1]) * xi/2 \
-                    + (dz_theta[k1+1] - dz_theta[k1]) / (2 * tilde_h) * \
-                    (xi**2 - tilde_h**2/12)
+            theta_freepart = theta_tilde \
+                    + (dz_theta[k1] + dz_theta[k1-1]) * xi/2 \
+                    + (dz_theta[k1] - dz_theta[k1-1]) / (2 * tilde_h)\
+                    * (xi**2 - tilde_h**2/12)
 
-            z_freepart = delta_sl + xi + tilde_h / 2
+            z_freepart = delta_sl + xi - tilde_h / 2
         elif sf_scheme in {"FV2"}: # link log cell with profile
-            k2: int = bisect.bisect_right(z_oversampled,
+            k2: int = bisect.bisect_left(z_oversampled,
                     self.z_full[k1])
 
-        return np.concatenate((z_log, z_freepart, z_oversampled[k2:])), \
-                np.concatenate((u_log, u_freepart, u_oversampled[k2:])), \
-                np.concatenate((theta_log, theta_freepart, theta_oversampled[k2:]))
+        return np.concatenate((z_oversampled[:k2], z_freepart, z_log)), \
+    np.concatenate((u_oversampled[:k2], u_freepart, u_log)), \
+                np.concatenate((theta_oversampled[:k2],
+                    theta_freepart, theta_log))
 
 
     def __backward_euler(self, Y: Tuple[array, array, array],
@@ -836,6 +867,20 @@ class Ocean1dStratified():
             Ktheta_full: array = np.maximum(self.Ktheta_min,
                     self.C_m * apdlr * l_m * np.sqrt(tke.tke_full))
             K_full = self.C_m * l_m * np.sqrt(tke.tke_full)
+            # NOW we want to compare K_full, Ktheta_full
+            # to their MOST equivalent.
+            if SL.sf_scheme == "FV free":
+                phi_m, phi_h, *_ = large_ocean()
+                # TODO remark that we don't need this,
+                # we need to adjust l_m, l_eps to ensure this.
+                K_full[SL.k] = (self.kappa * \
+                        SL.u_star*(-SL.delta_sl \
+                       + SL.z_0M)) / \
+                       phi_m(-SL.delta_sl*SL.inv_L_MO)
+                Ktheta_full[SL.k] = (self.kappa * \
+                        SL.u_star*(-SL.delta_sl \
+                       + SL.z_0M)) / \
+                       phi_h(-SL.delta_sl*SL.inv_L_MO)
         else:
             raise NotImplementedError("Wrong turbulence scheme")
 
@@ -940,6 +985,85 @@ class Ocean1dStratified():
         c_sf = np.array(c_sf)
         c[-c_sf.shape[0]:] = c_sf
 
+    def initialization(self, u_0, t_0, delta_sl_o, wind10m, t10m,
+            delta_sl_a=10., sf_scheme="FV free"):
+        """
+            initialize for FV free scheme. If this is not used,
+            the continuity of the reconstruction cannot be
+            guaranteed.
+        """
+        k = bisect.bisect_left(self.z_full, delta_sl_o)
+        k_const = k-4
+        # For high-res simulation, putting a quadratic profile
+        #  between MOST and the constant profile :
+        def func_z(z):
+            z_const = self.z_full[k_const]
+            return 1-((z - z_const) / (delta_sl_o - z_const))**2
+        tilde_h = delta_sl_o - self.z_full[k-1]
+        u_const, t_const = u_0[k_const], t_0[k_const]
+        u_km1, t_km1 = u_0[k-1], t_0[k-1]
+        phi, dz_theta = np.zeros(self.M+1) + 0j, np.zeros(self.M+1)
+        phi_m, phi_h, *_ = large_ocean()
+        SL = self.__friction_scales(wind10m, delta_sl_a,
+                t10m, businger(), u_const, delta_sl_o, t_const,
+                large_ocean(), sf_scheme, k)
+        for _ in range(20):
+            zeta = -SL.delta_sl*SL.inv_L_MO
+            phi[k] = SL.u_star / self.kappa / \
+                    (SL.z_0M-SL.delta_sl) * phi_m(zeta)
+            dz_theta[k] = SL.t_star / self.kappa / \
+                    (SL.z_0H-SL.delta_sl) * phi_h(zeta)
+            u_tilde = u_km1 + tilde_h / 6 * (phi[k] + 2*phi[k-1])
+            t_tilde = t_km1 + tilde_h / 6 * (dz_theta[k] + \
+                    2*dz_theta[k-1])
+            u_delta = u_tilde + tilde_h / 6 * (2*phi[k] + phi[k-1])
+            t_delta = t_tilde + tilde_h / 6 * (2*dz_theta[k] + \
+                    dz_theta[k-1])
+            SL = self.__friction_scales(wind10m, delta_sl_a,
+                t10m, businger(), u_delta, delta_sl_o, t_delta,
+                large_ocean(), sf_scheme, k)
+
+            # profiles under MOST : going smoothly to {u,t}_const
+            u_km1 = u_delta + (u_const - u_delta) * \
+                    func_z(self.z_full[k-1])
+            t_km1 = t_delta + (t_const - t_delta) * \
+                    func_z(self.z_full[k-1])
+            u_0[k_const:k] = u_delta + (u_const-u_delta) *\
+                    func_z(self.z_half[k_const:k])
+            t_0[k_const:k] = t_delta + (t_const-t_delta) *\
+                    func_z(self.z_half[k_const:k])
+            def compute_dz(top_cond, var, h_half):
+                """ solving the system of finite volumes:
+                dz_{m-1}/6 + 2 dz_m / 3 + dz_{m+1} / 6 =
+                        (var_{m+1/2} - var_{m-1/2})/h
+                """
+                ldiag = h_half[:-1] /6.
+                diag = (h_half[1:] + h_half[:-1]) * 1/3.
+                udiag = h_half[1:] /6.
+                diag = np.concatenate(([1.], diag, [1.]))
+                udiag = np.concatenate(([0.], udiag))
+                ldiag = np.concatenate((ldiag, [0.]))
+                rhs = np.concatenate(([0.],
+                    np.diff(var), [top_cond]))
+                return solve_linear((ldiag, diag, udiag), rhs)
+            phi[:k+1] = compute_dz(phi[k],
+                    np.concatenate((u_0[:k-1], [u_tilde])),
+                    np.concatenate((self.h_half[:k-1], [tilde_h])))
+            dz_theta[:k+1] = compute_dz(dz_theta[k],
+                    np.concatenate((t_0[:k-1], [t_tilde])),
+                    np.concatenate((self.h_half[:k-1], [tilde_h])))
+
+        tau_u, tau_t = self.__tau_sl(SL, large_ocean())
+        alpha_u = tilde_h / self.h_half[k-1] + tau_u
+        alpha_t = tilde_h / self.h_half[k-1] + tau_t
+        u_0[k-1] = alpha_u * u_tilde + tau_u * tilde_h * \
+                (phi[k]/3 + phi[k-1]/6) + (1-alpha_u)*SL.u_zM
+        t_0[k-1] = alpha_t * t_tilde + tau_t * tilde_h * \
+                (dz_theta[k]/3 + dz_theta[k-1]/6) + \
+                (1-alpha_t)*SL.t_zM
+        return u_0, phi, t_0, dz_theta, u_delta, t_delta
+
+
     def __friction_scales(self,
             ua_delta: float, delta_sl_a: float,
             ta_delta: float, univ_funcs_a,
@@ -990,16 +1114,25 @@ class Ocean1dStratified():
             t_star = ( Ch / np.sqrt(Cd) ) * (ta_delta - to_delta)
 
         uo_star, to_star = lambda_u*u_star, lambda_t*t_star
+        inv_L_a = 9.81 * self.kappa * t_star \
+                    / ta_delta / u_star**2
         inv_L_o = 9.81 * self.kappa * alpha_eos * \
                 to_star / uo_star**2
         za_0M = za_0H = self.K_mol / self.kappa / u_star / mu_m
         zo_0M = zo_0H = self.K_mol / self.kappa / uo_star
+        u_zM: complex = ua_delta - orientation(ua_delta) * u_star \
+                / self.kappa * (np.log(1+delta_sl_a/za_0M) - \
+                psim_a(delta_sl_a*inv_L_a))
+        theta_zM: float = ta_delta - t_star \
+                / self.kappa * (np.log(1+delta_sl_a/za_0H) - \
+                psis_a(delta_sl_a*inv_L_a))
         SL_a = SurfaceLayerData(u_star, t_star, za_0M, za_0H,
-                inv_L_a, ua_delta, ta_delta, delta_sl_a, None,
+                inv_L_a, ua_delta, ta_delta, u_zM, theta_zM,
+                delta_sl_a, None,
                 None, None)
         return SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
-                inv_L_o, uo_delta, to_delta, delta_sl_o, k,
-                sf_scheme, SL_a)
+                inv_L_o, uo_delta, to_delta, u_zM, theta_zM,
+                delta_sl_o, k, sf_scheme, SL_a)
 
     def shortwave_fractional_decay(self):
         """
@@ -1083,6 +1216,16 @@ class Ocean1dStratified():
     def __sf_udelta_FVtest(self, prognostic, **_): # Dirichlet cond
         return prognostic[-1] - self.h_half[self.M-1]* \
                 (prognostic[-2]/3 + prognostic[-3]/6)
+
+    def __sf_udelta_FVfree(self, prognostic, SL,
+            universal_funcs, **_):
+        tau_slu, _ = self.__tau_sl(SL, universal_funcs)
+        tilde_h = SL.delta_sl - self.z_full[SL.k-1]
+        alpha = tilde_h/self.h_half[SL.k-1] + tau_slu
+        return (prognostic[SL.k + 1] + \
+                tilde_h * tilde_h / self.h_half[SL.k-1] * \
+                (prognostic[SL.k] / 3 + prognostic[SL.k-1] / 6)\
+                - (1 - alpha) * SL.u_zM) / alpha
 
     ####### DEFINITION OF SF SCHEMES : FIRST LINES OF Y,D,c #####
     # each method must return Y, D, c:

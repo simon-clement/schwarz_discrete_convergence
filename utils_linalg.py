@@ -163,3 +163,11 @@ def solve_linear_with_ultra_right(Y, f):
 
 def full_to_half(var_full: np.ndarray):
     return (var_full[1:] + var_full[:-1])/2
+
+def orientation(cplx: complex):
+    """
+        returns the complex number of modulus 1 and
+        of same angle.
+        returns 1 if cplx == 0
+    """
+    return np.exp(1j*np.angle(cplx))
