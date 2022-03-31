@@ -203,9 +203,10 @@ class Ocean1dStratified():
                     to_delta=t_delta, univ_funcs_o=large_ocean(),
                     sf_scheme=sf_scheme, k=k)
             if TEST_CASE == 1: # Comodo{WindInduced}
-                SL_a = SurfaceLayerData(.01, 0., None, None,
-                        0., None, None, 10., None, None, None)
-                SL = SurfaceLayerData(0.01/np.sqrt(self.rho0), 0.,
+                SL_a = SurfaceLayerData(.01*np.sqrt(self.rho0), 0.,
+                        None, None, 0., None, None, 10., None, None,
+                        None)
+                SL = SurfaceLayerData(0.01, 0.,
                         .1, .1, 0., None, None, 0., self.M,
                         sf_scheme, SL_a)
             if TEST_CASE == 2: # Comodo{WindInduced}
@@ -325,9 +326,10 @@ class Ocean1dStratified():
                     sf_scheme=sf_scheme, k=self.M)
 
             if TEST_CASE == 1: # Comodo{WindInduced}
-                SL_a = SurfaceLayerData(.01, 0., None, None,
-                        0., None, None, 10., None, None, None)
-                SL = SurfaceLayerData(0.01/np.sqrt(self.rho0),
+                SL_a = SurfaceLayerData(.01*np.sqrt(self.rho0), 0.,
+                        None, None, 0., None, None, 10.,
+                        None, None, None)
+                SL = SurfaceLayerData(0.01,
                         0., .1, .1, 0., None, None, 0., self.M,
                         sf_scheme, SL_a)
             if TEST_CASE == 2: # Comodo{WindInduced}
@@ -491,10 +493,11 @@ class Ocean1dStratified():
         for j in range(1, self.M+1):
             l_down[j] = min(l_down[j-1] + h_half[j-1], mxlm[j])
 
-        # limiting l_up with the distance to the surface:
+        # surface wave breaking parameterization:
         mxl0 = 0.04
         l_up[self.M] = max(mxl0,
-                np.abs(SL.SL_a.u_star**2)*self.kappa*2e5/9.81)
+                np.abs(SL.u_star**2)*self.kappa*2e5/9.81)
+        # limiting l_up with the distance to the surface:
         for j in range(self.M - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
 
@@ -674,7 +677,7 @@ class Ocean1dStratified():
 
             tke.integrate_tke(self, SL, universal_funcs,
                     dzu2*K_full, K_full, l_eps, Ktheta_full, N2,
-                    self.rho0*SL.SL_a.u_star**2, tau_b)
+                    self.rho0*SL.u_star**2, tau_b)
             l_m[:], l_eps[:] = self.__mixing_lengths(tke.tke_full,
                     dzu2, N2, self.z_full, SL, universal_funcs)
             l_m[-1] = l_eps[-1] = 0.
@@ -814,7 +817,7 @@ class Ocean1dStratified():
             buoy_half = full_to_half(Ktheta_full*N2_full)
             tke.integrate_tke(self, SL, universal_funcs,
                     shear_full, K_full, l_eps, Ktheta_full,
-                    N2_full, self.rho0*SL.SL_a.u_star**2, tau_b)
+                    N2_full, self.rho0*SL.u_star**2, tau_b)
 
             # MOST profiles cause troubles with FV free (high res):
             # dzu2_full[:k+1] = SL.u_star**2 * \
@@ -1089,9 +1092,8 @@ class Ocean1dStratified():
     # they represent the first j lines of the matrices.
     # for Y and D, the tuples are (lower diag, diag, upper diag)
 
-    def __sf_YDc_FDpure(self, K_u, forcing, SL, wind_atm, **_):
-        # wind_atm: wind at the surface or at 10m.
-        # It should be the same as given to __friction_scales.
+    def __sf_YDc_FDpure(self, K_u, forcing, SL, **_):
+        wind_atm = SL.SL_a.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
         norm_jump = np.abs(wind_atm - u_delta)
         Y = ((0.,), (1.,), ())
@@ -1100,11 +1102,12 @@ class Ocean1dStratified():
             (- u_star**2 / norm_jump / self.h_half[self.M-1] - \
             K_u[self.M-1] / self.h_full[self.M-1] / \
                     self.h_half[self.M-1],), ())
-        c = (forcing[self.M - 1] + u_star*wind_atm / norm_jump / \
+        c = (forcing[self.M - 1] + u_star**2*wind_atm / norm_jump / \
                     self.h_half[self.M-1],)
         return Y, D, c, Y
 
-    def __sf_YDc_FD2(self, K_u, SL, wind_atm, **_):
+    def __sf_YDc_FD2(self, K_u, SL, **_):
+        wind_atm = SL.SL_a.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
         Y = ((0.,), (0.,), ())
         norm_jump =  np.abs(wind_atm - u_delta)
@@ -1122,11 +1125,12 @@ class Ocean1dStratified():
             (- K_u[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
         c = (forcing[self.M - 1] + \
-                SL.SL_a.u_star**2/self.h_half[self.M-1] ,)
+                SL.u_star**2/self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
 
-    def __sf_YDc_FVpure(self, K_u, forcing, SL, wind_atm, **_):
+    def __sf_YDc_FVpure(self, K_u, forcing, SL, **_):
+        wind_atm = SL.SL_a.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
         norm_jump = np.abs(wind_atm - u_delta)
         Y = ((0., 0.), (0., 0.), (1.,))
@@ -1139,7 +1143,8 @@ class Ocean1dStratified():
         c = (forcing[self.M-1], wind_atm)
         return Y, D, c, Y
 
-    def __sf_YDc_FV1(self, K_u, forcing, SL, wind_atm, **_):
+    def __sf_YDc_FV1(self, K_u, forcing, SL, **_):
+        wind_atm = SL.SL_a.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
         norm_jump = np.abs(wind_atm - u_delta)
         Y = ((0., 0.), (0., 0.), (1.,))
@@ -1157,14 +1162,75 @@ class Ocean1dStratified():
         D = ((0.,),
             (-K_u[self.M-1]/self.h_half[self.M-1], -K_u[self.M]),
             (K_u[self.M] / self.h_half[self.M-1], 0.),)
-        c = (forcing[self.M-1], SL.SL_a.u_star**2)
+        c = (forcing[self.M-1], SL.u_star**2)
         return Y, D, c, Y
+
+    def __sf_YDc_FVfree(self, K_u, forcing, universal_funcs,
+            SL, SL_nm1, **_):
+        u_star, u_delta, delta_sl, inv_L_MO, k = SL.u_star, \
+                SL.u_delta, SL.delta_sl, SL.inv_L_MO, SL.k
+        tilde_h = delta_sl - self.z_full[k-1]
+        tau, _ = self.__tau_sl(SL, universal_funcs)
+        alpha = tilde_h/self.h_half[k-1] + tau
+        tau_nm1, _ = self.__tau_sl(SL_nm1, universal_funcs)
+        alpha_nm1 = tilde_h/self.h_half[k-1] + tau_nm1
+        # note that delta_sl is assumed constant here.
+        # its variation would need much more changes.
+        Y = ( (self.h_half[k-2]/6./self.h_full[k-1],
+            - tilde_h * tau / 6. / alpha, 0.),# LOWER DIAG
+            ((tilde_h + self.h_half[k-2])/3/self.h_full[k-1],
+            - tilde_h * tau / 3. / alpha, 0.),# DIAG
+            (tilde_h/6./self.h_full[k-1], 1/alpha))# UPPER DIAG
+        Y_nm1 = ( (self.h_half[k-2]/6./self.h_full[k-1],
+            - tilde_h * tau_nm1 / 6. / alpha_nm1, 0.),# LOWER DIAG
+            ((tilde_h + self.h_half[k-2])/3/self.h_full[k-1],
+            - tilde_h * tau_nm1 / 3. / alpha_nm1, 0.),# DIAG
+            (tilde_h/6./self.h_full[k-1], 1/alpha_nm1))# UPPER DIAG
+        D = ((0., tilde_h**2 / 6 / self.h_half[k-1]),#LLOWER DIAG
+                (K_u[k-2]/self.h_half[k-2]/self.h_full[k-1],
+                    -K_u[k-1]/tilde_h,
+                    tilde_h**2 / 3 / self.h_half[k-1] + alpha * \
+                        np.abs(SL.u_zM-SL.u_delta)/SL.u_star**2 * \
+                        K_u[k]),#LOWER DIAG
+                (-K_u[k-1] / self.h_full[k-1] * \
+                        (1/self.h_half[k-2] + 1/tilde_h),
+                        K_u[k] / tilde_h, 1.),#DIAG
+                (K_u[k] / tilde_h / self.h_full[k-1], 0.))#UPPER DIAG
+
+        rhs_part_tilde = (SL.u_zM * (1 - alpha)/alpha - \
+                SL_nm1.u_zM *(1-alpha_nm1)/alpha_nm1)/self.dt
+        c = ( (forcing[k-1] - forcing[k-2])/self.h_full[k-1],
+                forcing[k-1] + rhs_part_tilde, -SL.u_zM)
+
+        Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
+        Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)
+
+        *_, Psi_m, _ = universal_funcs
+        def f(z):
+            return (-z+SL.z_0M)*np.log(1-z/SL.z_0M) + z - \
+                    z * Psi_m(-z*inv_L_MO)
+        try:
+            # for m >= k: ratio between |u-u0| at m+1/2 and m-1/2.
+            ratio_norms = np.array([(f(self.z_full[m+1]) - \
+                    f(self.z_full[m])) / \
+                    (f(self.z_full[m]) - f(self.z_full[m-1])) \
+                        for m in range(k, self.M)])
+        except ZeroDivisionError:
+            ratio_norms = np.zeros(self.M - k)
+
+        D = (np.concatenate((D[0], np.zeros(self.M - k))),
+                np.concatenate((D[1], ratio_norms)),
+                np.concatenate((D[2], - np.ones(self.M - k))),#DIAG
+                np.concatenate((D[3], np.zeros(self.M - k))))
+        c = np.concatenate((c, SL.u_zM * \
+                (self.h_half[k:-1] - ratio_norms)))
+        return Y, D, c, Y_nm1
 
 
     ####### DEFINITION OF SF SCHEMES : VALUE OF theta(delta_sl) ##
     # The method must use the prognostic variables and delta_sl
     # to return theta(delta_sl).
-    # the prognostic variables are theta for FD and 
+    # the prognostic variables are theta for FD and
     # (theta_{1/2}, ... theta_{k+1/2}, phit_k, ...phit_M) for FV.
     def __sf_thetadelta_FDpure(self, prognostic, **_):
         return prognostic[self.M-1]
@@ -1185,6 +1251,16 @@ class Ocean1dStratified():
     def __sf_thetadelta_FVtest(self, prognostic, **_):
         return prognostic[-1] - self.h_half[self.M-1]* \
                 (prognostic[-2]/3 + prognostic[-3]/6)
+
+    def __sf_thetadelta_FVfree(self, prognostic, SL,
+            universal_funcs, **_):
+        _, tau_slt = self.__tau_sl(SL, universal_funcs)
+        tilde_h = SL.delta_sl - self.z_full[SL.k-1]
+        alpha = tilde_h/self.h_half[SL.k-1] + tau_slt
+        return (prognostic[SL.k + 1] + \
+                tilde_h * tilde_h / self.h_half[SL.k-1] * \
+                (prognostic[SL.k] / 3 + prognostic[SL.k-1] / 6)\
+                - (1 - alpha) * SL.t_zM)  / alpha
 
     ####### DEFINITION OF SF SCHEMES : FIRST LINES OF Y,D,c (theta)
     # each method must return Y_n, D, c, Y_nm1:
@@ -1299,3 +1375,68 @@ class Ocean1dStratified():
         # QS: solar part
         c = (forcing_theta[self.M-1], (Q0 - Qs)/(self.rho0*self.C_p))
         return Y, D, c, Y
+
+    def __sf_YDc_FVfree_theta(self, K_theta, SL, SL_nm1,
+            forcing_theta, universal_funcs, Q0, Qs, **kwargs):
+        # Il faut changer ça pour utiliser seulement universal_funcs
+        # Donc enlever CHdu du standalone_chapter à priori,
+        # pour utiliser un truc plus compatible
+        ch_du = self.__skin_ch_du(SL, universal_funcs, **kwargs)
+        delta_sl, inv_L_MO, k = SL.delta_sl, SL.inv_L_MO, SL.k
+        tilde_h = delta_sl - self.z_full[k-1]
+        _, tau = self.__tau_sl(SL, universal_funcs)
+        alpha = tilde_h/self.h_half[k-1] + tau
+        _, tau_nm1 = self.__tau_sl(SL_nm1, universal_funcs)
+        alpha_nm1 = tilde_h/self.h_half[k-1] + tau_nm1
+        # note that delta_sl is assumed constant here.
+        # its variation would need much more changes.
+        Y = ( (self.h_half[k-2]/6./self.h_full[k-1],
+            - tilde_h * tau / 6. / alpha, 0.),# LOWER DIAG
+            ((tilde_h + self.h_half[k-2])/3/self.h_full[k-1],
+            - tilde_h * tau / 3. / alpha, 0.),# DIAG
+            (tilde_h/6./self.h_full[k-1], 1/alpha))# UPPER DIAG
+        Y_nm1 = ( (self.h_half[k-2]/6./self.h_full[k-1],
+            - tilde_h * tau_nm1 / 6. / alpha_nm1, 0.),# LOWER DIAG
+            ((tilde_h + self.h_half[k-2])/3/self.h_full[k-1],
+            - tilde_h * tau_nm1 / 3. / alpha_nm1, 0.),# DIAG
+            (tilde_h/6./self.h_full[k-1], 1/alpha_nm1))# UPPER DIAG
+        D = ((0., tilde_h**2 / 6 / self.h_half[k-1]),#LLOWER DIAG
+                (K_theta[k-2]/self.h_half[k-2]/self.h_full[k-1],
+                    -K_theta[k-1]/tilde_h,
+                    tilde_h**2 / 3 / self.h_half[k-1] + \
+                        alpha / ch_du * K_theta[k]),#LOWER DIAG
+                (-K_theta[k-1] / self.h_full[k-1] * \
+                        (1/self.h_half[k-2] + 1/tilde_h),
+                        K_theta[k] / tilde_h, 1.),#DIAG
+                (K_theta[k] / tilde_h / self.h_full[k-1], 0.))#UPPER DIAG
+
+        rhs_part_tilde = (SL.t_zM * (1 - alpha)/alpha - \
+                SL_nm1.t_zM *(1-alpha_nm1)/alpha_nm1)/self.dt
+        c = ( (forcing_theta[k-1] - forcing_theta[k-2])/self.h_full[k-1],
+                forcing_theta[k-1] + rhs_part_tilde,
+                -SL.t_zM - alpha / ch_du * Qs / self.rho0 / self.C_p)
+
+        Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
+        Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)
+
+        *_, Psi_m, _ = universal_funcs
+        def f(z):
+            return (-z+SL.z_0H)*np.log(1-z/SL.z_0H) + z - \
+                    z * Psi_m(-z*inv_L_MO)
+        try:
+            # for m >= k: ratio between |u-u0| at m+1/2 and m-1/2.
+            ratio_norms = np.array([(f(self.z_full[m+1]) - \
+                    f(self.z_full[m])) / \
+                    (f(self.z_full[m]) - f(self.z_full[m-1])) \
+                        for m in range(k, self.M)])
+        except ZeroDivisionError:
+            ratio_norms = np.zeros(self.M - k)
+
+        D = (np.concatenate((D[0], np.zeros(self.M - k))),
+                np.concatenate((D[1], ratio_norms)),
+                np.concatenate((D[2], - np.ones(self.M - k))),#DIAG
+                np.concatenate((D[3], np.zeros(self.M - k))))
+        c = np.concatenate((c, SL.t_zM * \
+                (self.h_half[k:-1] - ratio_norms)))
+        return Y, D, c, Y_nm1
+
