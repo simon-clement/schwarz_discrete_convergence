@@ -15,6 +15,10 @@ from universal_functions import Businger_et_al_1971 as businger
 from utils_linalg import solve_linear
 import figures_unstable
 from fortran.visu import import_data
+from validation_oce1D import fig_comodoParamsConstantCooling
+from validation_oce1D import fig_comodoParamsWindInduced
+from validation_oce1D import fig_windInduced
+
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
 mpl.rcParams["axes.grid"] = True
@@ -36,125 +40,6 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     334.22, 287.51, 244.68,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # less levels in the stratified case
-
-def fig_comodoParamsConstantCooling():
-    dt = 30.
-    f = 0.
-    alpha = 0.0002
-    N0 = np.sqrt(alpha*9.81* 0.1)
-    T0 = 16.
-    z_levels = np.linspace(-50., 0., 51)
-    simulator_oce = Ocean1dStratified(z_levels=z_levels,
-            dt=dt, u_geostrophy=0., f=f, alpha=alpha,
-            N0=N0)
-
-    N_FOR = nb_steps = int(72 * 3600 / dt)
-    N = N_FOR + 1
-    time = dt * np.arange(N+1)
-    rho0, cp, Qswmax = 1024., 3985., 0.
-    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
-            Qswmax / (rho0*cp)
-    u_0 = np.zeros(simulator_oce.M)
-    phi_0 = np.zeros(simulator_oce.M+1)
-    theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
-    dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
-    # this heatloss will be divided by (rho0*cp)
-    # Q0_{comodo} = -heatloss / (rho cp)
-    wind_10m = np.zeros(N+1) + 0j
-    temp_10m = np.ones(N+1) * 240
-
-    u_current, phi, tke, all_u_star, theta, \
-                dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
-            u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
-            dz_theta_t0=dz_theta_0, solar_flux=srflx,
-            heatloss=heatloss, wind_10m=wind_10m, TEST_CASE=2,
-            temp_10m=temp_10m, sf_scheme="FV test")
-    zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
-            phi, theta, dz_theta, SL, ignore_loglaw=True)
-
-    u_currentFD, tke, all_u_star, thetaFD, \
-                l_eps, viscosityFD = simulator_oce.FD(\
-            u_t0=u_0, theta_t0=theta_0, TEST_CASE=2,
-            solar_flux=srflx, wind_10m=wind_10m,
-            temp_10m=temp_10m, 
-            heatloss=heatloss, sf_scheme="FD test")
-
-    fig, axes = plt.subplots(1, 2)
-    axes[0].plot(thetaFV, zFV, "--",
-            label="Temperature Python FV")
-    axes[0].plot(thetaFD, simulator_oce.z_half[:-1], "--",
-            label="Temperature Python FD")
-    axes[1].plot(viscosity, simulator_oce.z_full, "--",
-            label="Diffusivity Python FV")
-    axes[1].plot(viscosityFD, simulator_oce.z_full, "--",
-            label="Diffusivity Python FD")
-
-    axes[0].legend()
-    axes[1].legend()
-    show_or_save("fig_comodoParamsConstantCooling")
-
-
-def fig_comodoParamsWindInduced():
-    dt = 30.
-    f = 0.
-    T0, alpha, N0 = 16., 0.0002, 0.01
-    z_levels = np.linspace(-50., 0., 51)
-    simulator_oce = Ocean1dStratified(z_levels=z_levels,
-            dt=dt, u_geostrophy=0., f=f, alpha=alpha,
-            N0=N0)
-
-    N_FOR = nb_steps = int(30 * 3600 / dt)
-    N = N_FOR + 1
-    time = dt * np.arange(N+1)
-    rho0, cp, Qswmax = 1024., 3985., 0.
-    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
-            Qswmax / (rho0*cp)
-    u_0 = np.zeros(simulator_oce.M)
-    phi_0 = np.zeros(simulator_oce.M+1)
-    theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
-    dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = np.zeros(N+1)
-    wind_10m = np.ones(N+1) * 11.6 + 0j
-    temp_10m = np.ones(N+1) * T0
-
-    u_current, phi, tke, all_u_star, theta, \
-                dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
-            u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
-            dz_theta_t0=dz_theta_0, solar_flux=srflx,
-            TEST_CASE=1,
-            heatloss=heatloss, wind_10m=wind_10m, temp_10m=temp_10m,
-            sf_scheme="FV test")
-    zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
-            phi, theta, dz_theta, SL, ignore_loglaw=True)
-
-    u_currentFD, tke, all_u_star, thetaFD, \
-                l_eps, viscosityFD = simulator_oce.FD(\
-            u_t0=u_0, theta_t0=theta_0, TEST_CASE=1,
-            solar_flux=srflx, wind_10m=wind_10m, temp_10m=temp_10m,
-            heatloss=heatloss, sf_scheme="FD test")
-
-    fig, axes = plt.subplots(1, 2)
-    #### Getting fortran part ####
-    name_file = "fortran/output_debug.out"
-    t_for, zt_for = import_data("fortran/t_final_tke.out")
-    Kt_for, zKt_for = import_data("fortran/Akt_final_tke.out")
-    axes[0].plot(t_for, zt_for, label="Temperature Fortran")
-    axes[1].plot(Kt_for, zKt_for, label="Diffusivity Fortran")
-
-    #### Python plotting ####
-    axes[0].plot(thetaFV, zFV, "--",
-            label="Temperature Python FV")
-    axes[0].plot(thetaFD, simulator_oce.z_half[:-1], "--",
-            label="Temperature Python FD")
-    axes[1].plot(viscosity, simulator_oce.z_full, "--",
-            label="Diffusivity Python FV")
-    axes[1].plot(viscosityFD, simulator_oce.z_full, "--",
-            label="Diffusivity Python FD")
-
-    axes[0].legend()
-    axes[1].legend()
-    show_or_save("fig_comodoParamsWindInduced")
 
 def fig_launchOcean():
     PLOT_FOR = True
@@ -450,7 +335,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
             u_kp1 = u_deltasl + (u_constant - u_deltasl) * func_z(zkp1)
             u_0[k+1:k_constant] = u_deltasl + (u_constant-u_deltasl) *\
                     func_z(simulator.z_half[k+1:k_constant])
-            # compute_phi: with phi[k] = phi_0[k], 
+            # compute_phi: with phi[k] = phi_0[k],
             # with phi[k_constant] = 0,
             # and the FV approximation
             def compute_phi(bottom_cond, u_0, h_half):
