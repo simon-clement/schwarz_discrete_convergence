@@ -1196,25 +1196,44 @@ class Ocean1dStratified():
     # Now that Y_n and Y_nm1 can be different,
     # the framework with Y, D and c is far less convenient.
     # I'll change this in a future update.
-    def __get_ch_du(self, SL, universal_funcs_o,
-            universal_funcs_a):
-        _, _, _, psih_o, _, _ = universal_funcs_o
+    def __flevel_ch_du(self, SL, universal_funcs,
+            universal_funcs_a, **kwargs):
+        """
+        This method returns C_H |u_a - u_o|, such that
+        the bd condition for theta is
+            K_t dt/dz = C_H10m |u_a - u_o| (t_a - t_o)
+        """
+        _, _, _, psih_o, _, _ = universal_funcs
         _, _, _, psih_a, _, _ = universal_funcs_a
         delta_sl_a, za_0H = SL.SL_a.delta_sl, SL.SL_a.z_0H
         zeta_a = delta_sl_a * SL.SL_a.inv_L_MO
         c_p_atm = 1004.
+        lambda_u = np.sqrt(1/self.rho0) # u_o* = lambda_u u_a*
         lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
         # Pelletier et al, 2021, equation (32):
         rhs_32 = np.log(1+delta_sl_a/za_0H) - psih_a(zeta_a) + \
                 lambda_t * (np.log(1-SL.delta_sl/SL.z_0M) - \
                     psih_o(SL.delta_sl*SL.inv_L_MO))
-        return SL.u_star * self.kappa / rhs_32
+        # we return tstar_o ustar_o / (tstar_a ustar_a) * \
+        #               (tstar_a ustar_a) / (t_a - t_o)
+        return lambda_u*lambda_t*SL.SL_a.u_star * self.kappa / rhs_32
+
+    def __skin_ch_du(self, SL, universal_funcs, **kwargs):
+        """
+        This method returns C_H |u(0) - u_o|, such that
+        the bd condition for theta is
+            K_t dt/dz = C_Hs |u(0) - u_o| (t(0) - t_o)
+        """
+        _, _, _, psih, _, _ = universal_funcs
+        zeta = -SL.delta_sl * SL.inv_L_MO
+        # Pelletier et al, 2021, equation (30):
+        rhs_30 = np.log(1-SL.delta_sl/SL.z_0H) - psih(zeta)
+        return SL.u_star * self.kappa / rhs_30
 
     def __sf_YDc_FDpure_theta(self, K_theta, SL, forcing_theta,
             **kwargs):
-        ch_du = self.__get_ch_du(SL, **kwargs)
-
-        Y = ((0.), (1.,), ())
+        ch_du = self.__flevel_ch_du(SL, **kwargs)
+        Y = ((0.,), (1.,), ())
         D = ((K_theta[self.M-1] / self.h_full[self.M-1] / \
                     self.h_half[self.M-1],),
                 (-K_theta[self.M-1] / self.h_full[self.M-1] / \
@@ -1226,7 +1245,7 @@ class Ocean1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FD2_theta(self, K_theta, SL, **kwargs):
-        ch_du = self.__get_ch_du(SL, **kwargs)
+        ch_du = self.__flevel_ch_du(SL, **kwargs)
         Y = ((0.,), (0.,), ())
         D = ((K_theta[self.M-1]/self.h_full[self.M-1] - ch_du / 2,),
                 (-K_theta[self.M-1]/self.h_full[self.M-1] - ch_du / 2,),
@@ -1236,27 +1255,27 @@ class Ocean1dStratified():
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL, forcing_theta,
             **kwargs):
-        ch_du = self.__get_ch_du(SL, **kwargs)
+        ch_du = self.__flevel_ch_du(SL, **kwargs)
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((self.h_half[self.M-1]/24,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
             K_theta[self.M]/ch_du-self.h_half[self.M-1]/24),
                 (K_theta[self.M] / self.h_half[self.M-1], 1.))
-        c = (forcing_theta[self.M-1], SL.SL_a.ta_delta)
+        c = (forcing_theta[self.M-1], SL.SL_a.t_delta)
         return Y, D, c, Y
 
     def __sf_YDc_FV1_theta(self, K_theta, SL, forcing_theta,
             **kwargs):
-        ch_du = self.__get_ch_du(SL, **kwargs)
+        ch_du = self.__flevel_ch_du(SL, **kwargs)
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((0.,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
             K_theta[self.M]/ch_du),
                 (K_theta[self.M] / self.h_half[self.M-1], 1.))
-        c = (forcing_theta[self.M-1], SL.SL_a.ta_delta)
+        c = (forcing_theta[self.M-1], SL.SL_a.t_delta)
         return Y, D, c, Y
 
-    def __sf_YDc_FDtest_theta(self, K_theta,
+    def __sf_YDc_FDtest_theta(self, K_theta, SL,
             forcing_theta, Q0, Qs, **_):
         Y = ((0.,), (1.,), ())
         D = ((K_theta[self.M-1] / self.h_full[self.M-1] \
