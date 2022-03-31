@@ -91,6 +91,8 @@ class TkeOcean1D:
         ebb = 67.83
         if self.TEST_CASE > 0:
             e_sl = max(self.e0_min, ebb*np.abs(tau_m/ocean.rho0))
+        else:
+            e_sl = max(self.e0_min, ebb*np.abs(tau_m/ocean.rho0)) # ?
         e_bottom = max(self.e_min, ebb*tau_b)
 
         rhs_e = np.concatenate(([e_bottom],
