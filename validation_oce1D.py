@@ -69,7 +69,7 @@ def fig_constantCooling():
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
-            u_t0=u_0, theta_t0=theta_0, TEST_CASE=2,
+            u_t0=u_0, theta_t0=theta_0, TEST_CASE=0,
             solar_flux=srflx, wind_10m=wind_10m,
             temp_10m=temp_10m,
             heatloss=heatloss, sf_scheme="FD test")

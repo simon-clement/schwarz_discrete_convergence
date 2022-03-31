@@ -182,12 +182,12 @@ class Ocean1dStratified():
                 sf_scheme=sf_scheme, k=k)
 
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
-        ignore_tke_sl = True
 
         import tkeOcean1D
+        wave_breaking = TEST_CASE in {1,2}
         tke = tkeOcean1D.TkeOcean1D(self.M, "FV",
                 TEST_CASE=TEST_CASE, ignore_sl=ignore_tke_sl,
-                wave_breaking=TEST_CASE in {0,1})
+                wave_breaking=wave_breaking)
 
         theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
 
@@ -238,7 +238,8 @@ class Ocean1dStratified():
                     K_full=Ku_full, tke=tke,
                     dz_theta=dz_theta, Ktheta_full=Ktheta_full,
                     universal_funcs=large_ocean(),
-                    ignore_tke_sl=ignore_tke_sl, tau_b=0.)
+                    ignore_tke_sl=ignore_tke_sl, tau_b=0.,
+                    wave_breaking=wave_breaking)
 
             old_phi = phi
             # integrate in time momentum
@@ -331,8 +332,9 @@ class Ocean1dStratified():
                 else self.z_full[self.M-1]
         ###### Initialization #####
         import tkeOcean1D
+        wave_breaking = TEST_CASE in {1,2}
         tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
-                TEST_CASE=TEST_CASE, wave_breaking=TEST_CASE in {0,1})
+                TEST_CASE=TEST_CASE, wave_breaking=wave_breaking)
         theta: array = np.copy(theta_t0)
         # Initializing viscosities and mixing lengths:
         Ku_full: array = self.Ku_min + np.zeros(self.M+1)
@@ -375,7 +377,8 @@ class Ocean1dStratified():
                     u_current=u_current, old_u=old_u,
                     K_full=Ku_full, tke=tke, theta=theta,
                     Ktheta_full=Ktheta_full, l_m=l_m, l_eps=l_eps,
-                    universal_funcs=large_ocean(), tau_b=0.)
+                    universal_funcs=large_ocean(), tau_b=0.,
+                    wave_breaking=wave_breaking)
 
             # integrate in time momentum:
             Y, D, c = self.__matrices_u_FD(Ku_full, forcing[n])
@@ -504,7 +507,8 @@ class Ocean1dStratified():
         return next_theta, dz_theta
 
     def __mixing_lengths(self, tke: array, dzu2: array, N2: array,
-            z_levels: array, SL: SurfaceLayerData, universal_funcs):
+            z_levels: array, SL: SurfaceLayerData, universal_funcs,
+            wave_breaking: bool):
         """
             returns the mixing lengths (l_m, l_eps)
             for given entry parameters.
@@ -528,15 +532,22 @@ class Ocean1dStratified():
         for j in range(1, self.M+1):
             l_down[j] = min(l_down[j-1] + h_half[j-1], mxlm[j])
 
+        g = 9.81
+        z_sl = z_levels[SL.k:]
+        phi_m, *_ = universal_funcs
+        mxlm[SL.k:] = 1/l_down[SL.k:] / tke[SL.k:] * (SL.u_star * \
+                self.kappa * (-z_sl + SL.z_0M) / self.C_m / \
+                phi_m(-z_sl * SL.inv_L_MO))**2
         # surface wave breaking parameterization:
-        mxl0 = 0.04
-        l_up[self.M] = max(mxl0,
-                np.abs(SL.u_star**2)*self.kappa*2e5/9.81)
+        if wave_breaking:
+            mxl0 = 0.04
+            l_up[SL.k:] = max(mxl0,
+                    np.abs(SL.u_star**2)*self.kappa*2e5/9.81)
+        else:
+            l_up[SL.k:] = mxlm[SL.k:]
         # limiting l_up with the distance to the surface:
-        for j in range(self.M - 1, -1, -1):
+        for j in range(SL.k - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
-        # molecular diffusivity at z0:
-        l_up[self.M] = self.mxl_min
 
         l_m = np.sqrt(l_up*l_down)
         l_eps = np.minimum(l_down, l_up)
@@ -677,7 +688,7 @@ class Ocean1dStratified():
             tke=None, theta: array=None,
             Ktheta_full: array=None, l_m: array=None,
             l_eps: array=None, universal_funcs=None,
-            tau_b: float=None):
+            tau_b: float=None, wave_breaking: bool=False):
         """
             Computes the turbulent viscosity on full levels K_full.
             It differs between FD and FV because of the
@@ -718,8 +729,8 @@ class Ocean1dStratified():
                     dzu2*K_full, K_full, l_eps, Ktheta_full, N2,
                     self.rho0*SL.u_star**2, tau_b)
             l_m[:], l_eps[:] = self.__mixing_lengths(tke.tke_full,
-                    dzu2, N2, self.z_full, SL, universal_funcs)
-            l_m[-1] = l_eps[-1] = 0.
+                    dzu2, N2, self.z_full, SL, universal_funcs,
+                    wave_breaking)
 
             apdlr = self.__stability_temperature_phi_z(\
                     N2, K_full, dzu2*K_full)
@@ -801,7 +812,7 @@ class Ocean1dStratified():
             dz_theta: array=None, Ktheta_full: array=None,
             universal_funcs: tuple=None,
             ignore_tke_sl: bool=False,
-            tau_b=None):
+            tau_b=None, wave_breaking: bool=False):
         """
             Computes the turbulent viscosity on full levels K_full.
             It differs between FD and FV because of the
@@ -866,7 +877,7 @@ class Ocean1dStratified():
 
             l_m[:], l_eps[:] = self.__mixing_lengths(tke.tke_full,
                     shear_full / K_full, N2_full,
-                    z_levels, SL, universal_funcs)
+                    z_levels, SL, universal_funcs, wave_breaking)
 
             apdlr = self.__stability_temperature_phi_z(\
                     N2_full, K_full, shear_full)
@@ -884,10 +895,12 @@ class Ocean1dStratified():
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
                        phi_m(-SL.delta_sl*SL.inv_L_MO)
+                assert abs(K_full_replacement - K_full[SL.k])<1e-10
                 Ktheta_full_replacement = (self.kappa * \
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
                        phi_h(-SL.delta_sl*SL.inv_L_MO)
+                # assert abs(Ktheta_full_replacement - Ktheta_full[SL.k])<1e-10
         else:
             raise NotImplementedError("Wrong turbulence scheme")
 
