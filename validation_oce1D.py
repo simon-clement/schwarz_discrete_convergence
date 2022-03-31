@@ -254,6 +254,7 @@ def fig_comodoParamsWindInduced():
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
+            u_delta=0., t_delta=T0,
             dz_theta_t0=dz_theta_0, solar_flux=srflx,
             TEST_CASE=1,
             heatloss=heatloss, wind_10m=wind_10m, temp_10m=temp_10m,
