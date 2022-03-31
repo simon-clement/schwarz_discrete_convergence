@@ -185,8 +185,9 @@ class Ocean1dStratified():
         ignore_tke_sl = True
 
         import tkeOcean1D
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
-                TEST_CASE=TEST_CASE, ignore_sl=ignore_tke_sl)
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FV",
+                TEST_CASE=TEST_CASE, ignore_sl=ignore_tke_sl,
+                wave_breaking=TEST_CASE in {0,1})
 
         theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
 
@@ -330,7 +331,8 @@ class Ocean1dStratified():
                 else self.z_full[self.M-1]
         ###### Initialization #####
         import tkeOcean1D
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FD", TEST_CASE=TEST_CASE)
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
+                TEST_CASE=TEST_CASE, wave_breaking=TEST_CASE in {0,1})
         theta: array = np.copy(theta_t0)
         # Initializing viscosities and mixing lengths:
         Ku_full: array = self.Ku_min + np.zeros(self.M+1)

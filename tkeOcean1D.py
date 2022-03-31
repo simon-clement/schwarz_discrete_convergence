@@ -18,12 +18,15 @@ class TkeOcean1D:
         yields the TKE with self.tke_full.
     """
     def __init__(self, M, discretization="FV",
-            TEST_CASE: int=0, ignore_sl: bool=True):
+            TEST_CASE: int=0, ignore_sl: bool=True,
+            wave_breaking: bool=False):
         """
             M: number of cells
             discretization: "FV" or "FD"
             ignore_sl: if there's a special treatment of FV free,
                 put ignore_sl to False.
+            wave_breaking: if False, ignore effect of waves.
+                otherwise e= ebb|tau|/rho0
         """
         self.e_min: float = 1e-6 # min value of tke
         self.e0_min: float = 1e-4 # min value of surface tke
@@ -36,6 +39,7 @@ class TkeOcean1D:
         self.Patankar = False
         self.TEST_CASE = TEST_CASE
         self.ignore_sl = ignore_sl
+        self.wave_breaking = wave_breaking
 
     def integrate_tke(self, ocean: oce1D.Ocean1dStratified,
             SL: oce1D.SurfaceLayerData,
@@ -55,8 +59,8 @@ class TkeOcean1D:
             N2_full is the BF frequency (at full levels).
         """
         if self.discretization == "FD":
-            self.__integrate_tke_FD(ocean, shear, K_full, l_eps,
-            Ktheta_full, N2_full, tau_m, tau_b)
+            self.__integrate_tke_FD(ocean, shear, K_full, SL, l_eps,
+            Ktheta_full, N2_full, universal_funcs, tau_m, tau_b)
         elif self.discretization == "FV":
             buoy_half = full_to_half(Ktheta_full*N2_full)
             shear_half = full_to_half(shear)
@@ -65,9 +69,9 @@ class TkeOcean1D:
                 universal_funcs, tau_m, tau_b)
 
     def __integrate_tke_FD(self, ocean: oce1D.Ocean1dStratified,
-            shear: array, K_full: array, l_eps: array,
-            Ktheta_full: array, N2: array, tau_m: float,
-            tau_b: float=0.):
+            shear: array, K_full: array, SL: oce1D.SurfaceLayerData,
+            l_eps: array, Ktheta_full: array, N2: array,
+            universal_funcs, tau_m: float, tau_b: float=0.):
         """
             integrates TKE equation on one time step.
             discretization of TKE is Finite Differences,
@@ -92,11 +96,22 @@ class TkeOcean1D:
             [ -Ke_half[m] / ocean.h_half[m] / ocean.h_full[m] \
                     for m in range(1,self.M) ]))
 
-        ebb = 67.83
-        if self.TEST_CASE > 0:
+        ebb = 67.83 # Adjusted for wave breaking effects
+        # (Corresponds to alpha=100 in Craig and Banner, 1994)
+        if self.wave_breaking:
             e_sl = max(self.e0_min, ebb*np.abs(tau_m/ocean.rho0))
         else:
-            e_sl = max(self.e0_min, ebb*np.abs(tau_m/ocean.rho0)) # ?
+            phi_m, *_ = universal_funcs
+            g = 9.81 # TODO verify it is ok to not use ch_du*(ta-to):
+            KN2_sl = g * ocean.alpha * SL.u_star * SL.t_star
+            shear_sl = SL.u_star**3 * \
+                    phi_m(-SL.delta_sl * SL.inv_L_MO) / \
+                    ocean.kappa / (-SL.delta_sl + SL.z_0M)
+
+            e_sl = np.maximum(((l_eps[SL.k]/ocean.c_eps * \
+                    (shear_sl - KN2_sl))**2)**(1/3), self.e0_min)
+        # ebb for bottom bd cond should probably be different
+        assert abs(tau_b) < 1e-10 # so we rely on tau_b=0
         e_bottom = max(self.e_min, ebb*tau_b)
 
         rhs_e = np.concatenate(([e_bottom],
@@ -148,17 +163,14 @@ class TkeOcean1D:
         z_sl = np.copy(ocean.z_full[k:])
         z_sl[0] = z_sl[0] if ignore_sl else SL.delta_sl
         # buoyancy and shear in surface layer:
-        KN2_sl = 9.81/283. * SL.t_star * SL.u_star
-        shear_sl = SL.u_star**3 * phi_m(z_sl * SL.inv_L_MO) / \
+        KN2_sl = 9.81 * ocean.alpha * SL.u_star * SL.t_star
+        shear_sl = SL.u_star**3 * phi_m(-z_sl * SL.inv_L_MO) / \
                 ocean.kappa / (-z_sl + SL.z_0M)
         e_sl = np.maximum(((l_eps[k:]/ocean.c_eps * \
                 (shear_sl - KN2_sl))**2)**(1/3), ocean.e_min)
         ebb = 67.83
-        if self.TEST_CASE > 0:
+        if self.wave_breaking:
             e_sl = np.maximum(self.e0_min,
-                    ebb*np.abs(tau_m/ocean.rho0)*np.ones_like(e_sl))
-        else:
-            e_sl = np.maximum(self.e0_min, # this accounts for waves
                     ebb*np.abs(tau_m/ocean.rho0)*np.ones_like(e_sl))
         e_top = e_sl[0]
         e_bottom = np.maximum(self.e_min, ebb*tau_b)
