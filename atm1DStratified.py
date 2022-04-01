@@ -1077,7 +1077,7 @@ class Atm1dStratified():
     def __matrices_u_FD(self, K_full: array, forcing: array):
         """
             Creates the matrices D, Y, c such that the
-            semi-discrete in space Ekman stratified equation 
+            semi-discrete in space Ekman stratified equation
             for the momentum writes ((d/dt+if) Y - D) u = c
         """
         D_diag: array = np.concatenate(( [0.],

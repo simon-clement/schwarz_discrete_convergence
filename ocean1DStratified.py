@@ -596,8 +596,10 @@ class Ocean1dStratified():
         z_oversampled = np.concatenate([np.array(xi[m]) +\
                 self.z_half[m] for m in range(self.M)])
 
-        prognostic: array = np.concatenate((phi[0:SL.k+1],
+        prognostic_u: array = np.concatenate((phi[0:SL.k+1],
             u_bar[SL.k-1:]))
+        prognostic_t: array = np.concatenate((dz_theta[0:SL.k+1],
+            theta[SL.k-1:]))
         # getting information of the surface layer (from which
         # we get the MOST profiles)
         z_log: array = np.geomspace(delta_sl, z_max, 20)
@@ -605,18 +607,28 @@ class Ocean1dStratified():
         _, _, psi_m, psi_h, *_ = large_ocean()
 
         func_un, _ = self.dictsf_scheme[SL.sf_scheme]
+        func_theta, _ = self.dictsf_scheme_theta[SL.sf_scheme]
 
-        u_delta: complex = func_un(prognostic=prognostic,
+        u_delta: complex = func_un(prognostic=prognostic_u,
+                SL=SL, universal_funcs=large_ocean())
+        t_delta: complex = func_theta(prognostic=prognostic_t,
                 SL=SL, universal_funcs=large_ocean())
 
         abs_uzM_m_uz: array = u_star/self.kappa * \
                 (np.log(1-z_log/SL.z_0M) - psi_m(-z_log*inv_L_MO))
-        u_log: array = u_zM - abs_uzM_m_uz * \
-                (u_zM - u_delta) / np.abs(u_zM - SL.u_delta)
+        abs_uzM_m_udelta: array = u_star/self.kappa * \
+                (np.log(1-delta_sl/SL.z_0M) - \
+                psi_m(-delta_sl*inv_L_MO))
+        u_log: array = u_zM - abs_uzM_m_uz / abs_uzM_m_udelta * \
+                (u_zM - u_delta)
 
         tzM_m_tz: array = t_star/self.kappa * \
                 (np.log(1-z_log/SL.z_0H) - psi_h(-z_log*inv_L_MO))
-        theta_log: array = SL.t_zM - tzM_m_tz
+        tzM_m_tdelta: array = t_star/self.kappa * \
+                (np.log(1-delta_sl/SL.z_0H) - \
+                psi_h(-delta_sl*inv_L_MO))
+        theta_log: array = SL.t_zM - tzM_m_tz / tzM_m_tdelta * \
+                (t_zM - t_delta)
 
         # index of z_{k-1} in z_oversampled:
         k2: int = bisect.bisect_left(z_oversampled, self.z_full[k1-1])
@@ -882,15 +894,18 @@ class Ocean1dStratified():
             apdlr = self.__stability_temperature_phi_z(\
                     N2_full, K_full, shear_full)
 
+            phi_m, phi_h, *_ = large_ocean() # for MOST:
+            apdlr[SL.k:] = phi_m(-z_levels[SL.k:]*SL.inv_L_MO) / \
+                    phi_h(-z_levels[SL.k:]*SL.inv_L_MO)
+
             Ktheta_full: array = np.maximum(self.Ktheta_min,
                     self.C_m * apdlr * l_m * np.sqrt(tke.tke_full))
             K_full = self.C_m * l_m * np.sqrt(tke.tke_full)
             # NOW we want to compare K_full, Ktheta_full
             # to their MOST equivalent.
             if SL.sf_scheme == "FV free":
-                phi_m, phi_h, *_ = large_ocean()
-                # TODO remark that we don't need this,
-                # we need to adjust l_m, l_eps to ensure this.
+                # remark that we don't need replacement,
+                # we adjusted l_m, l_eps to ensure this.
                 K_full_replacement = (self.kappa * \
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
@@ -900,7 +915,7 @@ class Ocean1dStratified():
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
                        phi_h(-SL.delta_sl*SL.inv_L_MO)
-                # assert abs(Ktheta_full_replacement - Ktheta_full[SL.k])<1e-10
+                assert abs(Ktheta_full_replacement - Ktheta_full[SL.k])<1e-10
         else:
             raise NotImplementedError("Wrong turbulence scheme")
 
@@ -1023,11 +1038,11 @@ class Ocean1dStratified():
         u_const, t_const = u_0[k_const], t_0[k_const]
         u_km1, t_km1 = u_0[k-1], t_0[k-1]
         phi, dz_theta = np.zeros(self.M+1) + 0j, np.zeros(self.M+1)
-        phi_m, phi_h, *_ = large_ocean()
+        phi_m, phi_h, psi_m, psi_h, *_ = large_ocean()
         SL = self.__friction_scales(wind10m, delta_sl_a,
                 t10m, businger(), u_const, delta_sl_o, t_const,
                 large_ocean(), sf_scheme, k)
-        for _ in range(20):
+        for _ in range(10):
             zeta = -SL.delta_sl*SL.inv_L_MO
             phi[k] = SL.u_star / self.kappa / \
                     (SL.z_0M-SL.delta_sl) * phi_m(zeta)
@@ -1111,7 +1126,7 @@ class Ocean1dStratified():
         c_p_atm = 1004.
         lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
         mu_m = 6.7e-2
-        for _ in range(12):
+        for _ in range(42):
             uo_star, to_star = lambda_u*u_star, lambda_t*t_star
             inv_L_a = 9.81 * self.kappa * t_star \
                     / (ta_delta+273) / u_star**2
@@ -1126,13 +1141,16 @@ class Ocean1dStratified():
                     lambda_u * (np.log(1-delta_sl_o/zo_0M) - \
                         psim_o(zeta_o))
             rhs_32 = np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a) + \
-                    lambda_t * (np.log(1-delta_sl_o/zo_0M) - \
+                    lambda_t * (np.log(1-delta_sl_o/zo_0H) - \
                         psis_o(zeta_o))
 
-            sqrt_Cd    = self.kappa / rhs_31
-            Ch    = self.kappa * sqrt_Cd / rhs_32
-            u_star = np.abs(sqrt_Cd) * np.abs(ua_delta-uo_delta)
-            t_star = ( Ch / np.abs(sqrt_Cd)) * (ta_delta - to_delta)
+            C_D    = (self.kappa / rhs_31)**2
+            Ch    = self.kappa * np.sqrt(C_D) / rhs_32
+            previous_u_star, previous_t_star = u_star, t_star
+            u_star = np.sqrt(C_D) * np.abs(ua_delta-uo_delta)
+            t_star = ( Ch / np.sqrt(C_D)) * (ta_delta - to_delta)
+        assert abs(previous_u_star - u_star) < 1e-10 # we attained
+        assert abs(previous_t_star - t_star) < 1e-10 # convergence
 
         uo_star, to_star = lambda_u*u_star, lambda_t*t_star
         inv_L_a = 9.81 * self.kappa * t_star \
