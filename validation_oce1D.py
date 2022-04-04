@@ -48,7 +48,8 @@ def fig_constantCooling():
                     simulator_oce.initialization(\
                     np.zeros(simulator_oce.M)+0j, # u_0
                     np.copy(theta_0), # theta_0
-                    -.5, wind_10m[0], temp_10m[0], 10., sf_scheme)
+                    -.5, wind_10m[0], temp_10m[0], Qsw[0], Qlw[0],
+                    10., sf_scheme)
         else:
             u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
                     u_0, phi_0, theta_0, dz_theta_0, 0., T0
@@ -121,7 +122,8 @@ def fig_windInduced():
                     simulator_oce.initialization(\
                     np.zeros(simulator_oce.M)+0j, # u_0
                     np.copy(theta_0), # theta_0
-                    -.5, wind_10m[0], temp_10m[0], 10., sf_scheme)
+                    -.5, wind_10m[0], temp_10m[0],
+                    Qsw[0], Qlw[0], 10., sf_scheme)
         else:
             u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
                     u_0, phi_0, theta_0, dz_theta_0, 0., T0

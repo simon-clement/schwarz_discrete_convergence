@@ -1024,7 +1024,7 @@ class Ocean1dStratified():
         c[-c_sf.shape[0]:] = c_sf
 
     def initialization(self, u_0, t_0, delta_sl_o, wind10m, t10m,
-            delta_sl_a=10., sf_scheme="FV free"):
+            Q_sw, Q_lw, delta_sl_a=10., sf_scheme="FV free"):
         """
             initialize for FV free scheme. If this is not used,
             the continuity of the reconstruction cannot be
@@ -1049,7 +1049,9 @@ class Ocean1dStratified():
             zeta = -SL.delta_sl*SL.inv_L_MO
             phi[k] = SL.u_star / self.kappa / \
                     (SL.z_0M-SL.delta_sl) * phi_m(zeta)
-            dz_theta[k] = SL.t_star / self.kappa / \
+            t_star_rad = SL.t_star - Q_lw / SL.u_star \
+                    / self.rho0 / self.C_p
+            dz_theta[k] = t_star_rad / self.kappa / \
                     (SL.z_0H-SL.delta_sl) * phi_h(zeta)
             u_tilde = u_km1 + tilde_h / 6 * (phi[k] + 2*phi[k-1])
             t_tilde = t_km1 + tilde_h / 6 * (dz_theta[k] + \
