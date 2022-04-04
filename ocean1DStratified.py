@@ -14,6 +14,8 @@ from utils_linalg import full_to_half
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
 import scipy.integrate as integrate
+from shortwave_absorption import shortwave_fractional_decay, \
+        integrated_shortwave_frac_sl, Qsw_E
 
 array = np.ndarray
 class SurfaceLayerData(NamedTuple):
@@ -254,7 +256,8 @@ class Ocean1dStratified():
 
             if not Neutral_case:
                 # integrate in time potential temperature
-                swr_frac = self.shortwave_fractional_decay()
+                swr_frac = shortwave_fractional_decay(self.M,
+                        self.h_full)
                 forcing_theta = swr_frac * Q_sw[n] \
                         / self.rho0 / self.C_p
                 # forcing_theta[-1] =  solar_flux[n] - \
@@ -398,7 +401,8 @@ class Ocean1dStratified():
             u_current, old_u = next_u, u_current
 
             if not Neutral_case:
-                swr_frac = self.shortwave_fractional_decay()
+                swr_frac = shortwave_fractional_decay(self.M,
+                        self.h_full)
                 forcing_theta = swr_frac * Q_sw[n] \
                         / self.rho0 / self.C_p
                 # integrate in time potential temperature:
@@ -631,8 +635,7 @@ class Ocean1dStratified():
         def tzM_m_t(z: float):
             turhocp = t_star * u_star * self.rho0 * self.C_p
             term_lw = 1 - SL.Q_lw / turhocp
-            term_sw = SL.Q_sw * self.integrated_shortwave_frac_sl(\
-                    SL.inv_L_MO, phi_h, z) / turhocp
+            term_sw = Qsw_E(z, SL, turhocp)
             return t_star/self.kappa * term_lw * \
                     (np.log(1-z/SL.z_0H) - psi_h(-z*inv_L_MO)) \
                     - term_sw
@@ -1157,8 +1160,8 @@ class Ocean1dStratified():
             # Radiative fluxes:
             turhocp = to_star * uo_star * self.rho0 * self.C_p
             term_lw = 1 - Q_lw / turhocp
-            term_Qw = Q_sw * self.integrated_shortwave_frac_sl(\
-                    inv_L_o, phis_o, delta_sl_o) / turhocp
+            term_Qw = Q_sw * integrated_shortwave_frac_sl(\
+                    inv_L_o, delta_sl_o) / turhocp
 
             # Pelletier et al, 2021, equation (43):
             rhs_32 = np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a) + \
@@ -1195,66 +1198,6 @@ class Ocean1dStratified():
                 inv_L_o, uo_delta, to_delta, u_zM, theta_zM,
                 delta_sl_o, k, sf_scheme, Q_sw, Q_lw, SL_a)
 
-    def shortwave_fractional_decay(self):
-        """
-            To compute the solar radiation penetration
-            we need this function that was
-            directly translated from fortran.
-        """
-        mu1 = [0.35, 0.6, 1.0, 1.5, 1.4]
-        mu2 = [23.0, 20.0, 17.0, 14.0, 7.9]
-        r1 = [0.58, 0.62, 0.67, 0.77, 0.78, ]
-        Jwt=0
-        attn1=-1./mu1[Jwt]
-        attn2=-1./mu2[Jwt]
-
-        swdk1=r1[Jwt]
-        swdk2=1.-swdk1
-        swr_frac = np.zeros(self.M)
-        swr_frac[-1]=1.
-        for k in range(self.M-1, -1, -1):
-            xi1=attn1*self.h_full[k]
-            if xi1 > -20.:
-                swdk1 *= np.exp(xi1)
-            else:
-                swdk1 = 0.
-            xi2 = attn2*self.h_full[k]
-            if xi2 > -20.:
-                swdk2 *= np.exp(xi2)
-            else:
-                swdk2 = 0.
-            swr_frac[k]=swdk1+swdk2
-        return swr_frac
-
-    def shortwave_frac_sl(self, z):
-        """
-            Paulson and Simpson, 1981
-        """
-        A_i = np.array([.237, .360, .179, .087, .08, .0246,
-            .025, .007, .0004])
-        k_i = 1./np.array([34.8, 2.27, 3.15e-2,
-            5.48e-3, 8.32e-4, 1.26e-4, 3.13e-4, 7.82e-5, 1.44e-5])
-        return np.sum(A_i * np.exp(np.outer(z, k_i)), axis=-1)
-
-    def integrated_shortwave_frac_sl(self, inv_L_MO: float, phi_h,
-            z: float) -> float:
-        """
-            int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
-            returns E(z)
-        """
-        def to_integrate(z_prim):
-            return phi_h(-z_prim*inv_L_MO) * \
-                self.shortwave_frac_sl(z_prim) / z_prim
-        return integrate.quad(to_integrate, z, z*1e-5)[0]
-
-    def __Qsw_E(self, z: float, SL, turhocp, phi_h):
-        """
-            SHORTWAVE RADIATIVE FLUX:
-            returns Qsw / (t*u*rho cp) * E(z)
-        """
-        return SL.Q_sw * self.integrated_shortwave_frac_sl(\
-                SL.inv_L_MO, phi_h, z) / turhocp
-
     def __tau_sl(self, SL: SurfaceLayerData,
             universal_funcs) -> (float, float):
         delta_sl, inv_L_MO = SL.delta_sl, SL.inv_L_MO
@@ -1274,8 +1217,8 @@ class Ocean1dStratified():
         term_lw = 1 - SL.Q_lw / turhocp
 
         # numerical integration of Qws_E:
-        integral_Qsw_E = integrate.quad(self.__Qsw_E, delta_sl,
-                zk - (zk-delta_sl)*1e-5, args=(SL, turhocp, phi_h))[0]
+        integral_Qsw_E = integrate.quad(Qsw_E, delta_sl,
+                zk - (zk-delta_sl)*1e-5, args=(SL, turhocp))[0]
 
         numer_theta = term_lw * (brackets_theta(zk) - \
                 brackets_theta(delta_sl)) - integral_Qsw_E
@@ -1284,7 +1227,7 @@ class Ocean1dStratified():
                 - psi_m(-delta_sl*inv_L_MO)
         denom_theta = term_lw * (np.log(1-delta_sl/SL.z_0H)\
                 - psi_h(-delta_sl*inv_L_MO)) - \
-                self.__Qsw_E(delta_sl, SL, turhocp, phi_h)
+                Qsw_E(delta_sl, SL, turhocp)
 
 
         tau_slu = (brackets_u(zk) - brackets_u(delta_sl)) / \
@@ -1541,7 +1484,7 @@ class Ocean1dStratified():
         turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
 
         term_lw = 1 - SL.Q_lw / turhocp
-        term_Qw = self.__Qsw_E(SL.delta_sl, SL, turhocp, phi_h)
+        term_Qw = Qsw_E(SL.delta_sl, SL, turhocp)
 
         # Pelletier et al, 2021, equation (43):
         rhs_32 = np.log(1+delta_sl_a/za_0H) - psih_a(zeta_a) + \
@@ -1568,7 +1511,7 @@ class Ocean1dStratified():
         turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
 
         rhs_30 *= 1 - SL.Q_lw / turhocp
-        rhs_30 -= self.__Qsw_E(SL.delta_sl, SL, turhocp, phi_h)
+        rhs_30 -= Qsw_E(SL.delta_sl, SL, turhocp)
 
         return SL.u_star * self.kappa / rhs_30
 

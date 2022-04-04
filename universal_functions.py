@@ -13,8 +13,8 @@ def Large_et_al_2019():
     def phi_m(zeta):
         Cm = np.cbrt(1-14*zeta)
         return 5*zeta + 1 if zeta >= 0 else 1/Cm
-    def phi_h(zeta):
-        Ch = np.cbrt(1-25*zeta)
+    def phi_h(zeta): # warning: there is a duplicate of this function
+        Ch = np.cbrt(1-25*zeta) # in shortwave_absorption.py
         return 5*zeta + 1 if zeta >= 0 else 1/Ch
     def psi_m(zeta):
         Cm = np.cbrt(1-14*zeta)
