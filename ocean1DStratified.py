@@ -1129,7 +1129,7 @@ class Ocean1dStratified():
         {u, t}a_delta={u, t}a(z=0) together with delta_sl_a = 0.
         """
         _, _, psim_a, psis_a, *_ = univ_funcs_a
-        _, _, psim_o, psis_o, *_ = univ_funcs_o
+        _, phis_o, psim_o, psis_o, *_ = univ_funcs_o
         # ATMOSPHERIC friction scales:
         t_star: float = (ta_delta-to_delta) * \
                 (0.0180 if ta_delta > to_delta else 0.0327)
@@ -1154,9 +1154,16 @@ class Ocean1dStratified():
             rhs_31 = np.log(1+delta_sl_a/za_0M) - psim_a(zeta_a) + \
                     lambda_u * (np.log(1-delta_sl_o/zo_0M) - \
                         psim_o(zeta_o))
+            # Radiative fluxes:
+            turhocp = to_star * uo_star * self.rho0 * self.C_p
+            term_lw = 1 - Q_lw / turhocp
+            term_Qw = Q_sw * self.integrated_shortwave_frac_sl(\
+                    inv_L_o, phis_o, delta_sl_o) / turhocp
+
+            # Pelletier et al, 2021, equation (43):
             rhs_32 = np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a) + \
-                    lambda_t * (np.log(1-delta_sl_o/zo_0H) - \
-                        psis_o(zeta_o))
+                    lambda_t * term_lw * (np.log(1-delta_sl_o/zo_0M)-\
+                        psis_o(zeta_o)) - lambda_t * term_Qw
 
             C_D    = (self.kappa / rhs_31)**2
             Ch    = self.kappa * np.sqrt(C_D) / rhs_32
@@ -1176,6 +1183,7 @@ class Ocean1dStratified():
         u_zM: complex = ua_delta - orientation(ua_delta) * u_star \
                 / self.kappa * (np.log(1+delta_sl_a/za_0M) - \
                 psim_a(delta_sl_a*inv_L_a))
+        # theta_zM does not see radiative fluxes.
         theta_zM: float = ta_delta - t_star \
                 / self.kappa * (np.log(1+delta_sl_a/za_0H) - \
                 psis_a(delta_sl_a*inv_L_a))
@@ -1232,11 +1240,20 @@ class Ocean1dStratified():
             z: float) -> float:
         """
             int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
+            returns E(z)
         """
         def to_integrate(z_prim):
             return phi_h(-z_prim*inv_L_MO) * \
                 self.shortwave_frac_sl(z_prim) / z_prim
         return integrate.quad(to_integrate, z, z*1e-5)[0]
+
+    def __Qsw_E(self, z: float, SL, turhocp, phi_h):
+        """
+            SHORTWAVE RADIATIVE FLUX:
+            returns Qsw / (t*u*rho cp) * E(z)
+        """
+        return SL.Q_sw * self.integrated_shortwave_frac_sl(\
+                SL.inv_L_MO, phi_h, z) / turhocp
 
     def __tau_sl(self, SL: SurfaceLayerData,
             universal_funcs) -> (float, float):
@@ -1255,15 +1272,10 @@ class Ocean1dStratified():
 
         turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
         term_lw = 1 - SL.Q_lw / turhocp
-        def Qsw_E(z: float):
-            """
-                returns Qsw / (t*u*rho cp) * E(z)
-            """
-            return SL.Q_sw * self.integrated_shortwave_frac_sl(\
-                    SL.inv_L_MO, phi_h, z) / turhocp
+
         # numerical integration of Qws_E:
-        integral_Qsw_E = integrate.quad(Qsw_E, delta_sl,
-                zk - (zk-delta_sl)*1e-5)[0]
+        integral_Qsw_E = integrate.quad(self.__Qsw_E, delta_sl,
+                zk - (zk-delta_sl)*1e-5, args=(SL, turhocp, phi_h))[0]
 
         numer_theta = term_lw * (brackets_theta(zk) - \
                 brackets_theta(delta_sl)) - integral_Qsw_E
@@ -1271,7 +1283,8 @@ class Ocean1dStratified():
         denom_u = np.log(1-delta_sl/SL.z_0M) \
                 - psi_m(-delta_sl*inv_L_MO)
         denom_theta = term_lw * (np.log(1-delta_sl/SL.z_0H)\
-                - psi_h(-delta_sl*inv_L_MO)) - Qsw_E(delta_sl)
+                - psi_h(-delta_sl*inv_L_MO)) - \
+                self.__Qsw_E(delta_sl, SL, turhocp, phi_h)
 
 
         tau_slu = (brackets_u(zk) - brackets_u(delta_sl)) / \
@@ -1511,35 +1524,52 @@ class Ocean1dStratified():
     def __flevel_ch_du(self, SL, universal_funcs,
             universal_funcs_a, **kwargs):
         """
-        This method returns C_H |u_a - u_o|, such that
-        the bd condition for theta is
-            K_t dt/dz = C_H10m |u_a - u_o| (t_a - t_o)
+        This method returns lambda_u lambda_t C_H |u_a - u_o|,
+        such that the bd condition for theta is
+            K_t dt/dz = lambda_u lambda_t C_H^{a+o} |u_a - u_o|
+                                    (t_a - t_o)
         """
-        _, _, _, psih_o, _, _ = universal_funcs
+        _, phi_h, _, psih_o, _, _ = universal_funcs
         _, _, _, psih_a, _, _ = universal_funcs_a
         delta_sl_a, za_0H = SL.SL_a.delta_sl, SL.SL_a.z_0H
         zeta_a = delta_sl_a * SL.SL_a.inv_L_MO
         c_p_atm = 1004.
         lambda_u = np.sqrt(1/self.rho0) # u_o* = lambda_u u_a*
         lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
-        # Pelletier et al, 2021, equation (32):
+
+        # Radiative fluxes:
+        turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
+
+        term_lw = 1 - SL.Q_lw / turhocp
+        term_Qw = self.__Qsw_E(SL.delta_sl, SL, turhocp, phi_h)
+
+        # Pelletier et al, 2021, equation (43):
         rhs_32 = np.log(1+delta_sl_a/za_0H) - psih_a(zeta_a) + \
-                lambda_t * (np.log(1-SL.delta_sl/SL.z_0M) - \
-                    psih_o(SL.delta_sl*SL.inv_L_MO))
+                lambda_t * term_lw * (np.log(1-SL.delta_sl/SL.z_0M) -\
+                    psih_o(SL.delta_sl*SL.inv_L_MO)) - \
+                    lambda_t * term_Qw
         # we return tstar_o ustar_o / (tstar_a ustar_a) * \
         #               (tstar_a ustar_a) / (t_a - t_o)
         return lambda_u*lambda_t*SL.SL_a.u_star * self.kappa / rhs_32
 
     def __skin_ch_du(self, SL, universal_funcs, **kwargs):
         """
-        This method returns C_H |u(0) - u_o|, such that
-        the bd condition for theta is
-            K_t dt/dz = C_Hs |u(0) - u_o| (t(0) - t_o)
+        This method returns lambda_u lambda_t C_H^o |u(0) - u_o|,
+        such that the bd condition for theta is
+            K_t dt/dz = lambda_u lambda_t C_H^o |u(0) - u_o|
+                                    (t(0) - t_o)
         """
-        _, _, _, psih, _, _ = universal_funcs
+        _, phi_h, _, psih, _, _ = universal_funcs
         zeta = -SL.delta_sl * SL.inv_L_MO
         # Pelletier et al, 2021, equation (30):
         rhs_30 = np.log(1-SL.delta_sl/SL.z_0H) - psih(zeta)
+
+        # adding radiative fluxes:
+        turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
+
+        rhs_30 *= 1 - SL.Q_lw / turhocp
+        rhs_30 -= self.__Qsw_E(SL.delta_sl, SL, turhocp, phi_h)
+
         return SL.u_star * self.kappa / rhs_30
 
     def __sf_YDc_FDpure_theta(self, K_theta, SL, forcing_theta,
