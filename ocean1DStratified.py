@@ -13,6 +13,7 @@ from utils_linalg import solve_linear, orientation
 from utils_linalg import full_to_half
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
+import scipy.integrate as integrate
 
 array = np.ndarray
 class SurfaceLayerData(NamedTuple):
@@ -1232,15 +1233,16 @@ class Ocean1dStratified():
         """
             int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
         """
-        n = 100 # number of samples in the integration
-        z_prim = np.linspace(z*1e-3 , z, n)
-        return np.sum(phi_h(-z_prim*inv_L_MO) * \
-                self.shortwave_frac_sl(z_prim) / z_prim) / n * (-z)
+        def to_integrate(z_prim):
+            return phi_h(-z_prim*inv_L_MO) * \
+                self.shortwave_frac_sl(z_prim) / z_prim
+        return integrate.quad(to_integrate, z, z*1e-5)[0]
 
     def __tau_sl(self, SL: SurfaceLayerData,
             universal_funcs) -> (float, float):
         delta_sl, inv_L_MO = SL.delta_sl, SL.inv_L_MO
-        _, _, psi_m, psi_h, Psi_m, Psi_h = universal_funcs
+        Q_sw, Q_lw = SL.Q_sw, SL.Q_lw
+        _, phi_h, psi_m, psi_h, Psi_m, Psi_h = universal_funcs
         assert self.z_full[SL.k-1] < delta_sl
         assert delta_sl <= self.z_full[SL.k]
         zk = self.z_full[SL.k]
@@ -1250,15 +1252,31 @@ class Ocean1dStratified():
         def brackets_theta(z):
             return (-z+SL.z_0H)*np.log(1-z/SL.z_0H) + z - \
                     z*Psi_h(-z*inv_L_MO)
+
+        turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
+        term_lw = 1 - SL.Q_lw / turhocp
+        def Qsw_E(z: float):
+            """
+                returns Qsw / (t*u*rho cp) * E(z)
+            """
+            return SL.Q_sw * self.integrated_shortwave_frac_sl(\
+                    SL.inv_L_MO, phi_h, z) / turhocp
+        # numerical integration of Qws_E:
+        integral_Qsw_E = integrate.quad(Qsw_E, delta_sl,
+                zk - (zk-delta_sl)*1e-5)[0]
+
+        numer_theta = term_lw * (brackets_theta(zk) - \
+                brackets_theta(delta_sl)) - integral_Qsw_E
+
         denom_u = np.log(1-delta_sl/SL.z_0M) \
                 - psi_m(-delta_sl*inv_L_MO)
-        denom_theta = np.log(1-delta_sl/SL.z_0H)\
-                - psi_h(-delta_sl*inv_L_MO)
+        denom_theta = term_lw * (np.log(1-delta_sl/SL.z_0H)\
+                - psi_h(-delta_sl*inv_L_MO)) - Qsw_E(delta_sl)
+
 
         tau_slu = (brackets_u(zk) - brackets_u(delta_sl)) / \
                 self.h_half[SL.k-1] / denom_u
-        tau_slt = (brackets_theta(zk) -brackets_theta(delta_sl)) / \
-                self.h_half[SL.k-1] / denom_theta
+        tau_slt = numer_theta / denom_theta / self.h_half[SL.k-1]
 
         return tau_slu, tau_slt
 
