@@ -119,7 +119,7 @@ class Ocean1dStratified():
                 }
 
     def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
-            dz_theta_t0: array, solar_flux: array,
+            dz_theta_t0: array, Q_sw: array, Q_lw: array,
             u_delta: float, t_delta: float,
             heatloss: array, wind_10m: array, temp_10m: array,
             delta_sl: float=None, TEST_CASE: int=0,
@@ -135,7 +135,8 @@ class Ocean1dStratified():
             dz_theta_t0: derivative of theta (given like phi_t0)
             u_delta: for FV free, it is necessay to have u(delta)
             t_delta: for FV free, it is necessay to have theta(delta)
-            solar_flux: SW radiation (from the sun) Qs/(rho0 Cp)
+            Q_sw: SW radiation (from the sun) positive downward
+            Q_lw: LW radiation (blackbody radiation) positive downward
             heatloss: Heat transfer at surface Q_0(t) that
                 can override t*u* in {FD, FV} test
             wind_10m, temp_10m: wind, temperature at 10m in atmosphere
@@ -167,7 +168,7 @@ class Ocean1dStratified():
         assert turbulence in {"TKE", "KPP"}
         N: int = wind_10m.shape[0] - 1 # number of time steps
         assert temp_10m.shape[0] == N + 1
-        assert solar_flux.shape[0] == N + 1
+        assert Q_sw.shape[0] == Q_lw.shape[0] == N + 1
         assert heatloss is None or heatloss.shape[0] == N + 1
 
         forcing = 1j*self.u_g*np.ones((N+1, self.M))
@@ -250,14 +251,15 @@ class Ocean1dStratified():
             if not Neutral_case:
                 # integrate in time potential temperature
                 swr_frac = self.shortwave_fractional_decay()
-                forcing_theta = swr_frac * solar_flux[n]
+                forcing_theta = swr_frac * Q_sw[n] \
+                        / self.rho0 / self.C_p
                 # forcing_theta[-1] =  solar_flux[n] - \
                 #         heatloss[n]/self.rho0/self.C_p
                 Q0 = SL.t_star*SL.u_star if heatloss is None \
                         else heatloss[n]
                 theta, dz_theta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
-                        SL, SL_nm1, solar_flux[n], Q0)
+                        SL, SL_nm1, Q_sw[n], Q_lw[n], Q0)
 
             # Refreshing u_delta, t_delta for next friction scales:
             func_un, _ = self.dictsf_scheme[sf_scheme]
@@ -291,7 +293,7 @@ class Ocean1dStratified():
 
 
     def FD(self, u_t0: array, theta_t0: array,
-            solar_flux: array, heatloss: array,
+            Q_sw: array, Q_lw: array, heatloss: array,
             wind_10m: array, temp_10m: array,
             TEST_CASE: int=0,
             turbulence: str="TKE", sf_scheme: str="FD pure",
@@ -319,7 +321,8 @@ class Ocean1dStratified():
         assert sf_scheme in {"FD2", "FD pure", "FD test"}
         assert turbulence in {"TKE", "KPP"}
         N: int = wind_10m.shape[0] - 1 # number of time steps
-        assert solar_flux.shape[0] == N + 1
+        assert Q_sw.shape[0] == N + 1
+        assert Q_lw.shape[0] == N + 1
         assert temp_10m.shape[0] == N + 1
         assert heatloss is None or heatloss.shape[0] == N + 1
 
@@ -391,7 +394,8 @@ class Ocean1dStratified():
 
             if not Neutral_case:
                 swr_frac = self.shortwave_fractional_decay()
-                forcing_theta = swr_frac * solar_flux[n]
+                forcing_theta = swr_frac * Q_sw[n] \
+                        / self.rho0 / self.C_p
                 # integrate in time potential temperature:
                 Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
                         Ktheta_full, np.zeros(self.M))
@@ -403,7 +407,7 @@ class Ocean1dStratified():
                         K_theta=Ktheta_full, forcing_theta=forcing_theta,
                         universal_funcs=large_ocean(),
                         universal_funcs_a=businger(), Q0=Q0,
-                        Qs=solar_flux[n]*self.rho0*self.C_p)
+                        Q_sw=Q_sw[n], Q_lw=Q_lw[n])
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
@@ -463,7 +467,7 @@ class Ocean1dStratified():
     def __step_theta(self, theta: array, dz_theta: array,
             Ktheta_full: array, forcing_theta: array,
             SL: SurfaceLayerData, SL_nm1: SurfaceLayerData,
-            solar_flux, Q0):
+            Q_sw, Q_lw, Q0):
         """
         One step of integration in time for potential temperature (FV)
         theta: average on the cells (centered at z_half),
@@ -484,8 +488,7 @@ class Ocean1dStratified():
                 K_theta=Ktheta_full, forcing_theta=forcing_theta,
                 universal_funcs=large_ocean(),
                 universal_funcs_a=businger(), SL=SL, SL_nm1=SL_nm1,
-                Q0=Q0,
-                Qs=solar_flux*self.rho0*self.C_p)
+                Q0=Q0, Q_sw=Q_sw, Q_lw=Q_lw)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
                 Y_nm1=Y_nm1))
@@ -1204,6 +1207,23 @@ class Ocean1dStratified():
             swr_frac[k]=swdk1+swdk2
         return swr_frac
 
+    def shortwave_frac_sl(self, z):
+        """
+            Paulson and Simpson, 1981
+        """
+        A_i = np.array([.1, .1, .1, .1, .1, .1, .1, .2, .1])
+        k_i = np.array([1., 2, 3, 4, 5, 6., 7 ,8, 9])
+        return np.sum(A_i * np.exp(np.outer(z, k_i)), axis=-1)
+
+    def integrated_shortwave_frac_sl(self, L_MO: float, phi_h,
+            z: float) -> float:
+        """
+            int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
+        """
+        z_prim = np.linspace(0 , z)
+        return np.sum(phi_h(-z_prim/L_MO) * \
+                shortwave_frac_sl(z_prim) / z_prim)
+
     def __tau_sl(self, SL: SurfaceLayerData,
             universal_funcs) -> (float, float):
         delta_sl, inv_L_MO = SL.delta_sl, SL.inv_L_MO
@@ -1537,19 +1557,20 @@ class Ocean1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FDtest_theta(self, K_theta, SL,
-            forcing_theta, Q0, Qs, **_):
+            forcing_theta, Q0, Q_sw, Q_lw, **_):
         Y = ((0.,), (1.,), ())
         D = ((K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],),
             (- K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
         c = (forcing_theta[self.M - 1] - \
-            (Q0 - Qs)/self.rho0/self.C_p/self.h_half[self.M-1] ,)
+            (Q0 - Q_sw - Q_lw) / self.rho0 / self.C_p / \
+            self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
     def __sf_YDc_FVtest_theta(self, K_theta,
             SL, universal_funcs,
-            forcing_theta, Q0, Qs, **_):
+            forcing_theta, Q0, Q_sw, Q_lw, **_):
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((0.,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
@@ -1558,11 +1579,12 @@ class Ocean1dStratified():
         # Q0 and Qs are already taken into account in forcing?
         # Q0: total heat
         # QS: solar part
-        c = (forcing_theta[self.M-1], (Q0 - Qs)/(self.rho0*self.C_p))
+        c = (forcing_theta[self.M-1], (Q0 - Q_sw - \
+                Q_lw)/(self.rho0*self.C_p))
         return Y, D, c, Y
 
     def __sf_YDc_FVfree_theta(self, K_theta, SL, SL_nm1,
-            forcing_theta, universal_funcs, Q0, Qs, **kwargs):
+            forcing_theta, universal_funcs, Q0, Q_sw, Q_lw, **kwargs):
         # Il faut changer ça pour utiliser seulement universal_funcs
         # Donc enlever CHdu du standalone_chapter à priori,
         # pour utiliser un truc plus compatible
@@ -1600,7 +1622,8 @@ class Ocean1dStratified():
         rhs_part_tilde = (rhs_n - rhs_nm1)/self.dt
         c = ( (forcing_theta[k-1] - forcing_theta[k-2])/self.h_full[k-1],
                 forcing_theta[k-1] + rhs_part_tilde,
-                -SL.t_zM - alpha / ch_du * Qs / self.rho0 / self.C_p)
+                -SL.t_zM - alpha / ch_du * (Q_sw + Q_lw) / \
+                        self.rho0 / self.C_p)
 
         Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
         Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)
