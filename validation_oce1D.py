@@ -23,7 +23,7 @@ def fig_constantCooling():
             N0=N0)
 
     # N_FOR = nb_steps = int(72 * 3600 / dt)
-    N = 1
+    N = 100
     time = dt * np.arange(N+1)
     rho0, cp, Qswmax = 1024., 3985., 0.
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \

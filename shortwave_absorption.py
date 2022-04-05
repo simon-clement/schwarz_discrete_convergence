@@ -50,19 +50,36 @@ def shortwave_frac_sl(z):
     return np.sum(A_i * np.exp(np.outer(z, k_i)), axis=-1)
 
 @jit(nopython=True)
-def to_integrate_swfrac_sl(z: float, inv_L_MO: float):
-    zeta = -z*inv_L_MO
-    Ch = np.cbrt(1-25*zeta) # in shortwave_absorption.py
-    phi_h = 5*zeta + 1 if zeta >= 0 else 1/Ch
-    return phi_h * shortwave_frac_sl(z) / z
+def to_integrate_swfrac_sl(z: float, inv_L_MO: float) -> float:
+    zeta: float = -z*inv_L_MO
+    Ch: float = np.cbrt(1-25*zeta) # in shortwave_absorption.py
+    phi_h: float = 5*zeta + 1 if zeta >= 0 else 1/Ch
+    sw_frac: float = shortwave_frac_sl(z)[0]
+    return phi_h * sw_frac / z
 
+@jit(nopython=True)
 def integrated_shortwave_frac_sl(inv_L_MO: float, z: float) -> float:
     """
         int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
         returns E(z)
     """
+    if abs(z) < 1e-5:
+        return 0.
+    n: int = 30
+    s: float = 0.
+    for z_prim in np.linspace(z*1e-5, z, n):
+        s += to_integrate_swfrac_sl(z_prim, inv_L_MO)
+    return -z * s / n
+
+def slow_integrated_shortwave_frac_sl(inv_L_MO: float, z: float) -> float:
+    """
+        int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
+        returns E(z)
+    """
+    if abs(z) < 1e-5:
+        return 0.
     return scipy.integrate.quad(to_integrate_swfrac_sl, z, z*1e-5,
-            args=(inv_L_MO,))[0]
+            args=(inv_L_MO,), limit=20, epsrel=1e-4)[0]
 
 def Qsw_E(z: float, SL, turhocp):
     """

@@ -7,6 +7,7 @@
 from typing import Tuple, List, NamedTuple
 import bisect
 import numpy as np
+from progressbar import ProgressBar
 from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
 from utils_linalg import solve_linear, orientation
@@ -45,7 +46,8 @@ class Ocean1dStratified():
     def __init__(self, z_levels: array,
             N0: float, alpha: float, dt: float=30.,
             u_geostrophy: float=10.,
-            K_mol: float=1e-4, C_p: float=3985., f: float=1e-4) -> None:
+            K_mol: float=1e-4, C_p: float=3985., f: float=1e-4,
+            loading_bar: bool=True) -> None:
         """
             z_levels starts at bottom of ocean and contains
             all the full levels $z_m$ until $z_M=0$.
@@ -66,6 +68,7 @@ class Ocean1dStratified():
         self.h_full: array = np.diff(self.z_half,
                 prepend=2*z_levels[0] - self.z_half[0])
         self.M: int = self.z_full.shape[0] - 1
+        self.loading_bar: bool = loading_bar
         self.dt: float = dt
         self.K_mol: float = K_mol
         self.kappa: float = 0.4
@@ -211,7 +214,9 @@ class Ocean1dStratified():
         ret_u_current, ret_tke, ret_SL = [], [], []
         ret_phi, ret_theta, ret_dz_theta, ret_leps = [], [], [], []
 
-        for n in range(1,N+1):
+        progressbar = ProgressBar()
+        for n in progressbar(range(1,N+1)) \
+                if self.loading_bar else range(1,N+1):
             # Compute friction scales:
             SL_nm1 = SL
             SL = self.__friction_scales(ua_delta=wind_10m[n],
@@ -356,7 +361,9 @@ class Ocean1dStratified():
         old_u: array = np.copy(u_current)
         all_u_star = []
         all_u, all_tke, all_theta, all_leps = [], [], [], []
-        for n in range(1,N+1):
+        progressbar = ProgressBar()
+        for n in progressbar(range(1,N+1)) \
+                if self.loading_bar else range(1,N+1):
             u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
             t_delta = func_theta(prognostic=theta)
             SL = self.__friction_scales(ua_delta=wind_10m[n],
@@ -1218,7 +1225,8 @@ class Ocean1dStratified():
 
         # numerical integration of Qws_E:
         integral_Qsw_E = integrate.quad(Qsw_E, delta_sl,
-                zk - (zk-delta_sl)*1e-5, args=(SL, turhocp))[0]
+                zk - (zk-delta_sl)*1e-5, args=(SL, turhocp),
+                limit=20, epsrel=1e-4)[0]
 
         numer_theta = term_lw * (brackets_theta(zk) - \
                 brackets_theta(delta_sl)) - integral_Qsw_E
