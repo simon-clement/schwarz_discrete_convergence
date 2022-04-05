@@ -112,13 +112,13 @@ def fig_introDiscreteAnalysis():
     ax = axes[0]
     setting.LAMBDA_1, setting.LAMBDA_2 = optimal_robin_parameter(setting,
             rho_c_c, axis_freq, overlap_L=overlap_M*h).x
-    ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important, label="Continuous convergence rate", color=col_cont)
+    ax.semilogx(axis_freq, np.abs(rho_c_c(setting, axis_freq, overlap_L=0.)), lw=lw_important, label="Continuous convergence factor", color=col_cont)
     ocean, atmosphere = setting.build(OceanPadeFD, AtmospherePadeFD, K_c=k_c)
     if REAL_FIG:
         alpha_w = memoised(frequency_simulation, atmosphere, ocean, number_samples=1, NUMBER_IT=1,
                 laplace_real_part=0, T=N*setting.DT, init="white")
         ax.semilogx(axis_freq, np.abs(alpha_w[2]/alpha_w[1]), label="Numerical simulation",color=col_numeric)
-    ax.semilogx(axis_freq, np.abs(rho_Pade_FD(setting, axis_freq, overlap_M=0, k_c=k_c)), "--", lw=lw_important, label="Discrete convergence rate",color=col_discrete)
+    ax.semilogx(axis_freq, np.abs(rho_Pade_FD(setting, axis_freq, overlap_M=0, k_c=k_c)), "--", lw=lw_important, label="Discrete convergence factor",color=col_discrete)
     ax.set_title(r"$RR, "+ ("(p_1, p_2) = ({:.3f}, {:.3f})$").format(setting.LAMBDA_1, setting.LAMBDA_2))
     ax.set_xlabel(r"$\omega$")
     ax.set_ylabel(r"$\rho$")
@@ -893,7 +893,7 @@ def fig_dependency_maxrho_combined():
     lab_dotted = ax.vlines(x=[], ymin=ymin, ymax=ymax, colors="k",
             linestyle="dotted", label="Optimized parameter")
     lab_scatter = ax.scatter(x=[], y=[], c="k", marker='x',
-            label="Actual convergence rates")
+            label="Actual convergence rate")
 
     print("p1: continuous: {:.4f}, discrete :{:.4f}, combined:{:.4f}, s-d space:{:.4f}, s-d time:{:.4f}".format(*all_p1[minima_indices]))
     print("rho_RR: continuous: {:.4f}, discrete :{:.4f}, combined:{:.4f}, s-d space:{:.4f}, s-d time:{:.4f}".format(*discrete[minima_indices]))
