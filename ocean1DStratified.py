@@ -594,7 +594,8 @@ class Ocean1dStratified():
                 (xi[m]**2 - self.h_half[m]**2/12) for m in range(self.M)]
         u_star, t_star, _, _, inv_L_MO, _, _, u_zM, t_zM, \
                 delta_sl, k1, sf_scheme, Q_sw, Q_lw, _ = SL
-        if sf_scheme in {"FV1", "FV pure", "FV test"} or ignore_loglaw:
+        if sf_scheme in {"FV1", "FV pure", "FV test"} \
+                or ignore_loglaw or delta_sl >= z_max:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
             k_1m: int = bisect.bisect_left(allxi[-1], z_max)
             allxi[-1] = allxi[-1][:k_1m]
@@ -1238,9 +1239,15 @@ class Ocean1dStratified():
                 Qsw_E(delta_sl, SL, turhocp)
 
 
-        tau_slu = (brackets_u(zk) - brackets_u(delta_sl)) / \
-                self.h_half[SL.k-1] / denom_u
-        tau_slt = numer_theta / denom_theta / self.h_half[SL.k-1]
+        if abs(denom_u) < 1e-10:
+            tau_slu = 0.
+        else:
+            tau_slu = (brackets_u(zk) - brackets_u(delta_sl)) / \
+                    self.h_half[SL.k-1] / denom_u
+        if abs(denom_theta) < 1e-10:
+            tau_slt = 0.
+        else:
+            tau_slt = numer_theta / denom_theta / self.h_half[SL.k-1]
 
         return tau_slu, tau_slt
 

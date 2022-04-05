@@ -23,7 +23,7 @@ def fig_constantCooling():
             N0=N0)
 
     # N_FOR = nb_steps = int(72 * 3600 / dt)
-    N = 100
+    N = int(72*3600/dt)
     time = dt * np.arange(N+1)
     rho0, cp, Qswmax = 1024., 3985., 0.
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
@@ -33,7 +33,8 @@ def fig_constantCooling():
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
+    heatloss = None # np.zeros(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
+    Qlw = -np.ones(N+1) * 100
     # this heatloss will be divided by (rho0*cp)
     # Q0_{comodo} = -heatloss / (rho cp)
     wind_10m = 1.1*np.ones(N+1) + 0j
@@ -41,6 +42,7 @@ def fig_constantCooling():
     # if temp_10m<T0, then __friction_scales does not converge.
 
     fig, axes = plt.subplots(1, 2)
+    delta_sl= 0.
 
     for sf_scheme in ("FV free",):
         if sf_scheme == "FV free":
@@ -48,7 +50,7 @@ def fig_constantCooling():
                     simulator_oce.initialization(\
                     np.zeros(simulator_oce.M)+0j, # u_0
                     np.copy(theta_0), # theta_0
-                    -.5, wind_10m[0], temp_10m[0], Qsw[0], Qlw[0],
+                    delta_sl, wind_10m[0], temp_10m[0], Qsw[0], Qlw[0],
                     10., sf_scheme)
         else:
             u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
@@ -58,7 +60,7 @@ def fig_constantCooling():
                     dz_theta, l_eps, SL, viscosity =simulator_oce.FV(\
                 u_t0=u_i, phi_t0=phi_i, theta_t0=theta_i,
                 dz_theta_t0=dz_theta_i, Q_sw=Qsw, Q_lw=Qlw,
-                u_delta=u_delta, t_delta=t_delta,
+                u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
                 heatloss=heatloss, wind_10m=wind_10m, TEST_CASE=0,
                 temp_10m=temp_10m, sf_scheme=sf_scheme)
         zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
