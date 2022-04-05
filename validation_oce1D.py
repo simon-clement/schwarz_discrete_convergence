@@ -198,10 +198,11 @@ def fig_comodoParamsConstantCooling():
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
+    Qlw, heatloss = -heatloss, np.zeros(N+1)
     # this heatloss will be divided by (rho0*cp)
     # Q0_{comodo} = -heatloss / (rho cp)
-    wind_10m = np.zeros(N+1) + 0j
-    temp_10m = np.ones(N+1) * 240
+    wind_10m = np.zeros(N+1) + 0j + 1. # note: with TEST_CASE=2
+    temp_10m = np.ones(N+1) * T0 # u* and t* are overriden
 
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\

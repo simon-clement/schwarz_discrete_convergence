@@ -194,7 +194,7 @@ class Ocean1dStratified():
 
         import tkeOcean1D
         wave_breaking = TEST_CASE in {1,2}
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FV",
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
                 TEST_CASE=TEST_CASE, ignore_sl=ignore_tke_sl,
                 wave_breaking=wave_breaking)
 
@@ -1181,8 +1181,12 @@ class Ocean1dStratified():
             previous_u_star, previous_t_star = u_star, t_star
             u_star = np.sqrt(C_D) * np.abs(ua_delta-uo_delta)
             t_star = ( Ch / np.sqrt(C_D)) * (ta_delta - to_delta)
-        assert abs(previous_u_star - u_star) < 1e-10 # we attained
-        assert abs(previous_t_star - t_star) < 1e-10 # convergence
+        if abs(previous_u_star - u_star) > 1e-10: # we attained
+            print("bulk convergence not attained (u*): error of",
+                    abs(previous_u_star - u_star))
+        if abs(previous_t_star - t_star) > 1e-10: # convergence
+            print("bulk convergence not attained (t*): error of",
+                    abs(previous_t_star - t_star))
 
         uo_star, to_star = lambda_u*u_star, lambda_t*t_star
         inv_L_a = 9.81 * self.kappa * t_star \
