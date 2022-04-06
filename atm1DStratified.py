@@ -1092,7 +1092,7 @@ class Atm1dStratified():
                 for m in range(1, self.M-1)]
             , [K_full[self.M-1]/self.h_half[self.M-1]/self.h_full[self.M-1]]))
 
-        c: array = forcing
+        c: array = np.copy(forcing)
         c[-1] += K_full[self.M] * 0. / self.h_half[self.M-1]
         Y = (np.zeros(self.M-1), np.ones(self.M), np.zeros(self.M-1))
         D = D_ldiag, D_diag, D_udiag
@@ -1116,7 +1116,7 @@ class Atm1dStratified():
                 for m in range(1, self.M-1)]
             , [K_full[self.M-1]/self.h_half[self.M-1]/self.h_full[self.M-1]]))
 
-        c: array = forcing
+        c: array = np.copy(forcing)
         c[-1] += K_full[self.M] * 0. / self.h_half[self.M-1]
         Y = (np.zeros(self.M-1), np.ones(self.M), np.zeros(self.M-1))
         D = D_ldiag, D_diag, D_udiag

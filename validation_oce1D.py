@@ -41,8 +41,9 @@ def fig_constantCooling():
     temp_10m = np.ones(N+1) * 5
     # if temp_10m<T0, then __friction_scales does not converge.
 
-    fig, axes = plt.subplots(1, 5, figsize=(13,4))
-    delta_sl= 0.
+    fig, axes = plt.subplots(1, 6, figsize=(13,4))
+    delta_sl= -.5
+    z_levels_free = np.concatenate((z_levels[:-1], [delta_sl]))
 
     for sf_scheme in ("FV free",):
         if sf_scheme == "FV free":
@@ -72,17 +73,19 @@ def fig_constantCooling():
                 label="wind speed Python FV")
         axes[2].plot(np.imag(uFV), zFV, "--",
                 label="wind speed Python FV")
-        axes[3].plot(viscosity, simulator_oce.z_full, "--",
+        axes[3].plot(viscosity, z_levels_free, "--",
                 label="Diffusivity Python FV")
-        axes[4].plot(l_eps, simulator_oce.z_full, "--",
+        axes[4].plot(l_eps, z_levels_free, "--",
                 label="Diffusivity Python FV")
+        axes[5].plot(tke, z_levels_free, "--",
+                label="tke Python FV")
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
             u_t0=u_0, theta_t0=theta_0, TEST_CASE=0,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
             temp_10m=temp_10m,
-            heatloss=heatloss, sf_scheme="FD test")
+            heatloss=heatloss, sf_scheme="FD pure")
 
     axes[0].plot(thetaFD, simulator_oce.z_half[:-1], "--",
             label="Temperature Python FD")
@@ -94,15 +97,18 @@ def fig_constantCooling():
             label="Diffusivity Python FD")
     axes[4].plot(l_eps, simulator_oce.z_full, "--",
             label="Diffusivity Python FD")
+    axes[5].plot(tke, simulator_oce.z_full, "--",
+            label="Diffusivity Python FD")
 
     axes[0].legend()
-    for i in range(5):
+    for i in range(6):
         axes[i].set_yscale("symlog", linthresh=0.1)
     axes[0].set_title("temperature")
     axes[1].set_title("wind (u)")
     axes[2].set_title("wind (v)")
     axes[3].set_title("diffusivity")
     axes[4].set_title("mxlm")
+    axes[5].set_title("tke")
     show_or_save("fig_constantCooling")
 
 def fig_windInduced():

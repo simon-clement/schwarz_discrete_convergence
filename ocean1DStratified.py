@@ -194,7 +194,7 @@ class Ocean1dStratified():
 
         import tkeOcean1D
         wave_breaking = TEST_CASE in {1,2}
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FV",
                 TEST_CASE=TEST_CASE, ignore_sl=ignore_tke_sl,
                 wave_breaking=wave_breaking)
 
@@ -267,8 +267,8 @@ class Ocean1dStratified():
                         / self.rho0 / self.C_p
                 # forcing_theta[-1] =  solar_flux[n] - \
                 #         heatloss[n]/self.rho0/self.C_p
-                QH = self.rho0 * self.C_p * SL.t_star*SL.u_star if heatloss is None \
-                        else heatloss[n]
+                QH = self.rho0 * self.C_p * SL.t_star*SL.u_star \
+                        if heatloss is None else heatloss[n]
                 theta, dz_theta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
                         SL, SL_nm1, QH)
@@ -805,7 +805,7 @@ class Ocean1dStratified():
             [K_full[m]/self.h_full[m] / self.h_half[m]
                 for m in range(1, self.M)])
 
-        c: array = forcing
+        c: array = np.copy(forcing)
         dzu_bottom: float = 0.
         c[0] += K_full[0] * dzu_bottom / self.h_half[0]
         Y = (np.zeros(self.M-1), np.ones(self.M), np.zeros(self.M-1))
@@ -831,7 +831,7 @@ class Ocean1dStratified():
             [K_full[m]/self.h_full[m] / self.h_half[m]
                 for m in range(1, self.M)])
 
-        c: array = forcing
+        c: array = np.copy(forcing)
         dztheta_bottom = 0. # Gamma_T
         c[0] -= K_full[0] * dztheta_bottom/self.h_half[0]
         Y = (np.zeros(self.M-1), np.ones(self.M), np.zeros(self.M-1))
@@ -887,7 +887,6 @@ class Ocean1dStratified():
             # For energy conservation: shear from Burchard (2002)
             shear_half = np.abs(K_full[1:] * phi[1:] * phi_prime \
                         + K_full[:-1] * phi[:-1] * phi_second)
-            shear_half = np.abs(full_to_half(K_full*phi*phi))
 
             # linear equation of state:
             # rho1 = rho0 * (1 - alpha * theta_full - T0)
@@ -897,7 +896,6 @@ class Ocean1dStratified():
             N2_full = -g/self.rho0 * dz_rho
             shear_full = np.abs(K_full*phi*phi)
 
-            buoy_half = full_to_half(Ktheta_full*N2_full)
             tke.integrate_tke(self, SL, universal_funcs,
                     shear_full, K_full, l_eps, Ktheta_full,
                     N2_full, self.rho0*SL.u_star**2, tau_b)
