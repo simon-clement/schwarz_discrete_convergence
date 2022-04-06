@@ -8,13 +8,13 @@ from typing import Tuple, List, NamedTuple
 import bisect
 import numpy as np
 from progressbar import ProgressBar
+from scipy import integrate
 from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
 from utils_linalg import solve_linear, orientation
 from utils_linalg import full_to_half
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
-import scipy.integrate as integrate
 from shortwave_absorption import shortwave_fractional_decay, \
         integrated_shortwave_frac_sl, Qsw_E
 
@@ -267,11 +267,11 @@ class Ocean1dStratified():
                         / self.rho0 / self.C_p
                 # forcing_theta[-1] =  solar_flux[n] - \
                 #         heatloss[n]/self.rho0/self.C_p
-                Q0 = SL.t_star*SL.u_star if heatloss is None \
+                QH = self.rho0 * self.C_p * SL.t_star*SL.u_star if heatloss is None \
                         else heatloss[n]
                 theta, dz_theta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
-                        SL, SL_nm1, Q0)
+                        SL, SL_nm1, QH)
 
             # Refreshing u_delta, t_delta for next friction scales:
             func_un, _ = self.dictsf_scheme[sf_scheme]
@@ -415,14 +415,14 @@ class Ocean1dStratified():
                 # integrate in time potential temperature:
                 Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
                         Ktheta_full, np.zeros(self.M))
-                Q0 = SL.t_star*SL.u_star if heatloss is None \
-                        else heatloss[n]
+                QH = self.rho0 * self.C_p * SL.t_star*SL.u_star \
+                        if heatloss is None else heatloss[n]
                 self.__apply_sf_scheme(\
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
                         K_theta=Ktheta_full, forcing_theta=forcing_theta,
                         universal_funcs=large_ocean(),
-                        universal_funcs_a=businger(), Q0=Q0)
+                        universal_funcs_a=businger(), QH=QH)
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
@@ -481,7 +481,7 @@ class Ocean1dStratified():
 
     def __step_theta(self, theta: array, dz_theta: array,
             Ktheta_full: array, forcing_theta: array,
-            SL: SurfaceLayerData, SL_nm1: SurfaceLayerData, Q0):
+            SL: SurfaceLayerData, SL_nm1: SurfaceLayerData, QH):
         """
         One step of integration in time for potential temperature (FV)
         theta: average on the cells (centered at z_half),
@@ -502,7 +502,7 @@ class Ocean1dStratified():
                 K_theta=Ktheta_full, forcing_theta=forcing_theta,
                 universal_funcs=large_ocean(),
                 universal_funcs_a=businger(), SL=SL, SL_nm1=SL_nm1,
-                Q0=Q0)
+                QH=QH)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
                 Y_nm1=Y_nm1))
@@ -1263,27 +1263,49 @@ class Ocean1dStratified():
     # (u_{1/2}, ... u_{k+1/2}, phi_k, ...phi_M) for FV.
 
     def __sf_udelta_FDpure(self, prognostic, **_):
+        """
+            u(delta) = u_{-1/2}
+        """
         return prognostic[-1]
 
     def __sf_udelta_FD2(self, prognostic, **_):
+        """
+            u(delta) = (u_{-1/2} + u_{-3/2}) / 2
+        """
         return (prognostic[-1] + prognostic[-2])/2
 
     def __sf_udelta_FDtest(self, prognostic, **_):
+        """
+            u(delta) = u_{-1/2}
+        """
         return prognostic[-1]
 
     def __sf_udelta_FVpure(self, prognostic, **_):
+        """
+            u(delta) = Bar{u}_{-1/2} - h (phi_0 - phi_{-1})/24
+        """
         return prognostic[-1] - self.h_half[self.M-1]* \
                 (prognostic[-2] - prognostic[-3])/24
 
     def __sf_udelta_FV1(self, prognostic, **_):
+        """
+            u(delta) = Bar{u}_{-1/2}
+        """
         return prognostic[-1]
 
     def __sf_udelta_FVtest(self, prognostic, **_): # Dirichlet cond
-        return prognostic[-1] - self.h_half[self.M-1]* \
+        """
+            u(delta) = Bar{u}_{-1/2} + h phi_0 / 3 + h phi_{-1} / 6
+        """
+        return prognostic[-1] + self.h_half[self.M-1]* \
                 (prognostic[-2]/3 + prognostic[-3]/6)
 
     def __sf_udelta_FVfree(self, prognostic, SL,
             universal_funcs, **_):
+        """
+            u(delta) = Bar{u}_{k-1/2} - u(0) * (1 - alpha) / alpha
+                    + ~h^2/h (phi_k / 3 + phi_{k-1} / 6)
+        """
         tau_slu, _ = self.__tau_sl(SL, universal_funcs)
         tilde_h = SL.delta_sl - self.z_full[SL.k-1]
         alpha = tilde_h/self.h_half[SL.k-1] + tau_slu
@@ -1301,6 +1323,11 @@ class Ocean1dStratified():
     # for Y and D, the tuples are (lower diag, diag, upper diag)
 
     def __sf_YDc_FDpure(self, K_u, forcing, SL, **_):
+        """
+            Y = (0    ,             1                         )
+            D = (K/h^2, - K/h^2 - u*^2 / (h|u(z_a) - u(z_o)|) )
+            c = (F + u*^2 u(z_a) / (h|u(z_a) - u(z_o)|)       )
+        """
         wind_atm = SL.SL_a.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
         norm_jump = np.abs(wind_atm - u_delta)
@@ -1315,18 +1342,29 @@ class Ocean1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FD2(self, K_u, SL, **_):
+        """
+            Y = (            0           ,             0           )
+            D = ( K/h - u*^2/(2|ua - uo|),-K/h - u*^2/(2|ua - uo|) )
+            c = (    u*^2 ua / |ua - uo|    )
+            where ua, uo = u(z_a), u(z_o).
+        """
         wind_atm = SL.SL_a.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
         Y = ((0.,), (0.,), ())
         norm_jump =  np.abs(wind_atm - u_delta)
-        D = ((K_u[self.M-1]/self.h_full[self.M-1] + \
-                -u_star**2 / norm_jump / 2,),
-            (-K_u[self.M-1]/self.h_full[self.M-1] + \
-                -u_star**2 / norm_jump / 2,), ())
+        D = ((K_u[self.M-1]/self.h_full[self.M-1] -\
+                u_star**2 / norm_jump / 2,),
+            (-K_u[self.M-1]/self.h_full[self.M-1] -\
+                u_star**2 / norm_jump / 2,), ())
         c = (u_star**2 * wind_atm / norm_jump,)
         return Y, D, c, Y
 
     def __sf_YDc_FDtest(self, K_u, forcing, SL, **_):
+        """
+            Y = (0     ,    1     )
+            D = (K/h^2 , -K/h^2   )
+            c = (  F + u*^2/h   )
+        """
         Y = ((0.,), (1.,), ())
         D = ((K_u[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],),
@@ -1338,33 +1376,55 @@ class Ocean1dStratified():
 
 
     def __sf_YDc_FVpure(self, K_u, forcing, SL, **_):
+        """
+            Y = (0     ,    0     , 1 )
+                (0     ,    0     , 0 )
+            D = ( -K/h  ,       K/h             ,   0)
+                (- h/24 , h/24 - K|ua-uo|/u*^2  ,  -1)
+            c = (  F  )
+                (  ua )
+        """
         wind_atm = SL.SL_a.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
         norm_jump = np.abs(wind_atm - u_delta)
         Y = ((0., 0.), (0., 0.), (1.,))
-        # we have a +K|u|/u*^2 for symmetry with atmosphere
-        D = ((self.h_half[self.M-1]/24,),
+        D = ((-self.h_half[self.M-1]/24,),
             (-K_u[self.M-1]/self.h_half[self.M-1],
-            K_u[self.M]*norm_jump/u_star**2 \
-                    - self.h_half[self.M-1]/24),
-            (K_u[self.M] / self.h_half[self.M-1], 1.), (0.,))
+            -K_u[self.M]*norm_jump/u_star**2 \
+                    + self.h_half[self.M-1]/24),
+            (K_u[self.M] / self.h_half[self.M-1], -1.), (0.,))
         c = (forcing[self.M-1], wind_atm)
         return Y, D, c, Y
 
     def __sf_YDc_FV1(self, K_u, forcing, SL, **_):
+        """
+            Y = (0     ,    0     , 1 )
+                (0     ,    0     , 0 )
+            D = (-K/h ,       K/h        ,   0)
+                (  0  , - K|ua-uo|/u*^2  ,  -1)
+            c = (  F  )
+                (  ua )
+        """
         wind_atm = SL.SL_a.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
         norm_jump = np.abs(wind_atm - u_delta)
         Y = ((0., 0.), (0., 0.), (1.,))
-        # we have a +K|u|/u*^2 for symmetry with atmosphere
         D = ((0.,),
             (-K_u[self.M-1]/self.h_half[self.M-1],
-            K_u[self.M]*norm_jump/u_star**2),
-            (K_u[self.M] / self.h_half[self.M-1], 1.), (0.,))
+            -K_u[self.M]*norm_jump/u_star**2),
+            (K_u[self.M] / self.h_half[self.M-1], -1.), (0.,))
         c = (forcing[self.M-1], wind_atm)
         return Y, D, c, Y
 
     def __sf_YDc_FVtest(self, K_u, forcing, SL, **_):
+        """
+            Y = (0     ,    0     , 1 )
+                (0     ,    0     , 0 )
+            D = (-K/h , K/h  ,  0)
+                (  0  , - K  ,  0)
+            c = (   F   )
+                (  u*^2 )
+        """
         Y = ((0., 0.), (0., 0.), (1.,))
         # dont forget equation is dtYu - Du = c
         D = ((0.,),
@@ -1375,6 +1435,25 @@ class Ocean1dStratified():
 
     def __sf_YDc_FVfree(self, K_u, forcing, universal_funcs,
             SL, SL_nm1, **_):
+        """
+            Y  = (h/(6h),  (~h+h)/(3h) , ~h/(6h)       , 0   )
+                 ( 0    , -tau ~h/(6a) , -tau ~h/(3a)  , 1/a )
+                 ( 0    ,           0  ,    0,         , 0   )
+
+            D = (K/h^2,-K(1/h+1/~h)/h,         K/(h~h)         , 0 )
+                ( 0   ,     -K/~h    ,         K/~h            , 0 )
+                ( 0   ,    ~h^2/(6h) , ~h^2/(3h)+Ka|u0-uo|/u*^2, 1 )
+
+            c = (        1/h (forcing_{k-1/2} - forcing_{k-3/2})     )
+                ( forcing_{k-1/2} + (partial_t + if) ( u(0) (1-a)/a ))
+                (                     -u(0)                          )
+            after that, the matrices are filled for every M > m > k
+            with 0 for Y
+            D: (ldiag, diag, udiag) = (ratio_norms, -1, 0)
+            where ratio_norms is given by the log law.
+            this last part is actually overriden in the end so
+            it should not be considered too seriously.
+        """
         u_star, u_delta, delta_sl, inv_L_MO, k = SL.u_star, \
                 SL.u_delta, SL.delta_sl, SL.inv_L_MO, SL.k
         tilde_h = delta_sl - self.z_full[k-1]
@@ -1444,27 +1523,49 @@ class Ocean1dStratified():
     # the prognostic variables are theta for FD and
     # (theta_{1/2}, ... theta_{k+1/2}, phit_k, ...phit_M) for FV.
     def __sf_thetadelta_FDpure(self, prognostic, **_):
+        """
+            t(delta) = t_{-1/2}
+        """
         return prognostic[self.M-1]
 
     def __sf_thetadelta_FD2(self, prognostic, **_):
+        """
+            t(delta) = (t_{-1/2} + t_{-3/2})/2
+        """
         return (prognostic[self.M-1] + prognostic[self.M-2])/2
 
     def __sf_thetadelta_FDtest(self, prognostic, **_):
+        """
+            t(delta) = t_{-1/2}
+        """
         return prognostic[self.M-1]
 
     def __sf_thetadelta_FVpure(self, prognostic, **_):
+        """
+            t(delta) = Bar{t}_{-1/2} - h (dzt_0 - dzt_{-1})/24
+        """
         return prognostic[-1] - self.h_half[self.M-1]* \
                 (prognostic[self.M] - prognostic[self.M-1])/24
 
     def __sf_thetadelta_FV1(self, prognostic, **_):
+        """
+            t(delta) = Bar{t}_{-1/2}
+        """
         return prognostic[-1]
 
     def __sf_thetadelta_FVtest(self, prognostic, **_):
-        return prognostic[-1] - self.h_half[self.M-1]* \
+        """
+            t(delta) = Bar{t}_{-1/2} + h dzt_0 / 3 + h dzt_{-1} / 6
+        """
+        return prognostic[-1] + self.h_half[self.M-1]* \
                 (prognostic[-2]/3 + prognostic[-3]/6)
 
     def __sf_thetadelta_FVfree(self, prognostic, SL,
             universal_funcs, **_):
+        """
+            t(delta) = Bar{t}_{k-1/2} - t(0) * (1 - alpha) / alpha
+                    + ~h^2/h (dzt_k / 3 + dzt_{k-1} / 6)
+        """
         _, tau_slt = self.__tau_sl(SL, universal_funcs)
         tilde_h = SL.delta_sl - self.z_full[SL.k-1]
         alpha = tilde_h/self.h_half[SL.k-1] + tau_slt
@@ -1490,6 +1591,7 @@ class Ocean1dStratified():
         such that the bd condition for theta is
             K_t dt/dz = lambda_u lambda_t C_H^{a+o} |u_a - u_o|
                                     (t_a - t_o)
+        radiative fluxes are taken into account.
         """
         _, phi_h, _, psih_o, _, _ = universal_funcs
         _, _, _, psih_a, _, _ = universal_funcs_a
@@ -1520,6 +1622,7 @@ class Ocean1dStratified():
         such that the bd condition for theta is
             K_t dt/dz = lambda_u lambda_t C_H^o |u(0) - u_o|
                                     (t(0) - t_o)
+        radiative fluxes are taken into account.
         """
         _, phi_h, _, psih, _, _ = universal_funcs
         zeta = -SL.delta_sl * SL.inv_L_MO
@@ -1536,6 +1639,11 @@ class Ocean1dStratified():
 
     def __sf_YDc_FDpure_theta(self, K_theta, SL, forcing_theta,
             **kwargs):
+        """
+            Y = (0    ,             1            )
+            D = (K/h^2, - K/h^2 - C_H|ua-uo| / h )
+            c = (F + C_H|ua-uo| t(z_a) / h )
+        """
         ch_du = self.__flevel_ch_du(SL, **kwargs)
         Y = ((0.,), (1.,), ())
         D = ((K_theta[self.M-1] / self.h_full[self.M-1] / \
@@ -1549,6 +1657,11 @@ class Ocean1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FD2_theta(self, K_theta, SL, **kwargs):
+        """
+            Y = (            0          ,             0           )
+            D = ( K/h - C_H|ua-uo| / 2  ,  -K/h - C_H|ua-uo| / 2  )
+            c = (    C_H|ua-uo| ta     )
+        """
         ch_du = self.__flevel_ch_du(SL, **kwargs)
         Y = ((0.,), (0.,), ())
         D = ((K_theta[self.M-1]/self.h_full[self.M-1] - ch_du / 2,),
@@ -1559,55 +1672,103 @@ class Ocean1dStratified():
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL, forcing_theta,
             **kwargs):
+        """
+            Y = (0     ,    0     , 1 )
+                (0     ,    0     , 0 )
+            D = ( -K/h  ,       K/h             ,   0)
+                (- h/24 , h/24 - K/(C_H|ua-uo|) ,  -1)
+            c = (  F  )
+                (  ta )
+        """
         ch_du = self.__flevel_ch_du(SL, **kwargs)
         Y = ((0., 0.), (0., 0.), (1.,))
-        D = ((self.h_half[self.M-1]/24,),
+        D = ((-self.h_half[self.M-1]/24,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
-            K_theta[self.M]/ch_du-self.h_half[self.M-1]/24),
-                (K_theta[self.M] / self.h_half[self.M-1], 1.))
+            -K_theta[self.M]/ch_du+self.h_half[self.M-1]/24),
+                (K_theta[self.M] / self.h_half[self.M-1], -1.))
         c = (forcing_theta[self.M-1], SL.SL_a.t_delta)
         return Y, D, c, Y
 
     def __sf_YDc_FV1_theta(self, K_theta, SL, forcing_theta,
             **kwargs):
+        """
+            Y = (0     ,    0     , 1 )
+                (0     ,    0     , 0 )
+            D = (-K/h ,       K/h         ,   0)
+                (  0  , - K/(C_H|ua-uo|)  ,  -1)
+            c = (  F  )
+                (  ta )
+        """
         ch_du = self.__flevel_ch_du(SL, **kwargs)
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((0.,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
-            K_theta[self.M]/ch_du),
-                (K_theta[self.M] / self.h_half[self.M-1], 1.))
+            -K_theta[self.M]/ch_du),
+                (K_theta[self.M] / self.h_half[self.M-1], -1.))
         c = (forcing_theta[self.M-1], SL.SL_a.t_delta)
         return Y, D, c, Y
 
     def __sf_YDc_FDtest_theta(self, K_theta, SL,
-            forcing_theta, Q0, **_):
+            forcing_theta, QH, **_):
+        """
+            Y = (0     ,    1     )
+            D = (K/h^2 , -K/h^2   )
+            c = (  F - (QH - Q_sw - Q_lw) / (h rho cp)   )
+        """
         Y = ((0.,), (1.,), ())
         D = ((K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],),
             (- K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
-        c = (forcing_theta[self.M - 1] - \
-            (Q0 - SL.Q_sw - SL.Q_lw) / self.rho0 / self.C_p / \
+        c = (forcing_theta[self.M - 1] + \
+            (QH - SL.Q_sw - SL.Q_lw) / self.rho0 / self.C_p / \
             self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
     def __sf_YDc_FVtest_theta(self, K_theta,
             SL, universal_funcs,
-            forcing_theta, Q0, **_):
+            forcing_theta, QH, **_):
+        """
+            Y = (0     ,    0     , 1 )
+                (0     ,    0     , 0 )
+            D = (-K/h , K/h  ,  0)
+                (  0  , - K  ,  0)
+            c = (               F                 )
+                (  -(QH - Q_sw - Q_lw)/ (rho cp)  )
+        """
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((0.,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
-                K_theta[self.M]), #KdzT = - (Q0-Qs)/(rho Cp)
+                -K_theta[self.M]), #KdzT = (QH-Qs)/(rho Cp)
                 (K_theta[self.M] / self.h_half[self.M-1], 0))
-        # Q0 and Qs are already taken into account in forcing?
-        # Q0: total heat
+        # QH and Qs are already taken into account in forcing?
+        # QH: total heat
         # QS: solar part
-        c = (forcing_theta[self.M-1], (Q0 - SL.Q_sw - \
+        c = (forcing_theta[self.M-1], (QH - SL.Q_sw - \
                 SL.Q_lw)/(self.rho0*self.C_p))
         return Y, D, c, Y
 
     def __sf_YDc_FVfree_theta(self, K_theta, SL, SL_nm1,
             forcing_theta, universal_funcs, **kwargs):
+        """
+            Y  = (h/(6h),  (~h+h)/(3h) , ~h/(6h)       , 0   )
+                 ( 0    , -tau ~h/(6a) , -tau ~h/(3a)  , 1/a )
+                 ( 0    ,           0  ,    0,         , 0   )
+
+            D = (K/h^2,-K(1/h+1/~h)/h,         K/(h~h)          , 0 )
+                ( 0   ,     -K/~h    ,         K/~h             , 0 )
+                ( 0   ,    ~h^2/(6h) , ~h^2/(3h)+Ka/(C_H|u0-uo|), 1 )
+
+            c = (         1/h (forcing_{k-1/2} - forcing_{k-3/2})    )
+                ( forcing_{k-1/2} + (partial_t + if) ( u(0) (1-a)/a ))
+                (                   -t(0)                            )
+            after that, the matrices are filled for every M > m > k
+            with 0 for Y
+            D: (ldiag, diag, udiag) = (ratio_norms, -1, 0)
+            where ratio_norms is given by the log law.
+            this last part is actually overriden in the end so
+            it should not be considered too seriously.
+        """
         # Il faut changer ça pour utiliser seulement universal_funcs
         # Donc enlever CHdu du standalone_chapter à priori,
         # pour utiliser un truc plus compatible
@@ -1644,9 +1805,7 @@ class Ocean1dStratified():
         rhs_nm1 = SL_nm1.t_zM * (1 - alpha_nm1)/alpha_nm1
         rhs_part_tilde = (rhs_n - rhs_nm1)/self.dt
         c = ( (forcing_theta[k-1] - forcing_theta[k-2])/self.h_full[k-1],
-                forcing_theta[k-1] + rhs_part_tilde,
-                -SL.t_zM - alpha / ch_du * (SL.Q_sw + SL.Q_lw) / \
-                        self.rho0 / self.C_p)
+                forcing_theta[k-1] + rhs_part_tilde, -SL.t_zM)
 
         Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
         Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)

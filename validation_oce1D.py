@@ -41,7 +41,7 @@ def fig_constantCooling():
     temp_10m = np.ones(N+1) * 5
     # if temp_10m<T0, then __friction_scales does not converge.
 
-    fig, axes = plt.subplots(1, 2)
+    fig, axes = plt.subplots(1, 5, figsize=(13,4))
     delta_sl= 0.
 
     for sf_scheme in ("FV free",):
@@ -68,7 +68,13 @@ def fig_constantCooling():
 
         axes[0].plot(thetaFV, zFV, "--",
                 label="Temperature Python FV")
-        axes[1].plot(viscosity, simulator_oce.z_full, "--",
+        axes[1].plot(np.real(uFV), zFV, "--",
+                label="wind speed Python FV")
+        axes[2].plot(np.imag(uFV), zFV, "--",
+                label="wind speed Python FV")
+        axes[3].plot(viscosity, simulator_oce.z_full, "--",
+                label="Diffusivity Python FV")
+        axes[4].plot(l_eps, simulator_oce.z_full, "--",
                 label="Diffusivity Python FV")
 
     u_currentFD, tke, all_u_star, thetaFD, \
@@ -80,13 +86,23 @@ def fig_constantCooling():
 
     axes[0].plot(thetaFD, simulator_oce.z_half[:-1], "--",
             label="Temperature Python FD")
-    axes[1].plot(viscosityFD, simulator_oce.z_full, "--",
+    axes[1].plot(np.real(u_currentFD), simulator_oce.z_half[:-1], "--",
+            label="wind speed (u) Python FD")
+    axes[2].plot(np.imag(u_currentFD), simulator_oce.z_half[:-1], "--",
+            label="wind speed (v) Python FD")
+    axes[3].plot(viscosityFD, simulator_oce.z_full, "--",
+            label="Diffusivity Python FD")
+    axes[4].plot(l_eps, simulator_oce.z_full, "--",
             label="Diffusivity Python FD")
 
     axes[0].legend()
-    axes[1].legend()
-    axes[0].set_yscale("symlog", linthresh=0.1)
-    axes[1].set_yscale("symlog", linthresh=0.1)
+    for i in range(5):
+        axes[i].set_yscale("symlog", linthresh=0.1)
+    axes[0].set_title("temperature")
+    axes[1].set_title("wind (u)")
+    axes[2].set_title("wind (v)")
+    axes[3].set_title("diffusivity")
+    axes[4].set_title("mxlm")
     show_or_save("fig_constantCooling")
 
 def fig_windInduced():
@@ -198,7 +214,7 @@ def fig_comodoParamsConstantCooling():
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     heatloss = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
-    Qlw, heatloss = -heatloss, np.zeros(N+1)
+    Qlw, heatloss = heatloss, np.zeros(N+1)
     # this heatloss will be divided by (rho0*cp)
     # Q0_{comodo} = -heatloss / (rho cp)
     wind_10m = np.zeros(N+1) + 0j + 1. # note: with TEST_CASE=2
