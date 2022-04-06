@@ -1301,8 +1301,8 @@ class Ocean1dStratified():
     def __sf_udelta_FVfree(self, prognostic, SL,
             universal_funcs, **_):
         """
-            u(delta) = Bar{u}_{k-1/2} - u(0) * (1 - alpha) / alpha
-                    + ~h^2/h (phi_k / 3 + phi_{k-1} / 6)
+            u(delta) = 1/alpha ( Bar{u}_{k-1/2} - u(0) * (1 - alpha)
+                    + ~h^2/h (phi_k / 3 + phi_{k-1} / 6))
         """
         tau_slu, _ = self.__tau_sl(SL, universal_funcs)
         tilde_h = SL.delta_sl - self.z_full[SL.k-1]

@@ -1403,24 +1403,43 @@ class Atm1dStratified():
     # (u_{1/2}, ... u_{k+1/2}, phi_k, ...phi_M) for FV.
 
     def __sf_udelta_FDpure(self, prognostic, **_):
+        """
+            u(delta) = u_{1/2}
+        """
         return prognostic[0]
 
     def __sf_udelta_FD2(self, prognostic, **_):
+        """
+            u(delta) = (u_{1/2} + u_{3/2}) / 2
+        """
         return (prognostic[0] + prognostic[1])/2
 
     def __sf_udelta_FVpure(self, prognostic, **_):
+        """
+            u(delta) = Bar{u}_{1/2} - h (phi_1 - phi_0)/24
+        """
         return prognostic[0] - self.h_half[0]* \
                 (prognostic[2] - prognostic[1])/24
 
     def __sf_udelta_FV1(self, prognostic, **_):
+        """
+            u(delta) = Bar{u}_{1/2}
+        """
         return prognostic[0]
 
     def __sf_udelta_FV2(self, prognostic, **_):
+        """
+            u(delta) = Bar{u}_{3/2} - h (phi_2/6 + phi_1/3)
+        """
         return prognostic[1] - self.h_half[1] * \
                 (prognostic[3]/6 + prognostic[2]/3)
 
     def __sf_udelta_FVfree(self, prognostic, SL,
             universal_funcs, **_):
+        """
+            u(delta) = 1/a ( Bar{u}_{k+1/2}
+                    - ~h^2/h (phi_{k} / 3 + phi_{k+1} / 6))
+        """
         tau_slu, _ = self.__tau_sl(SL, universal_funcs)
         k = bisect.bisect_right(self.z_full[1:], SL.delta_sl)
         tilde_h = self.z_full[k+1] - SL.delta_sl
@@ -1437,6 +1456,11 @@ class Atm1dStratified():
     # for Y and D, the tuples are (lower diag, diag, upper diag)
 
     def __sf_YDc_FDpure(self, K_u, forcing, SL, **_):
+        """
+            Y = (           1                ,   0   )
+            D = (-K/h^2 - u*^2 / (h|u(z_a)|) , K/h^2 )
+            c = ( F )
+        """
         u_star, u_delta = SL.u_star, SL.u_delta
         Y = ((), (1.,), (0.,))
         D = ((), (-K_u[1]/self.h_full[1]/self.h_half[0] - \
@@ -1446,6 +1470,11 @@ class Atm1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FD2(self, K_u, SL, **_):
+        """
+            Y = (            0       ,              0      )
+            D = ( -K/h - u*^2/(2|ua|),  K/h - u*^2/(2|ua|) )
+            c = (    0    )
+        """
         u_star, u_delta = SL.u_star, SL.u_delta
         Y = ((), (0.,), (0.,))
         D = ((), (-K_u[1]/self.h_full[1] - u_star**2 / np.abs(u_delta) / 2,),
@@ -1454,6 +1483,14 @@ class Atm1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FVpure(self, K_u, forcing, SL, **_):
+        """
+            Y = (0     ,    0     , 0 )
+                (1     ,    0     , 0 )
+            D = ( 1  ,   h/24 - K|ua|/u*^2 ,  - h/24  )
+                ( 0  ,          -K/h       ,    K/h   )
+            c = (  0  )
+                (  F  )
+        """
         u_star, u_delta = SL.u_star, SL.u_delta
         Y = ((1.,), (0., 0.), (0., 0.))
         D = ((0.,), (1, -K_u[0] / self.h_half[0]),
@@ -1464,6 +1501,14 @@ class Atm1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FV1(self, K_u, forcing, SL, **_):
+        """
+            Y = (0     ,    0     , 0 )
+                (1     ,    0     , 0 )
+            D = ( 1  ,  - K|ua|/u*^2 ,  0  )
+                ( 0  ,     -K/h      , K/h )
+            c = (  0  )
+                (  F  )
+        """
         u_star, u_delta = SL.u_star, SL.u_delta
         Y = ((1.,), (0., 0.), (0., 0.))
         D = ((0.,), (1, -K_u[0] / self.h_half[0]),
@@ -1472,6 +1517,19 @@ class Atm1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FV2(self, K_u, forcing, SL, universal_funcs, **_):
+        """
+            Y = (0 , 0  , 0 ,  0)
+                (0 , 0  , 0 ,  0)
+                (0 , 1  , 0 ,  0)
+            D = (1 , -R ,           0       ,  0   )
+                (0 , 1  ,  -K|u|/u*^2 - h/3 ,  -h/6)
+                (0 , 0  ,          -K/h     ,  K/h )
+            c = (  0  )
+                (  0  )
+                (  F  )
+            where R is the ratio of norms defined by MOST profiles.
+            (Bar{u}_{1/2} is overriden so no need to overthink this)
+        """
         u_star, u_delta, t_star, t_delta = SL.u_star, \
                 SL.u_delta, SL.t_star, SL.t_delta
         _, _, _, _, Psi_m, _ = universal_funcs
@@ -1495,6 +1553,25 @@ class Atm1dStratified():
 
     def __sf_YDc_FVfree(self, K_u, forcing, universal_funcs,
             SL, SL_nm1, **_):
+        """
+            Y  = ( 0    ,           0  ,    0,         ,  0   )
+                 ( 1/a  ,  tau ~h/(3a) ,  tau ~h/(6a)  ,  0   )
+                 (  0   ,   ~h/(6h)    ,  (~h+h)/(3h)  ,h/(6h))
+
+            D = ( -1  , ~h^2/(3h)+Ka|ua|/u*^2, ~h^2/(6h)    , 0     )
+                ( 0   ,-K/~h                 ,  K/~h        , 0     )
+                ( 0   , K/(h~h)              ,-K(1/h+1/~h)/h, K/h^2 )
+
+            c = (                  0                       )
+                (             forcing_{k+1/2}              )
+                (  1/h (forcing_{k+3/2} - forcing_{k+1/2}) )
+            after that, the matrices are filled for every 0 <= m < k
+            with 0 for Y
+            D: (ldiag, diag, udiag) = (0, -1, R)
+            where R is a ratio of norms given by the log law.
+            this last part is actually overriden in the end so
+            it should not be considered too seriously.
+        """
         u_star, u_delta, delta_sl, inv_L_MO = SL.u_star, \
                 SL.u_delta, SL.delta_sl, SL.inv_L_MO
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
@@ -1561,24 +1638,43 @@ class Atm1dStratified():
     # the prognostic variables are theta for FD and 
     # (theta_{1/2}, ... theta_{k+1/2}, phit_k, ...phit_M) for FV.
     def __sf_thetadelta_FDpure(self, prognostic, **_):
+        """
+            t(delta) = t_{1/2}
+        """
         return prognostic[0]
 
     def __sf_thetadelta_FD2(self, prognostic, **_):
+        """
+            t(delta) = (t_{1/2} + t_{1/2})/2
+        """
         return (prognostic[0] + prognostic[1])/2
 
     def __sf_thetadelta_FVpure(self, prognostic, **_):
+        """
+            t(delta) = Bar{t}_{1/2} - h (dzt_1 - dzt_0) / 24
+        """
         return prognostic[0] - self.h_half[0]* \
                 (prognostic[2] - prognostic[1])/24
 
     def __sf_thetadelta_FV1(self, prognostic, **_):
+        """
+            t(delta) = Bar{t}_{1/2}
+        """
         return prognostic[0]
 
     def __sf_thetadelta_FV2(self, prognostic, **_):
+        """
+            t(delta) = Bar{t}_{1/2}
+        """
         return prognostic[1] - self.h_half[1] * \
                 (prognostic[3]/6 + prognostic[2]/3)
 
     def __sf_thetadelta_FVfree(self, prognostic, SL,
             universal_funcs, **_):
+        """
+            t(delta) = 1/a ( Bar{t}_{k+1/2} - (1 - a) * SST
+                    - ~h^2/h (dzt_{k} / 3 + dzt_{k+1} / 6))
+        """
         _, tau_slt = self.__tau_sl(SL, universal_funcs)
         k = bisect.bisect_right(self.z_full[1:], SL.delta_sl)
         zk = self.z_full[k]
@@ -1601,6 +1697,11 @@ class Atm1dStratified():
     # the framework with Y, D and c is far less convenient.
     # I'll change this in a future update.
     def __sf_YDc_FDpure_theta(self, K_theta, SL, universal_funcs, **_):
+        """
+            Y = (           1         ,   0   )
+            D = (-K/h^2 - C_H|ua| / h , K/h^2 )
+            c = ( SST * C_H|u| / h )
+        """
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         _, _, _, psi_h, _, _ = universal_funcs
         phi_stab = psi_h(inv_L_MO * SL.delta_sl)
@@ -1614,6 +1715,11 @@ class Atm1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FD2_theta(self, K_theta, SL, universal_funcs, **_):
+        """
+            Y = (            0       ,          0        )
+            D = ( -K/h - C_H|u| / 2  ,  K/h - C_H|u| / 2 )
+            c = (    C_H|u| * SST    )
+        """
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         _, _, _, psi_h, _, _ = universal_funcs
         phi_stab = psi_h(inv_L_MO * SL.delta_sl)
@@ -1625,6 +1731,14 @@ class Atm1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FV1_theta(self, K_theta, SL, universal_funcs, **_):
+        """
+            Y = (0     ,    0     , 0 )
+                (1     ,    0     , 0 )
+            D = ( -1 ,    K /(C_H|u|),  0  )
+                ( 0  ,     -K/h      , K/h )
+            c = (  SST)
+                (  0  )
+        """
         _, _, _, psi_h, _, _ = universal_funcs
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         ch_du = SL.u_star * self.kappa / \
@@ -1639,6 +1753,14 @@ class Atm1dStratified():
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL,
             universal_funcs, **_):
+        """
+            Y = (0     ,    0     , 0 )
+                (1     ,    0     , 0 )
+            D = (-1  , -h/24 + K / (C_H|u|) ,   h/24  )
+                ( 0  ,          -K/h        ,    K/h  )
+            c = (  SST )
+                (   0  )
+        """
         _, _, _, psi_h, _, _ = universal_funcs
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         ch_du = SL.u_star * self.kappa / \
@@ -1654,6 +1776,19 @@ class Atm1dStratified():
 
     def __sf_YDc_FV2_theta(self, K_theta, SL, universal_funcs, **_):
         _, _, _, psi_h, _, Psi_h = universal_funcs
+        """
+            Y = (0 , 0  , 0 ,  0)
+                (0 , 0  , 0 ,  0)
+                (0 , 1  , 0 ,  0)
+            D = (1 , -R ,           0       , 0   )
+                (0 ,-1  ,   K / (C_H|u|)+h/3, h/6 )
+                (0 , 0  ,          -K/h     , K/h )
+            c = (  SST (R-1) )
+                (     SST    )
+                (      0     )
+            where R is the ratio of norms defined by MOST profiles.
+            (Bar{u}_{1/2} is overriden so no need to overthink this)
+        """
         def f(z):
             return (z+SL.z_0H)*np.log(1+z/SL.z_0H) \
                 - z + z* Psi_h(z*SL.inv_L_MO)
@@ -1676,6 +1811,25 @@ class Atm1dStratified():
 
     def __sf_YDc_FVfree_theta(self, K_theta, universal_funcs, forcing,
             SL, SL_nm1, **_):
+        """
+            Y  = ( 0    ,           0  ,    0,         ,  0   )
+                 ( 1/a  ,  tau ~h/(3a) ,  tau ~h/(6a)  ,  0   )
+                 (  0   ,   ~h/(6h)    ,  (~h+h)/(3h)  ,h/(6h))
+
+            D = ( -1  , ~h^2/(3h)+Ka/(C_H|u|), ~h^2/(6h)    , 0     )
+                ( 0   ,-K/~h                 ,  K/~h        , 0     )
+                ( 0   , K/(h~h)              ,-K(1/h+1/~h)/h, K/h^2 )
+
+            c = (                  SST                     )
+                (  forcing_{k+1/2} + partial_t(SST(1-a)/ a))
+                (  1/h (forcing_{k+3/2} - forcing_{k+1/2}) )
+            after that, the matrices are filled for every 0 <= m < k
+            with 0 for Y
+            D: (ldiag, diag, udiag) = (0, 1, -R)
+            where R is a ratio of norms given by the log law.
+            this last part is actually overriden in the end so
+            it should not be considered too seriously.
+        """
         k = bisect.bisect_right(self.z_full[1:], SL.delta_sl)
         tilde_h = self.z_full[k+1] - SL.delta_sl
         _, _, _, psi_h, _, Psi_h = universal_funcs
