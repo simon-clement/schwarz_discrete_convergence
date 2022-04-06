@@ -159,8 +159,10 @@ class Atm1dStratified():
                 delta_sl, t_delta, SST[0], businger(), sf_scheme, k)
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
 
-        tke, dz_tke = self.__initialize_tke(SL,
-                Neutral_case, ignore_tke_sl)
+        import tkeAtm1D
+        tke = tkeAtm1D.TkeAtm1D(self, "FV",
+                ignore_tke_sl, Neutral_case, SL)
+
         theta, dz_theta = self.__initialize_theta(Neutral_case)
 
         Ku_full: array = self.K_min + np.zeros(self.M+1)
@@ -168,15 +170,14 @@ class Atm1dStratified():
 
         z_levels_sl = np.copy(self.z_full)
         z_levels_sl[k] = self.z_full[k] if ignore_tke_sl else delta_sl
-        l_m, l_eps = self.__mixing_lengths(
-                np.concatenate((tke, [self.e_min])),
+        l_m, l_eps = self.__mixing_lengths( tke.tke_full,
                 phi_t0*phi_t0, 9.81*dz_theta/283.,
                 z_levels_sl, SL, businger())
 
         phi, old_phi = phi_t0, np.copy(phi_t0)
         u_current: array = np.copy(u_t0)
         all_u_star = []
-        ret_u_current, ret_tke, ret_dz_tke, ret_SL = [], [], [], []
+        ret_u_current, ret_tke, ret_SL = [], [], []
         ret_phi, ret_theta, ret_dz_theta, ret_leps = [], [], [], []
 
         for n in range(1,N+1):
@@ -186,10 +187,10 @@ class Atm1dStratified():
             all_u_star += [SL.u_star]
 
             # Compute viscosities
-            Ku_full, Ktheta_full, tke, dz_tke = self.__visc_turb_FV(
+            Ku_full, Ktheta_full = self.__visc_turb_FV(
                     SL, turbulence=turbulence, phi=phi,
                     old_phi=old_phi, l_m=l_m, l_eps=l_eps,
-                    K_full=Ku_full, tke=tke, dz_tke=dz_tke,
+                    K_full=Ku_full, tke=tke,
                     dz_theta=dz_theta, Ktheta_full=Ktheta_full,
                     universal_funcs=businger(),
                     ignore_tke_sl=ignore_tke_sl)
@@ -208,8 +209,7 @@ class Atm1dStratified():
 
             if store_all:
                 ret_u_current += [np.copy(u_current)]
-                ret_tke += [np.copy(tke)]
-                ret_dz_tke += [np.copy(dz_tke)]
+                ret_tke += [np.copy(tke.tke_full)]
                 ret_phi += [np.copy(phi)]
                 ret_theta += [np.copy(theta)]
                 ret_dz_theta += [np.copy(dz_theta)]
@@ -217,10 +217,10 @@ class Atm1dStratified():
                 ret_SL += [SL]
 
         if store_all:
-            return ret_u_current, ret_phi, ret_tke, ret_dz_tke, \
+            return ret_u_current, ret_phi, ret_tke, \
                     all_u_star, ret_theta, ret_dz_theta, ret_leps, \
                     ret_SL
-        return u_current, phi, tke, dz_tke, all_u_star, theta, \
+        return u_current, phi, tke.tke_full, all_u_star, theta, \
                 dz_theta, l_eps, SL
 
 
@@ -259,18 +259,17 @@ class Atm1dStratified():
                 else self.z_full[1]
         forcing_theta = np.zeros_like(forcing[0]) # no temp forcing
         ###### Initialization #####
-        tke = np.ones(self.M+1) * self.e_min
-        tke[self.z_half <= 250] = self.e_min + 0.4*(1 - \
-                self.z_half[self.z_half <= 250] / 250)**3
+        import tkeAtm1D
+        tke = tkeAtm1D.TkeAtm1D(self, "FD", Neutral_case=Neutral_case)
+
         theta: array = 265 + np.maximum(0, # potential temperature
                 0.01 * (self.z_half[:-1]-100))
         if Neutral_case:
             theta[:] = 265.
-            tke[:] = self.e_min
 
         # Initializing viscosities and mixing lengths:
-        Ku_full: array = self.K_min + np.zeros_like(tke)
-        Ktheta_full: array = self.Ktheta_min + np.zeros_like(tke)
+        Ku_full: array = self.K_min + np.zeros(self.M+1)
+        Ktheta_full: array = self.Ktheta_min + np.zeros(self.M+1)
         l_m = self.lm_min*np.ones(self.M+1)
         l_eps = self.leps_min*np.ones(self.M+1)
 
@@ -289,7 +288,7 @@ class Atm1dStratified():
             all_u_star += [SL.u_star]
 
             # Compute viscosities
-            Ku_full, Ktheta_full, tke = self.__visc_turb_FD(SL=SL,
+            Ku_full, Ktheta_full = self.__visc_turb_FD(SL=SL,
                     u_current=u_current, old_u=old_u,
                     K_full=Ku_full, tke=tke, theta=theta,
                     Ktheta_full=Ktheta_full, l_m=l_m, l_eps=l_eps,
@@ -319,13 +318,13 @@ class Atm1dStratified():
 
             if store_all:
                 all_u += [np.copy(u_current)]
-                all_tke += [np.copy(tke)]
+                all_tke += [np.copy(tke.tke_full)]
                 all_theta += [np.copy(theta)]
                 all_leps += [np.copy(l_eps)]
 
         if store_all:
             return all_u, all_tke, all_u_star, all_theta, all_leps
-        return u_current, tke, all_u_star, theta, l_eps
+        return u_current, tke.tke_full, all_u_star, theta, l_eps
 
     def __step_u(self, u: array, phi: array,
             Ku_full: array, forcing: array,
@@ -408,32 +407,6 @@ class Atm1dStratified():
                 universal_funcs=businger(), SL=SL)
         return next_theta, dz_theta, t_delta
 
-
-    def __initialize_tke(self, SL: SurfaceLayerData,
-            Neutral_case: bool, ignore_sl: bool):
-        """
-        Initialization method for the tke.
-        It is not crucial to have a perfect initial
-        profile, but dz_tke is computed with care to
-        have a continuous profile.
-        """
-        tke = np.ones(self.M) * self.e_min
-        if not Neutral_case:
-            # N2 and inv_L_MO are 0 at initialization
-            # so we use a neutral e_sl assuming l_m=l_eps
-            e_sl = np.maximum(SL.u_star**2 / \
-                    np.sqrt(self.C_m*self.c_eps), self.e_min)
-            z_half, k = np.copy(self.z_half), SL.k
-            z_half[k] = z_half[k] if ignore_sl else SL.delta_sl
-            tke[z_half[:-1] <= 250] = self.e_min + e_sl*(1 - \
-                (z_half[:-1][z_half[:-1] <= 250] - \
-                SL.delta_sl) / (250.- SL.delta_sl))**3
-            # inversion of a system to find dz_tke:
-            return tke, self.__compute_dz_tke(e_sl, tke,
-                    SL.delta_sl, SL.k, ignore_sl)
-
-        return tke, np.zeros(self.M+1)
-
     def __initialize_theta(self, Neutral_case: bool):
         """
         Initialization method for theta.
@@ -464,272 +437,6 @@ class Atm1dStratified():
             theta[:] = 265.
             dz_theta[:] = 0.
         return theta, dz_theta
-
-    def __compute_tke_full(self, tke: array, dz_tke: array,
-            SL: SurfaceLayerData, ignore_sl: bool,
-            l_eps: array, universal_funcs):
-        """
-            projection of the tke reconstruction on z_full
-            if ignore_sl is False, the closest z level below
-            delta_sl is replaced with delta_sl.
-        """
-        h_half, k = np.copy(self.h_half), SL.k
-        z_sl = np.copy(self.z_full[:k])
-        if not ignore_sl:
-            h_half[k] = self.z_full[k+1] - SL.delta_sl
-
-        phi_m, *_ = universal_funcs
-
-        KN2 = 9.81/283. * SL.t_star * SL.u_star
-        shear = SL.u_star**3 * phi_m(z_sl* SL.inv_L_MO) / \
-                self.kappa / (z_sl + SL.z_0M)
-        # TKE inside the surface layer: 
-        tke_sl = np.maximum(((l_eps[:k]/self.c_eps * \
-                (shear - KN2))**2)**(1/3), self.e_min)
-        # TKE at the top of the surface layer:
-        tke_k = [tke[k] - h_half[k]*dz_tke[k]*coeff_FV_big - \
-                    h_half[k]*dz_tke[k+1]*coeff_FV_small]
-        # Combining both with the TKE above the surface layer:
-        return np.concatenate((tke_sl, tke_k,
-            tke[k:] + h_half[k:-1]*dz_tke[k+1:]*coeff_FV_big + \
-                    h_half[k:-1]*dz_tke[k:-1]*coeff_FV_small))
-
-    def __compute_dz_tke(self, e_sl: float, tke: array,
-            delta_sl: float, k: int, ignore_sl: bool):
-        """ solving the system of finite volumes:
-                phi_{m-1}/12 + 10 phi_m / 12 + phi_{m+1} / 12 =
-                    (tke_{m+1/2} - tke_{m-1/2})/h
-            The coefficients 1/12, 5/12 are replaced
-                by coeff_FV_small, coeff_FV_big.
-        """
-        ldiag = self.h_half[:-2] *coeff_FV_small
-        diag = self.h_full[1:-1] * 2*coeff_FV_big
-        udiag = self.h_half[1:-1] *coeff_FV_small
-        h_tilde = self.z_full[k+1] - delta_sl
-        if ignore_sl: # If the tke is reconstructed until z=0:
-            assert k == 0
-            h_tilde = self.h_half[k]
-        diag = np.concatenate(([h_tilde*coeff_FV_big], diag, [1.]))
-        udiag = np.concatenate(([h_tilde*coeff_FV_small], udiag))
-        ldiag = np.concatenate((ldiag, [0.]))
-        rhs = np.concatenate(([tke[0]-e_sl],
-            np.diff(tke), [0.]))
-
-        # GRID LEVEL k-1 AND BELOW: dz_tke=0:
-        diag[:k], udiag[:k] = 1., 0.
-        rhs[:k] = 0.
-        ldiag[:k] = 0. # ldiag[k-1] is for cell k
-        # GRID level k: tke(z=delta_sl) = e_sl
-        diag[k] = h_tilde*coeff_FV_big
-        udiag[k] = h_tilde*coeff_FV_small
-        rhs[k] = tke[k] - e_sl
-        # GRID LEVEL k+1: h_tilde used in continuity equation
-        ldiag[k] = h_tilde *coeff_FV_small
-        diag[k+1] = (h_tilde+self.h_half[k+1]) * coeff_FV_big
-        dz_tke = solve_linear((ldiag, diag, udiag), rhs)
-        return dz_tke
-
-    def __integrate_tke_FV(self, tke: array, dz_tke: array,
-            shear_half: array, K_full: array,
-            SL: SurfaceLayerData, l_eps: array,
-            buoy_half: array, ignore_sl: bool,
-            universal_funcs):
-        """
-            integrates TKE equation on one time step.
-            discretisation of TKE is Finite Volumes,
-            centered on half-points.
-            tke is the array of averages,
-            dz_tke is the array of space derivatives.
-            shear is K_u ||dz u|| at half levels.
-            K_full is K_u (at full levels)
-            l_eps is the tke mixing length (at full levels)
-            Ktheta_full is K_theta (at full levels)
-            buoy_half is the buoyancy (Ktheta*N2) (at half levels).
-
-            WARNING DELTA_SL IS NOT SUPPOSED TO MOVE !!
-            to do this, e_sl of the previous time should be known.
-            (otherwise a discontinuity between the
-            cell containing the SL's top and the one above
-            may appear.)
-            tke is the average value on the whole cell,
-            except tke[k] which is the average value on
-            the "subcell" [delta_sl, z_{k+1}].
-            returns tke, dz_tke
-        """
-        # deciding in which cells we use Patankar's trick
-        PATANKAR = (shear_half <= buoy_half)
-        # Turbulent viscosity of tke :
-        Ke_full = K_full * self.C_e / self.C_m
-        # Bottom value:
-        phi_m, *_ = universal_funcs
-        k = bisect.bisect_right(self.z_full[1:], SL.delta_sl)
-        z_sl = np.copy(self.z_full[:k+1])
-        z_sl[-1] = z_sl[-1] if ignore_sl else SL.delta_sl
-        # buoyancy and shear in surface layer:
-        KN2_sl = 9.81/283. * SL.t_star * SL.u_star
-        shear_sl = SL.u_star**3 * phi_m(z_sl * SL.inv_L_MO) / \
-                self.kappa / (z_sl + SL.z_0M)
-        e_sl = np.maximum(((l_eps[:k+1]/self.c_eps * \
-                (shear_sl - KN2_sl))**2)**(1/3), self.e_min)
-
-        l_eps_half = full_to_half(l_eps)
-
-        h_tilde = self.z_full[k+1] - SL.delta_sl
-        if ignore_sl:
-            h_tilde = self.h_half[k]
-
-        # definition of functions to interlace and deinterace:
-        def interlace(arr1, arr2):
-            """ interlace arrays of same size, beginning with arr1[0] """
-            if arr1.shape[0] == arr2.shape[0]:
-                return np.vstack((arr1, arr2)).T.flatten()
-            assert arr1.shape[0] == arr2.shape[0] + 1
-            return np.vstack((arr1,
-                np.concatenate((arr2, [0])))).T.flatten()[:-1]
-
-        def deinterlace(arr):
-            """ returns a tuple of the two interlaced arrays """
-            return arr[1::2], arr[::2]
-
-        ####### ODD LINES: evolution of tke = overline{e}
-        # data located at m+1/2, 0<=m<=M
-        # odd_{l, ll}diag index is *not* shifted
-        odd_ldiag = Ke_full[:-1] / self.h_half[:-1]
-        odd_udiag = -Ke_full[1:] / self.h_half[:-1]
-        odd_diag = self.c_eps * np.sqrt(tke) / l_eps_half + \
-                PATANKAR * buoy_half / tke + 1/self.dt
-        odd_rhs = shear_half - (1 - PATANKAR)* buoy_half + tke/self.dt
-        odd_lldiag = np.zeros(odd_ldiag.shape[0] - 1)
-        odd_uudiag = np.zeros(odd_ldiag.shape[0] - 1)
-        # inside the surface layer:
-        odd_ldiag[:k] = 0.
-        odd_udiag[:k] = 0.
-        odd_ldiag[k] = Ke_full[k] / h_tilde
-        odd_udiag[k] = -Ke_full[k+1] / h_tilde
-        odd_rhs[:k] = e_sl[:k]
-        odd_diag[:k] = 1.
-
-        ####### EVEN LINES: evolution of dz_tke = (partial_z e)
-        # data located at m, 0<m<M
-        # notice that even_{l, ll}diag index is shifted
-        even_diag = np.concatenate(([-self.h_half[0]*coeff_FV_big],
-                2*coeff_FV_big*self.h_full[1:-1] / self.dt + \
-                Ke_full[1:-1]/self.h_half[1:-1] + \
-                Ke_full[1:-1] / self.h_half[:-2],
-                [1]
-            ))
-        even_udiag = np.concatenate(([1],
-                buoy_half[1:]*PATANKAR[1:] / tke[1:] + \
-                self.c_eps * np.sqrt(tke[1:]) / l_eps_half[1:]))
-        even_uudiag = np.concatenate(([-self.h_half[0]*coeff_FV_small],
-                self.h_half[1:-1]*coeff_FV_small/self.dt - \
-                Ke_full[2:]/self.h_half[1:-1]))
-
-        even_ldiag = np.concatenate((
-                - buoy_half[:-1]*PATANKAR[:-1] / tke[:-1] - \
-                self.c_eps * np.sqrt(tke[:-1]) / l_eps_half[:-1],
-                [0]))
-        even_lldiag = np.concatenate((
-                self.h_half[:-2]*coeff_FV_small/self.dt - \
-                Ke_full[:-2]/self.h_half[:-2],
-                [0]
-                ))
-
-        even_rhs = np.concatenate(( [e_sl[0]],
-                1/self.dt * (self.h_half[:-2]* dz_tke[:-2]*coeff_FV_small \
-                + 2*self.h_full[1:-1]* dz_tke[1:-1]*coeff_FV_big \
-                + self.h_half[1:-1]* dz_tke[2:]*coeff_FV_small) \
-                + np.diff(shear_half - buoy_half*(1-PATANKAR)),
-                [0]))
-        # e(delta_sl) = e_sl :
-        even_diag[k] = -h_tilde*coeff_FV_big
-        even_udiag[k] = 1.
-        even_uudiag[k] = -h_tilde*coeff_FV_small
-        even_rhs[k] = e_sl[k]
-        # first grid levels above delta_sl:
-        even_diag[k+1] = (self.h_half[k+1]+h_tilde)*coeff_FV_big/self.dt + \
-                Ke_full[k+1]/ h_tilde + \
-                Ke_full[k+1] / self.h_half[k+1]
-        even_lldiag[k] = h_tilde*coeff_FV_small/self.dt - Ke_full[k]/h_tilde
-        even_rhs[k+1] = (h_tilde* dz_tke[k]*coeff_FV_small \
-                +(self.h_half[k+1]+h_tilde)* dz_tke[k+1]*coeff_FV_big \
-                +self.h_half[k+1]*dz_tke[k+2]*coeff_FV_small)/self.dt \
-                + np.diff(shear_half - buoy_half*(1-PATANKAR))[k]
-
-        # inside the surface layer: (partial_z e)_m = 0
-        # we include even_ldiag[k-1] because if k>0
-        # the bd cond requires even_ldiag[k-1]=even_lldiag[k-1]=0
-        even_ldiag[:k] = even_lldiag[:k] = 0.
-        even_udiag[:k] = even_uudiag[:k] = even_rhs[:k] = 0.
-        even_diag[:k] = 1.
-
-        diag = interlace(even_diag, odd_diag)
-        rhs = interlace(even_rhs, odd_rhs)
-        udiag = interlace(even_udiag, odd_udiag)
-        uudiag = interlace(even_uudiag, odd_uudiag)
-        # for ldiag and lldiag the first index is shifted
-        # so it begins with odd for ldiag (and not for lldiag)
-        ldiag = interlace(odd_ldiag, even_ldiag)
-        lldiag = interlace(even_lldiag, odd_lldiag)
-
-        tke, dz_tke = deinterlace(\
-                solve_linear((lldiag, ldiag, diag, udiag, uudiag),
-                                rhs))
-
-        tke_full = self.__compute_tke_full(tke, dz_tke, SL, ignore_sl,
-                l_eps, universal_funcs)
-        return tke, dz_tke, tke_full
-
-    def __integrate_tke(self, tke: array, shear: array,
-            K_full: array, SL: SurfaceLayerData,
-            l_eps: array, Ktheta_full: array,
-            N2: array, universal_funcs):
-        """
-            integrates TKE equation on one time step.
-            discretisation of TKE is Finite Differences,
-            located on half-points.
-        """
-        if Ktheta_full is None or N2 is None:
-            Ktheta_full = N2 = np.zeros(self.M)
-        Ke_half = self.C_e / self.C_m * (K_full[1:] + K_full[:-1])/2
-        diag_e = np.concatenate(([1],
-                    [1/self.dt + self.c_eps*np.sqrt(tke[m])/l_eps[m] \
-                    + (Ke_half[m]/self.h_half[m] + \
-                        Ke_half[m-1]/self.h_half[m-1]) \
-                        / self.h_full[m] for m in range(1, self.M)],
-                        [1/self.dt + Ke_half[self.M-1] / \
-                        self.h_half[self.M-1] / self.h_full[self.M]]))
-        ldiag_e = np.concatenate((
-            [ -Ke_half[m-1] / self.h_half[m-1] / self.h_full[m] \
-                    for m in range(1,self.M) ], [- Ke_half[self.M-1] / \
-                        self.h_half[self.M-1] / self.h_full[self.M]]))
-        udiag_e = np.concatenate(([0],
-            [ -Ke_half[m] / self.h_half[m] / self.h_full[m] \
-                    for m in range(1,self.M) ]))
-
-        phi_m, *_ = universal_funcs
-        KN2_sl = 9.81/283. * SL.t_star * SL.u_star
-        shear_sl = SL.u_star**3 * phi_m(SL.delta_sl * SL.inv_L_MO) / \
-                self.kappa / (SL.delta_sl + SL.z_0M)
-
-        e_sl = np.maximum(((l_eps[SL.k]/self.c_eps * \
-                (shear_sl - KN2_sl))**2)**(1/3), self.e_min)
-
-        rhs_e = np.concatenate(([e_sl], [tke[m]/self.dt + shear[m]
-                for m in range(1, self.M)],
-            [tke[self.M]/self.dt]))
-        for m in range(1, self.M):
-            if shear[m] <= Ktheta_full[m] * N2[m]: # Patankar trick
-                diag_e[m] += Ktheta_full[m] * N2[m] / tke[m]
-            else: # normal handling of buoyancy
-                rhs_e[m] -=  Ktheta_full[m] * N2[m]
-        # if delta_sl is inside the computational domain:
-        k = bisect.bisect_right(self.z_full[1:], SL.delta_sl)
-        rhs_e[:k+1] = e_sl # prescribe e=e(delta_sl)
-        diag_e[:k+1] = 1. # because lower levels are not used
-        udiag_e[:k+1] = ldiag_e[:k] = 0.
-
-        return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 
     def __mixing_lengths(self, tke: array, dzu2: array, N2: array,
             z_levels: array, SL: SurfaceLayerData, universal_funcs):
@@ -777,6 +484,10 @@ class Atm1dStratified():
                 (ratio/ l_up[:k_modif]**(5/3))[mask_min_is_lup]
         if (mxlm[:k_modif] < l_up[:k_modif])[mask_min_is_lup].any():
             print("no solution of the link MOST-TKE")
+        # TODO use directly 1/(lup tke) * (Ku_MOST)**2
+        # mxlm[:k_modif] = 1/l_up[:k_modif] / tke[:k_modif] * \
+        #       (SL.u_star * self.kappa * (z_sl + SL.z_0M) \
+        #       / self.C_m / phi_m(z_sl * SL.inv_L_MO))**2
 
         # limiting l_down with the distance to the bottom:
         l_down[k_modif-1] = z_levels[k_modif-1]
@@ -787,105 +498,6 @@ class Atm1dStratified():
         l_m = np.maximum(np.sqrt(l_up*l_down), self.lm_min)
         l_eps = np.minimum(l_down, l_up)
         return l_m, l_eps
-
-    def reconstruct_TKE(self, tke: array, dz_tke: array,
-            SL: SurfaceLayerData, sf_scheme: str,
-            universal_funcs, l_eps: array):
-        """
-            returns (z, tke(z)), the reconstruction
-            of the tke.
-            SL and l_eps are outputs of the integration in time.
-            universal_funcs can be businger()
-        """
-        ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
-        z_min = SL.delta_sl / 2.
-        # We first compute the reconstruction above the SL:
-        xi = [np.linspace(-h/2, h/2, 15) for h in self.h_half[:-1]]
-        xi[1] = np.linspace(-self.h_half[1]/2, self.h_half[1]/2, 40)
-        xi[0] = np.linspace(z_min-self.h_half[0]/2, self.h_half[0]/2, 40)
-        sub_discrete: List[array] = [tke[m] + \
-                (dz_tke[m+1] + dz_tke[m]) * xi[m]/2 \
-                + (dz_tke[m+1] - dz_tke[m]) / (2 * self.h_half[m]) * \
-                (xi[m]**2 - self.h_half[m]**2/12) \
-                for m in range(self.M)]
-
-        # if the coefficients are 1/12, 5/12:
-        if abs(coeff_FV_small - 1./12) < 1e-4:
-            assert abs(coeff_FV_big - 5./12) < 1e-4
-            coefficients = 1. / 32. * np.array((
-                (60, -1, 1, -14, -14),
-                (0,-8, -8, -48, 48),
-                (-480, 24, -24, 240, 240),
-                (0, 32, 32, 64, -64),
-                (960, -80, 80, -480, -480)))
-            for m in range(self.M):
-                h = self.h_half[m]
-                values = np.array((tke[m], h*dz_tke[m],
-                    h*dz_tke[m+1], \
-                    tke[m] - 5/12*h*dz_tke[m] - h*dz_tke[m+1]/12,
-                    tke[m] + h*dz_tke[m]/12 + h*dz_tke[m+1]*5/12))
-                polynomial = coefficients @ values
-                sub_discrete[m] = np.sum([(rihi/h**i) * xi[m]**i\
-                    for i, rihi in enumerate(polynomial)], axis=0)
-
-        # If the SL is not handled, we can stop now:
-        if ignore_tke_sl:
-            tke_oversampled = np.concatenate(sub_discrete)
-            z_oversampled = np.concatenate([np.array(xi[m]) + \
-                    self.z_half[m] for m in range(self.M)])
-
-            return z_oversampled, tke_oversampled
-        tke_oversampled = np.concatenate(sub_discrete[1:])
-        z_oversampled = np.concatenate([np.array(xi[m]) + \
-                self.z_half[m] for m in range(1, self.M)])
-        # The part above the SL starts at z_oversampled[k2:].
-        k2: int = bisect.bisect_right(z_oversampled,
-                self.z_full[SL.k+1])
-
-        # We now compute the reconstruction inside the SL:
-        phi_m, *_ = universal_funcs
-        z_log: array = np.array((z_min, SL.delta_sl))
-        # buoyancy and shear inside the SL:
-        KN2 = 9.81/283. * SL.t_star * SL.u_star
-        shear = SL.u_star**3 * phi_m(z_log * SL.inv_L_MO) / \
-                self.kappa / (z_log + SL.z_0M)
-        from scipy.interpolate import interp1d
-        z_levels = np.copy(self.z_full)
-        if not ignore_tke_sl:
-            z_levels[SL.k] = SL.delta_sl
-        f = interp1d(z_levels, l_eps, fill_value="extrapolate")
-        l_eps_log = np.maximum(f(z_log), 0.)
-        # With the quasi-equilibrium hypothesis, we get the tke:
-        tke_log = np.maximum(((l_eps_log/self.c_eps * \
-                (shear - KN2))**2)**(1/3), self.e_min)
-
-        # We finally compute the reconstruction just above SL:
-        z_freepart = [] # we call "freepart" the zone
-        k = SL.k # between the log profile and the next grid level:
-        tilde_h = self.z_full[k+1] - SL.delta_sl
-        assert 0 < tilde_h <= self.h_half[k]
-        xi = np.linspace(-tilde_h/2, tilde_h/2, 15)
-
-        tke_freepart = tke[k] + (dz_tke[k+1] + dz_tke[k]) * xi/2 \
-                + (dz_tke[k+1] - dz_tke[k]) / (2 * tilde_h) * \
-                (xi**2 - tilde_h**2/12)
-
-        if abs(coeff_FV_small - 1./12) < 1e-4:
-            values = np.array((tke[k], tilde_h*dz_tke[k],
-                tilde_h*dz_tke[k+1], \
-                tke[k] - 5/12*tilde_h*dz_tke[k] - tilde_h*dz_tke[k+1]/12,
-                tke[k] + tilde_h*dz_tke[k]/12 + tilde_h*dz_tke[k+1]*5/12))
-            polynomial = coefficients @ values
-            tke_freepart = np.sum([(rihi/tilde_h**i) * xi**i\
-                for i, rihi in enumerate(polynomial)], axis=0)
-
-        z_freepart = SL.delta_sl + xi + tilde_h / 2
-        # we return the concatenation of the 3 zones:
-        return np.concatenate((z_log,
-                            z_freepart, z_oversampled[k2:])), \
-                np.concatenate((tke_log,
-                            tke_freepart, tke_oversampled[k2:]))
-
 
     def reconstruct_FV(self, u_bar: array, phi: array, theta: array,
             dz_theta: array, SL: SurfaceLayerData,
@@ -1016,7 +628,7 @@ class Atm1dStratified():
     def __visc_turb_FD(self, SL: SurfaceLayerData,
             turbulence: str="TKE", u_current: array=None,
             old_u: array=None, K_full: array=None,
-            tke: array=None, theta: array=None,
+            tke=None, theta: array=None,
             Ktheta_full: array=None, l_m: array=None,
             l_eps: array=None, universal_funcs=None):
         """
@@ -1048,26 +660,26 @@ class Atm1dStratified():
             dz_theta = np.diff(theta) / self.h_full[1:-1]
             g, theta_ref = 9.81, 283.
             N2 = np.concatenate(([1e-12], g/theta_ref * dz_theta, [1e-12]))
-            tke[:] = np.maximum(self.e_min,
-                    self.__integrate_tke(tke, shear, K_full, SL,
-                    l_eps, Ktheta_full, N2, universal_funcs))
-            l_m[:], l_eps[:] = self.__mixing_lengths(tke,
+            tke.integrate_tke(self, SL, universal_funcs,
+                    shear, K_full, l_eps, Ktheta_full, N2)
+                    
+            l_m[:], l_eps[:] = self.__mixing_lengths(tke.tke_full,
                     shear/K_full, N2, self.z_full, SL, universal_funcs)
 
             phi_z = self.__stability_temperature_phi_z(
                     C_1=self.C_1, l_m=l_m, l_eps=l_eps, N2=N2,
-                    TKE=tke)
+                    TKE=tke.tke_full)
 
 
             Ktheta_full: array = np.maximum(self.Ktheta_min,
-                    self.C_s * phi_z * l_m * np.sqrt(tke))
+                    self.C_s * phi_z * l_m * np.sqrt(tke.tke_full))
 
             Ku_full: array = np.maximum(self.K_min,
-                    self.C_m * l_m * np.sqrt(tke))
+                    self.C_m * l_m * np.sqrt(tke.tke_full))
 
         else:
             raise NotImplementedError("Wrong turbulence scheme")
-        return Ku_full, Ktheta_full, tke
+        return Ku_full, Ktheta_full
 
     def __stability_temperature_phi_z(self, C_1: float,
             l_m: array, l_eps: array, N2: array, TKE: array):
@@ -1124,8 +736,8 @@ class Atm1dStratified():
 
     def __visc_turb_FV(self, SL: SurfaceLayerData,
             turbulence: str="TKE", phi: array=None,
-            old_phi: array=None, K_full: array=None, tke: array=None,
-            dz_tke: array=None, l_m: array=None, l_eps: array=None,
+            old_phi: array=None, K_full: array=None, tke=None,
+            l_m: array=None, l_eps: array=None,
             dz_theta: array=None, Ktheta_full: array=None,
             universal_funcs: tuple=None,
             ignore_tke_sl: bool=False):
@@ -1172,24 +784,15 @@ class Atm1dStratified():
 
             # computing buoyancy on half levels:
             g, theta_ref = 9.81, 283.
-            buoy_half = full_to_half(Ktheta_full*g/theta_ref*dz_theta)
-
-            tke[:], dz_tke[:], tke_full = \
-                    self.__integrate_tke_FV(tke, dz_tke,
-                    shear_half=shear_half, K_full=K_full,
-                    SL=SL, l_eps=l_eps, buoy_half=buoy_half,
-                    ignore_sl=ignore_tke_sl,
-                    universal_funcs=universal_funcs)
-
-            if (tke_full < self.e_min).any() or \
-                    (tke < self.e_min).any():
-                tke_full = np.maximum(tke_full, self.e_min)
-                tke = np.maximum(tke, self.e_min)
-                dz_tke = self.__compute_dz_tke(tke_full[k],
-                                    tke, delta_sl, k, ignore_tke_sl)
-
+            shear_full = np.abs(K_full * phi * phi)
             # dzu2 and buoyancy at full levels for mixing lenghts:
             N2_full = g/theta_ref*dz_theta
+
+            tke.integrate_tke(self, SL, universal_funcs,
+                    shear_full, K_full, l_eps, Ktheta_full,
+                    N2_full)
+
+
             # in surface layer we use MOST profiles:
             phi_m, phi_h, *_ = universal_funcs
             N2_full[:k+1] = g/theta_ref * SL.t_star * phi_h(\
@@ -1206,20 +809,20 @@ class Atm1dStratified():
             # without this, We don't have equivalence between
             # FV2 and FV free because of dzu2_full[k].
 
-            l_m[:], l_eps[:] = self.__mixing_lengths(tke_full,
+            l_m[:], l_eps[:] = self.__mixing_lengths(tke.tke_full,
                     dzu2_full, N2_full,
                     z_levels, SL, universal_funcs)
 
             phi_z = self.__stability_temperature_phi_z(
                     C_1=self.C_1, l_m=l_m, l_eps=l_eps,
-                    N2=g/theta_ref*dz_theta, TKE=tke_full)
+                    N2=g/theta_ref*dz_theta, TKE=tke.tke_full)
             phi_z[:k+1] = self.C_m * phi_m(z_levels[:k+1] * \
                     SL.inv_L_MO) / self.C_s / \
                     phi_h(z_levels[:k+1] * SL.inv_L_MO)
 
             Ktheta_full: array = np.maximum(self.Ktheta_min,
-                    self.C_s * phi_z * l_m * np.sqrt(tke_full))
-            K_full = self.C_m * l_m * np.sqrt(tke_full)
+                    self.C_s * phi_z * l_m * np.sqrt(tke.tke_full))
+            K_full = self.C_m * l_m * np.sqrt(tke.tke_full)
 
             if ignore_tke_sl:
                 # When we ignore SL, K_0 is ~ the molecular viscosity:
@@ -1239,7 +842,7 @@ class Atm1dStratified():
         else:
             raise NotImplementedError("Wrong turbulence scheme")
 
-        return K_full, Ktheta_full, tke, dz_tke
+        return K_full, Ktheta_full
 
     def __matrices_u_FV(self, K_full, forcing):
         """
