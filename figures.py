@@ -70,6 +70,8 @@ def fig_launchOcean():
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
+            delta_sl_a=10.,
+            u_delta=0., t_delta=240.,
             heatloss=heatloss, wind_10m=wind_10m,
             temp_10m=temp_10m, sf_scheme="FV test")
 
@@ -294,8 +296,10 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
             K_mol=1e-4, f=1.39e-4)
-    u_0 = 8*np.ones(M)
-    phi_0 = np.zeros(M+1)
+    T0 = 265.
+    u_0 = 8*np.ones(M) + 0j
+    phi_0 = np.zeros(M+1) + 0j
+    t_0, dz_theta_0 = simulator.initialize_theta(Neutral_case=False)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     if stable:
         SST = np.concatenate(([265],
@@ -309,66 +313,24 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     k = bisect.bisect_right(z_levels[1:], delta_sl)
     z_tke[k] = delta_sl #
     u_deltasl = 8. # first guess before the iterations
+    t_deltasl = T0 # first guess before the iterations
+    Q_sw, Q_lw, delta_sl_o = np.zeros(N+1), np.zeros(N+1), 0.
+    u_o, t_o = np.zeros(N+1), SST
     if sf_scheme in {"FV1 free", "FV2 free", "FV free", "FV2"}:
-        k_constant = bisect.bisect_right(z_levels[1:], z_constant)
-        zk, zkp1 = z_levels[k], z_levels[k+1]
-        h_tilde = z_levels[k+1] - delta_sl
-        h_kp12 = z_levels[k+1] - z_levels[k]
-        z_0M = 1e-1
-        u_constant = 8.
-        u_kp1 = 8.
-        K_mol, kappa = simulator.K_mol, simulator.kappa
-        for _ in range(15):
-            u_star = kappa / np.log(1+delta_sl/z_0M) * np.abs(u_deltasl)
-            z_0M = K_mol / kappa / u_star
-
-            phi_0[k] = u_deltasl / (z_0M+delta_sl) / \
-                    np.log(1+delta_sl/z_0M)
-            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_kp1
-            # (subgrid reconstruction at the top of the volume)
-            u_tilde = u_kp1 - h_tilde/6 * (phi_0[k]+2*phi_0[k+1])
-            u_deltasl = u_tilde - h_tilde / 3 * phi_0[k]
-            # For LES simulation, putting a quadratic profile between
-            # the log law and the constant profile :
-            def func_z(z):
-                return 1-((z_constant - z) / (z_constant - delta_sl))**2
-
-            u_kp1 = u_deltasl + (u_constant - u_deltasl) * func_z(zkp1)
-            u_0[k+1:k_constant] = u_deltasl + (u_constant-u_deltasl) *\
-                    func_z(simulator.z_half[k+1:k_constant])
-            # compute_phi: with phi[k] = phi_0[k],
-            # with phi[k_constant] = 0,
-            # and the FV approximation
-            def compute_phi(bottom_cond, u_0, h_half):
-                """ solving the system of finite volumes:
-                phi_{m-1}/12 + 10 phi_m / 12 + phi_{m+1} / 12 =
-                        (tke_{m+1/2} - tke_{m-1/2})/h
-                """
-                ldiag = h_half[:-1] /6.
-                diag = (h_half[1:] + h_half[:-1]) * 1/3.
-                udiag = h_half[1:] /6.
-                diag = np.concatenate(([1.], diag, [1.]))
-                udiag = np.concatenate(([0.], udiag))
-                ldiag = np.concatenate((ldiag, [0.]))
-                rhs = np.concatenate(([bottom_cond],
-                    np.diff(u_0), [0.]))
-                return solve_linear((ldiag, diag, udiag), rhs)
-            phi_0[k:] = compute_phi(phi_0[k],
-                    np.concatenate(([u_tilde], u_0[k+1:])),
-                    np.concatenate(([h_tilde],
-                        simulator.h_half[k+1:-1])))
-
-        neutral_tau_sl = (delta_sl / (h_kp12))* \
-                (1+z_0M/delta_sl - 1/np.log(1+delta_sl/z_0M) \
-                + (zk - (zk+z_0M)*np.log(1+zk/z_0M)) \
-                / (delta_sl * np.log(1+delta_sl/z_0M)))
-
-        alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
-        u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
+        u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
+                simulator.initialization(u_0, phi_0, t_0, dz_theta_0,
+                        delta_sl, u_o[0], t_o[0], Q_sw[0], Q_lw[0],
+                        z_constant, delta_sl_o)
+    else:
+        u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
+                u_0, phi_0, t_0, dz_theta_0, u_deltasl, t_deltasl
 
     u, phi, tke_full, ustar, temperature, dz_theta, l_eps, SL = \
-            simulator.FV(u_t0=u_0, phi_t0=phi_0,
-                    SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
+            simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
+                    delta_sl_o=0.,
+                    dz_theta_t0=dz_theta_i, Q_sw=Q_sw, Q_lw=Q_lw,
+                    u_o=u_o, SST=SST, sf_scheme=sf_scheme,
+                    u_delta=u_delta_i, t_delta=t_delta_i,
                     forcing=forcing, delta_sl=delta_sl)
 
     z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
@@ -418,8 +380,13 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
         alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
         u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
 
+    t_0, dz_theta_0 = 265 * np.ones(M), np.zeros(M+1)
     u, phi, tke_full, ustar, temperature, dz_theta, l_eps, SL = \
-            simulator.FV(u_t0=u_0, phi_t0=phi_0, Neutral_case=True,
+            simulator.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=t_0,
+                    delta_sl_o=0.,
+                    dz_theta_t0=dz_theta_0,
+                    Q_sw=np.zeros(N+1), Q_lw=np.zeros(N+1),
+                    u_o=np.zeros(N+1), Neutral_case=True,
                     SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
                     forcing=forcing, delta_sl=delta_sl)
 
@@ -463,7 +430,12 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
         SST = np.concatenate(([265],
             [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
                     for n in range(1, N+1)]))
-    u, TKE, ustar, temperature, l_eps = simulator.FD(u_t0=u_0, SST=SST,
+    theta, _ = simulator.initialize_theta(Neutral_case=False)
+    u, TKE, ustar, temperature, l_eps = simulator.FD(u_t0=u_0,
+            u_o=np.zeros(N+1),
+            theta_t0=theta, Q_sw=np.zeros(N+1),
+            delta_sl_o=0.,
+            SST=SST, Q_lw=np.zeros(N+1),
             sf_scheme=sf_scheme, forcing=forcing)
     z_tke = np.copy(simulator.z_full)
     z_tke[0] = 0.1
@@ -476,7 +448,7 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
 
 def plot_FD(axes, sf_scheme, dt=60., N=1680,
         z_levels=DEFAULT_z_levels, name=None, style={}):
-    if name == None:
+    if name is None:
         name = sf_scheme
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
@@ -485,9 +457,14 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
     u_0 = 10*np.ones(M)
     forcing = 1j*simulator.f * simulator.u_g*np.ones((N+1, M))
     SST = 265. * np.ones(N+1) # Neutral SST with theta=const=265.
-    u, TKE, ustar, _, _ = simulator.FD(u_0,
-            forcing, SST, sf_scheme=sf_scheme,
-            Neutral_case=True)
+    u, TKE, ustar, _, _ = simulator.FD(u_t0=u_0,
+            u_o=np.zeros(N+1),
+            delta_sl_o=0.,
+            theta_t0=265*np.ones(M), Q_sw=np.zeros(N+1),
+            SST=SST, Q_lw=np.zeros(N+1), Neutral_case=True,
+            sf_scheme=sf_scheme, forcing=forcing)
+    z_tke = np.copy(simulator.z_full)
+
     z_tke = np.copy(simulator.z_full)
     z_tke[0] = z_levels[1]/2 if sf_scheme != "FD2" else 0.1
 

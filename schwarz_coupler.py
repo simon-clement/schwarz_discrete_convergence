@@ -71,7 +71,7 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
     wind_10m = projection(atm_state.u_delta, N)
     temp_10m = projection(atm_state.t_delta, N)
 
-    if sf_scheme == "FV free":
+    if sf_scheme in {"FV free", "FV2"}:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
                 simulator_oce.initialization(\
                 np.zeros(simulator_oce.M)+0j, # u_0
@@ -87,6 +87,7 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
                     dz_theta, l_eps, SL, viscosity =simulator_oce.FV(\
                 u_t0=u_i, phi_t0=phi_i, theta_t0=theta_i,
                 dz_theta_t0=dz_theta_i, Q_sw=Qsw, Q_lw=Qlw,
+                delta_sl_a=numer_set.delta_sl_a,
                 u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
                 heatloss=None, wind_10m=wind_10m, TEST_CASE=0,
                 temp_10m=temp_10m, sf_scheme=sf_scheme)
@@ -95,6 +96,7 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
         u_currentFD, tke, all_u_star, thetaFD, \
                     l_eps, viscosityFD = simulator_oce.FD(\
                 u_t0=u_0, theta_t0=theta_0, TEST_CASE=0,
+                delta_sl_a=numer_set.delta_sl_a,
                 Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
                 temp_10m=temp_10m,
                 heatloss=None, sf_scheme=sf_scheme)
@@ -109,6 +111,41 @@ def compute_atmosphere(simulator_atm: Atm1dStratified,
     """
         Integrator in time of the atmosphere
     """
+    N = int(numer_set.T/simulator_atm.dt) # Number of time steps
+    M = simulator_atm.M # Number of grid points
+    u_0 = 8*np.ones(M) + 0j
+    phi_0 = np.zeros(M+1) + 0j
+    theta_0 = 280*np.ones(M)
+    dz_theta_0 = np.zeros(M+1)
+    forcing = 1j*simulator_atm.f*simulator_atm.u_g*np.ones((N+1, M))
+
+    delta_sl = numer_set.delta_sl_a
+    sf_scheme = numer_set.sf_scheme_a
+    uo_delta = projection(oce_state.u_delta, N)
+    to_delta = projection(oce_state.t_delta, N)
+    Q_sw = projection(numer_set.Q_sw, N)
+    Q_lw = projection(numer_set.Q_lw, N)
+    u_deltasl = u_0[0]
+    z_constant = 15
+
+    if sf_scheme in {"FV free", "FV2"}:
+        u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
+                simulator_atm.initialization(\
+                u_0, phi_0, theta_0, dz_theta_0, delta_sl, uo_delta,
+                to_delta, Q_sw[0], Q_lw[0],
+                z_constant, numer_set.delta_sl_o)
+    else:
+        u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
+                u_0, phi_0, theta_0, dz_theta_0, u_0[0], theta_0[0]
+
+    u, phi, tke_full, ustar, temperature, dz_theta, l_eps, SL = \
+            simulator_atm.FV(u_t0=u_0, phi_t0=phi_0,
+                    SST=to_delta, sf_scheme=sf_scheme,
+                    u_0=uo_delta, u_delta=u_deltasl,
+                    delta_sl_o=numer_set.delta_sl_o,
+                    forcing=forcing, delta_sl=delta_sl)
+    #TODO return good data for ocean.
+
 
 def projection(array: np.ndarray, N: int)-> np.ndarray:
     """

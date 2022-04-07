@@ -101,8 +101,11 @@ class Atm1dStratified():
                                 self.__sf_YDc_FVfree_theta),
                 }
 
-    def FV(self, u_t0: array, phi_t0: array, forcing: array,
-            SST:array, delta_sl: float, sf_scheme: str="FV pure",
+    def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
+            dz_theta_t0: array, forcing: array, Q_sw: array,
+            Q_lw: array, u_o: array, SST:array, delta_sl: float,
+            delta_sl_o: float,
+            sf_scheme: str="FV pure",
             u_delta: float=8.+0j, t_delta: float=265.,
             Neutral_case: bool=False, turbulence: str="TKE",
             store_all: bool=False):
@@ -114,6 +117,7 @@ class Atm1dStratified():
             phi_t0 : derivative of u (given at self.z_full)
             forcing: averaged forcing for u on each volume for all times
             SST: Surface Temperature for all times
+            u_o: Surface momentum for all times
             delta_sl: height of the surface layer.
                 Make sure it is coherent with sf_scheme.
             sf_scheme is the surface flux scheme:
@@ -143,7 +147,8 @@ class Atm1dStratified():
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         SL: SurfaceLayerData = friction_scales(u_delta,
                 delta_sl, t_delta, businger(),
-                0., 0., SST[0], large_ocean(), sf_scheme, 0., 0.,
+                u_o[0], delta_sl_o, SST[0], large_ocean(), sf_scheme,
+                Q_sw[0], Q_lw[0],
                 k, True)
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
 
@@ -151,7 +156,7 @@ class Atm1dStratified():
         tke = tkeAtm1D.TkeAtm1D(self, "FV",
                 ignore_tke_sl, Neutral_case, SL)
 
-        theta, dz_theta = self.__initialize_theta(Neutral_case)
+        theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
 
         Ku_full: array = self.K_min + np.zeros(self.M+1)
         Ktheta_full: array = self.Ktheta_min + np.zeros(self.M+1)
@@ -159,7 +164,7 @@ class Atm1dStratified():
         z_levels_sl = np.copy(self.z_full)
         z_levels_sl[k] = self.z_full[k] if ignore_tke_sl else delta_sl
         l_m, l_eps = self.__mixing_lengths( tke.tke_full,
-                phi_t0*phi_t0, 9.81*dz_theta/283.,
+                np.abs(phi_t0*phi_t0), 9.81*dz_theta/283.,
                 z_levels_sl, SL, businger())
 
         phi, old_phi = phi_t0, np.copy(phi_t0)
@@ -171,8 +176,9 @@ class Atm1dStratified():
         for n in range(1,N+1):
             # Compute friction scales
             SL_nm1, SL = SL, friction_scales(u_delta, delta_sl,
-                    t_delta, businger(), 0., 0., SST[n],
-                    large_ocean(), sf_scheme, 0., 0., k, True)
+                    t_delta, businger(), u_o[n], delta_sl_o, SST[n],
+                    large_ocean(), sf_scheme, Q_sw[n], Q_lw[n],
+                    k, True)
             all_u_star += [SL.u_star]
 
             # Compute viscosities
@@ -213,7 +219,9 @@ class Atm1dStratified():
                 dz_theta, l_eps, SL
 
 
-    def FD(self, u_t0: array, forcing: array, SST:array,
+    def FD(self, u_t0: array, theta_t0: array, Q_sw: array,
+            u_o: array, Q_lw: array, forcing: array, SST:array,
+            delta_sl_o: float,
             turbulence: str="TKE", sf_scheme: str="FD pure",
             Neutral_case: bool=False, store_all: bool=False):
         """
@@ -250,11 +258,7 @@ class Atm1dStratified():
         ###### Initialization #####
         import tkeAtm1D
         tke = tkeAtm1D.TkeAtm1D(self, "FD", Neutral_case=Neutral_case)
-
-        theta: array = 265 + np.maximum(0, # potential temperature
-                0.01 * (self.z_half[:-1]-100))
-        if Neutral_case:
-            theta[:] = 265.
+        theta: array = np.copy(theta_t0)
 
         # Initializing viscosities and mixing lengths:
         Ku_full: array = self.K_min + np.zeros(self.M+1)
@@ -272,8 +276,9 @@ class Atm1dStratified():
             t_delta = func_theta(prognostic=theta)
             # Compute friction scales
             SL: SurfaceLayerData= friction_scales(u_delta, delta_sl,
-                    t_delta, businger(), 0., 0., SST[n],
-                    large_ocean(), sf_scheme, 0., 0., 0, True)
+                    t_delta, businger(), u_o[n], delta_sl_o, SST[n],
+                    large_ocean(), sf_scheme, Q_sw[n], Q_lw[n],
+                    0, True)
             all_u_star += [SL.u_star]
 
             # Compute viscosities
@@ -396,7 +401,7 @@ class Atm1dStratified():
                 universal_funcs=businger(), SL=SL)
         return next_theta, dz_theta, t_delta
 
-    def __initialize_theta(self, Neutral_case: bool):
+    def initialize_theta(self, Neutral_case: bool):
         """
         Initialization method for theta.
         It is not crucial to have a perfect initial
@@ -932,6 +937,88 @@ class Atm1dStratified():
         c_sf = np.array(c_sf)
         c[:c_sf.shape[0]] = c_sf
 
+    def initialization(self, u_0, phi_0, t_0, dz_theta,
+            delta_sl, u_o, t_o, Q_sw, Q_lw, z_constant,
+            delta_sl_o=0.):
+        """
+            initialize for FV free scheme. If this is not used,
+            the continuity of the reconstruction cannot be
+            guaranteed.
+        """
+        z_levels = self.z_full
+        u_kp1 = u_const = 8.
+        k = bisect.bisect_right(z_levels[1:], delta_sl)
+        k_constant = bisect.bisect_right(z_levels[1:], z_constant)
+        t_kp1 = t_const = t_0[k_constant]
+        zkp1 = z_levels[k+1]
+        h_tilde = z_levels[k+1] - delta_sl
+        phi_m, phi_h, *_ = businger()
+        SL = friction_scales(u_const, delta_sl,
+                t_const, businger(), u_o, delta_sl_o, t_o,
+                large_ocean(), None, Q_sw, Q_lw, k, True)
+        for _ in range(15):
+            zeta = delta_sl * SL.inv_L_MO
+            phi_0[k] = SL.u_star / self.kappa / \
+                    (SL.z_0M+SL.delta_sl) * phi_m(zeta)
+            dz_theta[k] = SL.t_star / self.kappa / \
+                    (SL.z_0H+SL.delta_sl) * phi_h(zeta)
+            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_kp1
+            # (subgrid reconstruction at the top of the volume)
+            u_tilde = u_kp1 - h_tilde/6 * (phi_0[k]+2*phi_0[k+1])
+            t_tilde = t_kp1 - h_tilde / 6 * (dz_theta[k] + \
+                    2*dz_theta[k+1])
+            u_delta = u_tilde - h_tilde / 6 * (2*phi_0[k]+phi_0[k+1])
+            t_delta = t_tilde - h_tilde / 6 * (2*dz_theta[k] + \
+                    dz_theta[k+1])
+
+            SL = friction_scales(u_delta, delta_sl,
+                t_delta, businger(), u_o, delta_sl_o, t_o,
+                large_ocean(), None, SL.Q_sw, SL.Q_lw, k, True)
+            # For LES simulation, putting a quadratic profile between
+            # the log law and the constant profile :
+            def func_z(z):
+                return 1-((z_constant - z) / (z_constant - delta_sl))**2
+
+            u_kp1 = u_delta + (u_const - u_delta) * func_z(zkp1)
+            t_kp1 = t_delta + (t_const - t_delta) * func_z(zkp1)
+            u_0[k+1:k_constant] = u_delta + (u_const-u_delta) *\
+                    func_z(self.z_half[k+1:k_constant])
+            t_0[k+1:k_constant] = t_delta + (t_const-t_delta) *\
+                    func_z(self.z_half[k+1:k_constant])
+            # compute_phi: with phi[k] = phi_0[k],
+            # with phi[k_constant] = 0,
+            # and the FV approximation
+            def compute_dz(bottom_cond, var, h_half):
+                """ solving the system of finite volumes:
+                phi_{m-1}/12 + 10 phi_m / 12 + phi_{m+1} / 12 =
+                        (tke_{m+1/2} - tke_{m-1/2})/h
+                """
+                ldiag = h_half[:-1] /6.
+                diag = (h_half[1:] + h_half[:-1]) * 1/3.
+                udiag = h_half[1:] /6.
+                diag = np.concatenate(([1.], diag, [1.]))
+                udiag = np.concatenate(([0.], udiag))
+                ldiag = np.concatenate((ldiag, [0.]))
+                rhs = np.concatenate(([bottom_cond],
+                    np.diff(var), [0.]))
+                return solve_linear((ldiag, diag, udiag), rhs)
+
+            phi_0[k:] = compute_dz(phi_0[k],
+                    np.concatenate(([u_tilde], u_0[k+1:])),
+                    np.concatenate(([h_tilde], self.h_half[k+1:-1])))
+            dz_theta[k:] = compute_dz(dz_theta[k],
+                    np.concatenate(([t_tilde], t_0[k+1:])),
+                    np.concatenate(([h_tilde], self.h_half[k+1:-1])))
+
+        tau_u, tau_t = self.__tau_sl(SL, businger())
+        alpha_u = h_tilde / self.h_half[k] + tau_u
+        alpha_t = h_tilde / self.h_half[k] + tau_t
+
+        u_0[k] = alpha_u * u_tilde - tau_u*h_tilde*(phi_0[k]/3 + \
+                phi_0[k+1]/6) + (1-alpha_u) * SL.u_0
+        t_0[k] = alpha_t * t_tilde - tau_t*h_tilde*(dz_theta[k]/3 + \
+                dz_theta[k+1]/6) + (1 - alpha_t) * SL.t_0
+        return u_0, phi_0, t_0, dz_theta, u_delta, t_delta
 
     def __tau_sl(self, SL: SurfaceLayerData,
             universal_funcs) -> (float, float):

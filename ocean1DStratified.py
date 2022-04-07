@@ -110,7 +110,7 @@ class Ocean1dStratified():
 
     def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
             dz_theta_t0: array, Q_sw: array, Q_lw: array,
-            u_delta: float, t_delta: float,
+            u_delta: float, t_delta: float, delta_sl_a: float,
             heatloss: array, wind_10m: array, temp_10m: array,
             delta_sl: float=None, TEST_CASE: int=0,
             sf_scheme: str="FV test", Neutral_case: bool=False,
@@ -166,7 +166,7 @@ class Ocean1dStratified():
         k = bisect.bisect_left(self.z_full, delta_sl)
 
         SL = friction_scales(ua_delta=wind_10m[0],
-                delta_sl_a=10., ta_delta=temp_10m[0],
+                delta_sl_a=delta_sl_a, ta_delta=temp_10m[0],
                 univ_funcs_a=businger(),
                 uo_delta=u_delta, delta_sl_o=delta_sl,
                 to_delta=t_delta, univ_funcs_o=large_ocean(),
@@ -203,7 +203,7 @@ class Ocean1dStratified():
             # Compute friction scales:
             SL_nm1 = SL
             SL = friction_scales(ua_delta=wind_10m[n],
-                    delta_sl_a=10., ta_delta=temp_10m[n],
+                    delta_sl_a=delta_sl_a, ta_delta=temp_10m[n],
                     univ_funcs_a=businger(),
                     uo_delta=u_delta, delta_sl_o=delta_sl,
                     to_delta=t_delta, univ_funcs_o=large_ocean(),
@@ -211,7 +211,7 @@ class Ocean1dStratified():
                     k=k, is_atm=False)
             if TEST_CASE == 1: # Comodo{WindInduced}
                 SL_a = SurfaceLayerData(.01*np.sqrt(self.rho0), 0.,
-                        None, None, 0., None, None, None, None, 10.,
+                        None, None, 0., None, None, None, None, delta_sl_a,
                         None, None, Q_sw[n], Q_lw[n], None)
                 SL = SurfaceLayerData(0.01, 0.,
                         .1, .1, 0., None, None, None, None,
@@ -219,7 +219,7 @@ class Ocean1dStratified():
             if TEST_CASE == 2: # Comodo{ConstantCooling}
                 SL_a = SurfaceLayerData(0., 0., None, None,
                         0., None, None, None, None,
-                        10., None, None, Q_sw[n], Q_lw[n], None)
+                        delta_sl_a, None, None, Q_sw[n], Q_lw[n], None)
                 SL = SurfaceLayerData(0./np.sqrt(self.rho0), 0., .1,
                         .1, 0., None, None, None, None, 0., self.M,
                         sf_scheme, Q_sw[n], Q_lw[n], SL_a)
@@ -290,7 +290,7 @@ class Ocean1dStratified():
     def FD(self, u_t0: array, theta_t0: array,
             Q_sw: array, Q_lw: array, heatloss: array,
             wind_10m: array, temp_10m: array,
-            TEST_CASE: int=0,
+            TEST_CASE: int=0, delta_sl_a: float=10.,
             turbulence: str="TKE", sf_scheme: str="FD pure",
             Neutral_case: bool=False, store_all: bool=False):
         """
@@ -350,7 +350,7 @@ class Ocean1dStratified():
             u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
             t_delta = func_theta(prognostic=theta)
             SL = friction_scales(ua_delta=wind_10m[n],
-                    delta_sl_a=10., ta_delta=temp_10m[n],
+                    delta_sl_a=delta_sl_a, ta_delta=temp_10m[n],
                     univ_funcs_a=businger(),
                     uo_delta=u_delta, delta_sl_o=delta_sl,
                     to_delta=t_delta, univ_funcs_o=large_ocean(),
@@ -359,14 +359,14 @@ class Ocean1dStratified():
 
             if TEST_CASE == 1: # Comodo{WindInduced}
                 SL_a = SurfaceLayerData(.01*np.sqrt(self.rho0), 0.,
-                        None, None, 0., None, None, None, None, 10.,
+                        None, None, 0., None, None, None, None, delta_sl_a,
                         None, None, Q_sw[n], Q_lw[n], None)
                 SL = SurfaceLayerData(0.01,
                         0., .1, .1, 0., None, None, None, None,
                         0., self.M, sf_scheme, Q_sw[n], Q_lw[n], SL_a)
             if TEST_CASE == 2: # Comodo{WindInduced}
                 SL_other = SurfaceLayerData(0., 0., None, None,
-                        0., None, None, None, None, 10.,
+                        0., None, None, None, None, delta_sl_a,
                         None, None, Q_sw[n], Q_lw[n], None)
                 SL = SurfaceLayerData(0./np.sqrt(self.rho0),
                         0., .1, .1, 0., None, None, None, None,

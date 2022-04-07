@@ -59,6 +59,7 @@ def fig_constantCooling():
 
         u_current, phi, tke, all_u_star, theta, \
                     dz_theta, l_eps, SL, viscosity =simulator_oce.FV(\
+                delta_sl_a=10.,
                 u_t0=u_i, phi_t0=phi_i, theta_t0=theta_i,
                 dz_theta_t0=dz_theta_i, Q_sw=Qsw, Q_lw=Qlw,
                 u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
@@ -82,6 +83,7 @@ def fig_constantCooling():
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
+            delta_sl_a=10.,
             u_t0=u_0, theta_t0=theta_0, TEST_CASE=0,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
             temp_10m=temp_10m,
@@ -156,6 +158,7 @@ def fig_windInduced():
 
         u_current, phi, tke, all_u_star, theta, \
                     dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
+                delta_sl_a=10.,
                 u_t0=u_i, phi_t0=phi_i, theta_t0=theta_i,
                 dz_theta_t0=dz_theta_i, Q_sw=Qsw, Q_lw=Qlw,
                 TEST_CASE=0, u_delta=u_delta, t_delta=t_delta,
@@ -176,6 +179,7 @@ def fig_windInduced():
     for sf_scheme in ("FD pure",):
         u_currentFD, tke, all_u_star, thetaFD, \
                     l_eps, viscosityFD = simulator_oce.FD(\
+                delta_sl_a=10.,
                 u_t0=u_0, theta_t0=theta_0, TEST_CASE=0,
                 Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m, temp_10m=temp_10m,
                 heatloss=heatloss, sf_scheme=sf_scheme)
@@ -228,6 +232,7 @@ def fig_comodoParamsConstantCooling():
 
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
+            delta_sl_a=10.,
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             u_delta=10., t_delta=15.,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
@@ -238,6 +243,7 @@ def fig_comodoParamsConstantCooling():
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
+            delta_sl_a=10.,
             u_t0=u_0, theta_t0=theta_0, TEST_CASE=2,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
             temp_10m=temp_10m, 
@@ -284,6 +290,7 @@ def fig_comodoParamsWindInduced():
 
     u_current, phi, tke, all_u_star, theta, \
                 dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
+            delta_sl_a=10.,
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             u_delta=0., t_delta=T0,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
@@ -295,6 +302,7 @@ def fig_comodoParamsWindInduced():
 
     u_currentFD, tke, all_u_star, thetaFD, \
                 l_eps, viscosityFD = simulator_oce.FD(\
+            delta_sl_a=10.,
             u_t0=u_0, theta_t0=theta_0, TEST_CASE=1,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m, temp_10m=temp_10m,
             heatloss=heatloss, sf_scheme="FD test")
