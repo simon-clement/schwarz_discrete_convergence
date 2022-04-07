@@ -27,7 +27,6 @@ class SurfaceLayerData(NamedTuple):
     Q_lw: float # longwave radiation flux
     SL_other: 'SurfaceLayerData' # data of other domain TODO replace SL_a
 
-#TODO numba ?
 def friction_scales(ua_delta: float, delta_sl_a: float,
         ta_delta: float, univ_funcs_a,
         uo_delta: float, delta_sl_o: float,
