@@ -515,7 +515,7 @@ class Atm1dStratified():
         z_oversampled = np.concatenate([np.array(xi[m]) + self.z_half[m]
                                             for m in range(1, self.M)])
         u_star, t_star, _, _, inv_L_MO, _, _, \
-                u_0, t_z0, delta_sl, k1, sf_scheme, \
+                u_z0, t_z0, delta_sl, k1, sf_scheme, \
                 Q_sw, Q_lw, SL_o = SL
         if sf_scheme in {"FV1", "FV pure"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
@@ -546,10 +546,10 @@ class Atm1dStratified():
                 SL=SL, universal_funcs=businger())
 
         Pr = 1.# 4.8/7.8
-        u_log: complex = u_star/self.kappa * \
+        u_log: complex = u_z0 + u_star/self.kappa * \
                 (np.log(1+z_log/SL.z_0M) - \
                 psi_m(z_log*inv_L_MO) + psi_m(SL.z_0M*inv_L_MO)) \
-                            * u_delta/np.abs(SL.u_delta)
+                            * (u_delta - u_z0)/np.abs(SL.u_delta-u_z0)
         # u_delta/|SL.udelta| is u^{n+1}/|u^n| like in the
         # formulas
         theta_log: complex = t_z0 + Pr * t_star / self.kappa * \
@@ -572,7 +572,7 @@ class Atm1dStratified():
             alpha_slt = tilde_h/self.h_half[k1] + tau_slt
 
             u_tilde = 1/alpha_slu * (u_bar[k1] + tilde_h * tau_slu * \
-                    (phi[k1]/3 + phi[k1+1]/6))
+                    (phi[k1]/3 + phi[k1+1]/6) - (1-alpha_slu)*u_z0)
             theta_tilde = 1/alpha_slt * (theta[k1] + tilde_h * tau_slt * \
                     (dz_theta[k1]/3 + dz_theta[k1+1]/6) - (1-alpha_slt)*t_z0)
 
@@ -1004,9 +1004,11 @@ class Atm1dStratified():
         tau_slu, _ = self.__tau_sl(SL, universal_funcs)
         k = bisect.bisect_right(self.z_full[1:], SL.delta_sl)
         tilde_h = self.z_full[k+1] - SL.delta_sl
+        alpha = tilde_h/self.h_half[k]+tau_slu
         return (prognostic[k] - tilde_h*tilde_h/self.h_half[k] * \
-                (prognostic[k+1] / 3 + prognostic[k+2] / 6)) \
-                / (tilde_h/self.h_half[k]+tau_slu)
+                (prognostic[k+1] / 3 + prognostic[k+2] / 6) - \
+                (1 - alpha) * SL.u_0) \
+                / alpha
 
     ####### DEFINITION OF SF SCHEMES : FIRST LINES OF Y,D,c #####
     # each method must return Y, D, c:
@@ -1018,63 +1020,67 @@ class Atm1dStratified():
 
     def __sf_YDc_FDpure(self, K_u, forcing, SL, **_):
         """
-            Y = (           1                ,   0   )
-            D = (-K/h^2 - u*^2 / (h|u(z_a)|) , K/h^2 )
-            c = ( F )
+            Y = (           1                   ,   0   )
+            D = (-K/h^2 - u*^2 / (h|u(z_a)-u0|) , K/h^2 )
+            c = ( F + u_0 u*^2 / (h|u(z_a)-u0|) )
         """
         u_star, u_delta = SL.u_star, SL.u_delta
+        jump = np.abs(u_delta - SL.u_0)
         Y = ((), (1.,), (0.,))
         D = ((), (-K_u[1]/self.h_full[1]/self.h_half[0] - \
-                u_star**2 / np.abs(u_delta)/self.h_half[0], ),
+                u_star**2 / jump /self.h_half[0], ),
                 (K_u[1]/self.h_full[1]/self.h_half[0],))
-        c = (forcing[0],)
+        c = (forcing[0] + u_star**2 * SL.u_0 / jump / self.h_half[0],)
         return Y, D, c, Y
 
     def __sf_YDc_FD2(self, K_u, SL, **_):
         """
-            Y = (            0       ,              0      )
-            D = ( -K/h - u*^2/(2|ua|),  K/h - u*^2/(2|ua|) )
-            c = (    0    )
+            Y = (            0          ,              0         )
+            D = ( -K/h - u*^2/(2|ua-u0|),  K/h - u*^2/(2|ua-u0|) )
+            c = (   u0 u*^2/|ua-u0|    )
         """
         u_star, u_delta = SL.u_star, SL.u_delta
+        jump = np.abs(u_delta - SL.u_0)
         Y = ((), (0.,), (0.,))
-        D = ((), (-K_u[1]/self.h_full[1] - u_star**2 / np.abs(u_delta) / 2,),
-                (K_u[1]/self.h_full[1] - u_star**2 / np.abs(u_delta) / 2,))
-        c = (0.,)
+        D = ((), (-K_u[1]/self.h_full[1] - u_star**2 / jump / 2,),
+                (K_u[1]/self.h_full[1] - u_star**2 / jump / 2,))
+        c = (u_star**2 * SL.u_0 / jump,)
         return Y, D, c, Y
 
     def __sf_YDc_FVpure(self, K_u, forcing, SL, **_):
         """
             Y = (0     ,    0     , 0 )
                 (1     ,    0     , 0 )
-            D = ( 1  ,   h/24 - K|ua|/u*^2 ,  - h/24  )
-                ( 0  ,          -K/h       ,    K/h   )
-            c = (  0  )
-                (  F  )
+            D = ( 1  ,   h/24 - K|ua-u0|/u*^2 ,  - h/24  )
+                ( 0  ,          -K/h          ,    K/h   )
+            c = ( -u0  )
+                (  F   )
         """
         u_star, u_delta = SL.u_star, SL.u_delta
+        jump = np.abs(u_delta - SL.u_0)
         Y = ((1.,), (0., 0.), (0., 0.))
         D = ((0.,), (1, -K_u[0] / self.h_half[0]),
-                (-K_u[0]*np.abs(u_delta)/u_star**2+self.h_half[0]/24,
+                (-K_u[0]*jump/u_star**2+self.h_half[0]/24,
                     K_u[1]/self.h_half[0]),
                 (-self.h_half[0]/24,))
-        c = (0., forcing[0])
+        c = (-SL.u_0, forcing[0])
         return Y, D, c, Y
 
     def __sf_YDc_FV1(self, K_u, forcing, SL, **_):
         """
             Y = (0     ,    0     , 0 )
                 (1     ,    0     , 0 )
-            D = ( 1  ,  - K|ua|/u*^2 ,  0  )
-                ( 0  ,     -K/h      , K/h )
-            c = (  0  )
-                (  F  )
+            D = ( 1  ,  - K|ua-u0|/u*^2 ,  0  )
+                ( 0  ,     -K/h         , K/h )
+            c = (  -u0  )
+                (   F   )
         """
         u_star, u_delta = SL.u_star, SL.u_delta
+        jump = np.abs(u_delta - SL.u_0)
         Y = ((1.,), (0., 0.), (0., 0.))
         D = ((0.,), (1, -K_u[0] / self.h_half[0]),
-                (-K_u[0]*np.abs(u_delta)/u_star**2, K_u[1]/self.h_half[0]))
-        c = (0., forcing[0])
+                (-K_u[0]*jump/u_star**2, K_u[1]/self.h_half[0]))
+        c = (-SL.u_0, forcing[0])
         return Y, D, c, Y
 
     def __sf_YDc_FV2(self, K_u, forcing, SL, universal_funcs, **_):
@@ -1082,17 +1088,18 @@ class Atm1dStratified():
             Y = (0 , 0  , 0 ,  0)
                 (0 , 0  , 0 ,  0)
                 (0 , 1  , 0 ,  0)
-            D = (1 , -R ,           0       ,  0   )
-                (0 , 1  ,  -K|u|/u*^2 - h/3 ,  -h/6)
-                (0 , 0  ,          -K/h     ,  K/h )
-            c = (  0  )
-                (  0  )
-                (  F  )
+            D = (1 , -R ,           0          ,  0   )
+                (0 , 1  ,  -K|u-u0|/u*^2 - h/3 ,  -h/6)
+                (0 , 0  ,          -K/h        ,  K/h )
+            c = (  u0 (R-1) )
+                (  -u0      )
+                (   F       )
             where R is the ratio of norms defined by MOST profiles.
             (Bar{u}_{1/2} is overriden so no need to overthink this)
         """
         u_star, u_delta, t_star, t_delta = SL.u_star, \
                 SL.u_delta, SL.t_star, SL.t_delta
+        jump = np.abs(u_delta - SL.u_0)
         _, _, _, _, Psi_m, _ = universal_funcs
         inv_L_MO = t_star / t_delta / u_star**2 * self.kappa * 9.81
         def f(z):
@@ -1106,10 +1113,10 @@ class Atm1dStratified():
             ratio_norms = 0.
         Y = ((0., 1.), (0., 0., 0.), (0., 0., 0.))
         D = ((0., 0.), (1., 1., -K_u[1] / self.h_half[1]),
-                (-ratio_norms, -K_u[1]*np.abs(u_delta)/u_star**2 - \
+                (-ratio_norms, -K_u[1]*jump/u_star**2 - \
                         self.h_half[1]/3, K_u[2]/self.h_half[1]),
                 (0., -self.h_half[1]/6))
-        c = (0., 0., forcing[1])
+        c = (SL.u_0 * (ratio_norms-1), -SL.u_0, forcing[1])
         return Y, D, c, Y
 
     def __sf_YDc_FVfree(self, K_u, forcing, universal_funcs,
@@ -1119,13 +1126,13 @@ class Atm1dStratified():
                  ( 1/a  ,  tau ~h/(3a) ,  tau ~h/(6a)  ,  0   )
                  (  0   ,   ~h/(6h)    ,  (~h+h)/(3h)  ,h/(6h))
 
-            D = ( -1  , ~h^2/(3h)+Ka|ua|/u*^2, ~h^2/(6h)    , 0     )
-                ( 0   ,-K/~h                 ,  K/~h        , 0     )
-                ( 0   , K/(h~h)              ,-K(1/h+1/~h)/h, K/h^2 )
+            D = ( -1  , ~h^2/(3h)+Ka|ua-u0|/u*^2, ~h^2/(6h)    , 0     )
+                ( 0   ,-K/~h                    ,  K/~h        , 0     )
+                ( 0   , K/(h~h)                 ,-K(1/h+1/~h)/h, K/h^2 )
 
-            c = (                  0                       )
-                (             forcing_{k+1/2}              )
-                (  1/h (forcing_{k+3/2} - forcing_{k+1/2}) )
+            c = (                   u_0                          )
+                (  forcing_{k+1/2} + (partial_t+if) (u0(1-a)/ a) )
+                (      1/h (forcing_{k+3/2} - forcing_{k+1/2})   )
             after that, the matrices are filled for every 0 <= m < k
             with 0 for Y
             D: (ldiag, diag, udiag) = (0, -1, R)
@@ -1161,11 +1168,16 @@ class Atm1dStratified():
                 (-1., -K_u[k+0] / tilde_h,
                     -K_u[k+1]/tilde_h/self.h_full[k+1] - \
                             K_u[k+1] / self.h_half[k+1] / self.h_full[k+1]),
-                (K_u[k+0]*np.abs(u_delta)*alpha_sl/u_star**2 + \
+                (K_u[k+0]*np.abs(u_delta - SL.u_0)*alpha_sl/u_star**2 + \
                         tilde_h**2 / 3 / self.h_half[k],
                     K_u[k+1]/tilde_h, K_u[k+2]/self.h_full[k+1]/self.h_half[k+1]),
                 (tilde_h**2 / 6 / self.h_half[k], 0.))
-        c = (0.+0j, forcing[k+0],
+        u01ma_a_n = SL.u_0 * (1 - alpha_sl)/alpha_sl
+        u01ma_a_nm1 = SL_nm1.u_0 * (1-alpha_sl_nm1) / alpha_sl_nm1
+        partial_tpif_u01ma_a = (u01ma_a_n - u01ma_a_nm1)/self.dt + \
+                1j*self.f*(self.implicit_coriolis*u01ma_a_n + \
+                (1 - self.implicit_coriolis) * u01ma_a_nm1)
+        c = (SL.u_0, forcing[k+0] + partial_tpif_u01ma_a,
                 (forcing[k+1] - forcing[k+0])/self.h_full[k+1])
 
         Y = (np.concatenate((np.zeros(k), y)) for y in Y)
@@ -1177,11 +1189,10 @@ class Atm1dStratified():
                     z * Psi_m(z*inv_L_MO)
 
         try:
-            ratio_norms = (f(self.z_full[1]) - f(0)) / \
-                    (f(self.z_full[2]) - f(self.z_full[1]))
-            ratio_norms = [(f(self.z_full[m+1]) - f(self.z_full[m])) / \
+            ratio_norms = np.array([(f(self.z_full[m+1]) - \
+                    f(self.z_full[m])) / \
                     (f(self.z_full[m+2]) - f(self.z_full[m+1])) \
-                        for m in range(k)]
+                        for m in range(k)])
         except ZeroDivisionError:
             ratio_norms = np.zeros(k)
 
@@ -1189,7 +1200,7 @@ class Atm1dStratified():
                 np.concatenate((-np.ones(k), D[1])),
                 np.concatenate((ratio_norms, D[2])),
                 np.concatenate((np.zeros(k), D[3])))
-        c = np.concatenate((np.zeros(k), c))
+        c = np.concatenate(((ratio_norms - 1)*SL.u_0, c))
         return Y, D, c, Y_nm1
 
 
@@ -1435,7 +1446,8 @@ class Atm1dStratified():
                 - z + z* Psi_h(z*SL.inv_L_MO)
 
         try:
-            ratio_norms = np.array([(f(self.z_full[m+1]) - f(self.z_full[m])) / \
+            ratio_norms = np.array([(f(self.z_full[m+1]) - \
+                    f(self.z_full[m])) / \
                     (f(self.z_full[m+2]) - f(self.z_full[m+1])) \
                         for m in range(k)])
         except ZeroDivisionError:
