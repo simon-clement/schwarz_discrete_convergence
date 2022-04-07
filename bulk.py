@@ -25,7 +25,7 @@ class SurfaceLayerData(NamedTuple):
     sf_scheme: str # Name of the surface flux scheme
     Q_sw: float # shortwave radiation flux
     Q_lw: float # longwave radiation flux
-    SL_other: 'SurfaceLayerData' # data of other domain TODO replace SL_a
+    SL_other: 'SurfaceLayerData' # data of other domain
 
 def friction_scales(ua_delta: float, delta_sl_a: float,
         ta_delta: float, univ_funcs_a,
@@ -79,7 +79,9 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
             term_lw = 1 - Q_lw / turhocp
             term_Qw = Q_sw * integrated_shortwave_frac_sl(\
                     inv_L_o, delta_sl_o) / turhocp
-        else: #TODO see if we can take Qlw into account
+        else:
+            print("Warning (bulk): dividing by t*u* where u*o=",
+                    uo_star, "t*o", to_star)
             term_lw = term_Qw = 0.
 
         # Pelletier et al, 2021, equation (43):

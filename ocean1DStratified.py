@@ -1496,9 +1496,13 @@ class Ocean1dStratified():
 
         # Radiative fluxes:
         turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
-
-        term_lw = 1 - SL.Q_lw / turhocp
-        term_Qw = Qsw_E(SL.delta_sl, SL, turhocp)
+        if abs(turhocp) > 1e-30:
+            term_lw = 1 - SL.Q_lw / turhocp
+            term_Qw = Qsw_E(SL.delta_sl, SL, turhocp)
+        else:
+            print("Warning (Ocean1dStratified): dividing by t*u*",
+                    "where u*o=", SL.u_star, "t*o", SL.t_star)
+            term_lw = term_Qw = 0.
 
         # Pelletier et al, 2021, equation (43):
         rhs_32 = np.log(1+delta_sl_a/za_0H) - psih_a(zeta_a) + \
@@ -1507,7 +1511,8 @@ class Ocean1dStratified():
                     lambda_t * term_Qw
         # we return tstar_o ustar_o / (tstar_a ustar_a) * \
         #               (tstar_a ustar_a) / (t_a - t_o)
-        return lambda_u*lambda_t*SL.SL_other.u_star * self.kappa / rhs_32
+        return lambda_u*lambda_t*SL.SL_other.u_star * self.kappa \
+                / rhs_32
 
     def __skin_ch_du(self, SL, universal_funcs, **kwargs):
         """
@@ -1524,9 +1529,13 @@ class Ocean1dStratified():
 
         # adding radiative fluxes:
         turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
+        if abs(turhocp) > 1e-30:
+            rhs_30 *= 1 - SL.Q_lw / turhocp
+            rhs_30 -= Qsw_E(SL.delta_sl, SL, turhocp)
+        else:
+            print("Warning (Ocean1dStratified skin): dividing by",
+                    "t*u* where u*o=", SL.u_star, "t*o", SL.t_star)
 
-        rhs_30 *= 1 - SL.Q_lw / turhocp
-        rhs_30 -= Qsw_E(SL.delta_sl, SL, turhocp)
 
         return SL.u_star * self.kappa / rhs_30
 
