@@ -7,6 +7,7 @@ import bisect
 import numpy as np
 import ocean1DStratified as oce1D
 from utils_linalg import solve_linear, full_to_half
+from bulk import SurfaceLayerData
 
 coeff_FV_big = 1/3. # 1/3 or 5/12
 coeff_FV_small = 1/6. # 1/6 or 1/12
@@ -42,7 +43,7 @@ class TkeOcean1D:
         self.wave_breaking = wave_breaking
 
     def integrate_tke(self, ocean: oce1D.Ocean1dStratified,
-            SL: oce1D.SurfaceLayerData,
+            SL: SurfaceLayerData,
             universal_funcs,
             shear: array, K_full: array, l_eps: array,
             Ktheta_full: array, N2_full: array, tau_m: float,
@@ -69,7 +70,7 @@ class TkeOcean1D:
                 universal_funcs, tau_m, tau_b)
 
     def __integrate_tke_FD(self, ocean: oce1D.Ocean1dStratified,
-            shear: array, K_full: array, SL: oce1D.SurfaceLayerData,
+            shear: array, K_full: array, SL: SurfaceLayerData,
             l_eps: array, Ktheta_full: array, N2: array,
             universal_funcs, tau_m: float, tau_b: float=0.):
         """
@@ -131,7 +132,7 @@ class TkeOcean1D:
 
     def __integrate_tke_FV(self, ocean: oce1D.Ocean1dStratified,
             shear_half: array, K_full: array,
-            SL: oce1D.SurfaceLayerData, l_eps: array,
+            SL: SurfaceLayerData, l_eps: array,
             buoy_half: array, ignore_sl: bool,
             universal_funcs, tau_m: float, tau_b: float=0.):
         """
@@ -324,7 +325,7 @@ class TkeOcean1D:
         self.dz_tke = solve_linear((ldiag, diag, udiag), rhs)
 
     def __compute_tke_full_FV(self, ocean: oce1D.Ocean1dStratified,
-            SL: oce1D.SurfaceLayerData, ignore_sl: bool,
+            SL: SurfaceLayerData, ignore_sl: bool,
             l_eps: array, universal_funcs):
         """
             projection of the tke reconstruction on z_full
@@ -354,7 +355,7 @@ class TkeOcean1D:
                     tke_k, tke_sl))
 
     def reconstruct_TKE(self, ocean: oce1D.Ocean1dStratified,
-            SL: oce1D.SurfaceLayerData, sf_scheme: str,
+            SL: SurfaceLayerData, sf_scheme: str,
             universal_funcs, l_eps: array):
         """
             returns (z, tke(z)), the reconstruction

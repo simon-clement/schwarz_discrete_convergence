@@ -11,7 +11,9 @@ from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
 from utils_linalg import solve_linear
 from utils_linalg import full_to_half
+from bulk import SurfaceLayerData, friction_scales
 from universal_functions import Businger_et_al_1971 as businger
+from universal_functions import Large_et_al_2019 as large_ocean
 def pr(var, name="atm"):
     print(var, name)
 
@@ -19,22 +21,6 @@ array = np.ndarray
 # TKE coefficients:
 coeff_FV_big = 1/3. # 1/3 or 5/12
 coeff_FV_small = 1/6. # 1/6 or 1/12
-
-class SurfaceLayerData(NamedTuple):
-    """
-        Handles the data of the SL at one time step.
-    """
-    u_star: float # friction scale u*
-    t_star: float # friction scale t*
-    z_0M: float # roughness length for momentum
-    z_0H: float # roughness length for theta
-    inv_L_MO: float # inverse of Obukhov length:
-    u_delta: complex # value of u at z=delta_sl
-    t_delta: float # value of theta at z=delta_sl
-    SST: float # Sea Surface Temperature (z=0)
-    delta_sl: float # Height of the Surface Layer
-    k: int # index for which z_k < delta_sl < z_{k+1}
-    sf_scheme: str # Name of the surface flux scheme
 
 class Atm1dStratified():
     """
@@ -155,8 +141,10 @@ class Atm1dStratified():
         forcing_theta = np.zeros_like(forcing[0])
 
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
-        SL: SurfaceLayerData = self.__friction_scales(u_delta,
-                delta_sl, t_delta, SST[0], businger(), sf_scheme, k)
+        SL: SurfaceLayerData = friction_scales(u_delta,
+                delta_sl, t_delta, businger(),
+                0., 0., SST[0], large_ocean(), sf_scheme, 0., 0.,
+                k, True)
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
 
         import tkeAtm1D
@@ -182,8 +170,9 @@ class Atm1dStratified():
 
         for n in range(1,N+1):
             # Compute friction scales
-            SL_nm1, SL = SL, self.__friction_scales(u_delta, delta_sl,
-                    t_delta, SST[n], businger(), sf_scheme, k)
+            SL_nm1, SL = SL, friction_scales(u_delta, delta_sl,
+                    t_delta, businger(), 0., 0., SST[n],
+                    large_ocean(), sf_scheme, 0., 0., k, True)
             all_u_star += [SL.u_star]
 
             # Compute viscosities
@@ -282,9 +271,9 @@ class Atm1dStratified():
             u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
             t_delta = func_theta(prognostic=theta)
             # Compute friction scales
-            SL: SurfaceLayerData= self.__friction_scales(u_delta,
-                    delta_sl, t_delta, SST[n], businger(),sf_scheme,0)
-
+            SL: SurfaceLayerData= friction_scales(u_delta, delta_sl,
+                    t_delta, businger(), 0., 0., SST[n],
+                    large_ocean(), sf_scheme, 0., 0., 0, True)
             all_u_star += [SL.u_star]
 
             # Compute viscosities
@@ -526,7 +515,8 @@ class Atm1dStratified():
         z_oversampled = np.concatenate([np.array(xi[m]) + self.z_half[m]
                                             for m in range(1, self.M)])
         u_star, t_star, _, _, inv_L_MO, _, _, \
-                SST, delta_sl, k1, sf_scheme = SL
+                u_0, t_z0, delta_sl, k1, sf_scheme, \
+                Q_sw, Q_lw, SL_o = SL
         if sf_scheme in {"FV1", "FV pure"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
             k_1m: int = bisect.bisect_right(allxi[0], z_min)
@@ -562,7 +552,7 @@ class Atm1dStratified():
                             * u_delta/np.abs(SL.u_delta)
         # u_delta/|SL.udelta| is u^{n+1}/|u^n| like in the
         # formulas
-        theta_log: complex = SST + Pr * t_star / self.kappa * \
+        theta_log: complex = t_z0 + Pr * t_star / self.kappa * \
                 (np.log(1+z_log/SL.z_0H) - \
                 psi_h(z_log*inv_L_MO) + psi_h(SL.z_0H*inv_L_MO))
 
@@ -584,7 +574,7 @@ class Atm1dStratified():
             u_tilde = 1/alpha_slu * (u_bar[k1] + tilde_h * tau_slu * \
                     (phi[k1]/3 + phi[k1+1]/6))
             theta_tilde = 1/alpha_slt * (theta[k1] + tilde_h * tau_slt * \
-                    (dz_theta[k1]/3 + dz_theta[k1+1]/6) - (1-alpha_slt)*SST)
+                    (dz_theta[k1]/3 + dz_theta[k1+1]/6) - (1-alpha_slt)*t_z0)
 
             u_freepart = u_tilde + (phi[k1+1] + phi[k1]) * xi/2 \
                     + (phi[k1+1] - phi[k1]) / (2 * tilde_h) * \
@@ -942,38 +932,6 @@ class Atm1dStratified():
         c_sf = np.array(c_sf)
         c[:c_sf.shape[0]] = c_sf
 
-    def __friction_scales(self, u_delta: float, delta_sl: float,
-            t_delta: float, SST: float,
-            universal_funcs, sf_scheme: str, k: int) -> SurfaceLayerData:
-        """
-        Computes (u*, t*) with a fixed point algorithm.
-        returns a SurfaceLayerData containing all the necessary data.
-        universal_funcs is the tuple (phim, phih, psim, psih, Psim, Psih)
-        defined in universal_functions.py
-        other parameters are defined in the SurfaceLayerData class.
-        """
-        _, _, psim, psis, *_ = universal_funcs
-        t_star: float = (t_delta-SST) * \
-                (0.0180 if t_delta > SST else 0.0327)
-        z_0M = 0.1
-        z_0H = 0.1
-        u_star: float = (self.kappa *np.abs(u_delta) / \
-                np.log(1 + delta_sl/z_0M ) )
-        for _ in range(12):
-            zeta = self.kappa * delta_sl * 9.81*\
-                    (t_star / t_delta) / u_star**2
-            Cd    = self.kappa**2 / \
-                    (np.log(1+delta_sl/z_0M) - psim(zeta))**2
-            Ch    = self.kappa * np.sqrt(Cd) / \
-                    (np.log(1+delta_sl/z_0H) - psis(zeta))
-            u_star = np.sqrt(Cd) * np.abs(u_delta)
-            t_star = ( Ch / np.sqrt(Cd) ) * (t_delta - SST)
-            z_0M = z_0H = self.K_mol / self.kappa / u_star
-        inv_L_MO = t_star / t_delta / u_star**2 * \
-                self.kappa * 9.81
-        return SurfaceLayerData(u_star, t_star, z_0M, z_0H,
-                inv_L_MO, u_delta, t_delta, SST, delta_sl, k,
-                sf_scheme)
 
     def __tau_sl(self, SL: SurfaceLayerData,
             universal_funcs) -> (float, float):
@@ -1275,7 +1233,7 @@ class Atm1dStratified():
     def __sf_thetadelta_FVfree(self, prognostic, SL,
             universal_funcs, **_):
         """
-            t(delta) = 1/a ( Bar{t}_{k+1/2} - (1 - a) * SST
+            t(delta) = 1/a ( Bar{t}_{k+1/2} - (1 - a) * t_0
                     - ~h^2/h (dzt_{k} / 3 + dzt_{k+1} / 6))
         """
         _, tau_slt = self.__tau_sl(SL, universal_funcs)
@@ -1285,7 +1243,7 @@ class Atm1dStratified():
         alpha = tilde_h/self.h_half[k]+tau_slt
         return (prognostic[k] - tilde_h*tilde_h/self.h_half[k] * \
                 (prognostic[k+1] / 3 + prognostic[k+2] / 6) - \
-                (1 - alpha) * SL.SST) \
+                (1 - alpha) * SL.t_0) \
                 / alpha
 
 
@@ -1303,7 +1261,7 @@ class Atm1dStratified():
         """
             Y = (           1         ,   0   )
             D = (-K/h^2 - C_H|ua| / h , K/h^2 )
-            c = ( SST * C_H|u| / h )
+            c = ( t_0 * C_H|u| / h )
         """
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         _, _, _, psi_h, _, _ = universal_funcs
@@ -1314,14 +1272,14 @@ class Atm1dStratified():
         D = ((), (-K_theta[1]/self.h_full[1]/self.h_half[0] - \
                 ch_du /self.h_half[0],),
                 (K_theta[1]/self.h_full[1]/self.h_half[0],))
-        c = (SL.SST*ch_du / self.h_half[0],)
+        c = (SL.t_0*ch_du / self.h_half[0],)
         return Y, D, c, Y
 
     def __sf_YDc_FD2_theta(self, K_theta, SL, universal_funcs, **_):
         """
             Y = (            0       ,          0        )
             D = ( -K/h - C_H|u| / 2  ,  K/h - C_H|u| / 2 )
-            c = (    C_H|u| * SST    )
+            c = (    C_H|u| * t_0    )
         """
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         _, _, _, psi_h, _, _ = universal_funcs
@@ -1330,7 +1288,7 @@ class Atm1dStratified():
         Y = ((), (0.,), (0.,))
         D = ((), (-K_theta[1]/self.h_full[1] - ch_du / 2,),
                 (K_theta[1]/self.h_full[1] - ch_du / 2,))
-        c = (ch_du * SL.SST,)
+        c = (ch_du * SL.t_0,)
         return Y, D, c, Y
 
     def __sf_YDc_FV1_theta(self, K_theta, SL, universal_funcs, **_):
@@ -1339,7 +1297,7 @@ class Atm1dStratified():
                 (1     ,    0     , 0 )
             D = ( -1 ,    K /(C_H|u|),  0  )
                 ( 0  ,     -K/h      , K/h )
-            c = (  SST)
+            c = (  t_0)
                 (  0  )
         """
         _, _, _, psi_h, _, _ = universal_funcs
@@ -1351,7 +1309,7 @@ class Atm1dStratified():
         D = ((0.,), (-1, -K_theta[0] / self.h_half[0]),
                 (K_theta[0]/ch_du, K_theta[1]/self.h_half[0]),
                 (0.,))
-        c = (SL.SST, 0.)
+        c = (SL.t_0, 0.)
         return Y, D, c, Y
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL,
@@ -1361,7 +1319,7 @@ class Atm1dStratified():
                 (1     ,    0     , 0 )
             D = (-1  , -h/24 + K / (C_H|u|) ,   h/24  )
                 ( 0  ,          -K/h        ,    K/h  )
-            c = (  SST )
+            c = (  t_0 )
                 (   0  )
         """
         _, _, _, psi_h, _, _ = universal_funcs
@@ -1374,7 +1332,7 @@ class Atm1dStratified():
                 (K_theta[0]/ch_du-self.h_half[0]/24,
                     K_theta[1]/self.h_half[0]),
                 (self.h_half[0]/24,))
-        c = (SL.SST, 0.)
+        c = (SL.t_0, 0.)
         return Y, D, c, Y
 
     def __sf_YDc_FV2_theta(self, K_theta, SL, universal_funcs, **_):
@@ -1386,8 +1344,8 @@ class Atm1dStratified():
             D = (1 , -R ,           0       , 0   )
                 (0 ,-1  ,   K / (C_H|u|)+h/3, h/6 )
                 (0 , 0  ,          -K/h     , K/h )
-            c = (  SST (R-1) )
-                (     SST    )
+            c = (  t_0 (R-1) )
+                (     t_0    )
                 (      0     )
             where R is the ratio of norms defined by MOST profiles.
             (Bar{u}_{1/2} is overriden so no need to overthink this)
@@ -1409,7 +1367,7 @@ class Atm1dStratified():
                 (-ratio_norms, K_theta[1]/ch_du + \
                         self.h_half[1]/3, K_theta[2]/self.h_half[1]),
                 (0., self.h_half[1]/6))
-        c = (SL.SST*(ratio_norms-1), SL.SST, 0.)
+        c = (SL.t_0*(ratio_norms-1), SL.t_0, 0.)
         return Y, D, c, Y
 
     def __sf_YDc_FVfree_theta(self, K_theta, universal_funcs, forcing,
@@ -1423,8 +1381,8 @@ class Atm1dStratified():
                 ( 0   ,-K/~h                 ,  K/~h        , 0     )
                 ( 0   , K/(h~h)              ,-K(1/h+1/~h)/h, K/h^2 )
 
-            c = (                  SST                     )
-                (  forcing_{k+1/2} + partial_t(SST(1-a)/ a))
+            c = (                  t_0                     )
+                (  forcing_{k+1/2} + partial_t(t_0(1-a)/ a))
                 (  1/h (forcing_{k+3/2} - forcing_{k+1/2}) )
             after that, the matrices are filled for every 0 <= m < k
             with 0 for Y
@@ -1465,9 +1423,9 @@ class Atm1dStratified():
                         tilde_h**2 / 3 / self.h_half[k],
                     K_theta[k+1]/tilde_h, K_theta[k+2]/self.h_full[k+1]/self.h_half[k+1]),
                 (tilde_h**2 / 6 / self.h_half[k], 0.))
-        rhs_part_tilde = (SL.SST * (1 - alpha_slt)/alpha_slt - \
-                SL_nm1.SST *(1-alpha_slt_nm1)/alpha_slt_nm1)/self.dt
-        c = (SL.SST, forcing[k+0] + rhs_part_tilde,
+        rhs_part_tilde = (SL.t_0 * (1 - alpha_slt)/alpha_slt - \
+                SL_nm1.t_0 *(1-alpha_slt_nm1)/alpha_slt_nm1)/self.dt
+        c = (SL.t_0, forcing[k+0] + rhs_part_tilde,
                 (forcing[k+1] - forcing[k+0])/self.h_full[k+1])
         Y = (np.concatenate((np.zeros(k), y)) for y in Y)
         Y_nm1 = (np.concatenate((np.zeros(k), y)) for y in Y_nm1)
@@ -1487,5 +1445,5 @@ class Atm1dStratified():
                 np.concatenate((np.ones(k), D[1])),
                 np.concatenate((-ratio_norms, D[2])),
                 np.concatenate((np.zeros(k), D[3])))
-        c = np.concatenate(((ratio_norms - 1)*SL.SST, c))
+        c = np.concatenate(((ratio_norms - 1)*SL.t_0, c))
         return Y, D, c, Y_nm1

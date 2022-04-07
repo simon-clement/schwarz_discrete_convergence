@@ -6,6 +6,7 @@ import bisect
 import numpy as np
 import atm1DStratified as atm1D
 from utils_linalg import solve_linear, full_to_half
+from bulk import SurfaceLayerData
 
 coeff_FV_big = 1/3. # 1/3 or 5/12
 coeff_FV_small = 1/6. # 1/6 or 1/12
@@ -40,7 +41,7 @@ class TkeAtm1D:
         self.__initialize_tke(atm, SL)
 
     def integrate_tke(self, atm: atm1D.Atm1dStratified,
-            SL: atm1D.SurfaceLayerData,
+            SL: SurfaceLayerData,
             universal_funcs,
             shear: array, K_full: array, l_eps: array,
             Ktheta_full: array, N2_full: array):
@@ -65,7 +66,7 @@ class TkeAtm1D:
                 SL, l_eps, buoy_half, universal_funcs)
 
     def __integrate_tke_FV(self, atm, shear_half: array, K_full: array,
-            SL: atm1D.SurfaceLayerData, l_eps: array,
+            SL: SurfaceLayerData, l_eps: array,
             buoy_half: array, universal_funcs):
         """
             integrates TKE equation on one time step.
@@ -222,7 +223,7 @@ class TkeAtm1D:
         return
 
     def __integrate_tke_FD(self, atm, shear: array,
-            K_full: array, SL: atm1D.SurfaceLayerData,
+            K_full: array, SL: SurfaceLayerData,
             l_eps: array, Ktheta_full: array,
             N2: array, universal_funcs):
         """
@@ -272,7 +273,7 @@ class TkeAtm1D:
 
         return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 
-    def __compute_tke_full(self, atm, SL: atm1D.SurfaceLayerData,
+    def __compute_tke_full(self, atm, SL: SurfaceLayerData,
             l_eps: array, universal_funcs):
         """
             projection of the tke reconstruction on z_full
@@ -369,7 +370,7 @@ class TkeAtm1D:
 
 
     def reconstruct_TKE(self, atm,
-            SL: atm1D.SurfaceLayerData, sf_scheme: str,
+            SL: SurfaceLayerData, sf_scheme: str,
             universal_funcs, l_eps: array):
         """
             returns (z, tke(z)), the reconstruction
