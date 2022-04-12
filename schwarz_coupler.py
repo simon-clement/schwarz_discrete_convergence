@@ -70,9 +70,11 @@ def initialization_atmosphere(numer_set: NumericalSetting,
     returns a State that can be used by ocean model for integration.
     """
     N = int(numer_set.T/simulator_atm.dt) # Number of time steps
+    u_star = INIT_U_ATM * simulator_atm.kappa / \
+            np.log(numer_set.delta_sl_a / 0.1)
     return StateAtm(u_delta=np.ones(N+1) * INIT_U_ATM,
             t_delta=np.ones(N+1) * INIT_THETA_ATM,
-            u_star=np.ones(N+1) * 0.01,
+            u_star=np.ones(N+1) * u_star,
             t_star=np.ones(N+1) * 1e-6,
             last_tstep=None, other=None)
 
