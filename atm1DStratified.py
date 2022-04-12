@@ -170,7 +170,9 @@ class Atm1dStratified():
         phi, old_phi = phi_t0, np.copy(phi_t0)
         u_current: array = np.copy(u_t0)
         all_u_star = []
-        ret_u_current, ret_tke, ret_SL = [], [], []
+        ret_u_current, ret_tke, ret_dz_tke, ret_SL = [], [], [], []
+        ret_tke_bar = []
+        ret_u_delta, ret_t_delta = [u_delta], [t_delta]
         ret_phi, ret_theta, ret_dz_theta, ret_leps = [], [], [], []
 
         for n in range(1,N+1):
@@ -202,22 +204,43 @@ class Atm1dStratified():
                         dz_theta, Ktheta_full, forcing_theta,
                         SL, SL_nm1)
 
+            ret_u_delta += [u_delta]
+            ret_t_delta += [t_delta]
             if store_all:
                 ret_u_current += [np.copy(u_current)]
                 ret_tke += [np.copy(tke.tke_full)]
+                ret_tke_bar += [np.copy(tke.tke)]
+                ret_dz_tke += [np.copy(tke.dz_tke)]
                 ret_phi += [np.copy(phi)]
                 ret_theta += [np.copy(theta)]
                 ret_dz_theta += [np.copy(dz_theta)]
                 ret_leps += [np.copy(l_eps)]
                 ret_SL += [SL]
 
-        if store_all:
-            return ret_u_current, ret_phi, ret_tke, \
-                    all_u_star, ret_theta, ret_dz_theta, ret_leps, \
-                    ret_SL
-        return u_current, phi, tke.tke_full, all_u_star, theta, \
-                dz_theta, l_eps, SL
+        ret_dict = {'u_delta' : ret_u_delta,
+                't_delta': ret_t_delta,}
 
+        if store_all:
+            ret_dict['all_u'] = ret_u_current
+            ret_dict['all_phi'] = ret_phi
+            ret_dict['all_tke'] = ret_tke
+            ret_dict['all_tke_bar'] = ret_tke_bar
+            ret_dict['all_dz_tke'] = ret_dz_tke
+            ret_dict['all_theta'] = ret_theta
+            ret_dict['all_dz_theta'] = ret_dz_theta
+            ret_dict['all_leps'] = ret_leps
+            ret_dict['all_SL'] = ret_SL
+
+        ret_dict['u'] = u_current
+        ret_dict['phi'] = phi
+        ret_dict['tke'] = tke.tke_full
+        ret_dict['all_u_star'] = all_u_star
+        ret_dict['theta'] = theta
+        ret_dict['dz_theta'] = dz_theta
+        ret_dict['l_eps'] = l_eps
+        ret_dict['SL'] = SL
+        ret_dict['Ktheta'] = Ktheta_full
+        return ret_dict
 
     def FD(self, u_t0: array, theta_t0: array, Q_sw: array,
             u_o: array, Q_lw: array, forcing: array, SST:array,
@@ -270,6 +293,7 @@ class Atm1dStratified():
         old_u: array = np.copy(u_current)
         all_u_star = []
         all_u, all_tke, all_theta, all_leps = [], [], [], []
+        ret_u_delta, ret_t_delta = [], []
         for n in range(1,N+1):
             forcing_current: array = forcing[n]
             u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
@@ -310,15 +334,35 @@ class Atm1dStratified():
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
 
+            ret_u_delta += [u_delta]
+            ret_t_delta += [t_delta]
+
             if store_all:
                 all_u += [np.copy(u_current)]
                 all_tke += [np.copy(tke.tke_full)]
                 all_theta += [np.copy(theta)]
                 all_leps += [np.copy(l_eps)]
 
+        ret_u_delta += [func_un(prognostic=u_current,
+                                delta_sl=delta_sl)]
+        ret_t_delta += [func_theta(prognostic=theta)]
+
+        ret_dict = {'u_delta' : ret_u_delta,
+                't_delta': ret_t_delta,}
         if store_all:
-            return all_u, all_tke, all_u_star, all_theta, all_leps
-        return u_current, tke.tke_full, all_u_star, theta, l_eps
+            ret_dict['all_u'] = all_u
+            ret_dict['all_tke'] = all_tke
+            ret_dict['all_theta'] = all_theta
+            ret_dict['all_leps'] = all_leps
+
+        ret_dict['u'] = u_current
+        ret_dict['tke'] = tke.tke_full
+        ret_dict['all_u_star'] = all_u_star
+        ret_dict['theta'] = theta
+        ret_dict['l_eps'] = l_eps
+        ret_dict['SL'] = SL
+        ret_dict['Ktheta'] = Ktheta_full
+        return ret_dict
 
     def __step_u(self, u: array, phi: array,
             Ku_full: array, forcing: array,
@@ -951,6 +995,7 @@ class Atm1dStratified():
         k_constant = bisect.bisect_right(z_levels[1:], z_constant)
         t_kp1 = t_const = t_0[k_constant]
         zkp1 = z_levels[k+1]
+        z_constant = max(zkp1, z_constant)
         h_tilde = z_levels[k+1] - delta_sl
         phi_m, phi_h, *_ = businger()
         SL = friction_scales(u_const, delta_sl,

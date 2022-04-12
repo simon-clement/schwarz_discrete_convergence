@@ -82,9 +82,10 @@ def simulation_FD(sf_scheme: str, z_levels: np.ndarray, dt: float,
         SST = np.concatenate(([265],
             [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
                     for n in range(1, N+1)]))
-    all_u, all_TKE, all_ustar, all_temperature, all_leps = \
-            simulator.FD(u_t0=u_0, SST=SST,
+    ret = simulator.FD(u_t0=u_0, SST=SST,
             sf_scheme=sf_scheme, forcing=forcing, store_all=True)
+    all_u, all_TKE, all_ustar, all_temperature, all_leps = [ret[x] \
+            for x in ("all_u", "all_tke", "all_theta", "all_leps")]
     for j in range(len(all_u)):
         all_u[j] = all_u[j][::skip_dx]
         all_TKE[j] = all_TKE[j][::skip_dx]
@@ -181,11 +182,14 @@ def simulation_FV(sf_scheme: str, z_levels: np.ndarray, dt: float, N: int,
         u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
 
     print("Starting the simulation")
-    all_u, all_phi, all_TKE, all_dz_tke, all_ustar, all_temperature, \
-    all_dz_theta, all_leps, all_SL = \
-            simulator.FV(u_t0=u_0, phi_t0=phi_0,
+    ret = simulator.FV(u_t0=u_0, phi_t0=phi_0,
                     SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
                     forcing=forcing, delta_sl=delta_sl, store_all=True)
+    all_u, all_phi, all_TKE, all_dz_tke, all_ustar, all_temperature, \
+        all_dz_theta, all_leps, all_SL = [ret[x] for x in ("all_u",
+            "all_phi", "all_tke_bar", "all_dz_tke", 
+            "all_u_star", "all_theta",
+            "all_dz_theta", "all_leps", "all_SL")]
 
     print("Reconstructing the solution")
     all_u_fv, all_theta_fv, all_tke_fv = [], [], []

@@ -8,6 +8,7 @@ import bisect
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from matplotlib.animation import FuncAnimation
 from memoisation import memoised
 from atm1DStratified import Atm1dStratified
 from ocean1DStratified import Ocean1dStratified
@@ -18,6 +19,8 @@ from fortran.visu import import_data
 from validation_oce1D import fig_comodoParamsConstantCooling
 from validation_oce1D import fig_comodoParamsWindInduced
 from validation_oce1D import fig_windInduced, fig_constantCooling
+from validation_oce1D import fig_animForcedOcean
+from schwarz_coupler import NumericalSetting, schwarz_coupling, projection
 
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble']=r"\usepackage{amsmath, amsfonts}"
@@ -40,6 +43,182 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     334.22, 287.51, 244.68,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # less levels in the stratified case
+
+def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
+        sf_scheme_a: str, sf_scheme_o: str):
+    f = 1e-4 # Coriolis parameter
+    time = np.linspace(0, T) # number of time steps is not important
+    alpha, N0, rho0, cp, Qswmax = 0.0002, 0.01, 1024., 3985., 1000.
+    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
+            Qswmax / (rho0*cp)
+    Qsw, Qlw = srflx * rho0*cp, -np.ones_like(srflx) * 100.
+    z_levels_oce = np.linspace(-50., 0., 51)
+    z_levels_atm = IFS_z_levels_stratified
+    simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
+            dt=dt_oce, u_geostrophy=0., f=f, alpha=alpha,
+            N0=N0)
+    mu_m = 6.7e-2 # value of mu_m taken in bulk.py
+    K_mol_a = simulator_oce.K_mol / mu_m
+    simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
+            dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
+    numer_setting = NumericalSetting(T=T,
+            sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
+            delta_sl_a=z_levels_atm[1]/2,
+            delta_sl_o=z_levels_oce[-2]/2,
+            Q_lw=Qlw,
+            Q_sw=Qsw)
+    states_atm, states_oce = schwarz_coupling(simulator_oce,
+            simulator_atm, numer_setting, store_all=store_all)
+    za = simulator_atm.z_half[:-1]
+    zo = simulator_oce.z_half[:-1]
+    return states_atm, states_oce, za, zo
+
+def fig_coupling():
+    dt_oce = 90. # oceanic time step
+    dt_atm = 30. # atmosphere time step
+    T = 10000 # length of the time window
+
+    states_atm, states_oce, z_half_atm, z_half_oce = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, False)
+    fig, axes = plt.subplots(1, 3)
+    axes[0].plot(np.real(states_oce[0].last_tstep["u"]), z_half_oce, "r")
+    axes[0].plot(np.real(states_atm[1].last_tstep["u"]), z_half_atm, "r")
+    axes[0].plot(np.real(states_oce[1].last_tstep["u"]), z_half_oce, "b")
+    axes[0].plot(np.real(states_atm[2].last_tstep["u"]), z_half_atm, "b")
+    axes[0].plot(np.real(states_oce[2].last_tstep["u"]), z_half_oce, "g")
+    axes[0].plot(np.real(states_atm[3].last_tstep["u"]), z_half_atm, "g")
+
+    axes[1].plot((states_oce[0].last_tstep["theta"]), z_half_oce, "r")
+    axes[1].plot((states_atm[1].last_tstep["theta"]), z_half_atm, "r")
+    axes[1].plot((states_oce[1].last_tstep["theta"]), z_half_oce, "b")
+    axes[1].plot((states_atm[2].last_tstep["theta"]), z_half_atm, "b")
+    axes[1].plot((states_oce[2].last_tstep["theta"]), z_half_oce, "g")
+    axes[1].plot((states_atm[3].last_tstep["theta"]), z_half_atm, "g")
+    show_or_save("fig_coupling")
+
+def fig_colormapCoupling():
+    dt_oce = 90. # oceanic time step
+    dt_atm = 30. # atmosphere time step
+    T = 100000 # length of the time window
+    states_atm, states_oce, za, zo = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                sf_scheme_a="FD pure", sf_scheme_o="FD pure")
+    state_atm = states_atm[-1]
+    state_oce = states_oce[-1]
+    fig, axes = plt.subplots(2, 2)
+    all_ua = np.real(np.array(state_atm.other["all_u"]))
+    all_ta = np.array(state_atm.other["all_theta"])
+    uo = np.real(np.array(state_oce.other["all_u"]))
+    to = np.array(state_oce.other["all_theta"])
+    N_oce = int(T/dt_oce)
+    ua = np.zeros((N_oce+1, all_ua.shape[1]))
+    ta = np.zeros((N_oce+1, all_ta.shape[1]))
+    for i in range(all_ua.shape[1]):
+        ua[:, i] = projection(all_ua[:, i], N_oce)
+        ta[:, i] = projection(all_ta[:, i], N_oce)
+
+    N_threshold = N_oce//2
+    ########## pcolormesh
+    x = np.linspace(T/2, T, N_oce+1 - N_threshold)  # len = 10
+    Xa, Ya = np.meshgrid(za, x)
+    Xo, Yo = np.meshgrid(zo, x)
+    vmin = min(np.min(ua), np.min(uo))
+    vmax = max(np.max(ua), np.max(uo))
+
+    axes[0, 0].pcolormesh(Ya, Xa, ua[N_threshold+1:, :-1], vmin=vmin,
+            vmax=vmax, shading='auto')
+    axes[1, 0].pcolormesh(Yo, Xo, uo[N_threshold:, 1:], vmin=vmin,
+            vmax=vmax, shading='auto')
+    axes[0, 0].set_title("wind, current")
+
+    vmin = min(np.min(ta), np.min(to))
+    vmax = max(np.max(ta), np.max(to))
+    axes[0, 1].pcolormesh(Ya, Xa, ta[N_threshold+1:, :-1], vmin=vmin,
+            vmax=vmax, shading='auto')
+    axes[1, 1].pcolormesh(Yo, Xo, to[N_threshold:, 1:], vmin=vmin,
+            vmax=vmax, shading='auto')
+    axes[0, 1].set_title("Temperature")
+    for i in (0, 1):
+        for j in (0, 1):
+            axes[i,j].set_yscale("symlog", linthresh=0.1)
+
+    show_or_save("fig_colormapCoupling")
+
+def fig_animCoupling():
+    dt_oce = 90. # oceanic time step
+    dt_atm = 30. # atmosphere time step
+    T = 300000 # length of the time window
+    states_atm, states_oce, za, zo = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                sf_scheme_a="FV free", sf_scheme_o="FV free")
+    states_atmFD, states_oceFD, _, _ = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                sf_scheme_a="FD2", sf_scheme_o="FD2")
+    state_atm = states_atm[-1]
+    state_oce = states_oce[-1]
+    state_atmFD = states_atmFD[-1]
+    state_oceFD = states_oceFD[-1]
+    fig, axes = plt.subplots(2, 2)
+    all_ua = np.real(np.array(state_atm.other["all_u"]))
+    all_uo = np.real(np.array(state_oce.other["all_u"]))
+    all_ta = np.array(state_atm.other["all_theta"])
+    all_to = np.array(state_oce.other["all_theta"])
+    all_uaFD = np.real(np.array(state_atmFD.other["all_u"]))
+    all_uoFD = np.real(np.array(state_oceFD.other["all_u"]))
+    all_taFD = np.array(state_atmFD.other["all_theta"])
+    all_toFD = np.array(state_oceFD.other["all_theta"])
+    line_ua, = axes[0, 0].plot(all_ua[-1], za)
+    line_ta, = axes[0, 1].plot(all_ta[-1], za)
+    line_uo, = axes[1, 0].plot(all_uo[-1], zo)
+    line_to, = axes[1, 1].plot(all_to[-1], zo)
+    line_uaFD, = axes[0, 0].plot(all_uaFD[-1], za)
+    line_taFD, = axes[0, 1].plot(all_taFD[-1], za)
+    line_uoFD, = axes[1, 0].plot(all_uoFD[-1], zo)
+    line_toFD, = axes[1, 1].plot(all_toFD[-1], zo)
+    axes[0,0].set_yscale("symlog", linthresh=1.)
+    axes[0,1].set_yscale("symlog", linthresh=1.)
+    axes[1,0].set_yscale("symlog", linthresh=0.1)
+    axes[1,1].set_yscale("symlog", linthresh=0.1)
+
+    def init():
+        axes[1, 1].set_xlim(260., 290.)
+        axes[0, 1].set_xlim(260., 290.)
+        axes[0, 0].set_xlim(-4., 15.)
+        axes[1, 0].set_xlim(-4., 15.)
+        axes[0, 0].set_ylim(za[0], za[-1])
+        axes[0, 1].set_ylim(za[0], za[-1])
+        axes[1, 0].set_ylim(zo[0], zo[-1])
+        axes[1, 1].set_ylim(zo[0], zo[-1])
+        return line_ua, line_ta, line_uo, line_to, \
+            line_uaFD, line_taFD, line_uoFD, line_toFD
+    N_oce = int(T/dt_oce)
+
+    uaFD = np.zeros((N_oce+1, all_ua.shape[1]))
+    taFD = np.zeros((N_oce+1, all_ta.shape[1]))
+    ua = np.zeros((N_oce+1, all_ua.shape[1]))
+    ta = np.zeros((N_oce+1, all_ta.shape[1]))
+    for i in range(all_ua.shape[1]):
+        ua[:, i] = projection(all_ua[:, i], N_oce)
+        ta[:, i] = projection(all_ta[:, i], N_oce)
+        uaFD[:, i] = projection(all_uaFD[:, i], N_oce)
+        taFD[:, i] = projection(all_taFD[:, i], N_oce)
+    def update(frame):
+        line_ua.set_data(ua[frame], za)
+        line_ta.set_data(ta[frame], za)
+        line_uo.set_data(all_uo[frame], zo)
+        line_to.set_data(all_to[frame], zo)
+
+        line_uaFD.set_data(uaFD[frame], za)
+        line_taFD.set_data(taFD[frame], za)
+        line_uoFD.set_data(all_uoFD[frame], zo)
+        line_toFD.set_data(all_toFD[frame], zo)
+        return line_ua, line_ta, line_uo, line_to, \
+            line_uaFD, line_taFD, line_uoFD, line_toFD
+    ani = FuncAnimation(fig, update,
+            frames=range(0, N_oce, 10),
+                    init_func=init, blit=True)
+
+    show_or_save("fig_animCoupling")
 
 def fig_launchOcean():
     PLOT_FOR = True
@@ -66,14 +245,14 @@ def fig_launchOcean():
     wind_10m = np.ones(N+1) * 2. + 0j
     temp_10m = np.ones(N+1) * 240
 
-    u_current, phi, tke, all_u_star, theta, \
-                dz_theta, l_eps, SL, viscosity = simulator_oce.FV(\
-            u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
+    ret = simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
             delta_sl_a=10.,
             u_delta=0., t_delta=240.,
             heatloss=heatloss, wind_10m=wind_10m,
             temp_10m=temp_10m, sf_scheme="FV test")
+    u_current, phi, theta, dz_theta, SL = [ret[x] for x in \
+            ("u", "phi", "theta", "dz_theta", "SL")]
 
     zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
             phi, theta, dz_theta, SL, ignore_loglaw=True)
@@ -325,13 +504,15 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
         u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
                 u_0, phi_0, t_0, dz_theta_0, u_deltasl, t_deltasl
 
-    u, phi, tke_full, ustar, temperature, dz_theta, l_eps, SL = \
-            simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
+    ret = simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
                     delta_sl_o=0.,
                     dz_theta_t0=dz_theta_i, Q_sw=Q_sw, Q_lw=Q_lw,
                     u_o=u_o, SST=SST, sf_scheme=sf_scheme,
                     u_delta=u_delta_i, t_delta=t_delta_i,
                     forcing=forcing, delta_sl=delta_sl)
+    u, phi, tke_full, ustar, temperature, dz_theta, l_eps, SL = \
+            [ret[x] for x in ("u", "phi", "tke", "all_u_star",
+                "theta", "dz_theta", "l_eps", "SL")]
 
     z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
             dz_theta, SL=SL)
@@ -381,14 +562,16 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
         u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
 
     t_0, dz_theta_0 = 265 * np.ones(M), np.zeros(M+1)
-    u, phi, tke_full, ustar, temperature, dz_theta, l_eps, SL = \
-            simulator.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=t_0,
+    ret = simulator.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=t_0,
                     delta_sl_o=0.,
                     dz_theta_t0=dz_theta_0,
                     Q_sw=np.zeros(N+1), Q_lw=np.zeros(N+1),
                     u_o=np.zeros(N+1), Neutral_case=True,
                     SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
                     forcing=forcing, delta_sl=delta_sl)
+    u, phi, tke_full, u_star, temperature, dz_theta, SL = \
+            [ret[x] for x in ("u", "phi", "tke", "all_u_star",
+                "theta", "dz_theta", "SL")]
 
     z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
             dz_theta, SL=SL)
@@ -431,12 +614,13 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
             [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
                     for n in range(1, N+1)]))
     theta, _ = simulator.initialize_theta(Neutral_case=False)
-    u, TKE, ustar, temperature, l_eps = simulator.FD(u_t0=u_0,
-            u_o=np.zeros(N+1),
+    ret = simulator.FD(u_t0=u_0, u_o=np.zeros(N+1),
             theta_t0=theta, Q_sw=np.zeros(N+1),
             delta_sl_o=0.,
             SST=SST, Q_lw=np.zeros(N+1),
             sf_scheme=sf_scheme, forcing=forcing)
+    u, TKE, ustar, temperature, l_eps = [ret[x] for x in \
+            ("u", "tke", "all_u_star", "theta", "l_eps")]
     z_tke = np.copy(simulator.z_full)
     z_tke[0] = 0.1
 
@@ -457,12 +641,13 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
     u_0 = 10*np.ones(M)
     forcing = 1j*simulator.f * simulator.u_g*np.ones((N+1, M))
     SST = 265. * np.ones(N+1) # Neutral SST with theta=const=265.
-    u, TKE, ustar, _, _ = simulator.FD(u_t0=u_0,
+    ret = simulator.FD(u_t0=u_0,
             u_o=np.zeros(N+1),
             delta_sl_o=0.,
             theta_t0=265*np.ones(M), Q_sw=np.zeros(N+1),
             SST=SST, Q_lw=np.zeros(N+1), Neutral_case=True,
             sf_scheme=sf_scheme, forcing=forcing)
+    u, TKE, ustar = [ret[x] for x in ("u", "tke", "all_u_star")]
     z_tke = np.copy(simulator.z_full)
 
     z_tke = np.copy(simulator.z_full)

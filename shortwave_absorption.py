@@ -58,7 +58,7 @@ def to_integrate_swfrac_sl(z: float, inv_L_MO: float) -> float:
     return phi_h * sw_frac / z
 
 @jit(nopython=True)
-def integrated_shortwave_frac_sl(inv_L_MO: float, z: float) -> float:
+def integrated_shortwave_frac_sl(z: float, inv_L_MO: float) -> float:
     """
         int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
         returns E(z)
@@ -71,21 +71,11 @@ def integrated_shortwave_frac_sl(inv_L_MO: float, z: float) -> float:
         s += to_integrate_swfrac_sl(z_prim, inv_L_MO)
     return -z * s / n
 
-def slow_integrated_shortwave_frac_sl(inv_L_MO: float, z: float) -> float:
-    """
-        int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
-        returns E(z)
-    """
-    if abs(z) < 1e-5:
-        return 0.
-    return scipy.integrate.quad(to_integrate_swfrac_sl, z, z*1e-5,
-            args=(inv_L_MO,), limit=20, epsrel=1e-4)[0]
-
-def Qsw_E(z: float, SL, turhocp):
+@jit(nopython=True)
+def Qsw_E(z: float, SL):
     """
         SHORTWAVE RADIATIVE FLUX:
-        returns Qsw / (t*u*rho cp) * E(z)
+        returns Qsw * E(z)
     """
-    return SL.Q_sw * integrated_shortwave_frac_sl(SL.inv_L_MO, z) \
-            / turhocp
+    return SL.Q_sw * integrated_shortwave_frac_sl(z, SL.inv_L_MO)
 

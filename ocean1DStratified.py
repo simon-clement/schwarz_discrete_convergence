@@ -194,6 +194,7 @@ class Ocean1dStratified():
         phi, old_phi = phi_t0, np.copy(phi_t0)
         u_current: array = np.copy(u_t0)
         all_u_star = []
+        ret_u_delta, ret_t_delta = [u_delta], [t_delta]
         ret_u_current, ret_tke, ret_SL = [], [], []
         ret_phi, ret_theta, ret_dz_theta, ret_leps = [], [], [], []
 
@@ -268,6 +269,8 @@ class Ocean1dStratified():
                     universal_funcs=large_ocean())
             t_delta = func_theta(prognostic=prognostic_theta, SL=SL,
                     universal_funcs=large_ocean())
+            ret_u_delta += [u_delta]
+            ret_t_delta += [t_delta]
 
             if store_all:
                 ret_u_current += [np.copy(u_current)]
@@ -278,14 +281,27 @@ class Ocean1dStratified():
                 ret_leps += [np.copy(l_eps)]
                 ret_SL += [SL]
 
+        ret_dict = {'u_delta' : ret_u_delta,
+                't_delta': ret_t_delta,}
         if store_all:
-            return ret_u_current, ret_phi, ret_tke, \
-                    all_u_star, ret_theta, ret_dz_theta, ret_leps, \
-                    ret_SL
+            ret_dict['all_u'] = ret_u_current
+            ret_dict['all_phi'] = ret_phi
+            ret_dict['all_tke'] = ret_tke
+            ret_dict['all_theta'] = ret_theta
+            ret_dict['all_dz_theta'] = ret_dz_theta
+            ret_dict['all_leps'] = ret_leps
+            ret_dict['all_SL'] = ret_SL
 
-        return u_current, phi, tke.tke_full, all_u_star, theta, \
-                dz_theta, l_eps, SL, Ktheta_full
-
+        ret_dict['u'] = u_current
+        ret_dict['phi'] = phi
+        ret_dict['tke'] = tke.tke_full
+        ret_dict['all_u_star'] = all_u_star
+        ret_dict['theta'] = theta
+        ret_dict['dz_theta'] = dz_theta
+        ret_dict['l_eps'] = l_eps
+        ret_dict['SL'] = SL
+        ret_dict['Ktheta'] = Ktheta_full
+        return ret_dict
 
     def FD(self, u_t0: array, theta_t0: array,
             Q_sw: array, Q_lw: array, heatloss: array,
@@ -344,6 +360,7 @@ class Ocean1dStratified():
         old_u: array = np.copy(u_current)
         all_u_star = []
         all_u, all_tke, all_theta, all_leps = [], [], [], []
+        ret_u_delta, ret_t_delta = [], []
         progressbar = ProgressBar()
         for n in progressbar(range(1,N+1)) \
                 if self.loading_bar else range(1,N+1):
@@ -409,6 +426,8 @@ class Ocean1dStratified():
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
+            ret_u_delta += [u_delta]
+            ret_t_delta += [t_delta]
 
             if store_all:
                 all_u += [np.copy(u_current)]
@@ -416,11 +435,26 @@ class Ocean1dStratified():
                 all_theta += [np.copy(theta)]
                 all_leps += [np.copy(l_eps)]
 
-        if store_all:
-            return all_u, all_tke, all_u_star, all_theta, all_leps
+        ret_u_delta += [func_un(prognostic=u_current,
+                                delta_sl=delta_sl)]
+        ret_t_delta += [func_theta(prognostic=theta)]
 
-        return u_current, tke.tke_full, all_u_star, theta, l_eps, \
-                Ktheta_full
+        ret_dict = {'u_delta' : ret_u_delta,
+                't_delta': ret_t_delta,}
+        if store_all:
+            ret_dict['all_u'] = all_u
+            ret_dict['all_tke'] = all_tke
+            ret_dict['all_theta'] = all_theta
+            ret_dict['all_leps'] = all_leps
+
+        ret_dict['u'] = u_current
+        ret_dict['tke'] = tke.tke_full
+        ret_dict['all_u_star'] = all_u_star
+        ret_dict['theta'] = theta
+        ret_dict['l_eps'] = l_eps
+        ret_dict['SL'] = SL
+        ret_dict['Ktheta'] = Ktheta_full
+        return ret_dict
 
     def __step_u(self, u: array, phi: array,
             Ku_full: array, forcing: array,
@@ -626,7 +660,7 @@ class Ocean1dStratified():
         def tzM_m_t(z: float):
             turhocp = t_star * u_star * self.rho0 * self.C_p
             term_lw = 1 - SL.Q_lw / turhocp
-            term_sw = Qsw_E(z, SL, turhocp)
+            term_sw = Qsw_E(z, SL)/turhocp
             return t_star/self.kappa * term_lw * \
                     (np.log(1-z/SL.z_0H) - psi_h(-z*inv_L_MO)) \
                     - term_sw
@@ -1119,21 +1153,19 @@ class Ocean1dStratified():
                     z*Psi_h(-z*inv_L_MO)
 
         turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
-        term_lw = 1 - SL.Q_lw / turhocp
+        term_lw = turhocp - SL.Q_lw
 
         # numerical integration of Qws_E:
         integral_Qsw_E = integrate.quad(Qsw_E, delta_sl,
-                zk - (zk-delta_sl)*1e-5, args=(SL, turhocp),
+                zk - (zk-delta_sl)*1e-5, args=(SL,),
                 limit=20, epsrel=1e-4)[0]
-
         numer_theta = term_lw * (brackets_theta(zk) - \
                 brackets_theta(delta_sl)) - integral_Qsw_E
 
         denom_u = np.log(1-delta_sl/SL.z_0M) \
                 - psi_m(-delta_sl*inv_L_MO)
         denom_theta = term_lw * (np.log(1-delta_sl/SL.z_0H)\
-                - psi_h(-delta_sl*inv_L_MO)) - \
-                Qsw_E(delta_sl, SL, turhocp)
+                - psi_h(-delta_sl*inv_L_MO)) - Qsw_E(delta_sl, SL)
 
 
         if abs(denom_u) < 1e-10:
@@ -1496,9 +1528,9 @@ class Ocean1dStratified():
 
         # Radiative fluxes:
         turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
-        if abs(turhocp) > 1e-30:
+        if abs(turhocp) > 1e-50:
             term_lw = 1 - SL.Q_lw / turhocp
-            term_Qw = Qsw_E(SL.delta_sl, SL, turhocp)
+            term_Qw = Qsw_E(SL.delta_sl, SL) / turhocp
         else:
             print("Warning (Ocean1dStratified): dividing by t*u*",
                     "where u*o=", SL.u_star, "t*o", SL.t_star)
@@ -1529,13 +1561,13 @@ class Ocean1dStratified():
 
         # adding radiative fluxes:
         turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
-        if abs(turhocp) > 1e-30:
+        if abs(turhocp) > 1e-50:
             rhs_30 *= 1 - SL.Q_lw / turhocp
-            rhs_30 -= Qsw_E(SL.delta_sl, SL, turhocp)
+            rhs_30 -= Qsw_E(SL.delta_sl, SL) / turhocp
         else:
-            print("Warning (Ocean1dStratified skin): dividing by",
-                    "t*u* where u*o=", SL.u_star, "t*o", SL.t_star)
-
+            pass
+        # print("Warning (Ocean1dStratified skin): dividing by",
+        #         "t*u* where u*o=", SL.u_star, "t*o", SL.t_star)
 
         return SL.u_star * self.kappa / rhs_30
 
