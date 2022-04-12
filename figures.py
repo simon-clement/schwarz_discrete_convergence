@@ -247,6 +247,8 @@ def fig_launchOcean():
 
     ret = simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
+            u_star=np.ones(N+1)*0.01,
+            t_star=np.ones(N+1)*1e-6,
             delta_sl_a=10.,
             u_delta=0., t_delta=240.,
             heatloss=heatloss, wind_10m=wind_10m,

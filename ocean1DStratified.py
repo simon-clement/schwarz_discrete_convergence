@@ -17,7 +17,8 @@ from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
 from shortwave_absorption import shortwave_fractional_decay, \
         integrated_shortwave_frac_sl, Qsw_E
-from bulk import SurfaceLayerData, friction_scales
+from bulk import SurfaceLayerData, friction_scales, \
+        process_friction_scales_oce
 
 array = np.ndarray
 
@@ -111,8 +112,9 @@ class Ocean1dStratified():
     def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
             dz_theta_t0: array, Q_sw: array, Q_lw: array,
             u_delta: float, t_delta: float, delta_sl_a: float,
+            u_star: array, t_star: array,
             heatloss: array, wind_10m: array, temp_10m: array,
-            delta_sl: float=None, TEST_CASE: int=0,
+            delta_sl: float=None,
             sf_scheme: str="FV test", Neutral_case: bool=False,
             turbulence: str="TKE", store_all: bool=False):
         """
@@ -140,9 +142,6 @@ class Ocean1dStratified():
                 - "KPP" (for simple K-profile parametrization)
             If Neutral_case is True, no temperature profile
             is computed and t_star = 0
-            TEST_CASE: 0 -> normal bulk code
-            TEST_CASE: 1 -> ua_star forced = 0.01
-            TEST_CASE: 2 -> ua_star forced = 0.0
         """
         assert u_t0.shape[0] == self.M
         assert phi_t0.shape[0] == self.M + 1
@@ -165,9 +164,10 @@ class Ocean1dStratified():
 
         k = bisect.bisect_left(self.z_full, delta_sl)
 
-        SL = friction_scales(ua_delta=wind_10m[0],
+        SL = process_friction_scales_oce(ua_delta=wind_10m[0],
                 delta_sl_a=delta_sl_a, ta_delta=temp_10m[0],
                 univ_funcs_a=businger(),
+                u_star=u_star[0], t_star=t_star[0],
                 uo_delta=u_delta, delta_sl_o=delta_sl,
                 to_delta=t_delta, univ_funcs_o=large_ocean(),
                 sf_scheme=sf_scheme, Q_sw=Q_sw[0], Q_lw=Q_lw[0],
@@ -176,9 +176,9 @@ class Ocean1dStratified():
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
 
         import tkeOcean1D
-        wave_breaking = TEST_CASE in {1,2}
+        wave_breaking = False
         tke = tkeOcean1D.TkeOcean1D(self.M, "FV",
-                TEST_CASE=TEST_CASE, ignore_sl=ignore_tke_sl,
+                ignore_sl=ignore_tke_sl,
                 wave_breaking=wave_breaking)
 
         theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
@@ -203,28 +203,14 @@ class Ocean1dStratified():
                 if self.loading_bar else range(1,N+1):
             # Compute friction scales:
             SL_nm1 = SL
-            SL = friction_scales(ua_delta=wind_10m[n],
+            SL = process_friction_scales_oce(ua_delta=wind_10m[n],
                     delta_sl_a=delta_sl_a, ta_delta=temp_10m[n],
                     univ_funcs_a=businger(),
+                    u_star=u_star[n], t_star=t_star[n],
                     uo_delta=u_delta, delta_sl_o=delta_sl,
                     to_delta=t_delta, univ_funcs_o=large_ocean(),
                     sf_scheme=sf_scheme, Q_sw=Q_sw[n], Q_lw=Q_lw[n],
                     k=k, is_atm=False)
-            if TEST_CASE == 1: # Comodo{WindInduced}
-                SL_a = SurfaceLayerData(.01*np.sqrt(self.rho0), 0.,
-                        None, None, 0., None, None, None, None, delta_sl_a,
-                        None, None, Q_sw[n], Q_lw[n], None)
-                SL = SurfaceLayerData(0.01, 0.,
-                        .1, .1, 0., None, None, None, None,
-                        0., self.M, sf_scheme, Q_sw[n], Q_lw[n], SL_a)
-            if TEST_CASE == 2: # Comodo{ConstantCooling}
-                SL_a = SurfaceLayerData(0., 0., None, None,
-                        0., None, None, None, None,
-                        delta_sl_a, None, None, Q_sw[n], Q_lw[n], None)
-                SL = SurfaceLayerData(0./np.sqrt(self.rho0), 0., .1,
-                        .1, 0., None, None, None, None, 0., self.M,
-                        sf_scheme, Q_sw[n], Q_lw[n], SL_a)
-
             all_u_star += [SL.u_star]
 
             # Compute viscosities
@@ -306,7 +292,8 @@ class Ocean1dStratified():
     def FD(self, u_t0: array, theta_t0: array,
             Q_sw: array, Q_lw: array, heatloss: array,
             wind_10m: array, temp_10m: array,
-            TEST_CASE: int=0, delta_sl_a: float=10.,
+            u_star: array, t_star: array,
+            delta_sl_a: float=10.,
             turbulence: str="TKE", sf_scheme: str="FD pure",
             Neutral_case: bool=False, store_all: bool=False):
         """
@@ -346,9 +333,9 @@ class Ocean1dStratified():
                 else self.z_full[self.M-1]
         ###### Initialization #####
         import tkeOcean1D
-        wave_breaking = TEST_CASE in {1,2}
+        wave_breaking = False
         tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
-                TEST_CASE=TEST_CASE, wave_breaking=wave_breaking)
+                wave_breaking=wave_breaking)
         theta: array = np.copy(theta_t0)
         # Initializing viscosities and mixing lengths:
         Ku_full: array = self.Ku_min + np.zeros(self.M+1)
@@ -366,28 +353,14 @@ class Ocean1dStratified():
                 if self.loading_bar else range(1,N+1):
             u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
             t_delta = func_theta(prognostic=theta)
-            SL = friction_scales(ua_delta=wind_10m[n],
+            SL = process_friction_scales_oce(ua_delta=wind_10m[n],
                     delta_sl_a=delta_sl_a, ta_delta=temp_10m[n],
                     univ_funcs_a=businger(),
+                    u_star=u_star[n], t_star=t_star[n],
                     uo_delta=u_delta, delta_sl_o=delta_sl,
                     to_delta=t_delta, univ_funcs_o=large_ocean(),
                     sf_scheme=sf_scheme, Q_sw=Q_sw[n], Q_lw=Q_lw[n],
                     k=self.M, is_atm=False)
-
-            if TEST_CASE == 1: # Comodo{WindInduced}
-                SL_a = SurfaceLayerData(.01*np.sqrt(self.rho0), 0.,
-                        None, None, 0., None, None, None, None, delta_sl_a,
-                        None, None, Q_sw[n], Q_lw[n], None)
-                SL = SurfaceLayerData(0.01,
-                        0., .1, .1, 0., None, None, None, None,
-                        0., self.M, sf_scheme, Q_sw[n], Q_lw[n], SL_a)
-            if TEST_CASE == 2: # Comodo{WindInduced}
-                SL_other = SurfaceLayerData(0., 0., None, None,
-                        0., None, None, None, None, delta_sl_a,
-                        None, None, Q_sw[n], Q_lw[n], None)
-                SL = SurfaceLayerData(0./np.sqrt(self.rho0),
-                        0., .1, .1, 0., None, None, None, None,
-                        0., self.M, sf_scheme, Q_sw[n], Q_lw[n], SL_other)
             all_u_star += [SL.u_star]
 
             # Compute viscosities:
@@ -1058,7 +1031,8 @@ class Ocean1dStratified():
         c[-c_sf.shape[0]:] = c_sf
 
     def initialization(self, u_0, t_0, delta_sl_o, wind10m, t10m,
-            Q_sw, Q_lw, delta_sl_a=10., sf_scheme="FV free"):
+            u_star, t_star, Q_sw, Q_lw, delta_sl_a=10.,
+            sf_scheme="FV free"):
         """
             initialize for FV free scheme. If this is not used,
             the continuity of the reconstruction cannot be
@@ -1076,56 +1050,59 @@ class Ocean1dStratified():
         u_km1, t_km1 = u_0[k-1], t_0[k-1]
         phi, dz_theta = np.zeros(self.M+1) + 0j, np.zeros(self.M+1)
         phi_m, phi_h, psi_m, psi_h, *_ = large_ocean()
-        SL = friction_scales(wind10m, delta_sl_a,
-                t10m, businger(), u_const, delta_sl_o, t_const,
+        SL = process_friction_scales_oce(wind10m, delta_sl_a,
+                t10m, businger(), u_star, t_star,
+                u_const, delta_sl_o, t_const,
                 large_ocean(), sf_scheme, Q_sw, Q_lw, k, False)
-        for _ in range(10):
-            zeta = -SL.delta_sl*SL.inv_L_MO
-            phi[k] = SL.u_star / self.kappa / \
-                    (SL.z_0M-SL.delta_sl) * phi_m(zeta)
-            t_star_rad = SL.t_star - SL.Q_lw / SL.u_star \
-                    / self.rho0 / self.C_p
-            dz_theta[k] = t_star_rad / self.kappa / \
-                    (SL.z_0H-SL.delta_sl) * phi_h(zeta)
-            u_tilde = u_km1 + tilde_h / 6 * (phi[k] + 2*phi[k-1])
-            t_tilde = t_km1 + tilde_h / 6 * (dz_theta[k] + \
-                    2*dz_theta[k-1])
-            u_delta = u_tilde + tilde_h / 6 * (2*phi[k] + phi[k-1])
-            t_delta = t_tilde + tilde_h / 6 * (2*dz_theta[k] + \
-                    dz_theta[k-1])
-            SL = friction_scales(wind10m, delta_sl_a,
-                t10m, businger(), u_delta, delta_sl_o, t_delta,
-                large_ocean(), sf_scheme, SL.Q_sw, SL.Q_lw, k, False)
+        # no loop from here because of prescribed u_star
+        zeta = -SL.delta_sl*SL.inv_L_MO
+        phi[k] = SL.u_star / self.kappa / \
+                (SL.z_0M-SL.delta_sl) * phi_m(zeta)
+        t_star_rad = SL.t_star - SL.Q_lw / SL.u_star \
+                / self.rho0 / self.C_p
+        dz_theta[k] = t_star_rad / self.kappa / \
+                (SL.z_0H-SL.delta_sl) * phi_h(zeta)
+        u_tilde = u_km1 + tilde_h / 6 * (phi[k] + 2*phi[k-1])
+        t_tilde = t_km1 + tilde_h / 6 * (dz_theta[k] + \
+                2*dz_theta[k-1])
+        u_delta = u_tilde + tilde_h / 6 * (2*phi[k] + phi[k-1])
+        t_delta = t_tilde + tilde_h / 6 * (2*dz_theta[k] + \
+                dz_theta[k-1])
+        SL = process_friction_scales_oce(wind10m, delta_sl_a,
+            t10m, businger(), u_star, t_star, u_delta,
+            delta_sl_o, t_delta,
+            large_ocean(), sf_scheme, SL.Q_sw, SL.Q_lw, k, False)
 
-            # profiles under MOST : going smoothly to {u,t}_const
-            u_km1 = u_delta + (u_const - u_delta) * \
-                    func_z(self.z_full[k-1])
-            t_km1 = t_delta + (t_const - t_delta) * \
-                    func_z(self.z_full[k-1])
-            u_0[k_const:k] = u_delta + (u_const-u_delta) *\
-                    func_z(self.z_half[k_const:k])
-            t_0[k_const:k] = t_delta + (t_const-t_delta) *\
-                    func_z(self.z_half[k_const:k])
-            def compute_dz(top_cond, var, h_half):
-                """ solving the system of finite volumes:
-                dz_{m-1}/6 + 2 dz_m / 3 + dz_{m+1} / 6 =
-                        (var_{m+1/2} - var_{m-1/2})/h
-                """
-                ldiag = h_half[:-1] /6.
-                diag = (h_half[1:] + h_half[:-1]) * 1/3.
-                udiag = h_half[1:] /6.
-                diag = np.concatenate(([1.], diag, [1.]))
-                udiag = np.concatenate(([0.], udiag))
-                ldiag = np.concatenate((ldiag, [0.]))
-                rhs = np.concatenate(([0.],
-                    np.diff(var), [top_cond]))
-                return solve_linear((ldiag, diag, udiag), rhs)
-            phi[:k+1] = compute_dz(phi[k],
-                    np.concatenate((u_0[:k-1], [u_tilde])),
-                    np.concatenate((self.h_half[:k-1], [tilde_h])))
-            dz_theta[:k+1] = compute_dz(dz_theta[k],
-                    np.concatenate((t_0[:k-1], [t_tilde])),
-                    np.concatenate((self.h_half[:k-1], [tilde_h])))
+        # profiles under MOST : going smoothly to {u,t}_const
+        u_km1 = u_delta + (u_const - u_delta) * \
+                func_z(self.z_full[k-1])
+        t_km1 = t_delta + (t_const - t_delta) * \
+                func_z(self.z_full[k-1])
+        u_0[k_const:k] = u_delta + (u_const-u_delta) *\
+                func_z(self.z_half[k_const:k])
+        t_0[k_const:k] = t_delta + (t_const-t_delta) *\
+                func_z(self.z_half[k_const:k])
+        def compute_dz(top_cond, var, h_half):
+            """ solving the system of finite volumes:
+            dz_{m-1}/6 + 2 dz_m / 3 + dz_{m+1} / 6 =
+                    (var_{m+1/2} - var_{m-1/2})/h
+            """
+            ldiag = h_half[:-1] /6.
+            diag = (h_half[1:] + h_half[:-1]) * 1/3.
+            udiag = h_half[1:] /6.
+            diag = np.concatenate(([1.], diag, [1.]))
+            udiag = np.concatenate(([0.], udiag))
+            ldiag = np.concatenate((ldiag, [0.]))
+            rhs = np.concatenate(([0.],
+                np.diff(var), [top_cond]))
+            return solve_linear((ldiag, diag, udiag), rhs)
+        phi[:k+1] = compute_dz(phi[k],
+                np.concatenate((u_0[:k-1], [u_tilde])),
+                np.concatenate((self.h_half[:k-1], [tilde_h])))
+        dz_theta[:k+1] = compute_dz(dz_theta[k],
+                np.concatenate((t_0[:k-1], [t_tilde])),
+                np.concatenate((self.h_half[:k-1], [tilde_h])))
+        # no endloop here because of prescribed u_star
 
         tau_u, tau_t = self.__tau_sl(SL, large_ocean())
         alpha_u = tilde_h / self.h_half[k-1] + tau_u

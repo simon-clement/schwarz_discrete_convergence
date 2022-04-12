@@ -10,8 +10,11 @@ from universal_functions import Businger_et_al_1971 as businger
 from utils_linalg import solve_linear
 import figures_unstable
 from fortran.visu import import_data
-from schwarz_coupler import State, NumericalSetting, projection
+from schwarz_coupler import StateAtm, NumericalSetting, projection
 from matplotlib.animation import FuncAnimation
+
+DEFAULT_U_STAR = 0.01 * np.sqrt(1024.)
+DEFAULT_T_STAR = 1e-6
 
 def forcedOcean(sf_scheme: str):
     dt = 30.
@@ -25,8 +28,11 @@ def forcedOcean(sf_scheme: str):
             N0=N0)
     N = 8640
     T = N*simulator_oce.dt
-    atm_state = State(u_delta=np.ones(N+1)*1.1+0j,
-            t_delta=np.ones(N+1)*5., last_tstep=None)
+    atm_state = StateAtm(u_delta=np.ones(N+1)*1.1+0j,
+            t_delta=np.ones(N+1)*5.,
+            u_star=np.ones(N+1)*DEFAULT_U_STAR,
+            t_star=np.ones(N+1)*DEFAULT_T_STAR,
+            last_tstep=None)
 
     alpha, N0, rho0, cp, Qswmax = 0.0002, 0.01, 1024., 3985., 0.
     time = np.linspace(0, T) # number of time steps is not important
@@ -54,13 +60,16 @@ def forcedOcean(sf_scheme: str):
     sf_scheme = numer_set.sf_scheme_o
     wind_10m = projection(atm_state.u_delta, N)
     temp_10m = projection(atm_state.t_delta, N)
+    u_star = projection(atm_state.u_star, N)
+    t_star = projection(atm_state.t_star, N)
 
     if sf_scheme in {"FV free", "FV2"}:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
                 simulator_oce.initialization(\
                 np.zeros(simulator_oce.M)+0j, # u_0
                 np.copy(theta_0), # theta_0
-                delta_sl, wind_10m[0], temp_10m[0], Q_sw[0], Q_lw[0],
+                delta_sl, wind_10m[0], temp_10m[0], u_star[0],
+                t_star[0], Q_sw[0], Q_lw[0],
                 10., sf_scheme)
     else:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
@@ -70,14 +79,16 @@ def forcedOcean(sf_scheme: str):
         ret = simulator_oce.FV(u_t0=u_i, phi_t0=phi_i,
                 theta_t0=theta_i, dz_theta_t0=dz_theta_i, Q_sw=Q_sw,
                 Q_lw=Q_lw, delta_sl_a=numer_set.delta_sl_a,
+                u_star=u_star, t_star=t_star,
                 u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
                 store_all=True,
-                heatloss=None, wind_10m=wind_10m, TEST_CASE=0,
+                heatloss=None, wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme)
 
     elif sf_scheme[:2] == "FD":
         ret = simulator_oce.FD(u_t0=u_0, theta_t0=theta_0,
-                TEST_CASE=0, delta_sl_a=numer_set.delta_sl_a,
+                delta_sl_a=numer_set.delta_sl_a,
+                u_star=u_star, t_star=t_star,
                 Q_sw=Q_sw, Q_lw=Q_lw, wind_10m=wind_10m,
                 temp_10m=temp_10m, store_all=True,
                 heatloss=None, sf_scheme=sf_scheme)
@@ -157,7 +168,9 @@ def constantCoolingForAnimation(sf_scheme: str):
             u_t0=u_i, phi_t0=phi_i, theta_t0=theta_i,
             dz_theta_t0=dz_theta_i, Q_sw=Qsw, Q_lw=Qlw,
             u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
-            heatloss=heatloss, wind_10m=wind_10m, TEST_CASE=0,
+            u_star=np.ones(N+1)*DEFAULT_U_STAR,
+            t_star=np.ones(N+1)*DEFAULT_T_STAR,
+            heatloss=heatloss, wind_10m=wind_10m,
             store_all=True,
             temp_10m=temp_10m, sf_scheme=sf_scheme)
     return ret, simulator_oce.z_half[:-1]
@@ -211,8 +224,10 @@ def fig_constantCooling():
         ret =simulator_oce.FV(delta_sl_a=10.,
                 u_t0=u_i, phi_t0=phi_i, theta_t0=theta_i,
                 dz_theta_t0=dz_theta_i, Q_sw=Qsw, Q_lw=Qlw,
+                u_star=np.ones(N+1)*DEFAULT_U_STAR,
+                t_star=np.ones(N+1)*DEFAULT_T_STAR,
                 u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
-                heatloss=heatloss, wind_10m=wind_10m, TEST_CASE=0,
+                heatloss=heatloss, wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme)
         u_current, phi, tke, theta, dz_theta, l_eps, SL, viscosity = \
                 [ret[x] for x in ("u", "phi", "tke", "theta",
@@ -234,8 +249,10 @@ def fig_constantCooling():
                 label="tke Python FV")
 
     retFD = simulator_oce.FD(delta_sl_a=10.,
-            u_t0=u_0, theta_t0=theta_0, TEST_CASE=0,
+            u_t0=u_0, theta_t0=theta_0,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
+            u_star=np.ones(N+1)*DEFAULT_U_STAR,
+            t_star=np.ones(N+1)*DEFAULT_T_STAR,
             temp_10m=temp_10m,
             heatloss=heatloss, sf_scheme="FD pure")
     u_currentFD, tke, all_u_star, thetaFD, l_eps, viscosityFD = \
@@ -312,7 +329,9 @@ def fig_windInduced():
         ret = simulator_oce.FV(delta_sl_a=10.,
                 u_t0=u_i, phi_t0=phi_i, theta_t0=theta_i,
                 dz_theta_t0=dz_theta_i, Q_sw=Qsw, Q_lw=Qlw,
-                TEST_CASE=0, u_delta=u_delta, t_delta=t_delta,
+                u_delta=u_delta, t_delta=t_delta,
+                u_star=np.ones(N+1)*DEFAULT_U_STAR,
+                t_star=np.ones(N+1)*DEFAULT_T_STAR,
                 heatloss=heatloss, wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme)
         u_current, phi, tke, theta, dz_theta, SL, viscosity = \
@@ -332,7 +351,9 @@ def fig_windInduced():
     # for sf_scheme in ("FD test", "FD pure", "FD2"):
     for sf_scheme in ("FD pure",):
         retFD = simulator_oce.FD(delta_sl_a=10.,
-                u_t0=u_0, theta_t0=theta_0, TEST_CASE=0,
+                u_t0=u_0, theta_t0=theta_0,
+                u_star=np.ones(N+1)*DEFAULT_U_STAR,
+                t_star=np.ones(N+1)*DEFAULT_T_STAR,
                 Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
                 temp_10m=temp_10m, heatloss=heatloss,
                 sf_scheme=sf_scheme)
@@ -383,14 +404,16 @@ def fig_comodoParamsConstantCooling():
     Qlw, heatloss = heatloss, np.zeros(N+1)
     # this heatloss will be divided by (rho0*cp)
     # Q0_{comodo} = -heatloss / (rho cp)
-    wind_10m = np.zeros(N+1) + 0j + 1. # note: with TEST_CASE=2
-    temp_10m = np.ones(N+1) * T0 # u* and t* are overriden
+    wind_10m = np.zeros(N+1) + 0j + 1.
+    temp_10m = np.ones(N+1) * T0
 
     ret = simulator_oce.FV(delta_sl_a=10.,
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             u_delta=10., t_delta=15.,
+            u_star=np.ones(N+1)*1e-8,
+            t_star=np.ones(N+1)*DEFAULT_T_STAR,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
-            heatloss=heatloss, wind_10m=wind_10m, TEST_CASE=2,
+            heatloss=heatloss, wind_10m=wind_10m,
             temp_10m=temp_10m, sf_scheme="FV test")
     u_current, phi, theta, dz_theta, SL, viscosity = \
                 [ret[x] for x in ("u", "phi", "theta",
@@ -399,9 +422,11 @@ def fig_comodoParamsConstantCooling():
             phi, theta, dz_theta, SL, ignore_loglaw=True)
 
     retFD = simulator_oce.FD(delta_sl_a=10.,
-            u_t0=u_0, theta_t0=theta_0, TEST_CASE=2,
+            u_t0=u_0, theta_t0=theta_0,
+            u_star=np.ones(N+1)*1e-8,
+            t_star=np.ones(N+1)*DEFAULT_T_STAR,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
-            temp_10m=temp_10m, 
+            temp_10m=temp_10m,
             heatloss=heatloss, sf_scheme="FD test")
     u_currentFD, tke, all_u_star, thetaFD, l_eps, viscosityFD = \
              [retFD[x] for x in("u", "tke", "all_u_star", "theta",
@@ -449,8 +474,9 @@ def fig_comodoParamsWindInduced():
     ret = simulator_oce.FV(delta_sl_a=10.,
             u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
             u_delta=0., t_delta=T0,
+            u_star=np.ones(N+1)*DEFAULT_U_STAR,
+            t_star=np.ones(N+1)*0.,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
-            TEST_CASE=1,
             heatloss=heatloss, wind_10m=wind_10m, temp_10m=temp_10m,
             sf_scheme="FV test")
     u_current, phi, theta, dz_theta, SL, viscosity = \
@@ -460,7 +486,9 @@ def fig_comodoParamsWindInduced():
             phi, theta, dz_theta, SL, ignore_loglaw=True)
 
     retFD = simulator_oce.FD(delta_sl_a=10.,
-            u_t0=u_0, theta_t0=theta_0, TEST_CASE=1,
+            u_t0=u_0, theta_t0=theta_0,
+            u_star=np.ones(N+1)*DEFAULT_U_STAR,
+            t_star=np.ones(N+1)*0.,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m, temp_10m=temp_10m,
             heatloss=heatloss, sf_scheme="FD test")
     thetaFD, viscosityFD = [retFD[x] for x in("theta", "Ktheta")]

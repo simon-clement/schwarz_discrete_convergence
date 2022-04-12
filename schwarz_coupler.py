@@ -11,14 +11,25 @@ from ocean1DStratified import Ocean1dStratified
 INIT_U_ATM = 8. + 0j
 INIT_THETA_ATM = 280.
 
-
-class State(NamedTuple):
+class StateOce(NamedTuple):
     """
         all the output variables of the atmosphere (resp. ocean) model
         A part of them will be used by the ocean (resp. atmosphere).
     """
     u_delta: np.ndarray # SL Momentum at all time steps
     t_delta: np.ndarray # SL Temperature at all time steps
+    last_tstep: Dict
+    other: Dict
+
+class StateAtm(NamedTuple):
+    """
+        all the output variables of the atmosphere (resp. ocean) model
+        A part of them will be used by the ocean (resp. atmosphere).
+    """
+    u_delta: np.ndarray # SL Momentum at all time steps
+    t_delta: np.ndarray # SL Temperature at all time steps
+    u_star: np.ndarray
+    t_star: np.ndarray
     last_tstep: Dict
     other: Dict
 
@@ -38,7 +49,7 @@ class NumericalSetting(NamedTuple):
 def schwarz_coupling(simulator_oce: Ocean1dStratified,
         simulator_atm: Atm1dStratified,
         parameters: NumericalSetting,
-        **kwargs)-> (List[State], List[State]):
+        **kwargs)-> (List[StateAtm], List[StateOce]):
     """
         computes the coupling between the two models
         Atm1dStratified and Ocean1dStratified.
@@ -54,18 +65,20 @@ def schwarz_coupling(simulator_oce: Ocean1dStratified,
     return atm_state, oce_state
 
 def initialization_atmosphere(numer_set: NumericalSetting,
-        simulator_atm: Atm1dStratified) -> State:
+        simulator_atm: Atm1dStratified) -> StateAtm:
     """
     returns a State that can be used by ocean model for integration.
     """
     N = int(numer_set.T/simulator_atm.dt) # Number of time steps
-    return State(u_delta=np.ones(N+1) * INIT_U_ATM,
+    return StateAtm(u_delta=np.ones(N+1) * INIT_U_ATM,
             t_delta=np.ones(N+1) * INIT_THETA_ATM,
+            u_star=np.ones(N+1) * 0.01,
+            t_star=np.ones(N+1) * 1e-6,
             last_tstep=None, other=None)
 
 def compute_ocean(simulator_oce: Ocean1dStratified,
-        atm_state: State,
-        numer_set: NumericalSetting, **kwargs) -> State:
+        atm_state: StateAtm,
+        numer_set: NumericalSetting, **kwargs) -> StateOce:
     """
         Integrator in time of the ocean
     """
@@ -85,13 +98,17 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
     sf_scheme = numer_set.sf_scheme_o
     wind_10m = projection(atm_state.u_delta, N)
     temp_10m = projection(atm_state.t_delta, N)
+    u_star = projection(atm_state.u_star, N)
+    t_star = projection(atm_state.t_star, N)
 
     if sf_scheme in {"FV free", "FV2"}:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
                 simulator_oce.initialization(\
                 np.zeros(simulator_oce.M)+0j, # u_0
                 np.copy(theta_0), # theta_0
-                delta_sl, wind_10m[0], temp_10m[0], Q_sw[0], Q_lw[0],
+                delta_sl, wind_10m[0], temp_10m[0],
+                u_star[0], t_star[0],
+                Q_sw[0], Q_lw[0],
                 10., sf_scheme)
     else:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
@@ -101,14 +118,16 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
         ret = simulator_oce.FV(u_t0=u_i, phi_t0=phi_i,
                 theta_t0=theta_i, dz_theta_t0=dz_theta_i, Q_sw=Q_sw,
                 Q_lw=Q_lw, delta_sl_a=numer_set.delta_sl_a,
+                u_star=u_star, t_star=t_star,
                 u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
-                heatloss=None, wind_10m=wind_10m, TEST_CASE=0,
+                heatloss=None, wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme,
                 **kwargs)
 
     elif sf_scheme[:2] == "FD":
         ret = simulator_oce.FD(u_t0=u_0, theta_t0=theta_0,
-                TEST_CASE=0, delta_sl_a=numer_set.delta_sl_a,
+                delta_sl_a=numer_set.delta_sl_a,
+                u_star=u_star, t_star=t_star,
                 Q_sw=Q_sw, Q_lw=Q_lw, wind_10m=wind_10m,
                 temp_10m=temp_10m,
                 heatloss=None, sf_scheme=sf_scheme,
@@ -122,13 +141,13 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
         last_tstep["dz_theta"] = ret["dz_theta"]
         last_tstep["phi"] = ret["phi"]
 
-    return State(u_delta=np.array(ret["u_delta"]),
+    return StateOce(u_delta=np.array(ret["u_delta"]),
             t_delta=np.array(ret["t_delta"]),
             last_tstep=last_tstep, other=ret)
 
 def compute_atmosphere(simulator_atm: Atm1dStratified,
-        oce_state: State,
-        numer_set: NumericalSetting, **kwargs) -> State:
+        oce_state: StateOce,
+        numer_set: NumericalSetting, **kwargs) -> StateAtm:
     """
         Integrator in time of the atmosphere
     """
@@ -182,8 +201,10 @@ def compute_atmosphere(simulator_atm: Atm1dStratified,
     if sf_scheme[:2] == "FV":
         last_tstep["dz_theta"] = ret["dz_theta"]
         last_tstep["phi"] = ret["phi"]
-    return State(u_delta=np.array(ret["u_delta"]),
+    return StateAtm(u_delta=np.array(ret["u_delta"]),
             t_delta=np.array(ret["t_delta"]),
+            u_star=np.array(ret["all_u_star"]),
+            t_star=np.array(ret["all_t_star"]),
             last_tstep=last_tstep, other=ret)
 
 

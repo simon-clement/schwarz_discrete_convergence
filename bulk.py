@@ -130,3 +130,50 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
     return SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
             inv_L_o, uo_delta, to_delta_Kelvin, u_zM, theta_zM,
             delta_sl_o, k, sf_scheme, Q_sw, Q_lw, SL_a)
+
+def process_friction_scales_oce(ua_delta: float, delta_sl_a: float,
+        ta_delta: float, univ_funcs_a,
+        u_star: float, t_star: float,
+        uo_delta: float, delta_sl_o: float,
+        to_delta: float, univ_funcs_o,
+        sf_scheme: str, Q_sw: float, Q_lw: float,
+        k: int, is_atm: bool) -> SurfaceLayerData:
+    """
+    Processes the atmospheric friction scales u*, t* given as input
+    to return usable SurfaceLayerData.
+    See friction_scales() for description of arguments
+    """
+    _, _, psim_a, psis_a, _, _, = univ_funcs_a
+    _, _, psim_o, psis_o, _, _, = univ_funcs_o
+    ta_delta_Kelvin = ta_delta
+    to_delta_Kelvin = to_delta
+    ta_delta_Kelvin += 273. if ta_delta < 150 else 0.
+    to_delta_Kelvin += 273. if to_delta < 150 else 0.
+    rho0 = 1024.
+    kappa = 0.4
+    c_p_atm = 1004.
+    c_p_oce = 3985.
+    K_mol_oce = 1e-4
+    mu_m = 6.7e-2
+    alpha_eos = 1.8e-4
+    lambda_u = np.sqrt(1/rho0) # u_o* = lambda_u u_a*
+    lambda_t = np.sqrt(1./rho0)*c_p_atm/c_p_oce
+    uo_star, to_star = lambda_u*u_star, lambda_t*t_star
+    inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2
+    inv_L_o = 9.81 * kappa * alpha_eos * to_star / uo_star**2
+    za_0M = za_0H = K_mol_oce / kappa / u_star / mu_m
+    zo_0M = zo_0H = K_mol_oce / kappa / uo_star
+    u_zM: complex = ua_delta - orientation(ua_delta) * u_star \
+            / kappa * (np.log(1+delta_sl_a/za_0M) - \
+            psim_a(delta_sl_a*inv_L_a))
+    # theta_zM does not see radiative fluxes.
+    theta_zM: float = ta_delta_Kelvin - t_star \
+            / kappa * (np.log(1+delta_sl_a/za_0H) - \
+            psis_a(delta_sl_a*inv_L_a))
+    SL_a = SurfaceLayerData(u_star, t_star, za_0M, za_0H,
+            inv_L_a, ua_delta, ta_delta_Kelvin, u_zM, theta_zM,
+            delta_sl_a, None,
+            None, Q_sw, Q_lw, None)
+    return SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
+            inv_L_o, uo_delta, to_delta_Kelvin, u_zM, theta_zM,
+            delta_sl_o, k, sf_scheme, Q_sw, Q_lw, SL_a)

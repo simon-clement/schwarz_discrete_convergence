@@ -19,8 +19,7 @@ class TkeOcean1D:
         yields the TKE with self.tke_full.
     """
     def __init__(self, M, discretization="FV",
-            TEST_CASE: int=0, ignore_sl: bool=True,
-            wave_breaking: bool=False):
+            ignore_sl: bool=True, wave_breaking: bool=False):
         """
             M: number of cells
             discretization: "FV" or "FD"
@@ -38,7 +37,6 @@ class TkeOcean1D:
         assert discretization in {"FV", "FD"}
         self.discretization: str = discretization
         self.Patankar = False
-        self.TEST_CASE = TEST_CASE
         self.ignore_sl = ignore_sl
         self.wave_breaking = wave_breaking
 

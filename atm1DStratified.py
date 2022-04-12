@@ -169,7 +169,7 @@ class Atm1dStratified():
 
         phi, old_phi = phi_t0, np.copy(phi_t0)
         u_current: array = np.copy(u_t0)
-        all_u_star = []
+        all_u_star, all_t_star = [], []
         ret_u_current, ret_tke, ret_dz_tke, ret_SL = [], [], [], []
         ret_tke_bar = []
         ret_u_delta, ret_t_delta = [u_delta], [t_delta]
@@ -182,6 +182,7 @@ class Atm1dStratified():
                     large_ocean(), sf_scheme, Q_sw[n], Q_lw[n],
                     k, True)
             all_u_star += [SL.u_star]
+            all_t_star += [SL.t_star]
 
             # Compute viscosities
             Ku_full, Ktheta_full = self.__visc_turb_FV(
@@ -235,6 +236,7 @@ class Atm1dStratified():
         ret_dict['phi'] = phi
         ret_dict['tke'] = tke.tke_full
         ret_dict['all_u_star'] = all_u_star
+        ret_dict['all_t_star'] = all_t_star
         ret_dict['theta'] = theta
         ret_dict['dz_theta'] = dz_theta
         ret_dict['l_eps'] = l_eps
@@ -291,7 +293,7 @@ class Atm1dStratified():
 
         u_current: array = np.copy(u_t0)
         old_u: array = np.copy(u_current)
-        all_u_star = []
+        all_u_star, all_t_star = [], []
         all_u, all_tke, all_theta, all_leps = [], [], [], []
         ret_u_delta, ret_t_delta = [], []
         for n in range(1,N+1):
@@ -304,6 +306,7 @@ class Atm1dStratified():
                     large_ocean(), sf_scheme, Q_sw[n], Q_lw[n],
                     0, True)
             all_u_star += [SL.u_star]
+            all_t_star += [SL.t_star]
 
             # Compute viscosities
             Ku_full, Ktheta_full = self.__visc_turb_FD(SL=SL,
@@ -358,6 +361,7 @@ class Atm1dStratified():
         ret_dict['u'] = u_current
         ret_dict['tke'] = tke.tke_full
         ret_dict['all_u_star'] = all_u_star
+        ret_dict['all_t_star'] = all_t_star
         ret_dict['theta'] = theta
         ret_dict['l_eps'] = l_eps
         ret_dict['SL'] = SL
