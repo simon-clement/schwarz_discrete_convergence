@@ -78,11 +78,11 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
 
         C_D    = (kappa / rhs_31)**2
         # Radiative fluxes:
-        turhocp = to_star * uo_star * rho0 * c_p_oce
-        if abs(turhocp) > 1e-50:
-            term_lw = 1 - Q_lw / turhocp
+        QH = to_star * uo_star * rho0 * c_p_oce
+        if abs(QH) > 1e-50:
+            term_lw = 1 - Q_lw / QH
             term_Qw = Q_sw * integrated_shortwave_frac_sl(\
-                    delta_sl_o, inv_L_o) / turhocp
+                    delta_sl_o, inv_L_o) / QH
         else:
             term_lw = term_Qw = 0.
 

@@ -620,9 +620,9 @@ class Ocean1dStratified():
                 (u_zM - u_delta)
 
         def tzM_m_t(z: float):
-            turhocp = t_star * u_star * self.rho0 * self.C_p
-            term_lw = 1 - SL.Q_lw / turhocp
-            term_sw = Qsw_E(z, SL)/turhocp
+            QH = t_star * u_star * self.rho0 * self.C_p
+            term_lw = 1 - SL.Q_lw / QH
+            term_sw = Qsw_E(z, SL) / QH
             return t_star/self.kappa * term_lw * \
                     (np.log(1-z/SL.z_0H) - psi_h(-z*inv_L_MO)) \
                     - term_sw
@@ -1119,8 +1119,8 @@ class Ocean1dStratified():
             return (-z+SL.z_0H)*np.log(1-z/SL.z_0H) + z - \
                     z*Psi_h(-z*inv_L_MO)
 
-        turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
-        term_lw = turhocp - SL.Q_lw
+        QH = SL.t_star * SL.u_star * self.rho0 * self.C_p
+        term_lw = QH - SL.Q_lw
 
         # numerical integration of Qws_E:
         integral_Qsw_E = integrate.quad(Qsw_E, delta_sl,
@@ -1494,10 +1494,10 @@ class Ocean1dStratified():
         lambda_t = np.sqrt(1./self.rho0)*c_p_atm/self.C_p
 
         # Radiative fluxes:
-        turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
-        if abs(turhocp) > 1e-50:
-            term_lw = 1 - SL.Q_lw / turhocp
-            term_Qw = Qsw_E(SL.delta_sl, SL) / turhocp
+        QH = SL.t_star * SL.u_star * self.rho0 * self.C_p
+        if abs(QH) > 1e-50:
+            term_lw = 1 - SL.Q_lw / QH
+            term_Qw = Qsw_E(SL.delta_sl, SL) / QH
         else:
             print("Warning (Ocean1dStratified): dividing by t*u*",
                     "where u*o=", SL.u_star, "t*o", SL.t_star)
@@ -1527,10 +1527,10 @@ class Ocean1dStratified():
         rhs_30 = np.log(1-SL.delta_sl/SL.z_0H) - psih(zeta)
 
         # adding radiative fluxes:
-        turhocp = SL.t_star * SL.u_star * self.rho0 * self.C_p
-        if abs(turhocp) > 1e-50:
-            rhs_30 *= 1 - SL.Q_lw / turhocp
-            rhs_30 -= Qsw_E(SL.delta_sl, SL) / turhocp
+        QH = SL.t_star * SL.u_star * self.rho0 * self.C_p
+        if abs(QH) > 1e-50:
+            rhs_30 *= 1 - SL.Q_lw / QH
+            rhs_30 -= Qsw_E(SL.delta_sl, SL) / QH
         else:
             pass
         # print("Warning (Ocean1dStratified skin): dividing by",
@@ -1614,7 +1614,7 @@ class Ocean1dStratified():
         """
             Y = (0     ,    1     )
             D = (K/h^2 , -K/h^2   )
-            c = (  F - (QH - Q_sw - Q_lw) / (h rho cp)   )
+            c = (  F + (QH - Q_sw - Q_lw) / (h rho cp)   )
         """
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0.,), (1.,), ())
