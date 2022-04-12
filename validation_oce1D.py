@@ -39,7 +39,7 @@ def forcedOcean(sf_scheme: str):
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
             Qswmax / (rho0*cp)
     Qsw, Qlw = srflx * rho0*cp, np.zeros_like(srflx)
-    Qlw = -np.ones(N+1) * 100
+    Qlw = np.ones(N+1) * 100
     numer_set = NumericalSetting(T=T,
             sf_scheme_a=sf_scheme, sf_scheme_o=sf_scheme,
             delta_sl_a=10., delta_sl_o=-0.5, Q_lw=Qlw, Q_sw=Qsw)
@@ -82,7 +82,7 @@ def forcedOcean(sf_scheme: str):
                 u_star=u_star, t_star=t_star,
                 u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
                 store_all=True,
-                heatloss=None, wind_10m=wind_10m,
+                wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme)
 
     elif sf_scheme[:2] == "FD":
@@ -91,7 +91,7 @@ def forcedOcean(sf_scheme: str):
                 u_star=u_star, t_star=t_star,
                 Q_sw=Q_sw, Q_lw=Q_lw, wind_10m=wind_10m,
                 temp_10m=temp_10m, store_all=True,
-                heatloss=None, sf_scheme=sf_scheme)
+                sf_scheme=sf_scheme)
     else:
         raise NotImplementedError("Cannot infer discretization " + \
                 "from surface flux scheme name " + sf_scheme)
@@ -143,10 +143,7 @@ def constantCoolingForAnimation(sf_scheme: str):
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = None # np.zeros(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
-    Qlw = -np.ones(N+1) * 100
-    # this heatloss will be divided by (rho0*cp)
-    # Q0_{comodo} = -heatloss / (rho cp)
+    Qlw = np.ones(N+1) * 100
     wind_10m = 1.1*np.ones(N+1) + 0j
     temp_10m = np.ones(N+1) * 5
     # if temp_10m<T0, then __friction_scales does not converge.
@@ -170,7 +167,7 @@ def constantCoolingForAnimation(sf_scheme: str):
             u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
             u_star=np.ones(N+1)*DEFAULT_U_STAR,
             t_star=np.ones(N+1)*DEFAULT_T_STAR,
-            heatloss=heatloss, wind_10m=wind_10m,
+            wind_10m=wind_10m,
             store_all=True,
             temp_10m=temp_10m, sf_scheme=sf_scheme)
     return ret, simulator_oce.z_half[:-1]
@@ -197,10 +194,7 @@ def fig_constantCooling():
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = None # np.zeros(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
     Qlw = -np.ones(N+1) * 100
-    # this heatloss will be divided by (rho0*cp)
-    # Q0_{comodo} = -heatloss / (rho cp)
     wind_10m = 1.1*np.ones(N+1) + 0j
     temp_10m = np.ones(N+1) * 5
     # if temp_10m<T0, then __friction_scales does not converge.
@@ -227,7 +221,7 @@ def fig_constantCooling():
                 u_star=np.ones(N+1)*DEFAULT_U_STAR,
                 t_star=np.ones(N+1)*DEFAULT_T_STAR,
                 u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
-                heatloss=heatloss, wind_10m=wind_10m,
+                wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme)
         u_current, phi, tke, theta, dz_theta, l_eps, SL, viscosity = \
                 [ret[x] for x in ("u", "phi", "tke", "theta",
@@ -254,7 +248,7 @@ def fig_constantCooling():
             u_star=np.ones(N+1)*DEFAULT_U_STAR,
             t_star=np.ones(N+1)*DEFAULT_T_STAR,
             temp_10m=temp_10m,
-            heatloss=heatloss, sf_scheme="FD pure")
+            sf_scheme="FD pure")
     u_currentFD, tke, all_u_star, thetaFD, l_eps, viscosityFD = \
              [retFD[x] for x in("u", "tke", "all_u_star", "theta",
                  "l_eps", "Ktheta")]
@@ -302,7 +296,6 @@ def fig_windInduced():
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = None
     wind_10m = np.ones(N+1) * 11.6 + 0j
     temp_10m = np.ones(N+1) * T0
 
@@ -332,7 +325,7 @@ def fig_windInduced():
                 u_delta=u_delta, t_delta=t_delta,
                 u_star=np.ones(N+1)*DEFAULT_U_STAR,
                 t_star=np.ones(N+1)*DEFAULT_T_STAR,
-                heatloss=heatloss, wind_10m=wind_10m,
+                wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme)
         u_current, phi, tke, theta, dz_theta, SL, viscosity = \
                 [ret[x] for x in ("u", "phi", "tke", "theta",
@@ -355,7 +348,7 @@ def fig_windInduced():
                 u_star=np.ones(N+1)*DEFAULT_U_STAR,
                 t_star=np.ones(N+1)*DEFAULT_T_STAR,
                 Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
-                temp_10m=temp_10m, heatloss=heatloss,
+                temp_10m=temp_10m,
                 sf_scheme=sf_scheme)
         u_currentFD, tke, all_u_star, thetaFD, l_eps, viscosityFD = \
                  [retFD[x] for x in("u", "tke", "all_u_star", "theta",
@@ -400,10 +393,7 @@ def fig_comodoParamsConstantCooling():
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
-    Qlw, heatloss = heatloss, np.zeros(N+1)
-    # this heatloss will be divided by (rho0*cp)
-    # Q0_{comodo} = -heatloss / (rho cp)
+    Qlw = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
     wind_10m = np.zeros(N+1) + 0j + 1.
     temp_10m = np.ones(N+1) * T0
 
@@ -413,7 +403,7 @@ def fig_comodoParamsConstantCooling():
             u_star=np.ones(N+1)*1e-8,
             t_star=np.ones(N+1)*DEFAULT_T_STAR,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
-            heatloss=heatloss, wind_10m=wind_10m,
+            wind_10m=wind_10m,
             temp_10m=temp_10m, sf_scheme="FV test")
     u_current, phi, theta, dz_theta, SL, viscosity = \
                 [ret[x] for x in ("u", "phi", "theta",
@@ -427,7 +417,7 @@ def fig_comodoParamsConstantCooling():
             t_star=np.ones(N+1)*DEFAULT_T_STAR,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
             temp_10m=temp_10m,
-            heatloss=heatloss, sf_scheme="FD test")
+            sf_scheme="FD test")
     u_currentFD, tke, all_u_star, thetaFD, l_eps, viscosityFD = \
              [retFD[x] for x in("u", "tke", "all_u_star", "theta",
                  "l_eps", "Ktheta")]
@@ -467,7 +457,6 @@ def fig_comodoParamsWindInduced():
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = np.zeros(N+1)
     wind_10m = np.ones(N+1) * 11.6 + 0j
     temp_10m = np.ones(N+1) * T0
 
@@ -477,7 +466,7 @@ def fig_comodoParamsWindInduced():
             u_star=np.ones(N+1)*DEFAULT_U_STAR,
             t_star=np.ones(N+1)*0.,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
-            heatloss=heatloss, wind_10m=wind_10m, temp_10m=temp_10m,
+            wind_10m=wind_10m, temp_10m=temp_10m,
             sf_scheme="FV test")
     u_current, phi, theta, dz_theta, SL, viscosity = \
                 [ret[x] for x in ("u", "phi", "theta",
@@ -490,7 +479,7 @@ def fig_comodoParamsWindInduced():
             u_star=np.ones(N+1)*DEFAULT_U_STAR,
             t_star=np.ones(N+1)*0.,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m, temp_10m=temp_10m,
-            heatloss=heatloss, sf_scheme="FD test")
+            sf_scheme="FD test")
     thetaFD, viscosityFD = [retFD[x] for x in("theta", "Ktheta")]
 
     fig, axes = plt.subplots(1, 2)

@@ -122,7 +122,7 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
                 Q_lw=Q_lw, delta_sl_a=numer_set.delta_sl_a,
                 u_star=u_star, t_star=t_star,
                 u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
-                heatloss=None, wind_10m=wind_10m,
+                wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme,
                 **kwargs)
 
@@ -132,7 +132,7 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
                 u_star=u_star, t_star=t_star,
                 Q_sw=Q_sw, Q_lw=Q_lw, wind_10m=wind_10m,
                 temp_10m=temp_10m,
-                heatloss=None, sf_scheme=sf_scheme,
+                sf_scheme=sf_scheme,
                 **kwargs)
     else:
         raise NotImplementedError("Cannot infer discretization " + \

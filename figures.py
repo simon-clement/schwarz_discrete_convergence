@@ -241,7 +241,6 @@ def fig_launchOcean():
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    heatloss = np.zeros(N+1)
     wind_10m = np.ones(N+1) * 2. + 0j
     temp_10m = np.ones(N+1) * 240
 
@@ -251,7 +250,7 @@ def fig_launchOcean():
             t_star=np.ones(N+1)*1e-6,
             delta_sl_a=10.,
             u_delta=0., t_delta=240.,
-            heatloss=heatloss, wind_10m=wind_10m,
+            wind_10m=wind_10m,
             temp_10m=temp_10m, sf_scheme="FV test")
     u_current, phi, theta, dz_theta, SL = [ret[x] for x in \
             ("u", "phi", "theta", "dz_theta", "SL")]

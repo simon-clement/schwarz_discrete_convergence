@@ -113,7 +113,7 @@ class Ocean1dStratified():
             dz_theta_t0: array, Q_sw: array, Q_lw: array,
             u_delta: float, t_delta: float, delta_sl_a: float,
             u_star: array, t_star: array,
-            heatloss: array, wind_10m: array, temp_10m: array,
+            wind_10m: array, temp_10m: array,
             delta_sl: float=None,
             sf_scheme: str="FV test", Neutral_case: bool=False,
             turbulence: str="TKE", store_all: bool=False):
@@ -129,8 +129,6 @@ class Ocean1dStratified():
             t_delta: for FV free, it is necessay to have theta(delta)
             Q_sw: SW radiation (from the sun) positive downward
             Q_lw: LW radiation (blackbody radiation) positive downward
-            heatloss: Heat transfer at surface Q_0(t) that
-                can override t*u* in {FD, FV} test
             wind_10m, temp_10m: wind, temperature at 10m in atmosphere
             delta_sl: height of the surface layer.
                 Make sure it is coherent with sf_scheme.
@@ -158,7 +156,6 @@ class Ocean1dStratified():
         N: int = wind_10m.shape[0] - 1 # number of time steps
         assert temp_10m.shape[0] == N + 1
         assert Q_sw.shape[0] == Q_lw.shape[0] == N + 1
-        assert heatloss is None or heatloss.shape[0] == N + 1
 
         forcing = 1j*self.u_g*np.ones((N+1, self.M))
 
@@ -235,13 +232,9 @@ class Ocean1dStratified():
                         self.h_full)
                 forcing_theta = swr_frac * Q_sw[n] \
                         / self.rho0 / self.C_p
-                # forcing_theta[-1] =  solar_flux[n] - \
-                #         heatloss[n]/self.rho0/self.C_p
-                QH = self.rho0 * self.C_p * SL.t_star*SL.u_star \
-                        if heatloss is None else heatloss[n]
                 theta, dz_theta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
-                        SL, SL_nm1, QH)
+                        SL, SL_nm1)
 
             # Refreshing u_delta, t_delta for next friction scales:
             func_un, _ = self.dictsf_scheme[sf_scheme]
@@ -290,7 +283,7 @@ class Ocean1dStratified():
         return ret_dict
 
     def FD(self, u_t0: array, theta_t0: array,
-            Q_sw: array, Q_lw: array, heatloss: array,
+            Q_sw: array, Q_lw: array,
             wind_10m: array, temp_10m: array,
             u_star: array, t_star: array,
             delta_sl_a: float=10.,
@@ -322,7 +315,6 @@ class Ocean1dStratified():
         assert Q_sw.shape[0] == N + 1
         assert Q_lw.shape[0] == N + 1
         assert temp_10m.shape[0] == N + 1
-        assert heatloss is None or heatloss.shape[0] == N + 1
 
         forcing = 1j*self.u_g*np.ones((N+1, self.M))
         # methods to get u(delta) and theta(delta):
@@ -388,14 +380,12 @@ class Ocean1dStratified():
                 # integrate in time potential temperature:
                 Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
                         Ktheta_full, np.zeros(self.M))
-                QH = self.rho0 * self.C_p * SL.t_star*SL.u_star \
-                        if heatloss is None else heatloss[n]
                 self.__apply_sf_scheme(\
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
                         K_theta=Ktheta_full, forcing_theta=forcing_theta,
                         universal_funcs=large_ocean(),
-                        universal_funcs_a=businger(), QH=QH)
+                        universal_funcs_a=businger())
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
@@ -471,7 +461,7 @@ class Ocean1dStratified():
 
     def __step_theta(self, theta: array, dz_theta: array,
             Ktheta_full: array, forcing_theta: array,
-            SL: SurfaceLayerData, SL_nm1: SurfaceLayerData, QH):
+            SL: SurfaceLayerData, SL_nm1: SurfaceLayerData):
         """
         One step of integration in time for potential temperature (FV)
         theta: average on the cells (centered at z_half),
@@ -491,8 +481,7 @@ class Ocean1dStratified():
                 Y=Y_theta, D=D_theta, c=c_theta, Y_nm1=Y_nm1,
                 K_theta=Ktheta_full, forcing_theta=forcing_theta,
                 universal_funcs=large_ocean(),
-                universal_funcs_a=businger(), SL=SL, SL_nm1=SL_nm1,
-                QH=QH)
+                universal_funcs_a=businger(), SL=SL, SL_nm1=SL_nm1)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
                 Y_nm1=Y_nm1))
@@ -921,10 +910,11 @@ class Ocean1dStratified():
                        + SL.z_0M)) / \
                        phi_m(-SL.delta_sl*SL.inv_L_MO)
                 assert abs(K_full_replacement - K_full[SL.k])<1e-10
-                Ktheta_full_replacement = (self.kappa * \
+                Ktheta_full_replacement = np.maximum((self.kappa * \
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
-                       phi_h(-SL.delta_sl*SL.inv_L_MO)
+                       phi_h(-SL.delta_sl*SL.inv_L_MO),
+                       self.Ktheta_min)
                 assert abs(Ktheta_full_replacement - Ktheta_full[SL.k])<1e-10
         else:
             raise NotImplementedError("Wrong turbulence scheme")
@@ -1620,12 +1610,13 @@ class Ocean1dStratified():
         return Y, D, c, Y
 
     def __sf_YDc_FDtest_theta(self, K_theta, SL,
-            forcing_theta, QH, **_):
+            forcing_theta, **_):
         """
             Y = (0     ,    1     )
             D = (K/h^2 , -K/h^2   )
             c = (  F - (QH - Q_sw - Q_lw) / (h rho cp)   )
         """
+        QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0.,), (1.,), ())
         D = ((K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],),
@@ -1638,7 +1629,7 @@ class Ocean1dStratified():
 
     def __sf_YDc_FVtest_theta(self, K_theta,
             SL, universal_funcs,
-            forcing_theta, QH, **_):
+            forcing_theta, **_):
         """
             Y = (0     ,    0     , 1 )
                 (0     ,    0     , 0 )
@@ -1647,6 +1638,7 @@ class Ocean1dStratified():
             c = (               F                 )
                 (  -(QH - Q_sw - Q_lw)/ (rho cp)  )
         """
+        QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((0.,),
             (-K_theta[self.M-1]/self.h_half[self.M-1],
