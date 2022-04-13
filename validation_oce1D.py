@@ -155,7 +155,9 @@ def constantCoolingForAnimation(sf_scheme: str):
                 simulator_oce.initialization(\
                 np.zeros(simulator_oce.M)+0j, # u_0
                 np.copy(theta_0), # theta_0
-                delta_sl, wind_10m[0], temp_10m[0], Qsw[0], Qlw[0],
+                delta_sl, wind_10m[0], temp_10m[0],
+                DEFAULT_U_STAR, DEFAULT_T_STAR,
+                Qsw[0], Qlw[0],
                 10., sf_scheme)
     else:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
@@ -194,7 +196,7 @@ def fig_constantCooling():
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    Qlw = -np.ones(N+1) * 100
+    Qlw = np.ones(N+1) * 100
     wind_10m = 1.1*np.ones(N+1) + 0j
     temp_10m = np.ones(N+1) * 5
     # if temp_10m<T0, then __friction_scales does not converge.
@@ -209,7 +211,9 @@ def fig_constantCooling():
                     simulator_oce.initialization(\
                     np.zeros(simulator_oce.M)+0j, # u_0
                     np.copy(theta_0), # theta_0
-                    delta_sl, wind_10m[0], temp_10m[0], Qsw[0], Qlw[0],
+                    delta_sl, wind_10m[0], temp_10m[0],
+                    DEFAULT_U_STAR, DEFAULT_T_STAR,
+                    Qsw[0], Qlw[0],
                     10., sf_scheme)
         else:
             u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
@@ -312,6 +316,7 @@ def fig_windInduced():
                     np.zeros(simulator_oce.M)+0j, # u_0
                     np.copy(theta_0), # theta_0
                     -.5, wind_10m[0], temp_10m[0],
+                    DEFAULT_U_STAR, DEFAULT_T_STAR,
                     Qsw[0], Qlw[0], 10., sf_scheme)
         else:
             u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
@@ -376,7 +381,7 @@ def fig_comodoParamsConstantCooling():
     f = 0.
     alpha = 0.0002
     N0 = np.sqrt(alpha*9.81* 0.1)
-    T0 = 16.
+    T0 = 289.
     z_levels = np.linspace(-50., 0., 51)
     simulator_oce = Ocean1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
@@ -389,51 +394,68 @@ def fig_comodoParamsConstantCooling():
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
             Qswmax / (rho0*cp)
     Qsw, Qlw = srflx * rho0*cp, np.zeros_like(srflx)
-    u_0 = np.zeros(simulator_oce.M)
-    phi_0 = np.zeros(simulator_oce.M+1)
+    u_0 = np.zeros(simulator_oce.M) + 0j
+    phi_0 = np.zeros(simulator_oce.M+1) + 0j
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
     Qlw = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
     wind_10m = np.zeros(N+1) + 0j + 1.
-    temp_10m = np.ones(N+1) * T0
+    temp_10m = np.ones(N+1) * T0 - 1
 
-    ret = simulator_oce.FV(delta_sl_a=10.,
-            u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
-            u_delta=10., t_delta=15.,
-            u_star=np.ones(N+1)*1e-8,
-            t_star=np.ones(N+1)*DEFAULT_T_STAR,
-            dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
-            wind_10m=wind_10m,
-            temp_10m=temp_10m, sf_scheme="FV test")
-    u_current, phi, theta, dz_theta, SL, viscosity = \
-                [ret[x] for x in ("u", "phi", "theta",
-                    "dz_theta", "SL", "Ktheta")]
-    zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
-            phi, theta, dz_theta, SL, ignore_loglaw=True)
-
-    retFD = simulator_oce.FD(delta_sl_a=10.,
-            u_t0=u_0, theta_t0=theta_0,
-            u_star=np.ones(N+1)*1e-8,
-            t_star=np.ones(N+1)*DEFAULT_T_STAR,
-            Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
-            temp_10m=temp_10m,
-            sf_scheme="FD test")
-    u_currentFD, tke, all_u_star, thetaFD, l_eps, viscosityFD = \
-             [retFD[x] for x in("u", "tke", "all_u_star", "theta",
-                 "l_eps", "Ktheta")]
-
+    u_star = np.ones(N+1)*1e-5
+    t_star = -np.ones(N+1)*DEFAULT_T_STAR
     fig, axes = plt.subplots(1, 2)
-    axes[0].plot(thetaFV, zFV, "--",
-            label="Temperature Python FV")
-    axes[0].plot(thetaFD, simulator_oce.z_half[:-1], "--",
-            label="Temperature Python FD")
-    axes[1].plot(viscosity, simulator_oce.z_full, "--",
-            label="Diffusivity Python FV")
-    axes[1].plot(viscosityFD, simulator_oce.z_full, "--",
-            label="Diffusivity Python FD")
+    sf_scheme = "FV free"
+    for delta_sl in (0., -0.5, -1.2):
+        if sf_scheme == "FV free":
+            u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
+                    simulator_oce.initialization(\
+                    u_0, # u_0
+                    np.copy(theta_0), # theta_0
+                    delta_sl, wind_10m[0], temp_10m[0],
+                    u_star[0], t_star[0],
+                    Qsw[0], Qlw[0], 10., sf_scheme)
+        else:
+            u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
+                    u_0, phi_0, theta_0, dz_theta_0, 10., 288.
 
-    axes[0].legend()
-    axes[1].legend()
+        ret = simulator_oce.FV(delta_sl_a=10.,
+                u_t0=u_i, phi_t0=phi_i, theta_t0=theta_i,
+                u_delta=u_delta, t_delta=t_delta,
+                u_star=u_star, t_star=t_star,
+                delta_sl=delta_sl,
+                dz_theta_t0=dz_theta_i, Q_sw=Qsw, Q_lw=Qlw,
+                wind_10m=wind_10m,
+                temp_10m=temp_10m, sf_scheme=sf_scheme)
+        u_current, phi, theta, dz_theta, SL, viscosity = \
+                    [ret[x] for x in ("u", "phi", "theta",
+                        "dz_theta", "SL", "Ktheta")]
+        zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
+                phi, theta, dz_theta, SL, ignore_loglaw=False)
+
+        axes[0].plot(thetaFV, zFV, "--",
+                label="FV, delta=" + str(delta_sl))
+        axes[1].plot(viscosity, simulator_oce.z_full, "--",
+                label="FV, delta=" + str(delta_sl))
+
+    for sf_scheme in ("FD pure", "FD2"):
+        retFD = simulator_oce.FD(delta_sl_a=10.,
+                u_t0=u_0, theta_t0=theta_0,
+                u_star=u_star, t_star=t_star,
+                Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m,
+                temp_10m=temp_10m,
+                sf_scheme=sf_scheme)
+        u_currentFD, tke, all_u_star, thetaFD, l_eps, viscosityFD = \
+                 [retFD[x] for x in("u", "tke", "all_u_star", "theta",
+                     "l_eps", "Ktheta")]
+        axes[0].plot(thetaFD, simulator_oce.z_half[:-1], "--",
+                label=sf_scheme)
+        axes[1].plot(viscosityFD, simulator_oce.z_full, "--",
+                label=sf_scheme)
+
+    axes[1].legend(loc="lower center")
+    axes[0].set_xlabel("Temperature")
+    axes[1].set_xlabel("Diffusivity")
     show_or_save("fig_comodoParamsConstantCooling")
 
 

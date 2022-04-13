@@ -48,10 +48,12 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str):
     f = 1e-4 # Coriolis parameter
     time = np.linspace(0, T) # number of time steps is not important
-    alpha, N0, rho0, cp, Qswmax = 0.0002, 0.01, 1024., 3985., 1000.
-    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
+    alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
+    Qswmax = 200.
+    srflx = np.maximum(np.cos(2.*np.pi*(time/86400.)), 0. ) * \
             Qswmax / (rho0*cp)
-    Qsw, Qlw = srflx * rho0*cp, -np.ones_like(srflx) * 100.
+    # TODO look at the sign of Qlw: it should be <0 !!
+    Qsw, Qlw = -srflx * rho0*cp, np.ones_like(srflx) * 100.
     z_levels_oce = np.linspace(-50., 0., 51)
     z_levels_atm = IFS_z_levels_stratified
     simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
@@ -61,10 +63,11 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     K_mol_a = simulator_oce.K_mol / mu_m
     simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
             dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
+    delta_sl_o = z_levels_oce[-2]/2
     numer_setting = NumericalSetting(T=T,
             sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
             delta_sl_a=z_levels_atm[1]/2,
-            delta_sl_o=z_levels_oce[-2]/2,
+            delta_sl_o=delta_sl_o,
             Q_lw=Qlw,
             Q_sw=Qsw)
     states_atm, states_oce = schwarz_coupling(simulator_oce,

@@ -229,8 +229,8 @@ class Ocean1dStratified():
             if not Neutral_case:
                 # integrate in time potential temperature
                 swr_frac = shortwave_fractional_decay(self.M,
-                        self.h_full)
-                forcing_theta = swr_frac * Q_sw[n] \
+                        self.h_full) # TODO Q_sw is positive downward?
+                forcing_theta = -swr_frac * Q_sw[n] \
                         / self.rho0 / self.C_p
                 theta, dz_theta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
@@ -374,12 +374,12 @@ class Ocean1dStratified():
 
             if not Neutral_case:
                 swr_frac = shortwave_fractional_decay(self.M,
-                        self.h_full)
-                forcing_theta = swr_frac * Q_sw[n] \
+                        self.h_full) # Q_sw is positive downward
+                forcing_theta = -swr_frac * Q_sw[n] \
                         / self.rho0 / self.C_p
                 # integrate in time potential temperature:
                 Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
-                        Ktheta_full, np.zeros(self.M))
+                        Ktheta_full, forcing_theta)
                 self.__apply_sf_scheme(\
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
@@ -488,9 +488,9 @@ class Ocean1dStratified():
 
         next_theta = np.zeros_like(theta)
         next_theta[:SL.k] = theta[:SL.k] + self.dt * \
-                np.diff(prognostic_theta[:SL.k+1] * \
+                (np.diff(prognostic_theta[:SL.k+1] * \
                         Ktheta_full[:SL.k+1]) \
-                        / self.h_half[:SL.k] + forcing_theta[:SL.k]
+                        / self.h_half[:SL.k] + forcing_theta[:SL.k])
 
         next_theta[SL.k-1:] = prognostic_theta[SL.k+1:]
         dz_theta = prognostic_theta[:SL.k+1]
