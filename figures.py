@@ -49,11 +49,10 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     f = 1e-4 # Coriolis parameter
     time = np.linspace(0, T) # number of time steps is not important
     alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
-    Qswmax = 200.
+    Qswmax = 800.
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400.)), 0. ) * \
             Qswmax / (rho0*cp)
-    # TODO look at the sign of Qlw: it should be <0 !!
-    Qsw, Qlw = -srflx * rho0*cp, np.ones_like(srflx) * 100.
+    Qsw, Qlw = srflx * rho0*cp, -np.ones_like(srflx) * 100.
     z_levels_oce = np.linspace(-50., 0., 51)
     z_levels_atm = IFS_z_levels_stratified
     simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,

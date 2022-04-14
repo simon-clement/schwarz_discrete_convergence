@@ -7,7 +7,7 @@ import scipy.integrate
 from numba import jit
 
 @jit(nopython=True)
-def shortwave_fractional_decay(M, h_full):
+def shortwave_fractional_decay(M, h_half):
     """
         To compute the solar radiation penetration
         we need this function that was
@@ -22,15 +22,15 @@ def shortwave_fractional_decay(M, h_full):
 
     swdk1=r1[Jwt]
     swdk2=1.-swdk1
-    swr_frac = np.zeros(M)
-    swr_frac[-1]=1.
+    swr_frac = np.zeros(M+1)
+    swr_frac[M]=1.
     for k in range(M-1, -1, -1):
-        xi1=attn1*h_full[k]
+        xi1=attn1*h_half[k]
         if xi1 > -20.:
             swdk1 *= np.exp(xi1)
         else:
             swdk1 = 0.
-        xi2 = attn2*h_full[k]
+        xi2 = attn2*h_half[k]
         if xi2 > -20.:
             swdk2 *= np.exp(xi2)
         else:

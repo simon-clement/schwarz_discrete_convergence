@@ -101,7 +101,7 @@ class TkeOcean1D:
             e_sl = max(self.e0_min, ebb*np.abs(tau_m/ocean.rho0))
         else:
             phi_m, *_ = universal_funcs
-            KN2_sl = 9.81 * ocean.alpha * (SL.u_star * SL.t_star - \
+            KN2_sl = 9.81 * ocean.alpha * (SL.u_star * SL.t_star + \
                     (SL.Q_lw + SL.Q_sw) / ocean.rho0 / ocean.C_p)
             shear_sl = SL.u_star**3 * \
                     phi_m(-SL.delta_sl * SL.inv_L_MO) / \
@@ -162,7 +162,7 @@ class TkeOcean1D:
         z_sl = np.copy(ocean.z_full[k:])
         z_sl[0] = z_sl[0] if ignore_sl else SL.delta_sl
         # buoyancy and shear in surface layer:
-        KN2_sl = 9.81 * ocean.alpha * (SL.u_star * SL.t_star - \
+        KN2_sl = 9.81 * ocean.alpha * (SL.u_star * SL.t_star + \
                     (SL.Q_lw + SL.Q_sw) / ocean.rho0 / ocean.C_p)
         shear_sl = SL.u_star**3 * phi_m(-z_sl * SL.inv_L_MO) / \
                 ocean.kappa / (-z_sl + SL.z_0M)

@@ -17,34 +17,36 @@ DEFAULT_U_STAR = 0.01 * np.sqrt(1024.)
 DEFAULT_T_STAR = 1e-6
 
 def forcedOcean(sf_scheme: str):
-    dt = 30.
+    dt = 90.
     f = 1e-4
     alpha = 0.0002
     N0 = np.sqrt(alpha*9.81* 0.1)
-    T0 = 16.
+    T0 = 289. # Reference temperature
     z_levels = np.linspace(-50., 0., 51)
     simulator_oce = Ocean1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
             N0=N0)
-    N = 8640
-    T = N*simulator_oce.dt
+    number_of_days = 4
+    T = 86400 * number_of_days
+    N = int(T / dt)
     atm_state = StateAtm(u_delta=np.ones(N+1)*1.1+0j,
-            t_delta=np.ones(N+1)*5.,
+            t_delta=np.ones(N+1)*290.,
             u_star=np.ones(N+1)*DEFAULT_U_STAR,
             t_star=np.ones(N+1)*DEFAULT_T_STAR,
-            last_tstep=None)
+            last_tstep=None, other=None)
 
-    alpha, N0, rho0, cp, Qswmax = 0.0002, 0.01, 1024., 3985., 0.
+    Qlw = -np.ones(N+1) * 100.
+    Qswmax = np.pi * Qlw[0] # to get balance between radiative fluxes
+    Qswmax = 800.
+    alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
     time = np.linspace(0, T) # number of time steps is not important
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
             Qswmax / (rho0*cp)
-    Qsw, Qlw = srflx * rho0*cp, np.zeros_like(srflx)
-    Qlw = np.ones(N+1) * 100
+    Qsw = srflx * rho0*cp
     numer_set = NumericalSetting(T=T,
             sf_scheme_a=sf_scheme, sf_scheme_o=sf_scheme,
-            delta_sl_a=10., delta_sl_o=-0.5, Q_lw=Qlw, Q_sw=Qsw)
+            delta_sl_a=10., delta_sl_o=-0., Q_lw=Qlw, Q_sw=Qsw)
 
-    T0 = 16. # Reference temperature
     N = int(numer_set.T/simulator_oce.dt) # Number of time steps
     theta_0 = T0 - simulator_oce.N0**2 * \
             np.abs(simulator_oce.z_half[:-1]) \
@@ -101,13 +103,17 @@ def fig_animForcedOcean():
     ret, z = memoised(forcedOcean, "FV free")
     # ret, z = memoised(constantCoolingForAnimation, "FV free")
     fig, axes = plt.subplots(1, 2)
+    for u, ud in zip(ret["all_u"], ret["u_delta"]):
+        u[-1] = ud
+    for t, td in zip(ret["all_theta"], ret["t_delta"]):
+        t[-1] = td
     line_u, = axes[0].plot(np.real(ret["all_u"][-1]), z)
     line_t, = axes[1].plot(ret["all_theta"][-1], z)
     axes[0].set_yscale("symlog", linthresh=0.1)
     axes[1].set_yscale("symlog", linthresh=0.1)
     def init():
-        axes[0].set_xlim(-0.002, 0.002)
-        axes[1].set_xlim(10., 17.)
+        axes[0].set_xlim(-1., 2.)
+        axes[1].set_xlim(280., 290.)
         axes[0].set_ylim(z[0], z[-1])
         axes[1].set_ylim(z[0], z[-1])
         return line_u, line_t
@@ -143,7 +149,7 @@ def constantCoolingForAnimation(sf_scheme: str):
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    Qlw = np.ones(N+1) * 100
+    Qlw = -np.ones(N+1) * 100
     wind_10m = 1.1*np.ones(N+1) + 0j
     temp_10m = np.ones(N+1) * 5
     # if temp_10m<T0, then __friction_scales does not converge.
@@ -196,7 +202,7 @@ def fig_constantCooling():
     phi_0 = np.zeros(simulator_oce.M+1)
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    Qlw = np.ones(N+1) * 100
+    Qlw = -np.ones(N+1) * 100
     wind_10m = 1.1*np.ones(N+1) + 0j
     temp_10m = np.ones(N+1) * 5
     # if temp_10m<T0, then __friction_scales does not converge.
@@ -398,7 +404,7 @@ def fig_comodoParamsConstantCooling():
     phi_0 = np.zeros(simulator_oce.M+1) + 0j
     theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
     dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    Qlw = np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
+    Qlw = -np.ones(N+1) * 100 # /!\ definition of Q0 is not the same as Florian
     wind_10m = np.zeros(N+1) + 0j + 1.
     temp_10m = np.ones(N+1) * T0 - 1
 
@@ -487,9 +493,10 @@ def fig_comodoParamsWindInduced():
             u_delta=0., t_delta=T0,
             u_star=np.ones(N+1)*DEFAULT_U_STAR,
             t_star=np.ones(N+1)*0.,
+            delta_sl=0.,
             dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
             wind_10m=wind_10m, temp_10m=temp_10m,
-            sf_scheme="FV test")
+            sf_scheme="FV free")
     u_current, phi, theta, dz_theta, SL, viscosity = \
                 [ret[x] for x in ("u", "phi", "theta",
                     "dz_theta", "SL", "Ktheta")]
@@ -501,7 +508,7 @@ def fig_comodoParamsWindInduced():
             u_star=np.ones(N+1)*DEFAULT_U_STAR,
             t_star=np.ones(N+1)*0.,
             Q_sw=Qsw, Q_lw=Qlw, wind_10m=wind_10m, temp_10m=temp_10m,
-            sf_scheme="FD test")
+            sf_scheme="FD pure")
     thetaFD, viscosityFD = [retFD[x] for x in("theta", "Ktheta")]
 
     fig, axes = plt.subplots(1, 2)

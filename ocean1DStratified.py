@@ -16,7 +16,7 @@ from utils_linalg import full_to_half
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
 from shortwave_absorption import shortwave_fractional_decay, \
-        integrated_shortwave_frac_sl, Qsw_E
+        integrated_shortwave_frac_sl, Qsw_E, shortwave_frac_sl
 from bulk import SurfaceLayerData, friction_scales, \
         process_friction_scales_oce
 
@@ -228,10 +228,11 @@ class Ocean1dStratified():
 
             if not Neutral_case:
                 # integrate in time potential temperature
+                absorption_sl = shortwave_frac_sl(delta_sl)
                 swr_frac = shortwave_fractional_decay(self.M,
-                        self.h_full) # TODO Q_sw is positive downward?
-                forcing_theta = -swr_frac * Q_sw[n] \
-                        / self.rho0 / self.C_p
+                        np.diff(z_levels_sl)) * absorption_sl
+                forcing_theta = np.diff(swr_frac * Q_sw[n] \
+                        / self.rho0 / self.C_p) / self.h_half[:-1]
                 theta, dz_theta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
                         SL, SL_nm1)
@@ -374,9 +375,9 @@ class Ocean1dStratified():
 
             if not Neutral_case:
                 swr_frac = shortwave_fractional_decay(self.M,
-                        self.h_full) # Q_sw is positive downward
-                forcing_theta = -swr_frac * Q_sw[n] \
-                        / self.rho0 / self.C_p
+                        self.h_half) # Q_sw is positive downward
+                forcing_theta = np.diff(swr_frac * Q_sw[n] \
+                        / self.rho0 / self.C_p) / self.h_half[:-1]
                 # integrate in time potential temperature:
                 Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
                         Ktheta_full, forcing_theta)
@@ -619,7 +620,7 @@ class Ocean1dStratified():
 
         def tzM_m_t(z: float):
             QH = t_star * u_star * self.rho0 * self.C_p
-            term_lw = 1 - SL.Q_lw / QH
+            term_lw = 1 + SL.Q_lw / QH
             term_sw = Qsw_E(z, SL) / QH
             return t_star/self.kappa * term_lw * \
                     (np.log(1-z/SL.z_0H) - psi_h(-z*inv_L_MO)) \
@@ -1046,7 +1047,7 @@ class Ocean1dStratified():
         zeta = -SL.delta_sl*SL.inv_L_MO
         phi[k] = SL.u_star / self.kappa / \
                 (SL.z_0M-SL.delta_sl) * phi_m(zeta)
-        t_star_rad = SL.t_star - SL.Q_lw / SL.u_star \
+        t_star_rad = SL.t_star + SL.Q_lw / SL.u_star \
                 / self.rho0 / self.C_p
         dz_theta[k] = t_star_rad / self.kappa / \
                 (SL.z_0H-SL.delta_sl) * phi_h(zeta)
@@ -1118,7 +1119,7 @@ class Ocean1dStratified():
                     z*Psi_h(-z*inv_L_MO)
 
         QH = SL.t_star * SL.u_star * self.rho0 * self.C_p
-        term_lw = QH - SL.Q_lw
+        term_lw = QH + SL.Q_lw
 
         # numerical integration of Qws_E:
         integral_Qsw_E = integrate.quad(Qsw_E, delta_sl,
@@ -1480,7 +1481,7 @@ class Ocean1dStratified():
         """
             Y = (0     ,    1     )
             D = (K/h^2 , -K/h^2   )
-            c = (  F + (QH - Q_sw - Q_lw) / (h rho cp)   )
+            c = (  F + (QH + Q_sw + Q_lw) / (h rho cp)   )
         """
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0.,), (1.,), ())
@@ -1489,7 +1490,7 @@ class Ocean1dStratified():
             (- K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
         c = (forcing_theta[self.M - 1] + \
-            (QH - SL.Q_sw - SL.Q_lw) / self.rho0 / self.C_p / \
+            (QH + SL.Q_sw + SL.Q_lw) / self.rho0 / self.C_p / \
             self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
@@ -1497,7 +1498,7 @@ class Ocean1dStratified():
         """
             Y = (  0   ,   0  )
             D = ( K/h  , -K/h )
-            c = ( (QH - Q_sw E(delta_sl) - Q_lw) / (h rho cp) )
+            c = ( (QH + Q_sw E(delta_sl) + Q_lw) / (h rho cp) )
         """
         Y = ((0.,), (0.,), ())
         D = ((K_theta[self.M-1]/self.h_full[self.M-1],),
@@ -1505,7 +1506,7 @@ class Ocean1dStratified():
                 ())
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Q_swE = Qsw_E(SL.delta_sl, SL) #
-        c = ((QH - Q_swE - SL.Q_lw) / self.rho0 / self.C_p,)
+        c = ((QH + Q_swE + SL.Q_lw) / self.rho0 / self.C_p,)
         return Y, D, c, Y
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL, forcing_theta,
@@ -1523,7 +1524,7 @@ class Ocean1dStratified():
         """
             Y = (0     ,    1     )
             D = (K/h^2 , -K/h^2   )
-            c = (  F + (QH - Q_sw - Q_lw) / (h rho cp)   )
+            c = (  F + (QH + Q_sw + Q_lw) / (h rho cp)   )
         """
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0.,), (1.,), ())
@@ -1532,7 +1533,7 @@ class Ocean1dStratified():
             (- K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
         c = (forcing_theta[self.M - 1] + \
-            (QH - SL.Q_sw - SL.Q_lw) / self.rho0 / self.C_p / \
+            (QH + SL.Q_sw + SL.Q_lw) / self.rho0 / self.C_p / \
             self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
@@ -1545,7 +1546,7 @@ class Ocean1dStratified():
             D = (-K/h , K/h  ,  0)
                 (  0  , - K  ,  0)
             c = (               F                 )
-                (   (QH - Q_sw - Q_lw)/ (rho cp)  )
+                (   (QH + Q_sw + Q_lw)/ (rho cp)  )
         """
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0., 0.), (0., 0.), (1.,))
@@ -1555,7 +1556,7 @@ class Ocean1dStratified():
                 (K_theta[self.M] / self.h_half[self.M-1], 0))
         # QH: total heat
         # QS: solar part
-        c = (forcing_theta[self.M-1], (QH - SL.Q_sw - \
+        c = (forcing_theta[self.M-1], (QH + SL.Q_sw + \
                 SL.Q_lw)/(self.rho0*self.C_p))
         return Y, D, c, Y
 
@@ -1572,7 +1573,7 @@ class Ocean1dStratified():
 
             c = (         1/h (forcing_{k-1/2} - forcing_{k-3/2})  )
                 ( forcing_{k-1/2} + (partial_t + if) (u(0) (1-a)/a))
-                (          (QH - Q_sw - Q_lw)/ (rho cp)            )
+                (          (QH + Q_sw + Q_lw)/ (rho cp)            )
             after that, the matrices are filled for every M > m > k
             with 0 for Y
             D: (ldiag, diag, udiag) = (ratio_norms, -1, 0)
@@ -1618,7 +1619,7 @@ class Ocean1dStratified():
         rhs_part_tilde = (rhs_n - rhs_nm1)/self.dt
         c = ( (forcing_theta[k-1] - forcing_theta[k-2])/self.h_full[k-1],
                 forcing_theta[k-1] + rhs_part_tilde,
-                (QH - Q_swE - SL.Q_lw) / self.rho0 / self.C_p)
+                (QH + Q_swE + SL.Q_lw) / self.rho0 / self.C_p)
 
         Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
         Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)

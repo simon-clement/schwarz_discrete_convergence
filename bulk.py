@@ -80,7 +80,7 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         # Radiative fluxes:
         QH = to_star * uo_star * rho0 * c_p_oce
         if abs(QH) > 1e-50:
-            term_lw = 1 - Q_lw / QH
+            term_lw = 1 + Q_lw / QH
             term_Qw = Q_sw * integrated_shortwave_frac_sl(\
                     delta_sl_o, inv_L_o) / QH
         else:
@@ -89,7 +89,7 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         # Pelletier et al, 2021, equation (43):
         rhs_32 = np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a) + \
                 lambda_t * term_lw * (np.log(1-delta_sl_o/zo_0M)-\
-                    psis_o(zeta_o)) - lambda_t * term_Qw
+                    psis_o(zeta_o)) + lambda_t * term_Qw
         Ch    = kappa * np.sqrt(C_D) / rhs_32
 
         previous_u_star, previous_t_star = u_star, t_star
