@@ -73,6 +73,7 @@ class Ocean1dStratified():
         self.dTdz_bot: float = N0*N0/(alpha*9.81)
         self.implicit_coriolis: float = 0.55 # semi-implicit coefficient
         self.mxl_min: float = self.K_mol / ( self.C_m * np.sqrt(self.e_min) )
+        self.dict_tau_sl = {}
         # For each name of sf_scheme, two corresponding
         # methods defined at the bottom of this class:
         # sf_udelta_* is how we compute u(delta_sl) and
@@ -1105,6 +1106,8 @@ class Ocean1dStratified():
 
     def __tau_sl(self, SL: SurfaceLayerData,
             universal_funcs) -> (float, float):
+        if SL in self.dict_tau_sl:
+            return self.dict_tau_sl[SL]
         delta_sl, inv_L_MO = SL.delta_sl, SL.inv_L_MO
         Q_sw, Q_lw = SL.Q_sw, SL.Q_lw
         _, phi_h, psi_m, psi_h, Psi_m, Psi_h = universal_funcs
@@ -1144,6 +1147,7 @@ class Ocean1dStratified():
         else:
             tau_slt = numer_theta / denom_theta / self.h_half[SL.k-1]
 
+        self.dict_tau_sl[SL] = tau_slu, tau_slt
         return tau_slu, tau_slt
 
 
