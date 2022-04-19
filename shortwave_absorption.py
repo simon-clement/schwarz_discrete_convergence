@@ -5,6 +5,7 @@
 import numpy as np
 import scipy.integrate
 from numba import jit
+from scipy.special import exp1
 
 @jit(nopython=True)
 def shortwave_fractional_decay(M, h_half):
@@ -38,44 +39,61 @@ def shortwave_fractional_decay(M, h_half):
         swr_frac[k]=swdk1+swdk2
     return swr_frac
 
+# A_i = np.array([.237, .360, .179, .087, .08, .0246,
+#     .025, .007, .0004])
+# k_i = 1./np.array([34.8, 2.27, 3.15e-2,
+#     5.48e-3, 8.32e-4, 1.26e-4, 3.13e-4, 7.82e-5, 1.44e-5])
+# replacing by the four first values for numerical stability:
+A_i = np.array([.237, .360, .179, .087+.08+.0246+.025+.007+.0004])
+k_i = 1./np.array([34.8, 2.27, 3.15e-2, 5.48e-3])
+
 @jit(nopython=True)
 def shortwave_frac_sl(z):
     """
         Paulson and Simpson, 1981
     """
-    A_i = np.array([.237, .360, .179, .087, .08, .0246,
-        .025, .007, .0004])
-    k_i = 1./np.array([34.8, 2.27, 3.15e-2,
-        5.48e-3, 8.32e-4, 1.26e-4, 3.13e-4, 7.82e-5, 1.44e-5])
     return np.sum(A_i * np.exp(np.outer(z, k_i)), axis=-1)
 
 @jit(nopython=True)
 def to_integrate_swfrac_sl(z: float, inv_L_MO: float) -> float:
+    """
+        returns 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z')))
+    """
     zeta: float = -z*inv_L_MO
     Ch: float = np.cbrt(1-25*zeta) # in shortwave_absorption.py
     phi_h: float = 5*zeta + 1 if zeta >= 0 else 1/Ch
     sw_frac: float = shortwave_frac_sl(z)[0]
     return phi_h * sw_frac / z
 
-@jit(nopython=True)
-def integrated_shortwave_frac_sl(z: float, inv_L_MO: float) -> float:
+def integrated_shortwave_frac_sl(z: float, inv_L_MO: float,
+        z0H: float) -> float:
     """
         int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
         returns E(z)
     """
-    if abs(z) < 1e-5:
+    if (np.abs(np.asarray(z)) < 1e-5).all():
         return 0.
-    n: int = 30
-    s: float = 0.
-    for z_prim in np.linspace(z*1e-5, z, n):
-        s += to_integrate_swfrac_sl(z_prim, inv_L_MO)
-    return -z * s / n
+    n: int=30
+    zprim = np.linspace(z*1e-5, z, n)
+    ki_z = np.squeeze(np.outer(z, k_i))
+    ki_zprim = np.outer(zprim, k_i)
+    ki_z0H = np.minimum(k_i * z0H, 700.) # avoids overflow in exp
+    # ki_z0H > 700 only happens when bulk fails and z0H>>1.
+    # it is associated with small A_i anyway.
+    exp1_m_exp1 = exp1(ki_z0H) - exp1(ki_z0H-ki_z)
+    left_part = np.sum(A_i * np.exp(ki_z0H) * exp1_m_exp1, axis=-1)
+    right_part = np.sum(A_i * np.exp(ki_zprim), axis=-1)
 
-@jit(nopython=True)
+    zet = -zprim*inv_L_MO
+    phi_h = np.select([zet>=0,zet<0], [5*zet+1, np.cbrt(1-25*zet)])
+    right_part *= (1 - phi_h) / (z0H-zprim)
+    return left_part - (-z) * np.sum(right_part) / n
+
 def Qsw_E(z: float, SL):
     """
         SHORTWAVE RADIATIVE FLUX:
         returns Qsw * E(z)
     """
-    return SL.Q_sw * integrated_shortwave_frac_sl(z, SL.inv_L_MO)
+    return SL.Q_sw * integrated_shortwave_frac_sl(z, SL.inv_L_MO,
+            SL.z_0H)
 

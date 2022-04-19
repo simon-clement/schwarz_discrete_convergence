@@ -82,7 +82,7 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         if abs(QH) > 1e-50:
             term_lw = 1 + Q_lw / QH
             term_Qw = Q_sw * integrated_shortwave_frac_sl(\
-                    delta_sl_o, inv_L_o) / QH
+                    delta_sl_o, inv_L_o, zo_0H) / QH
         else:
             term_lw = term_Qw = 0.
 

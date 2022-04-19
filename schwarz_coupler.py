@@ -56,7 +56,7 @@ def schwarz_coupling(simulator_oce: Ocean1dStratified,
     """
     atm_state, oce_state = [initialization_atmosphere(parameters,
         simulator_atm)], []
-    NUMBER_SCHWARZ_ITERATION = 1
+    NUMBER_SCHWARZ_ITERATION = 2
     for _ in range(NUMBER_SCHWARZ_ITERATION):
         oce_state += [compute_ocean(simulator_oce,
             atm_state[-1], parameters, **kwargs)]

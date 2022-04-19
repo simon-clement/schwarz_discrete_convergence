@@ -48,11 +48,13 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str):
     f = 1e-4 # Coriolis parameter
     time = np.linspace(0, T) # number of time steps is not important
+    # because of the projection
     alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
     Qswmax = 800.
+    Qlw = -np.ones_like(time) * Qswmax / np.pi
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400.)), 0. ) * \
             Qswmax / (rho0*cp)
-    Qsw, Qlw = srflx * rho0*cp, -np.ones_like(srflx) * 100.
+    Qsw = srflx * rho0*cp
     z_levels_oce = np.linspace(-50., 0., 51)
     z_levels_atm = IFS_z_levels_stratified
     simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
@@ -62,7 +64,13 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     K_mol_a = simulator_oce.K_mol / mu_m
     simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
             dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
-    delta_sl_o = z_levels_oce[-2]/2
+    if sf_scheme_o == "FV free":
+        delta_sl_o = z_levels_oce[-2]/2.
+    elif sf_scheme_o == "FD2":
+        delta_sl_o = z_levels_oce[-2]
+    elif sf_scheme_o in {"FV test", "FD test", "FD pure"}:
+        delta_sl_o = 0.
+
     numer_setting = NumericalSetting(T=T,
             sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
             delta_sl_a=z_levels_atm[1]/2,
@@ -71,43 +79,62 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
             Q_sw=Qsw)
     states_atm, states_oce = schwarz_coupling(simulator_oce,
             simulator_atm, numer_setting, store_all=store_all)
-    za = simulator_atm.z_half[:-1]
-    zo = simulator_oce.z_half[:-1]
+    if store_all and sf_scheme_a[:2] == "FV":
+        print("Reconstructing solutions...")
+        for state_atm in states_atm[1:]:
+            all_u = state_atm.other["all_u"]
+            all_phi = state_atm.other["all_phi"]
+            all_t = state_atm.other["all_theta"]
+            all_dzt = state_atm.other["all_dz_theta"]
+            all_SL = state_atm.other["all_SL"]
+            for frame in range(len(all_u)):
+                za, all_u[frame], all_t[frame] = \
+                        simulator_atm.reconstruct_FV(all_u[frame],
+                        all_phi[frame], all_t[frame], all_dzt[frame],
+                        all_SL[frame],
+                        ignore_loglaw=(sf_scheme_a == "FV free"))
+    else:
+        za = simulator_atm.z_half[:-1]
+
+    if store_all and sf_scheme_o[:2] == "FV":
+        for state_oce in states_oce:
+            all_u = state_oce.other["all_u"]
+            all_phi = state_oce.other["all_phi"]
+            all_t = state_oce.other["all_theta"]
+            all_dzt = state_oce.other["all_dz_theta"]
+            all_SL = state_oce.other["all_SL"]
+            for frame in range(len(all_u)):
+                zo, all_u[frame], all_t[frame] = \
+                        simulator_oce.reconstruct_FV(all_u[frame],
+                        all_phi[frame], all_t[frame], all_dzt[frame],
+                        all_SL[frame],
+                        ignore_loglaw=(sf_scheme_o == "FV free"))
+        print("... Done.")
+    else:
+        zo = simulator_oce.z_half[:-1]
+
     return states_atm, states_oce, za, zo
 
-def fig_coupling():
+def half_to_full(z_half):
+    z_min = z_half[0] + z_half[0] - z_half[1]
+    z_max = z_half[-1] + z_half[-1] - z_half[-2]
+    z_min = 0. if z_min * z_half[0] < 0 else z_min
+    z_max = 0. if z_max * z_half[-1] < 0 else z_max
+    return np.concatenate(([z_min], (z_half[1:] + z_half[:-1])/2,
+            [z_max]))
+
+def colorplot(ax, sf_scheme: str, vmin: float=None,
+        vmax: float=None, ignore_cached: bool=False):
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
-    T = 10000 # length of the time window
-
-    states_atm, states_oce, z_half_atm, z_half_oce = \
-        memoised(simulation_coupling, dt_oce, dt_atm, T, False)
-    fig, axes = plt.subplots(1, 3)
-    axes[0].plot(np.real(states_oce[0].last_tstep["u"]), z_half_oce, "r")
-    axes[0].plot(np.real(states_atm[1].last_tstep["u"]), z_half_atm, "r")
-    axes[0].plot(np.real(states_oce[1].last_tstep["u"]), z_half_oce, "b")
-    axes[0].plot(np.real(states_atm[2].last_tstep["u"]), z_half_atm, "b")
-    axes[0].plot(np.real(states_oce[2].last_tstep["u"]), z_half_oce, "g")
-    axes[0].plot(np.real(states_atm[3].last_tstep["u"]), z_half_atm, "g")
-
-    axes[1].plot((states_oce[0].last_tstep["theta"]), z_half_oce, "r")
-    axes[1].plot((states_atm[1].last_tstep["theta"]), z_half_atm, "r")
-    axes[1].plot((states_oce[1].last_tstep["theta"]), z_half_oce, "b")
-    axes[1].plot((states_atm[2].last_tstep["theta"]), z_half_atm, "b")
-    axes[1].plot((states_oce[2].last_tstep["theta"]), z_half_oce, "g")
-    axes[1].plot((states_atm[3].last_tstep["theta"]), z_half_atm, "g")
-    show_or_save("fig_coupling")
-
-def fig_colormapCoupling():
-    dt_oce = 90. # oceanic time step
-    dt_atm = 30. # atmosphere time step
-    T = 100000 # length of the time window
+    number_of_days = 3.3
+    T = 86400 * number_of_days # length of the time window
     states_atm, states_oce, za, zo = \
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
-                sf_scheme_a="FD pure", sf_scheme_o="FD pure")
+                sf_scheme_a=sf_scheme, sf_scheme_o=sf_scheme,
+                ignore_cached=ignore_cached)
     state_atm = states_atm[-1]
     state_oce = states_oce[-1]
-    fig, axes = plt.subplots(2, 2)
     all_ua = np.real(np.array(state_atm.other["all_u"]))
     all_ta = np.array(state_atm.other["all_theta"])
     uo = np.real(np.array(state_oce.other["all_u"]))
@@ -121,41 +148,49 @@ def fig_colormapCoupling():
 
     N_threshold = N_oce//2
     ########## pcolormesh
-    x = np.linspace(T/2, T, N_oce+1 - N_threshold)  # len = 10
-    Xa, Ya = np.meshgrid(za, x)
-    Xo, Yo = np.meshgrid(zo, x)
-    vmin = min(np.min(ua), np.min(uo))
-    vmax = max(np.max(ua), np.max(uo))
+    x = np.linspace(T/2, T, N_oce+1 - N_threshold)
+    Xa, Ya = np.meshgrid(half_to_full(za), x)
+    Xo, Yo = np.meshgrid(half_to_full(zo), x)
 
-    axes[0, 0].pcolormesh(Ya, Xa, ua[N_threshold+1:, :-1], vmin=vmin,
-            vmax=vmax, shading='auto')
-    axes[1, 0].pcolormesh(Yo, Xo, uo[N_threshold:, 1:], vmin=vmin,
-            vmax=vmax, shading='auto')
-    axes[0, 0].set_title("wind, current")
+    vmin = min(np.min(ta), np.min(to)) if vmin is None else vmin
+    vmax = max(np.max(ta), np.max(to)) if vmax is None else vmax
 
-    vmin = min(np.min(ta), np.min(to))
-    vmax = max(np.max(ta), np.max(to))
-    axes[0, 1].pcolormesh(Ya, Xa, ta[N_threshold+1:, :-1], vmin=vmin,
+    col_a = ax.pcolormesh(Ya, Xa, ta[N_threshold+1:], vmin=vmin,
             vmax=vmax, shading='auto')
-    axes[1, 1].pcolormesh(Yo, Xo, to[N_threshold:, 1:], vmin=vmin,
+    ax.pcolormesh(Yo, Xo, to[N_threshold:], vmin=vmin,
             vmax=vmax, shading='auto')
-    axes[0, 1].set_title("Temperature")
-    for i in (0, 1):
-        for j in (0, 1):
-            axes[i,j].set_yscale("symlog", linthresh=0.1)
+    ax.set_title("Temperature")
+    ax.set_yscale("symlog", linthresh=10.)
+    return col_a
 
-    show_or_save("fig_colormapCoupling")
+def fig_colorplotCoupling():
+    fig, ax = plt.subplots(4,1)
+    fig.colorbar(colorplot(ax[0], "FD2",
+        vmin=279., vmax=281.5), ax=ax[0])
+    fig.colorbar(colorplot(ax[1], "FD pure",
+        vmin=279., vmax=281.5), ax=ax[1])
+    fig.colorbar(colorplot(ax[2], "FV free",
+        vmin=279., vmax=281.5), ax=ax[2])
+    fig.colorbar(colorplot(ax[3], "FV test",
+        vmin=279., vmax=281.5), ax=ax[3])
+    show_or_save("fig_colorplotCoupling")
 
 def fig_animCoupling():
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
-    T = 300000 # length of the time window
-    states_atm, states_oce, za, zo = \
-        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
-                sf_scheme_a="FV free", sf_scheme_o="FV free")
+    number_of_days = 3.3
+    # TODO radiation is not working well:
+    # changing delta_sl changes *everything* when Qswmax is
+    # increased
+    T = 86400 * number_of_days # length of the time window
     states_atmFD, states_oceFD, _, _ = \
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
-                sf_scheme_a="FD2", sf_scheme_o="FD2")
+                sf_scheme_a="FD2", sf_scheme_o="FD2"
+                , ignore_cached=True)
+    states_atm, states_oce, za, zo = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                sf_scheme_a="FV free", sf_scheme_o="FV free",
+                ignore_cached=True)
     state_atm = states_atm[-1]
     state_oce = states_oce[-1]
     state_atmFD = states_atmFD[-1]
@@ -183,8 +218,8 @@ def fig_animCoupling():
     axes[1,1].set_yscale("symlog", linthresh=0.1)
 
     def init():
-        axes[1, 1].set_xlim(260., 290.)
-        axes[0, 1].set_xlim(260., 290.)
+        axes[1, 1].set_xlim(270., 290.)
+        axes[0, 1].set_xlim(270., 290.)
         axes[0, 0].set_xlim(-4., 15.)
         axes[1, 0].set_xlim(-4., 15.)
         axes[0, 0].set_ylim(za[0], za[-1])
@@ -217,7 +252,7 @@ def fig_animCoupling():
         return line_ua, line_ta, line_uo, line_to, \
             line_uaFD, line_taFD, line_uoFD, line_toFD
     ani = FuncAnimation(fig, update,
-            frames=range(0, N_oce, 10),
+            frames=range(0, N_oce, 1),
                     init_func=init, blit=True)
 
     show_or_save("fig_animCoupling")
