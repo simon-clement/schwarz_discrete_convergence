@@ -16,7 +16,7 @@ from utils_linalg import full_to_half
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
 from shortwave_absorption import shortwave_fractional_decay, \
-        integrated_shortwave_frac_sl, Qsw_E, shortwave_frac_sl
+        Qsw_E, shortwave_frac_sl
 from bulk import SurfaceLayerData, friction_scales, \
         process_friction_scales_oce
 
@@ -229,6 +229,9 @@ class Ocean1dStratified():
             if not Neutral_case:
                 # integrate in time potential temperature
                 absorption_sl = shortwave_frac_sl(delta_sl)
+                if sf_scheme != "FV free":
+                    absorption_sl = 1. # for FV pure we want
+                    # to have a forcing that takes effect in the SL
                 swr_frac = shortwave_fractional_decay(self.M,
                         np.diff(z_levels_sl)) * absorption_sl
                 forcing_theta = np.diff(swr_frac * Q_sw[n] \
@@ -1500,15 +1503,15 @@ class Ocean1dStratified():
         """
             Y = (  0   ,   0  )
             D = ( K/h  , -K/h )
-            c = ( (QH + Q_sw E(delta_sl) + Q_lw) / (h rho cp) )
+            c = ( (QH + Q_sw(delta_sl) + Q_lw) / (rho cp) )
         """
         Y = ((0.,), (0.,), ())
         D = ((K_theta[self.M-1]/self.h_full[self.M-1],),
                 (-K_theta[self.M-1]/self.h_full[self.M-1],),
                 ())
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
-        Q_swE = Qsw_E(SL.delta_sl, SL) #
-        c = ((QH + Q_swE + SL.Q_lw) / self.rho0 / self.C_p,)
+        Q_sw = SL.Q_sw * shortwave_frac_sl(SL.delta_sl)
+        c = ((QH + Q_sw + SL.Q_lw) / self.rho0 / self.C_p,)
         return Y, D, c, Y
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL, forcing_theta,
@@ -1614,14 +1617,14 @@ class Ocean1dStratified():
                     0.))#UPPER DIAG
 
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
-        Q_swE = Qsw_E(SL.delta_sl, SL)
+        Q_sw = SL.Q_sw * shortwave_frac_sl(SL.delta_sl)
 
         rhs_n = SL.t_0 * (1 - alpha)/alpha
         rhs_nm1 = SL_nm1.t_0 * (1 - alpha_nm1)/alpha_nm1
         rhs_part_tilde = (rhs_n - rhs_nm1)/self.dt
         c = ( (forcing_theta[k-1] - forcing_theta[k-2])/self.h_full[k-1],
                 forcing_theta[k-1] + rhs_part_tilde,
-                (QH + Q_swE + SL.Q_lw) / self.rho0 / self.C_p)
+                (QH + Q_sw + SL.Q_lw) / self.rho0 / self.C_p)
 
         Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
         Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)
