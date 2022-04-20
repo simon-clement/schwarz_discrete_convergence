@@ -9,6 +9,7 @@ import bisect
 import numpy as np
 from tqdm import tqdm
 from scipy import integrate
+import warnings
 from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
 from utils_linalg import solve_linear, orientation
@@ -20,6 +21,7 @@ from shortwave_absorption import shortwave_fractional_decay, \
 from bulk import SurfaceLayerData, friction_scales, \
         process_friction_scales_oce
 
+warnings.filterwarnings("error")
 array = np.ndarray
 
 class Ocean1dStratified():

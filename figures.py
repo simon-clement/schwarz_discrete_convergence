@@ -70,7 +70,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
             dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
     if sf_scheme_o == "FV free":
-        delta_sl_o = z_levels_oce[-2]/2.
+        delta_sl_o = 0.
     elif sf_scheme_o == "FD2":
         delta_sl_o = z_levels_oce[-2]
     elif sf_scheme_o in {"FV test", "FD test", "FD pure"}:
@@ -89,7 +89,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
             Q_sw=Qsw)
     states_atm, states_oce = schwarz_coupling(simulator_oce,
             simulator_atm, numer_setting, store_all=store_all,
-            NUMBER_SCHWARZ_ITERATION=4)
+            NUMBER_SCHWARZ_ITERATION=3)
     if store_all and sf_scheme_a[:2] == "FV":
         print("Reconstructing solutions...")
         for state_atm in states_atm[1:]:
@@ -132,7 +132,8 @@ def half_to_full(z_half: np.ndarray, ocean: bool):
     return np.concatenate(([z_min], (z_half[1:] + z_half[:-1])/2,
             [z_max]))
 
-def colorplot(ax, sf_scheme: str, vmin: float=None,
+def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
+        vmin: float=None,
         vmax: float=None, ignore_cached: bool=False,
         ITERATION: int=1):
     dt_oce = 90. # oceanic time step
@@ -141,7 +142,7 @@ def colorplot(ax, sf_scheme: str, vmin: float=None,
     T = 86400 * number_of_days # length of the time window
     states_atm, states_oce, za, zo = \
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
-                sf_scheme_a=sf_scheme, sf_scheme_o=sf_scheme,
+                sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
                 ignore_cached=ignore_cached)
     state_atm = states_atm[ITERATION+1]
     state_oce = states_oce[ITERATION]
@@ -169,16 +170,18 @@ def colorplot(ax, sf_scheme: str, vmin: float=None,
             vmax=vmax, cmap="seismic", shading='auto')
     ax.pcolormesh(Yo, Xo, to[N_threshold:], vmin=vmin,
             vmax=vmax, cmap="seismic", shading='auto')
-    ax.set_title(sf_scheme)
+    ax.set_title("atm: " + sf_scheme_a + ", ocean: " + sf_scheme_o)
     ax.set_yscale("symlog", linthresh=10.)
     return col_a
 
 def fig_colorplotCoupling():
     fig, axes = plt.subplots(4,1)
-    for ax, sf_scheme in tqdm(zip(axes, ("FD2", "FD pure", "FV free",
-        "FV test")), leave=False, total=3):
-        fig.colorbar(colorplot(ax, sf_scheme,
-            vmin=278., vmax=283.5, ITERATION=1), ax=ax)
+    for ax, sf_scheme_a, sf_scheme_o in tqdm(zip(axes,
+        ("FD2", "FD pure", "FV free", "FV free"), # Atmosphere
+        ("FD2", "FD pure", "FV free", "FV test"), # Ocean
+        ), leave=False, total=4):
+        fig.colorbar(colorplot_coupling(ax, sf_scheme_a, sf_scheme_o,
+            vmin=278., vmax=283.5, ITERATION=0), ax=ax)
     show_or_save("fig_colorplotCoupling")
 
 def fig_animCoupling():
