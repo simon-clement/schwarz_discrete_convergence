@@ -228,7 +228,7 @@ class Ocean1dStratified():
 
             if not Neutral_case:
                 # integrate in time potential temperature
-                absorption_sl = shortwave_frac_sl(delta_sl)
+                absorption_sl = np.squeeze(shortwave_frac_sl(delta_sl))
                 if sf_scheme != "FV free":
                     absorption_sl = 1. # for FV pure we want
                     # to have a forcing that takes effect in the SL
@@ -1510,7 +1510,7 @@ class Ocean1dStratified():
                 (-K_theta[self.M-1]/self.h_full[self.M-1],),
                 ())
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
-        Q_sw = SL.Q_sw * shortwave_frac_sl(SL.delta_sl)
+        Q_sw = SL.Q_sw * np.squeeze(shortwave_frac_sl(SL.delta_sl))
         c = ((QH + Q_sw + SL.Q_lw) / self.rho0 / self.C_p,)
         return Y, D, c, Y
 
@@ -1617,7 +1617,7 @@ class Ocean1dStratified():
                     0.))#UPPER DIAG
 
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
-        Q_sw = SL.Q_sw * shortwave_frac_sl(SL.delta_sl)
+        Q_sw = SL.Q_sw * np.squeeze(shortwave_frac_sl(SL.delta_sl))
 
         rhs_n = SL.t_0 * (1 - alpha)/alpha
         rhs_nm1 = SL_nm1.t_0 * (1 - alpha_nm1)/alpha_nm1
