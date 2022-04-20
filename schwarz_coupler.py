@@ -3,6 +3,7 @@
     This module is here to simulate the OA coupling.
 """
 from typing import NamedTuple, List, Dict
+from tqdm import tqdm
 import numpy as np
 from scipy import interpolate
 from atm1DStratified import Atm1dStratified
@@ -49,6 +50,7 @@ class NumericalSetting(NamedTuple):
 def schwarz_coupling(simulator_oce: Ocean1dStratified,
         simulator_atm: Atm1dStratified,
         parameters: NumericalSetting,
+        NUMBER_SCHWARZ_ITERATION: int=1,
         **kwargs)-> (List[StateAtm], List[StateOce]):
     """
         computes the coupling between the two models
@@ -56,12 +58,14 @@ def schwarz_coupling(simulator_oce: Ocean1dStratified,
     """
     atm_state, oce_state = [initialization_atmosphere(parameters,
         simulator_atm)], []
-    NUMBER_SCHWARZ_ITERATION = 2
-    for _ in range(NUMBER_SCHWARZ_ITERATION):
-        oce_state += [compute_ocean(simulator_oce,
-            atm_state[-1], parameters, **kwargs)]
-        atm_state += [compute_atmosphere(simulator_atm,
-            oce_state[-1], parameters, **kwargs)]
+    with tqdm(total=NUMBER_SCHWARZ_ITERATION*2, leave=False) as pbar:
+        for _ in range(NUMBER_SCHWARZ_ITERATION):
+            oce_state += [compute_ocean(simulator_oce,
+                atm_state[-1], parameters, **kwargs)]
+            pbar.update(1)
+            atm_state += [compute_atmosphere(simulator_atm,
+                oce_state[-1], parameters, **kwargs)]
+            pbar.update(1)
     return atm_state, oce_state
 
 def initialization_atmosphere(numer_set: NumericalSetting,

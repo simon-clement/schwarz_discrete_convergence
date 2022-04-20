@@ -8,6 +8,7 @@ import bisect
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from tqdm import tqdm
 from matplotlib.animation import FuncAnimation
 from memoisation import memoised
 from atm1DStratified import Atm1dStratified
@@ -44,6 +45,10 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # less levels in the stratified case
 
+def fig_forcedOcean():
+    from validation_oce1D import forcedOcean
+    return forcedOcean("FD2")
+
 def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str):
     f = 1e-4 # Coriolis parameter
@@ -71,14 +76,20 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     elif sf_scheme_o in {"FV test", "FD test", "FD pure"}:
         delta_sl_o = 0.
 
+    if sf_scheme_a in {"FV free", "FV test", "FD pure", "FD test"}:
+        delta_sl_a = z_levels_atm[1]/2.
+    else: # sf_scheme_a == "FD2":
+        delta_sl_a = z_levels_atm[1]
+
     numer_setting = NumericalSetting(T=T,
             sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
-            delta_sl_a=z_levels_atm[1]/2,
+            delta_sl_a=delta_sl_a,
             delta_sl_o=delta_sl_o,
             Q_lw=Qlw,
             Q_sw=Qsw)
     states_atm, states_oce = schwarz_coupling(simulator_oce,
-            simulator_atm, numer_setting, store_all=store_all)
+            simulator_atm, numer_setting, store_all=store_all,
+            NUMBER_SCHWARZ_ITERATION=4)
     if store_all and sf_scheme_a[:2] == "FV":
         print("Reconstructing solutions...")
         for state_atm in states_atm[1:]:
@@ -92,7 +103,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
                         simulator_atm.reconstruct_FV(all_u[frame],
                         all_phi[frame], all_t[frame], all_dzt[frame],
                         all_SL[frame],
-                        ignore_loglaw=(sf_scheme_a == "FV free"))
+                        ignore_loglaw=(sf_scheme_a != "FV free"))
     else:
         za = simulator_atm.z_half[:-1]
 
@@ -108,23 +119,22 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
                         simulator_oce.reconstruct_FV(all_u[frame],
                         all_phi[frame], all_t[frame], all_dzt[frame],
                         all_SL[frame],
-                        ignore_loglaw=(sf_scheme_o == "FV free"))
+                        ignore_loglaw=(sf_scheme_o != "FV free"))
         print("... Done.")
     else:
         zo = simulator_oce.z_half[:-1]
 
     return states_atm, states_oce, za, zo
 
-def half_to_full(z_half):
-    z_min = z_half[0] + z_half[0] - z_half[1]
-    z_max = z_half[-1] + z_half[-1] - z_half[-2]
-    z_min = 0. if z_min * z_half[0] < 0 else z_min
-    z_max = 0. if z_max * z_half[-1] < 0 else z_max
+def half_to_full(z_half: np.ndarray, ocean: bool):
+    z_min = z_half[0] + z_half[0] - z_half[1] if ocean else 0.
+    z_max = z_half[-1] + z_half[-1] - z_half[-2] if not ocean else 0.
     return np.concatenate(([z_min], (z_half[1:] + z_half[:-1])/2,
             [z_max]))
 
 def colorplot(ax, sf_scheme: str, vmin: float=None,
-        vmax: float=None, ignore_cached: bool=False):
+        vmax: float=None, ignore_cached: bool=False,
+        ITERATION: int=1):
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
     number_of_days = 3.3
@@ -133,8 +143,8 @@ def colorplot(ax, sf_scheme: str, vmin: float=None,
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
                 sf_scheme_a=sf_scheme, sf_scheme_o=sf_scheme,
                 ignore_cached=ignore_cached)
-    state_atm = states_atm[-1]
-    state_oce = states_oce[-1]
+    state_atm = states_atm[ITERATION+1]
+    state_oce = states_oce[ITERATION]
     all_ua = np.real(np.array(state_atm.other["all_u"]))
     all_ta = np.array(state_atm.other["all_theta"])
     uo = np.real(np.array(state_oce.other["all_u"]))
@@ -146,33 +156,29 @@ def colorplot(ax, sf_scheme: str, vmin: float=None,
         ua[:, i] = projection(all_ua[:, i], N_oce)
         ta[:, i] = projection(all_ta[:, i], N_oce)
 
-    N_threshold = N_oce//2
+    N_threshold = 0
     ########## pcolormesh
     x = np.linspace(T/2, T, N_oce+1 - N_threshold)
-    Xa, Ya = np.meshgrid(half_to_full(za), x)
-    Xo, Yo = np.meshgrid(half_to_full(zo), x)
+    Xa, Ya = np.meshgrid(half_to_full(za, ocean=False), x)
+    Xo, Yo = np.meshgrid(half_to_full(zo, ocean=True), x)
 
     vmin = min(np.min(ta), np.min(to)) if vmin is None else vmin
     vmax = max(np.max(ta), np.max(to)) if vmax is None else vmax
 
     col_a = ax.pcolormesh(Ya, Xa, ta[N_threshold+1:], vmin=vmin,
-            vmax=vmax, shading='auto')
+            vmax=vmax, cmap="seismic", shading='auto')
     ax.pcolormesh(Yo, Xo, to[N_threshold:], vmin=vmin,
-            vmax=vmax, shading='auto')
-    ax.set_title("Temperature")
+            vmax=vmax, cmap="seismic", shading='auto')
+    ax.set_title(sf_scheme)
     ax.set_yscale("symlog", linthresh=10.)
     return col_a
 
 def fig_colorplotCoupling():
-    fig, ax = plt.subplots(4,1)
-    fig.colorbar(colorplot(ax[0], "FD2",
-        vmin=279., vmax=281.5), ax=ax[0])
-    fig.colorbar(colorplot(ax[1], "FD pure",
-        vmin=279., vmax=281.5), ax=ax[1])
-    fig.colorbar(colorplot(ax[2], "FV free",
-        vmin=279., vmax=281.5), ax=ax[2])
-    fig.colorbar(colorplot(ax[3], "FV test",
-        vmin=279., vmax=281.5), ax=ax[3])
+    fig, axes = plt.subplots(4,1)
+    for ax, sf_scheme in tqdm(zip(axes, ("FD2", "FD pure", "FV free",
+        "FV test")), leave=False, total=3):
+        fig.colorbar(colorplot(ax, sf_scheme,
+            vmin=278., vmax=283.5, ITERATION=1), ax=ax)
     show_or_save("fig_colorplotCoupling")
 
 def fig_animCoupling():

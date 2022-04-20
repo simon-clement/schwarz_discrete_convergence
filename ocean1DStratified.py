@@ -7,7 +7,7 @@
 from typing import Tuple, List, NamedTuple
 import bisect
 import numpy as np
-from progressbar import ProgressBar
+from tqdm import tqdm
 from scipy import integrate
 from utils_linalg import multiply, scal_multiply as s_mult
 from utils_linalg import add_banded as add
@@ -30,7 +30,7 @@ class Ocean1dStratified():
             N0: float, alpha: float, dt: float=30.,
             u_geostrophy: float=10.,
             K_mol: float=1e-4, C_p: float=3985., f: float=1e-4,
-            loading_bar: bool=True) -> None:
+            loading_bar: bool=False) -> None:
         """
             z_levels starts at bottom of ocean and contains
             all the full levels $z_m$ until $z_M=0$.
@@ -196,8 +196,7 @@ class Ocean1dStratified():
         ret_u_current, ret_tke, ret_SL = [], [], []
         ret_phi, ret_theta, ret_dz_theta, ret_leps = [], [], [], []
 
-        progressbar = ProgressBar()
-        for n in progressbar(range(1,N+1)) \
+        for n in tqdm(range(1,N+1), total=N, leave=False) \
                 if self.loading_bar else range(1,N+1):
             # Compute friction scales:
             SL_nm1 = SL
@@ -342,8 +341,7 @@ class Ocean1dStratified():
         all_u_star = []
         all_u, all_tke, all_theta, all_leps = [], [], [], []
         ret_u_delta, ret_t_delta = [], []
-        progressbar = ProgressBar()
-        for n in progressbar(range(1,N+1)) \
+        for n in tqdm(range(1,N+1), total=N, leave=False) \
                 if self.loading_bar else range(1,N+1):
             u_delta = func_un(prognostic=u_current, delta_sl=delta_sl)
             t_delta = func_theta(prognostic=theta)

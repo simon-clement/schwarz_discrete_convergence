@@ -25,7 +25,7 @@ def forcedOcean(sf_scheme: str):
     z_levels = np.linspace(-50., 0., 51)
     simulator_oce = Ocean1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
-            N0=N0)
+            N0=N0, loading_bar=True)
     number_of_days = 4
     T = 86400 * number_of_days
     N = int(T / dt)
