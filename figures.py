@@ -55,13 +55,15 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     time = np.linspace(0, T) # number of time steps is not important
     # because of the projection
     alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
-    Qswmax = 800.
+    Qswmax = 1600.
     Qlw = -np.ones_like(time) * Qswmax / np.pi
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400.)), 0. ) * \
             Qswmax / (rho0*cp)
     Qsw = srflx * rho0*cp
-    z_levels_oce = np.linspace(-50., 0., 51)
-    z_levels_atm = IFS_z_levels_stratified
+    z_levels_oce = np.concatenate((-np.linspace(30,1,30)**1.5-50,
+        np.linspace(-50., 0., 51)))
+    z_levels_atm = np.concatenate((np.linspace(0.,500, 51),
+        10*np.linspace(1,15,15)**1.5+500))
     simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
             dt=dt_oce, u_geostrophy=0., f=f, alpha=alpha,
             N0=N0)
@@ -158,8 +160,10 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
         ta[:, i] = projection(all_ta[:, i], N_oce)
 
     N_threshold = 0
+    T_threshold = T * N_threshold / N_oce
     ########## pcolormesh
-    x = np.linspace(T/2, T, N_oce+1 - N_threshold)
+    x = np.linspace(T_threshold/86400, T/86400,
+            N_oce+1 - N_threshold)
     Xa, Ya = np.meshgrid(half_to_full(za, ocean=False), x)
     Xo, Yo = np.meshgrid(half_to_full(zo, ocean=True), x)
 
@@ -271,8 +275,9 @@ def fig_launchOcean():
     dt = 30.
     f = 0.
     T0, alpha, N0 = 16., 0.0002, 0.01
-    z_levels = np.linspace(-50., 0., 51)
-    simulator_oce = Ocean1dStratified(z_levels=z_levels,
+    z_levels_oce = np.concatenate((-np.linspace(30,0,31)**1.5-50,
+        np.linspace(-50., 0., 51)))
+    simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
             N0=N0)
 

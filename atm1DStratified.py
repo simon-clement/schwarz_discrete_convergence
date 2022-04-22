@@ -14,8 +14,6 @@ from utils_linalg import full_to_half
 from bulk import SurfaceLayerData, friction_scales
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
-def pr(var, name="atm"):
-    print(var, name)
 
 array = np.ndarray
 # TKE coefficients:
