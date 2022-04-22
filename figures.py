@@ -72,7 +72,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
             dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
     if sf_scheme_o == "FV free":
-        delta_sl_o = 0.
+        delta_sl_o = z_levels_oce[-2]
     elif sf_scheme_o == "FD2":
         delta_sl_o = z_levels_oce[-2]
     elif sf_scheme_o in {"FV test", "FD test", "FD pure"}:
@@ -171,21 +171,39 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     vmax = max(np.max(ta), np.max(to)) if vmax is None else vmax
 
     col_a = ax.pcolormesh(Ya, Xa, ta[N_threshold+1:], vmin=vmin,
-            vmax=vmax, cmap="seismic", shading='auto')
+            vmax=vmax, cmap="seismic", shading='flat')
     ax.pcolormesh(Yo, Xo, to[N_threshold:], vmin=vmin,
-            vmax=vmax, cmap="seismic", shading='auto')
-    ax.set_title("atm: " + sf_scheme_a + ", ocean: " + sf_scheme_o)
+            vmax=vmax, cmap="seismic", shading='flat')
+    delta_atm = {"FD2": 10.,
+            "FD pure": 5., "FV free" : 5.}
+    delta_oce = {"FD2": -1.,
+            "FD pure": 0., "FV free" : -1., "FV test": 0.}
+    delta_o = delta_oce[sf_scheme_o]
+    delta_a = delta_atm[sf_scheme_a]
+    ax.set_title("Atm: " + sf_scheme_a[:2] +r", $\delta_a=$" + \
+            str(delta_a) + "m, ocean: "+ sf_scheme_o[:2] + \
+            r", $\delta_o=$" + str(delta_o)+ "m")
     ax.set_yscale("symlog", linthresh=10.)
     return col_a
 
+def fig_colorplotParameterizing():
+    fig, ax = plt.subplots(1,1)
+    ignore_cached=True
+    fig.colorbar(colorplot_coupling(ax, "FD pure", "FD pure",
+        vmin=277., vmax=282., ITERATION=0,
+        ignore_cached=ignore_cached), ax=ax)
+    show_or_save("fig_colorplotParameterizing")
+
 def fig_colorplotCoupling():
-    fig, axes = plt.subplots(4,1)
-    for ax, sf_scheme_a, sf_scheme_o in tqdm(zip(axes,
-        ("FD2", "FD pure", "FV free", "FV free"), # Atmosphere
-        ("FD2", "FD pure", "FV free", "FV test"), # Ocean
-        ), leave=False, total=4):
-        fig.colorbar(colorplot_coupling(ax, sf_scheme_a, sf_scheme_o,
-            vmin=278., vmax=283.5, ITERATION=0), ax=ax)
+    fig, axes2D = plt.subplots(4,2)
+    fig.subplots_adjust(hspace=0.67)
+    for axes, iteration in zip((axes2D[:,0], axes2D[:,1]), (0, 1)):
+        for ax, sf_scheme_a, sf_scheme_o in tqdm(zip(axes,
+            ("FD2", "FD pure", "FV free", "FV free"), # Atmosphere
+            ("FD2", "FD pure", "FV free", "FV test"), # Ocean
+            ), leave=False, total=4):
+            fig.colorbar(colorplot_coupling(ax, "FV free", sf_scheme_o,
+                vmin=277., vmax=282., ITERATION=iteration), ax=ax)
     show_or_save("fig_colorplotCoupling")
 
 def fig_animCoupling():
