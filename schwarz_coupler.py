@@ -9,8 +9,8 @@ from scipy import interpolate
 from atm1DStratified import Atm1dStratified
 from ocean1DStratified import Ocean1dStratified
 
-INIT_U_ATM = 8. + 0j
-INIT_THETA_ATM = 280.
+INIT_U_OCE = 0. + 0j
+INIT_THETA_OCE = 280.
 
 class StateOce(NamedTuple):
     """
@@ -56,30 +56,29 @@ def schwarz_coupling(simulator_oce: Ocean1dStratified,
         computes the coupling between the two models
         Atm1dStratified and Ocean1dStratified.
     """
-    atm_state, oce_state = [initialization_atmosphere(parameters,
-        simulator_atm)], []
+    oce_state, atm_state = [initialization_ocean(parameters,
+        simulator_oce)], []
     with tqdm(total=NUMBER_SCHWARZ_ITERATION*2, leave=False) as pbar:
         for _ in range(NUMBER_SCHWARZ_ITERATION):
-            oce_state += [compute_ocean(simulator_oce,
-                atm_state[-1], parameters, **kwargs)]
-            pbar.update(1)
             atm_state += [compute_atmosphere(simulator_atm,
                 oce_state[-1], parameters, **kwargs)]
             pbar.update(1)
+            oce_state += [compute_ocean(simulator_oce,
+                atm_state[-1], parameters, **kwargs)]
+            pbar.update(1)
     return atm_state, oce_state
 
-def initialization_atmosphere(numer_set: NumericalSetting,
-        simulator_atm: Atm1dStratified) -> StateAtm:
+def initialization_ocean(numer_set: NumericalSetting,
+        simulator_oce: Ocean1dStratified) -> StateOce:
     """
     returns a State that can be used by ocean model for integration.
     """
-    N = int(numer_set.T/simulator_atm.dt) # Number of time steps
-    u_star = np.abs(INIT_U_ATM) * simulator_atm.kappa / \
-            np.log(numer_set.delta_sl_a / 0.1)
-    return StateAtm(u_delta=np.ones(N+1) * INIT_U_ATM,
-            t_delta=np.ones(N+1) * INIT_THETA_ATM,
-            u_star=np.ones(N+1) * u_star,
-            t_star=np.ones(N+1) * 1e-6,
+    N = int(numer_set.T/simulator_oce.dt) # Number of time steps
+    days = np.linspace(0, numer_set.T/86400. , N)
+    t_delta = INIT_THETA_OCE + np.cos(2*np.pi*days) # diurnal activity
+    t_delta = 270 + np.cos(2*np.pi*days) # diurnal activity
+    return StateOce(u_delta=np.ones(N+1) * INIT_U_OCE,
+            t_delta=t_delta,
             last_tstep=None, other=None)
 
 def compute_ocean(simulator_oce: Ocean1dStratified,
@@ -88,7 +87,7 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
     """
         Integrator in time of the ocean
     """
-    T0 = 281. # Reference temperature
+    T0 = INIT_THETA_OCE # Reference temperature
     N = int(numer_set.T/simulator_oce.dt) # Number of time steps
     theta_0 = T0 - simulator_oce.N0**2 * \
             np.abs(simulator_oce.z_half[:-1]) \
@@ -159,9 +158,9 @@ def compute_atmosphere(simulator_atm: Atm1dStratified,
     """
     N = int(numer_set.T/simulator_atm.dt) # Number of time steps
     M = simulator_atm.M # Number of grid points
-    u_0 = INIT_U_ATM*np.ones(M)
+    u_0 = 8.*np.ones(M) + 0j
     phi_0 = np.zeros(M+1) + 0j
-    theta_0 = INIT_THETA_ATM*np.ones(M)
+    theta_0 = 280.*np.ones(M)
     dz_theta_0 = np.zeros(M+1)
     forcing = 1j*simulator_atm.f*simulator_atm.u_g*np.ones((N+1, M))
 

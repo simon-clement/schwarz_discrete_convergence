@@ -94,7 +94,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
             NUMBER_SCHWARZ_ITERATION=3)
     if store_all and sf_scheme_a[:2] == "FV":
         print("Reconstructing solutions...")
-        for state_atm in states_atm[1:]:
+        for state_atm in states_atm:
             all_u = state_atm.other["all_u"]
             all_phi = state_atm.other["all_phi"]
             all_t = state_atm.other["all_theta"]
@@ -110,7 +110,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         za = simulator_atm.z_half[:-1]
 
     if store_all and sf_scheme_o[:2] == "FV":
-        for state_oce in states_oce:
+        for state_oce in states_oce[1:]:
             all_u = state_oce.other["all_u"]
             all_phi = state_oce.other["all_phi"]
             all_t = state_oce.other["all_theta"]
@@ -146,8 +146,8 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
                 sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
                 ignore_cached=ignore_cached)
-    state_atm = states_atm[ITERATION+1]
-    state_oce = states_oce[ITERATION]
+    state_atm = states_atm[ITERATION]
+    state_oce = states_oce[ITERATION+1]
     all_ua = np.real(np.array(state_atm.other["all_u"]))
     all_ta = np.array(state_atm.other["all_theta"])
     uo = np.real(np.array(state_oce.other["all_u"]))

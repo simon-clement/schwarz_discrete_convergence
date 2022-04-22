@@ -672,7 +672,7 @@ class Ocean1dStratified():
                     self.z_full[k1])
 
         return np.concatenate((z_oversampled[:k2], z_freepart, z_log)), \
-    np.concatenate((u_oversampled[:k2], u_freepart, u_log)), \
+               np.concatenate((u_oversampled[:k2], u_freepart, u_log)), \
                 np.concatenate((theta_oversampled[:k2],
                     theta_freepart, theta_log))
 
