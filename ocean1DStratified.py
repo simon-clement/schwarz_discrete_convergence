@@ -622,17 +622,22 @@ class Ocean1dStratified():
         u_log: array = u_zM - abs_uzM_m_uz / abs_uzM_m_udelta * \
                 (u_zM - u_delta)
 
-        def tzM_m_t(z: float):
+        def QHtzM_m_t(z: float):
+            """
+                returns Q_H * (t0 - t(z))
+            """
             QH = t_star * u_star * self.rho0 * self.C_p
-            term_lw = 1 + SL.Q_lw / QH
-            term_sw = Qsw_E(z, SL) / QH
+            term_lw = QH + SL.Q_lw
+            term_sw = Qsw_E(z, SL)
             return t_star/self.kappa * term_lw * \
                     (np.log(1-z/SL.z_0H) - psi_h(-z*inv_L_MO)) \
                     - term_sw
-        tzM_m_t = np.vectorize(tzM_m_t, otypes=[float])
+        QHtzM_m_t = np.vectorize(QHtzM_m_t, otypes=[float])
+        ratio_tzM_m_t = np.zeros_like(z_log)\
+                if abs(QHtzM_m_t(delta_sl)) < 1e-30 else \
+                            QHtzM_m_t(z_log) / QHtzM_m_t(delta_sl)
 
-        theta_log: array = SL.t_0 - tzM_m_t(z_log) / \
-                tzM_m_t(delta_sl) * (t_zM - t_delta)
+        theta_log: array = SL.t_0 - ratio_tzM_m_t * (t_zM - t_delta)
 
         # index of z_{k-1} in z_oversampled:
         k2: int = bisect.bisect_left(z_oversampled, self.z_full[k1-1])
