@@ -37,6 +37,7 @@ class Ocean1dStratified():
             z_levels starts at bottom of ocean and contains
             all the full levels $z_m$ until $z_M=0$.
             dt is the time step
+            N0 is used externaly to initialize theta
             u_geostrophy is used as a top boundary condition
             K_mol is the background diffusivity
             f is the Coriolis parameter
@@ -70,9 +71,8 @@ class Ocean1dStratified():
         self.C_e: float = self.C_m # used to be 0.34
         self.c_eps: float = np.sqrt(2.)/2.
         self.rho0: float = 1024.
-        self.N0: float = N0
+        self.N0 = N0
         self.alpha: float = alpha
-        self.dTdz_bot: float = N0*N0/(alpha*9.81)
         self.implicit_coriolis: float = 0.55 # semi-implicit coefficient
         self.mxl_min: float = self.K_mol / ( self.C_m * np.sqrt(self.e_min) )
         self.dict_tau_sl = {}
@@ -280,6 +280,7 @@ class Ocean1dStratified():
         ret_dict['u'] = u_current
         ret_dict['phi'] = phi
         ret_dict['tke'] = tke.tke_full
+        ret_dict['z_tke'] = self.z_full
         ret_dict['all_u_star'] = all_u_star
         ret_dict['theta'] = theta
         ret_dict['dz_theta'] = dz_theta
@@ -417,6 +418,7 @@ class Ocean1dStratified():
 
         ret_dict['u'] = u_current
         ret_dict['tke'] = tke.tke_full
+        ret_dict['z_tke'] = self.z_full
         ret_dict['all_u_star'] = all_u_star
         ret_dict['theta'] = theta
         ret_dict['l_eps'] = l_eps

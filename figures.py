@@ -14,7 +14,7 @@ from memoisation import memoised
 from atm1DStratified import Atm1dStratified
 from ocean1DStratified import Ocean1dStratified
 from universal_functions import Businger_et_al_1971 as businger
-from utils_linalg import solve_linear
+from utils_linalg import solve_linear, full_to_half
 import figures_unstable
 from fortran.visu import import_data
 from validation_oce1D import fig_comodoParamsConstantCooling
@@ -50,13 +50,14 @@ def fig_forcedOcean():
     return forcedOcean("FD2")
 
 def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
-        sf_scheme_a: str, sf_scheme_o: str):
+        sf_scheme_a: str, sf_scheme_o: str,
+        delta_sl_o: float=None):
     f = 1e-4 # Coriolis parameter
     time = np.linspace(0, T) # number of time steps is not important
     # because of the projection
     alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
-    Qswmax = 1600.
-    Qlw = -np.ones_like(time) * Qswmax / np.pi
+    Qswmax = 1500.
+    Qlw = -np.zeros_like(time) * Qswmax / np.pi
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400.)), 0. ) * \
             Qswmax / (rho0*cp)
     Qsw = srflx * rho0*cp
@@ -71,7 +72,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     K_mol_a = simulator_oce.K_mol / mu_m
     simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
             dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
-    if sf_scheme_o == "FV free":
+    if sf_scheme_o == "FV free" and delta_sl_o is None:
         delta_sl_o = z_levels_oce[-2]
     elif sf_scheme_o == "FD2":
         delta_sl_o = z_levels_oce[-2]
@@ -135,8 +136,8 @@ def half_to_full(z_half: np.ndarray, ocean: bool):
             [z_max]))
 
 def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
-        vmin: float=None,
-        vmax: float=None, ignore_cached: bool=False,
+        vmin: float=None, vmax: float=None, delta_sl_o: float=None,
+        ignore_cached: bool=False,
         ITERATION: int=1):
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
@@ -145,32 +146,38 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     states_atm, states_oce, za, zo = \
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
                 sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
-                ignore_cached=ignore_cached)
+                ignore_cached=ignore_cached, delta_sl_o=delta_sl_o)
     state_atm = states_atm[ITERATION]
     state_oce = states_oce[ITERATION+1]
     all_ua = np.real(np.array(state_atm.other["all_u"]))
     all_ta = np.array(state_atm.other["all_theta"])
-    uo = np.real(np.array(state_oce.other["all_u"]))
-    to = np.array(state_oce.other["all_theta"])
+    all_uo = np.real(np.array(state_oce.other["all_u"]))
+    all_to = np.array(state_oce.other["all_theta"])
     N_oce = int(T/dt_oce)
-    ua = np.zeros((N_oce+1, all_ua.shape[1]))
-    ta = np.zeros((N_oce+1, all_ta.shape[1]))
+    N_plot = 400
+    ua = np.zeros((N_plot+1, all_ua.shape[1]))
+    ta = np.zeros((N_plot+1, all_ta.shape[1]))
+    uo = np.zeros((N_plot+1, all_uo.shape[1]))
+    to = np.zeros((N_plot+1, all_to.shape[1]))
     for i in range(all_ua.shape[1]):
-        ua[:, i] = projection(all_ua[:, i], N_oce)
-        ta[:, i] = projection(all_ta[:, i], N_oce)
+        ua[:, i] = projection(all_ua[:, i], N_plot)
+        ta[:, i] = projection(all_ta[:, i], N_plot)
+    for i in range(uo.shape[1]):
+        uo[:, i] = projection(all_uo[:, i], N_plot)
+        to[:, i] = projection(all_to[:, i], N_plot)
 
     N_threshold = 0
-    T_threshold = T * N_threshold / N_oce
+    T_threshold = T * N_threshold / N_plot
     ########## pcolormesh
     x = np.linspace(T_threshold/86400, T/86400,
-            N_oce+1 - N_threshold)
+            N_plot+2 - N_threshold)
     Xa, Ya = np.meshgrid(half_to_full(za, ocean=False), x)
     Xo, Yo = np.meshgrid(half_to_full(zo, ocean=True), x)
 
     vmin = min(np.min(ta), np.min(to)) if vmin is None else vmin
     vmax = max(np.max(ta), np.max(to)) if vmax is None else vmax
 
-    col_a = ax.pcolormesh(Ya, Xa, ta[N_threshold+1:], vmin=vmin,
+    col_a = ax.pcolormesh(Ya, Xa, ta[N_threshold:], vmin=vmin,
             vmax=vmax, cmap="seismic", shading='flat')
     ax.pcolormesh(Yo, Xo, to[N_threshold:], vmin=vmin,
             vmax=vmax, cmap="seismic", shading='flat')
@@ -187,22 +194,97 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     return col_a
 
 def fig_colorplotParameterizing():
-    fig, ax = plt.subplots(1,1)
-    ignore_cached=True
-    fig.colorbar(colorplot_coupling(ax, "FD pure", "FD pure",
-        vmin=277., vmax=282., ITERATION=0,
-        ignore_cached=ignore_cached), ax=ax)
+    fig, ax = plt.subplots(4,1)
+    ignore_cached=False
+    dt_oce = 90. # oceanic time step
+    dt_atm = 30. # atmosphere time step
+    number_of_days = 3.3
+    T = 86400 * number_of_days # length of the time window
+
+    sf_scheme = "FD pure"
+    states_atm, states_oce, za, zo = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                sf_scheme_a=sf_scheme, sf_scheme_o="FD pure",
+                ignore_cached=ignore_cached)
+    state_atm = states_atm[-1]
+    state_oce = states_oce[-1]
+    ax[3].plot(state_atm.t_star)
+    all_u = np.real(np.array(state_atm.other["all_u"]))
+    all_tke = np.real(np.array(state_atm.other["all_tke"]))
+    all_t = np.array(state_atm.other["all_theta"])
+    all_uo = np.real(np.array(state_oce.other["all_u"]))
+    all_tkeo = np.real(np.array(state_oce.other["all_tke"]))
+    all_to = np.array(state_oce.other["all_theta"])
+    N_plot = 400
+    ua = np.zeros((N_plot+1, all_u.shape[1]))
+    ta = np.zeros((N_plot+1, all_t.shape[1]))
+    tke= np.zeros((N_plot+1, all_tke.shape[1]))
+    uo = np.zeros((N_plot+1, all_uo.shape[1]))
+    to = np.zeros((N_plot+1, all_to.shape[1]))
+    tke_o= np.zeros((N_plot+1, all_tkeo.shape[1]))
+    for i in range(all_u.shape[1]):
+        ua[:, i] = projection(all_u[:, i], N_plot)
+    for i in range(all_t.shape[1]):
+        ta[:, i] = projection(all_t[:, i], N_plot)
+    for i in range(all_tke.shape[1]):
+        tke[:,i] = projection(all_tke[:, i], N_plot)
+    for i in range(all_uo.shape[1]):
+        uo[:, i] = projection(all_uo[:, i], N_plot)
+    for i in range(all_to.shape[1]):
+        to[:, i] = projection(all_to[:, i], N_plot)
+    for i in range(all_tkeo.shape[1]):
+        tke_o[:,i] = projection(all_tkeo[:, i], N_plot)
+    ########## pcolormesh
+    x = np.linspace(0., T/86400, N_plot+2) # u.shape+1
+    Xu, Yu = np.meshgrid(half_to_full(za, ocean=False), x)
+    Xt, Yt = np.meshgrid(half_to_full(za, ocean=False), x)
+    z_tke = full_to_half(state_atm.other["z_tke"])
+    Xtke, Ytke = np.meshgrid(np.concatenate(([0.], z_tke,
+        [state_atm.other["z_tke"][-1]])) , x)
+    umin = -1.
+    umax = 6.
+    tmin = 278.
+    tmax = 281.5
+    tkemin = 0.
+    tkemax = 0.2
+    col_u = ax[0].pcolormesh(Yu, Xu, ua, vmin=umin,
+            vmax=umax, cmap="seismic", shading='flat')
+    col_t = ax[1].pcolormesh(Yt, Xt, ta, vmin=tmin,
+            vmax=tmax, cmap="seismic", shading='flat')
+    col_tke = ax[2].pcolormesh(Ytke, Xtke, tke, vmin=tkemin,
+            vmax=tkemax, cmap="seismic", shading='flat')
+
+    Xuo, Yuo = np.meshgrid(half_to_full(zo, ocean=True), x)
+    Xto, Yto = np.meshgrid(half_to_full(zo, ocean=True), x)
+    z_tke = full_to_half(state_oce.other["z_tke"])
+    Xtkeo, Ytkeo = np.meshgrid(np.concatenate(([0.], z_tke,
+        [state_oce.other["z_tke"][-1]])), x)
+
+    ax[0].pcolormesh(Yuo, Xuo, 1e3*uo, vmin=umin,
+            vmax=umax, cmap="seismic", shading='flat')
+    ax[1].pcolormesh(Yto, Xto, to, vmin=tmin,
+            vmax=tmax, cmap="seismic", shading='flat')
+    ax[2].pcolormesh(Ytkeo, Xtkeo, tke_o, vmin=tkemin,
+            vmax=tkemax, cmap="seismic", shading='flat')
+    fig.colorbar(col_u, ax=ax[0])
+    fig.colorbar(col_t, ax=ax[1])
+    fig.colorbar(col_tke, ax=ax[2])
+    ax[0].set_title(r"$\rho u$")
+    ax[1].set_title(r"$\theta$")
+    ax[2].set_title("tke")
+    for ax in ax[:-1]:
+        ax.set_yscale("symlog", linthresh=5.)
+
     show_or_save("fig_colorplotParameterizing")
 
 def fig_colorplotCoupling():
     fig, axes2D = plt.subplots(4,2)
     fig.subplots_adjust(hspace=0.67)
     for axes, iteration in zip((axes2D[:,0], axes2D[:,1]), (0, 1)):
-        for ax, sf_scheme_a, sf_scheme_o in tqdm(zip(axes,
-            ("FD2", "FD pure", "FV free", "FV free"), # Atmosphere
+        for ax, sf_scheme_o in tqdm(zip(axes,
             ("FD2", "FD pure", "FV free", "FV test"), # Ocean
             ), leave=False, total=4):
-            fig.colorbar(colorplot_coupling(ax, "FV free", sf_scheme_o,
+            fig.colorbar(colorplot_coupling(ax, "FD pure", sf_scheme_o,
                 vmin=277., vmax=282., ITERATION=iteration), ax=ax)
     show_or_save("fig_colorplotCoupling")
 

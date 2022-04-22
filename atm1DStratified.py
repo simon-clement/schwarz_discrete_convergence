@@ -237,6 +237,7 @@ class Atm1dStratified():
         ret_dict['u'] = u_current
         ret_dict['phi'] = phi
         ret_dict['tke'] = tke.tke_full
+        ret_dict['z_tke'] = self.z_full
         ret_dict['all_u_star'] = all_u_star
         ret_dict['all_t_star'] = all_t_star
         ret_dict['theta'] = theta
@@ -283,8 +284,14 @@ class Atm1dStratified():
                 else self.z_full[1]
         forcing_theta = np.zeros_like(forcing[0]) # no temp forcing
         ###### Initialization #####
+        SL: SurfaceLayerData = friction_scales(u_t0[0],
+                delta_sl, theta_t0[0], businger(),
+                u_o[0], delta_sl_o, SST[0], large_ocean(), sf_scheme,
+                Q_sw[0], Q_lw[0],
+                0, True)
         import tkeAtm1D
-        tke = tkeAtm1D.TkeAtm1D(self, "FD", Neutral_case=Neutral_case)
+        tke = tkeAtm1D.TkeAtm1D(self, "FD", True,
+                Neutral_case, SL)
         theta: array = np.copy(theta_t0)
 
         # Initializing viscosities and mixing lengths:
@@ -362,6 +369,7 @@ class Atm1dStratified():
 
         ret_dict['u'] = u_current
         ret_dict['tke'] = tke.tke_full
+        ret_dict['z_tke'] = self.z_full
         ret_dict['all_u_star'] = all_u_star
         ret_dict['all_t_star'] = all_t_star
         ret_dict['theta'] = theta
