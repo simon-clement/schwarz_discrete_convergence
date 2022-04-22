@@ -236,7 +236,7 @@ class Ocean1dStratified():
                     # to have a forcing that takes effect in the SL
                 swr_frac = shortwave_fractional_decay(self.M,
                         np.diff(z_levels_sl)) * absorption_sl
-                forcing_theta = np.diff(swr_frac * Q_sw[n] \
+                forcing_theta = -np.diff(swr_frac * Q_sw[n] \
                         / self.rho0 / self.C_p) / self.h_half[:-1]
                 theta, dz_theta = self.__step_theta(theta,
                         dz_theta, Ktheta_full, forcing_theta,
@@ -380,7 +380,7 @@ class Ocean1dStratified():
             if not Neutral_case:
                 swr_frac = shortwave_fractional_decay(self.M,
                         self.h_half) # Q_sw is positive downward
-                forcing_theta = np.diff(swr_frac * Q_sw[n] \
+                forcing_theta = -np.diff(swr_frac * Q_sw[n] \
                         / self.rho0 / self.C_p) / self.h_half[:-1]
                 # integrate in time potential temperature:
                 Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
