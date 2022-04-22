@@ -270,8 +270,7 @@ class TkeAtm1D:
         rhs_e[:k+1] = e_sl # prescribe e=e(delta_sl)
         diag_e[:k+1] = 1. # because lower levels are not used
         udiag_e[:k+1] = ldiag_e[:k] = 0.
-
-        return solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
+        self.tke_full = solve_linear((ldiag_e, diag_e, udiag_e), rhs_e)
 
     def __compute_tke_full(self, atm, SL: SurfaceLayerData,
             l_eps: array, universal_funcs):
