@@ -1227,54 +1227,55 @@ class Ocean1dStratified():
 
     def __sf_YDc_FDpure(self, K_u, forcing, SL, **_):
         """
-            Y = (0    ,             1                         )
-            D = (K/h^2, - K/h^2 - u*^2 / (h|u(z_a) - u(z_o)|) )
-            c = (F + u*^2 u(z_a) / (h|u(z_a) - u(z_o)|)       )
+            Y = (0    ,    1       )
+            D = (K/h^2, - K/h^2    )
+            c = (F + u*^2 e_tau / h)
         """
         wind_atm = SL.SL_other.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
-        norm_jump = np.abs(wind_atm - u_delta)
+        e_tau = orientation(wind_atm - u_delta)
         Y = ((0.,), (1.,), ())
         D = ((K_u[self.M-1] / self.h_full[self.M-1] / \
                     self.h_half[self.M-1],),
-            (- u_star**2 / norm_jump / self.h_half[self.M-1] - \
-            K_u[self.M-1] / self.h_full[self.M-1] / \
+            ( - K_u[self.M-1] / self.h_full[self.M-1] / \
                     self.h_half[self.M-1],), ())
-        c = (forcing[self.M - 1] + u_star**2*wind_atm / norm_jump / \
+        c = (forcing[self.M - 1] + u_star**2*e_tau / \
                     self.h_half[self.M-1],)
         return Y, D, c, Y
 
     def __sf_YDc_FD2(self, K_u, SL, **_):
         """
-            Y = (            0           ,             0           )
-            D = ( K/h - u*^2/(2|ua - uo|),-K/h - u*^2/(2|ua - uo|) )
-            c = (    u*^2 ua / |ua - uo|    )
+            Y = (  0  ,  0  )
+            D = ( K/h ,-K/h )
+            c = ( u*^2 e_tau)
             where ua, uo = u(z_a), u(z_o).
         """
         wind_atm = SL.SL_other.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
+        e_tau = orientation(wind_atm - u_delta)
         Y = ((0.,), (0.,), ())
         norm_jump =  np.abs(wind_atm - u_delta)
-        D = ((K_u[self.M-1]/self.h_full[self.M-1] -\
-                u_star**2 / norm_jump / 2,),
-            (-K_u[self.M-1]/self.h_full[self.M-1] -\
-                u_star**2 / norm_jump / 2,), ())
-        c = (u_star**2 * wind_atm / norm_jump,)
+        D = ((K_u[self.M-1]/self.h_full[self.M-1],),
+            (-K_u[self.M-1]/self.h_full[self.M-1],), ())
+        c = (u_star**2 * e_tau,)
         return Y, D, c, Y
 
     def __sf_YDc_FDtest(self, K_u, forcing, SL, **_):
         """
-            Y = (0     ,    1     )
-            D = (K/h^2 , -K/h^2   )
-            c = (  F + u*^2/h   )
+            Y = (0     ,    1      )
+            D = (K/h^2 , -K/h^2    )
+            c = (  F + u*^2/h e_tau)
         """
+        wind_atm = SL.SL_other.u_delta
+        u_star, u_delta = SL.u_star, SL.u_delta
+        e_tau = orientation(wind_atm - u_delta)
         Y = ((0.,), (1.,), ())
         D = ((K_u[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],),
             (- K_u[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
         c = (forcing[self.M - 1] + \
-                SL.u_star**2/self.h_half[self.M-1] ,)
+                u_star**2 * e_tau/self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
 
@@ -1282,41 +1283,40 @@ class Ocean1dStratified():
         """
             Y = (0     ,    0     , 1 )
                 (0     ,    0     , 0 )
-            D = ( -K/h  ,       K/h             ,   0)
-                (- h/24 , h/24 - K|ua-uo|/u*^2  ,  -1)
-            c = (  F  )
-                (  ua )
+            D = ( -K/h  ,K/h ,   0)
+                (  0    ,-K  ,   0)
+            c = (  F    )
+                ( flux0 )
         """
         wind_atm = SL.SL_other.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
-        norm_jump = np.abs(wind_atm - u_delta)
+        e_tau = orientation(wind_atm - u_delta)
+        flux0 = u_star**2 * e_tau
         Y = ((0., 0.), (0., 0.), (1.,))
-        D = ((-self.h_half[self.M-1]/24,),
-            (-K_u[self.M-1]/self.h_half[self.M-1],
-            -K_u[self.M]*norm_jump/u_star**2 \
-                    + self.h_half[self.M-1]/24),
-            (K_u[self.M] / self.h_half[self.M-1], -1.), (0.,))
-        c = (forcing[self.M-1], wind_atm)
+        D = ((0.,),
+            (-K_u[self.M-1]/self.h_half[self.M-1], -K_u[self.M]),
+            (K_u[self.M] / self.h_half[self.M-1], 0.), (0.,))
+        c = (forcing[self.M-1], flux0)
         return Y, D, c, Y
 
     def __sf_YDc_FV1(self, K_u, forcing, SL, **_):
         """
             Y = (0     ,    0     , 1 )
                 (0     ,    0     , 0 )
-            D = (-K/h ,       K/h        ,   0)
-                (  0  , - K|ua-uo|/u*^2  ,  -1)
-            c = (  F  )
-                (  ua )
+            D = ( -K/h  ,K/h ,   0)
+                (  0    ,-K  ,   0)
+            c = (  F    )
+                ( flux0 )
         """
         wind_atm = SL.SL_other.u_delta
         u_star, u_delta = SL.u_star, SL.u_delta
-        norm_jump = np.abs(wind_atm - u_delta)
+        e_tau = orientation(wind_atm - u_delta)
+        flux0 = u_star**2 * e_tau
         Y = ((0., 0.), (0., 0.), (1.,))
         D = ((0.,),
-            (-K_u[self.M-1]/self.h_half[self.M-1],
-            -K_u[self.M]*norm_jump/u_star**2),
-            (K_u[self.M] / self.h_half[self.M-1], -1.), (0.,))
-        c = (forcing[self.M-1], wind_atm)
+            (-K_u[self.M-1]/self.h_half[self.M-1], -K_u[self.M]),
+            (K_u[self.M] / self.h_half[self.M-1], 0.), (0.,))
+        c = (forcing[self.M-1], flux0)
         return Y, D, c, Y
 
     def __sf_YDc_FVtest(self, K_u, forcing, SL, **_):
@@ -1326,14 +1326,18 @@ class Ocean1dStratified():
             D = (-K/h , K/h  ,  0)
                 (  0  , - K  ,  0)
             c = (   F   )
-                (  u*^2 )
+                ( flux0 )
         """
+        wind_atm = SL.SL_other.u_delta
+        u_star, u_delta = SL.u_star, SL.u_delta
+        e_tau = orientation(wind_atm - u_delta)
+        flux0 = u_star**2 * e_tau
         Y = ((0., 0.), (0., 0.), (1.,))
         # dont forget equation is dtYu - Du = c
         D = ((0.,),
             (-K_u[self.M-1]/self.h_half[self.M-1], -K_u[self.M]),
             (K_u[self.M] / self.h_half[self.M-1], 0.),)
-        c = (forcing[self.M-1], SL.u_star**2)
+        c = (forcing[self.M-1], flux0)
         return Y, D, c, Y
 
     def __sf_YDc_FVfree(self, K_u, forcing, universal_funcs,
@@ -1345,11 +1349,11 @@ class Ocean1dStratified():
 
             D = (K/h^2,-K(1/h+1/~h)/h,         K/(h~h)         , 0 )
                 ( 0   ,     -K/~h    ,         K/~h            , 0 )
-                ( 0   ,    ~h^2/(6h) , ~h^2/(3h)+Ka|u0-uo|/u*^2, 1 )
+                ( 0   ,       0      ,         - Ka            , 0 )
 
             c = (        1/h (forcing_{k-1/2} - forcing_{k-3/2})     )
                 ( forcing_{k-1/2} + (partial_t + if) ( u(0) (1-a)/a ))
-                (                     -u(0)                          )
+                (                     flux0                          )
             after that, the matrices are filled for every M > m > k
             with 0 for Y
             D: (ldiag, diag, udiag) = (ratio_norms, -1, 0)
@@ -1359,6 +1363,9 @@ class Ocean1dStratified():
         """
         u_star, u_delta, delta_sl, inv_L_MO, k = SL.u_star, \
                 SL.u_delta, SL.delta_sl, SL.inv_L_MO, SL.k
+        wind_atm = SL.SL_other.u_delta
+        e_tau = orientation(wind_atm - u_delta)
+        flux0 = u_star**2 * e_tau
         tilde_h = delta_sl - self.z_full[k-1]
         tau, _ = self.__tau_sl(SL, universal_funcs)
         alpha = tilde_h/self.h_half[k-1] + tau
@@ -1376,15 +1383,12 @@ class Ocean1dStratified():
             ((tilde_h + self.h_half[k-2])/3/self.h_full[k-1],
             - tilde_h * tau_nm1 / 3. / alpha_nm1, 0.),# DIAG
             (tilde_h/6./self.h_full[k-1], 1/alpha_nm1))# UPPER DIAG
-        D = ((0., tilde_h**2 / 6 / self.h_half[k-1]),#LLOWER DIAG
+        D = ((0., 0.),#LLOWER DIAG
                 (K_u[k-2]/self.h_half[k-2]/self.h_full[k-1],
-                    -K_u[k-1]/tilde_h,
-                    tilde_h**2 / 3 / self.h_half[k-1] + alpha * \
-                        np.abs(SL.u_0-SL.u_delta)/SL.u_star**2 * \
-                        K_u[k]),#LOWER DIAG
+                    -K_u[k-1]/tilde_h, - K_u[k]),#LOWER DIAG
                 (-K_u[k-1] / self.h_full[k-1] * \
                         (1/self.h_half[k-2] + 1/tilde_h),
-                        K_u[k] / tilde_h, 1.),#DIAG
+                        K_u[k] / tilde_h, 0.),#DIAG
                 (K_u[k] / tilde_h / self.h_full[k-1], 0.))#UPPER DIAG
 
         rhs_n = SL.u_0 * (1 - alpha)/alpha
@@ -1393,7 +1397,7 @@ class Ocean1dStratified():
                 (self.implicit_coriolis*rhs_n + \
                 (1 - self.implicit_coriolis) * rhs_nm1)
         c = ( (forcing[k-1] - forcing[k-2])/self.h_full[k-1],
-                forcing[k-1] + rhs_part_tilde, -SL.u_0)
+                forcing[k-1] + rhs_part_tilde, flux0)
 
         Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
         Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)
