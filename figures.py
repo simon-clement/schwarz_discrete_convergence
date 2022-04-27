@@ -52,14 +52,15 @@ def fig_forcedOcean():
 
 def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str,
-        delta_sl_o: float=None):
+        delta_sl_o: float=None,
+        NUMBER_SCHWARZ_ITERATION: int=3):
     f = 1e-4 # Coriolis parameter
     time = np.linspace(0, T) # number of time steps is not important
     # because of the projection
     alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
     Qswmax = 1500.
     Qlw = -np.zeros_like(time) * Qswmax / np.pi
-    srflx = np.maximum(np.cos(2.*np.pi*(time/86400.)), 0. ) * \
+    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.26)), 0. ) * \
             Qswmax / (rho0*cp)
     Qsw = srflx * rho0*cp
     z_levels_oce = np.concatenate((-np.linspace(30,1,30)**1.5-50,
@@ -73,12 +74,13 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     K_mol_a = simulator_oce.K_mol / mu_m
     simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
             dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
-    if sf_scheme_o == "FV free" and delta_sl_o is None:
-        delta_sl_o = z_levels_oce[-2]
-    elif sf_scheme_o == "FD2":
-        delta_sl_o = z_levels_oce[-2]
-    elif sf_scheme_o in {"FV test", "FD test", "FD pure"}:
-        delta_sl_o = 0.
+    if delta_sl_o is None:
+        if sf_scheme_o == "FV free":
+            delta_sl_o = z_levels_oce[-2]
+        elif sf_scheme_o == "FD2":
+            delta_sl_o = z_levels_oce[-2]
+        elif sf_scheme_o in {"FV test", "FD test", "FD pure"}:
+            delta_sl_o = 0.
 
     if sf_scheme_a in {"FV free", "FV test", "FD pure", "FD test"}:
         delta_sl_a = z_levels_atm[1]/2.
@@ -93,7 +95,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
             Q_sw=Qsw)
     states_atm, states_oce = schwarz_coupling(simulator_oce,
             simulator_atm, numer_setting, store_all=store_all,
-            NUMBER_SCHWARZ_ITERATION=3)
+            NUMBER_SCHWARZ_ITERATION=NUMBER_SCHWARZ_ITERATION)
     if store_all and sf_scheme_a[:2] == "FV":
         print("Reconstructing solutions...")
         for state_atm in states_atm:
@@ -143,6 +145,7 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
     number_of_days = 3.3
+    number_of_days = 0.5
     T = 86400 * number_of_days # length of the time window
     states_atm, states_oce, za, zo = \
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
@@ -194,99 +197,148 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     ax.set_yscale("symlog", linthresh=10.)
     return col_a
 
-def fig_colorplotParameterizing():
-    fig, ax = plt.subplots(4,1)
+def fig_testBulk():
+    from bulk import friction_scales
+    ua_delta = 6.
+    delta_sl_a = 10.
+    ta_delta = 293.
+    Q_lw = -50.
+    delta_sl_o = -1.
+    univ_funcs_a = businger
+    univ_funcs_o = large_ocean
+    uo_delta= 0.
+    sf_scheme = "FV free"
+    t_expectation = {"Unstable": (295.025, 294.975, 294.825),
+            "Stable": (291.03, 290.985, 290.83)}
+    for to_delta, stability in zip((295., 291.),
+            t_expectation.keys()):
+        for Q_sw, t_expected in zip((0., 100., 300.),
+                t_expectation[stability]):
+            SL = friction_scales(ua_delta, delta_sl_a,
+                ta_delta, univ_funcs_a,
+                uo_delta, delta_sl_o,
+                to_delta, univ_funcs_o,
+                sf_scheme, Q_sw, Q_lw,
+                k=0, is_atm=True)
+            print(f"{stability}: Q_sw={Q_sw}, t_0={SL.t_0} " + \
+                    f"instead of {t_expected}")
+
+
+
+def fig_colorplotReconstruction():
+    fig, axes = plt.subplots(4,2)
+    fig.subplots_adjust(hspace=0.67)
     ignore_cached=False
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
     number_of_days = 3.3
+    number_of_days = 0.3
     T = 86400 * number_of_days # length of the time window
+    for delta_sl_o, ax, sf_scheme_o in zip((-1., .0),
+            (axes[:, 0], axes[:, 1]), ("FD2", "FD pure")):
+        states_atm, states_oce, za, zo = \
+            memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                    sf_scheme_a="FD pure", sf_scheme_o=sf_scheme_o,
+                    ignore_cached=ignore_cached,
+                    delta_sl_o=delta_sl_o, NUMBER_SCHWARZ_ITERATION=4)
+        state_atm = states_atm[2]
+        state_oce = states_oce[3]
+        t = np.linspace(0, number_of_days,
+                states_oce[0].u_delta.shape[0])
+        ax[3].plot(states_atm[1].t_star, label="2nd iteration")
+        ax[2].plot(states_atm[1].u_star, label="2nd iteration")
+        ax[3].plot(states_atm[2].t_star, label="3rd iteration")
+        ax[2].plot(states_atm[2].u_star, label="3rd iteration")
+        ax[3].plot(states_atm[3].t_star, label="4th iteration")
+        ax[2].plot(states_atm[3].u_star, label="4th iteration")
+        ax[3].plot(states_atm[0].t_star, label="1st iteration")
+        ax[2].plot(states_atm[0].u_star, label="1st iteration")
+        ax[2].legend()
+        ax[2].set_title(r"$u*$")
+        ax[3].set_title(r"$t*$, $\delta_o=$"+str(delta_sl_o))
+        all_u = np.real(np.array(state_atm.other["all_u"]))
+        all_tke = np.real(np.array(state_atm.other["all_tke"]))
+        all_t = np.array(state_atm.other["all_theta"])
+        all_uo = np.real(np.array(state_oce.other["all_u"]))
+        all_tkeo = np.real(np.array(state_oce.other["all_tke"]))
+        all_to = np.array(state_oce.other["all_theta"])
+        N_plot = 45
+        ua = np.zeros((N_plot+1, all_u.shape[1]))
+        ta = np.zeros((N_plot+1, all_t.shape[1]))
+        tke= np.zeros((N_plot+1, all_tke.shape[1]))
+        uo = np.zeros((N_plot+1, all_uo.shape[1]))
+        to = np.zeros((N_plot+1, all_to.shape[1]))
+        tke_o= np.zeros((N_plot+1, all_tkeo.shape[1]))
+        for i in range(all_u.shape[1]):
+            ua[:, i] = projection(all_u[:, i], N_plot)
+        for i in range(all_t.shape[1]):
+            ta[:, i] = projection(all_t[:, i], N_plot)
+        for i in range(all_tke.shape[1]):
+            tke[:,i] = projection(all_tke[:, i], N_plot)
+        for i in range(all_uo.shape[1]):
+            uo[:, i] = projection(all_uo[:, i], N_plot)
+        for i in range(all_to.shape[1]):
+            to[:, i] = projection(all_to[:, i], N_plot)
+        for i in range(all_tkeo.shape[1]):
+            tke_o[:,i] = projection(all_tkeo[:, i], N_plot)
+        ########## pcolormesh
+        x = np.linspace(0., T/86400, N_plot+2) # u.shape+1
+        Xu, Yu = np.meshgrid(half_to_full(za, ocean=False), x)
+        Xt, Yt = np.meshgrid(half_to_full(za, ocean=False), x)
+        z_tke = full_to_half(state_atm.other["z_tke"])
+        Xtke, Ytke = np.meshgrid(np.concatenate(([0.], z_tke,
+            [state_atm.other["z_tke"][-1]])) , x)
+        umin = -1.
+        umax = 6.
+        tmin = 278.
+        tmax = 281.5
+        tkemin = 0.
+        tkemax = 0.2
+        col_u = ax[0].pcolormesh(Yu, Xu, ua, vmin=umin,
+                vmax=umax, cmap="seismic", shading='flat')
+        col_t = ax[1].pcolormesh(Yt, Xt, ta, vmin=tmin,
+                vmax=tmax, cmap="seismic", shading='flat')
+        # col_tke = ax[2].pcolormesh(Ytke, Xtke, tke, vmin=tkemin,
+        #         vmax=tkemax, cmap="seismic", shading='flat')
 
-    sf_scheme = "FD pure"
-    states_atm, states_oce, za, zo = \
-        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
-                sf_scheme_a=sf_scheme, sf_scheme_o="FD pure",
-                ignore_cached=ignore_cached)
-    state_atm = states_atm[-1]
-    state_oce = states_oce[-1]
-    ax[3].plot(state_atm.t_star)
-    all_u = np.real(np.array(state_atm.other["all_u"]))
-    all_tke = np.real(np.array(state_atm.other["all_tke"]))
-    all_t = np.array(state_atm.other["all_theta"])
-    all_uo = np.real(np.array(state_oce.other["all_u"]))
-    all_tkeo = np.real(np.array(state_oce.other["all_tke"]))
-    all_to = np.array(state_oce.other["all_theta"])
-    N_plot = 400
-    ua = np.zeros((N_plot+1, all_u.shape[1]))
-    ta = np.zeros((N_plot+1, all_t.shape[1]))
-    tke= np.zeros((N_plot+1, all_tke.shape[1]))
-    uo = np.zeros((N_plot+1, all_uo.shape[1]))
-    to = np.zeros((N_plot+1, all_to.shape[1]))
-    tke_o= np.zeros((N_plot+1, all_tkeo.shape[1]))
-    for i in range(all_u.shape[1]):
-        ua[:, i] = projection(all_u[:, i], N_plot)
-    for i in range(all_t.shape[1]):
-        ta[:, i] = projection(all_t[:, i], N_plot)
-    for i in range(all_tke.shape[1]):
-        tke[:,i] = projection(all_tke[:, i], N_plot)
-    for i in range(all_uo.shape[1]):
-        uo[:, i] = projection(all_uo[:, i], N_plot)
-    for i in range(all_to.shape[1]):
-        to[:, i] = projection(all_to[:, i], N_plot)
-    for i in range(all_tkeo.shape[1]):
-        tke_o[:,i] = projection(all_tkeo[:, i], N_plot)
-    ########## pcolormesh
-    x = np.linspace(0., T/86400, N_plot+2) # u.shape+1
-    Xu, Yu = np.meshgrid(half_to_full(za, ocean=False), x)
-    Xt, Yt = np.meshgrid(half_to_full(za, ocean=False), x)
-    z_tke = full_to_half(state_atm.other["z_tke"])
-    Xtke, Ytke = np.meshgrid(np.concatenate(([0.], z_tke,
-        [state_atm.other["z_tke"][-1]])) , x)
-    umin = -1.
-    umax = 6.
-    tmin = 278.
-    tmax = 281.5
-    tkemin = 0.
-    tkemax = 0.2
-    col_u = ax[0].pcolormesh(Yu, Xu, ua, vmin=umin,
-            vmax=umax, cmap="seismic", shading='flat')
-    col_t = ax[1].pcolormesh(Yt, Xt, ta, vmin=tmin,
-            vmax=tmax, cmap="seismic", shading='flat')
-    col_tke = ax[2].pcolormesh(Ytke, Xtke, tke, vmin=tkemin,
-            vmax=tkemax, cmap="seismic", shading='flat')
+        Xuo, Yuo = np.meshgrid(half_to_full(zo, ocean=True), x)
+        Xto, Yto = np.meshgrid(half_to_full(zo, ocean=True), x)
+        z_tke = full_to_half(state_oce.other["z_tke"])
+        # Xtkeo, Ytkeo = np.meshgrid(np.concatenate(([0.], z_tke,
+        #     [state_oce.other["z_tke"][-1]])), x)
 
-    Xuo, Yuo = np.meshgrid(half_to_full(zo, ocean=True), x)
-    Xto, Yto = np.meshgrid(half_to_full(zo, ocean=True), x)
-    z_tke = full_to_half(state_oce.other["z_tke"])
-    Xtkeo, Ytkeo = np.meshgrid(np.concatenate(([0.], z_tke,
-        [state_oce.other["z_tke"][-1]])), x)
-
-    ax[0].pcolormesh(Yuo, Xuo, 1e3*uo, vmin=umin,
-            vmax=umax, cmap="seismic", shading='flat')
-    ax[1].pcolormesh(Yto, Xto, to, vmin=tmin,
-            vmax=tmax, cmap="seismic", shading='flat')
-    ax[2].pcolormesh(Ytkeo, Xtkeo, tke_o, vmin=tkemin,
-            vmax=tkemax, cmap="seismic", shading='flat')
-    fig.colorbar(col_u, ax=ax[0])
-    fig.colorbar(col_t, ax=ax[1])
-    fig.colorbar(col_tke, ax=ax[2])
-    ax[0].set_title(r"$\rho u$")
-    ax[1].set_title(r"$\theta$")
-    ax[2].set_title("tke")
-    for ax in ax[:-1]:
-        ax.set_yscale("symlog", linthresh=5.)
+        ax[0].pcolormesh(Yuo, Xuo, uo, vmin=umin,
+                vmax=umax, cmap="seismic", shading='flat')
+        ax[1].pcolormesh(Yto, Xto, to, vmin=tmin,
+                vmax=tmax, cmap="seismic", shading='flat')
+        # ax[2].pcolormesh(Ytkeo, Xtkeo, tke_o, vmin=tkemin,
+        #         vmax=tkemax, cmap="seismic", shading='flat')
+        fig.colorbar(col_u, ax=ax[0])
+        fig.colorbar(col_t, ax=ax[1])
+        # fig.colorbar(col_tke, ax=ax[2])
+        ax[0].set_title(r"$u$")
+        ax[1].set_title(r"$\theta$")
+        # ax[2].set_title("tke")
+        for ax in ax[:2]:
+            ax.set_yscale("symlog", linthresh=5.)
 
     show_or_save("fig_colorplotParameterizing")
 
 def fig_colorplotCoupling():
-    fig, axes2D = plt.subplots(4,2)
+    fig, axes2D = plt.subplots(4,2, sharex=True, sharey=True)
     fig.subplots_adjust(hspace=0.67)
     for axes, iteration in zip((axes2D[:,0], axes2D[:,1]), (0, 1)):
-        for ax, sf_scheme_o in tqdm(zip(axes,
-            ("FD2", "FD pure", "FV free", "FV test"), # Ocean
+        for ax, sf_scheme_o, delta_sl_o in tqdm(zip(axes,
+            ("FD2", "FD pure", "FV free", "FV test"), # Oce sf scheme
+            (-1., 0., -1., 0.)
             ), leave=False, total=4):
             fig.colorbar(colorplot_coupling(ax, "FD pure", sf_scheme_o,
-                vmin=277., vmax=282., ITERATION=iteration), ax=ax)
+                vmin=278., vmax=281.5, ITERATION=iteration,
+                delta_sl_o=delta_sl_o), ax=ax)
+    for ax in axes2D[:, 0]:
+        ax.set_ylabel("z")
+    for ax in axes2D[-1, :]:
+        ax.set_xlabel("days")
     show_or_save("fig_colorplotCoupling")
 
 def fig_animCoupling():

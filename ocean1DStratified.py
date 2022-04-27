@@ -177,7 +177,7 @@ class Ocean1dStratified():
 
         import tkeOcean1D
         wave_breaking = False
-        tke = tkeOcean1D.TkeOcean1D(self.M, "FV",
+        tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
                 ignore_sl=ignore_tke_sl,
                 wave_breaking=wave_breaking)
 
