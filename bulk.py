@@ -32,7 +32,7 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         uo_delta: float, delta_sl_o: float,
         to_delta: float, univ_funcs_o,
         sf_scheme: str, Q_sw: float, Q_lw: float,
-        k: int, is_atm: bool) -> SurfaceLayerData:
+        k: int, absorbed_Qsw_const: bool=False) -> SurfaceLayerData:
     """
     Computes (u*, t*) with a fixed point algorithm.
     returns a SurfaceLayerData containing all the necessary data.
@@ -73,21 +73,25 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         zeta_o = np.clip(-delta_sl_o*inv_L_o, -50., 50.)
         # Pelletier et al, 2021, equations 31, 32:
         rhs_31 = np.log(1+delta_sl_a/za_0M) - \
-                psim_a(np.asarray(zeta_a)) + \
+                psim_a(zeta_a) + \
                 lambda_u * (np.log(1-delta_sl_o/zo_0M) - \
-                    psim_o(np.asarray(zeta_o)))
+                    psim_o(zeta_o))
 
         C_D    = (kappa / rhs_31)**2
         # Radiative fluxes:
         QH = to_star * uo_star * rho0 * c_p_oce
-        term_lw = QH + Q_lw # warning, i'm changing signs
-        term_Qw = Q_sw * integrated_shortwave_frac_sl(\
-                delta_sl_o, inv_L_o, zo_0H)
+        term_lw = QH - Q_lw
+        if absorbed_Qsw_const:
+            term_Qsw = Q_sw * (np.log(1-delta_sl_o/zo_0M)-\
+                    psis_o(zeta_o))
+        else:
+            term_Qsw = Q_sw * integrated_shortwave_frac_sl(\
+                    delta_sl_o, inv_L_o, zo_0H)
 
         # Pelletier et al, 2021, equation (43):
-        rhs_32 = QH * (np.log(1+delta_sl_a/za_0H) - psis_a(np.asarray(zeta_a))) + \
+        rhs_32 = QH * (np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a)) + \
                 lambda_t * term_lw * (np.log(1-delta_sl_o/zo_0M)-\
-                    psis_o(np.asarray(zeta_o))) + lambda_t * term_Qw
+                    psis_o(zeta_o)) - lambda_t * term_Qsw
         if abs(rhs_32) < 1e-100:
             Ch = 0.
         else:
@@ -102,7 +106,7 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         return friction_scales_alternative(ua_delta, delta_sl_a,
             ta_delta, univ_funcs_a, uo_delta, delta_sl_o,
             to_delta, univ_funcs_o, sf_scheme, Q_sw, Q_lw,
-            k, is_atm)
+            k, absorbed_Qsw_const)
 
     # if abs(previous_u_star - u_star) > 1e-6: # we attained
     #     print("bulk convergence not attained (u*): error of",
@@ -123,21 +127,12 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
     theta_zM: float = ta_delta_Kelvin - t_star \
             / kappa * (np.log(1+delta_sl_a/za_0H) - \
             psis_a(delta_sl_a*inv_L_a))
-    if is_atm:
-        SL_o = SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
-                inv_L_o, uo_delta, to_delta_Kelvin, u_zM, theta_zM,
-                delta_sl_o, None, None, Q_sw, Q_lw, None)
-        return SurfaceLayerData(u_star, t_star, za_0M, za_0H,
-                inv_L_a, ua_delta, ta_delta_Kelvin, u_zM, theta_zM,
-                delta_sl_a, k, sf_scheme, Q_sw, Q_lw, SL_o)
-
-    SL_a = SurfaceLayerData(u_star, t_star, za_0M, za_0H,
-            inv_L_a, ua_delta, ta_delta_Kelvin, u_zM, theta_zM,
-            delta_sl_a, None,
-            None, Q_sw, Q_lw, None)
-    return SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
+    SL_o = SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
             inv_L_o, uo_delta, to_delta_Kelvin, u_zM, theta_zM,
-            delta_sl_o, k, sf_scheme, Q_sw, Q_lw, SL_a)
+            delta_sl_o, None, None, Q_sw, Q_lw, None)
+    return SurfaceLayerData(u_star, t_star, za_0M, za_0H,
+            inv_L_a, ua_delta, ta_delta_Kelvin, u_zM, theta_zM,
+            delta_sl_a, k, sf_scheme, Q_sw, Q_lw, SL_o)
 
 def process_friction_scales_oce(ua_delta: float, delta_sl_a: float,
         ta_delta: float, univ_funcs_a,
@@ -145,7 +140,7 @@ def process_friction_scales_oce(ua_delta: float, delta_sl_a: float,
         uo_delta: float, delta_sl_o: float,
         to_delta: float, univ_funcs_o,
         sf_scheme: str, Q_sw: float, Q_lw: float,
-        k: int, is_atm: bool) -> SurfaceLayerData:
+        k: int) -> SurfaceLayerData:
     """
     Processes the atmospheric friction scales u*, t* given as input
     to return usable SurfaceLayerData.
@@ -192,7 +187,7 @@ def friction_scales_alternative(ua_delta: float, delta_sl_a: float,
         uo_delta: float, delta_sl_o: float,
         to_delta: float, univ_funcs_o,
         sf_scheme: str, Q_sw: float, Q_lw: float,
-        k: int, is_atm: bool) -> SurfaceLayerData:
+        k: int, absorbed_Qsw_const: bool) -> SurfaceLayerData:
     """
     Computes (u*, t*) with a fixed point algorithm.
     It is the same as friction_scales but
@@ -239,14 +234,14 @@ def friction_scales_alternative(ua_delta: float, delta_sl_a: float,
         C_D    = (kappa / rhs_31)**2
         # Radiative fluxes:
         QH = to_star * uo_star * rho0 * c_p_oce
-        term_lw = QH + Q_lw_prog[n]
-        term_Qw = Q_sw_prog[n] * integrated_shortwave_frac_sl(\
+        term_lw = QH - Q_lw_prog[n]
+        term_Qsw = Q_sw_prog[n] * integrated_shortwave_frac_sl(\
                 delta_sl_o, inv_L_o, zo_0H)
 
         # Pelletier et al, 2021, equation (43):
         rhs_32 = QH * (np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a)) + \
                 lambda_t * term_lw * (np.log(1-delta_sl_o/zo_0M)-\
-                    psis_o(zeta_o)) + lambda_t * term_Qw
+                    psis_o(zeta_o)) - lambda_t * term_Qsw
         if abs(rhs_32) < 1e-100:
             Ch = 0.
         else:
@@ -271,18 +266,9 @@ def friction_scales_alternative(ua_delta: float, delta_sl_a: float,
     theta_zM: float = ta_delta_Kelvin - t_star \
             / kappa * (np.log(1+delta_sl_a/za_0H) - \
             psis_a(delta_sl_a*inv_L_a))
-    if is_atm:
-        SL_o = SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
-                inv_L_o, uo_delta, to_delta_Kelvin, u_zM, theta_zM,
-                delta_sl_o, None, None, Q_sw, Q_lw, None)
-        return SurfaceLayerData(u_star, t_star, za_0M, za_0H,
-                inv_L_a, ua_delta, ta_delta_Kelvin, u_zM, theta_zM,
-                delta_sl_a, k, sf_scheme, Q_sw, Q_lw, SL_o)
-
-    SL_a = SurfaceLayerData(u_star, t_star, za_0M, za_0H,
-            inv_L_a, ua_delta, ta_delta_Kelvin, u_zM, theta_zM,
-            delta_sl_a, None,
-            None, Q_sw, Q_lw, None)
-    return SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
+    SL_o = SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
             inv_L_o, uo_delta, to_delta_Kelvin, u_zM, theta_zM,
-            delta_sl_o, k, sf_scheme, Q_sw, Q_lw, SL_a)
+            delta_sl_o, None, None, Q_sw, Q_lw, None)
+    return SurfaceLayerData(u_star, t_star, za_0M, za_0H,
+            inv_L_a, ua_delta, ta_delta_Kelvin, u_zM, theta_zM,
+            delta_sl_a, k, sf_scheme, Q_sw, Q_lw, SL_o)

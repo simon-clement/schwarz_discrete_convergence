@@ -151,7 +151,7 @@ class Atm1dStratified():
                 delta_sl, t_delta, businger,
                 u_o[0], delta_sl_o, SST[0], large_ocean, sf_scheme,
                 Q_sw[0], Q_lw[0],
-                k, True)
+                k)
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
 
         import tkeAtm1D
@@ -182,7 +182,7 @@ class Atm1dStratified():
             SL_nm1, SL = SL, friction_scales(u_delta, delta_sl,
                     t_delta, businger, u_o[n], delta_sl_o, SST[n],
                     large_ocean, sf_scheme, Q_sw[n], Q_lw[n],
-                    k, True)
+                    k)
             all_u_star += [SL.u_star]
             all_t_star += [SL.t_star]
 
@@ -288,7 +288,7 @@ class Atm1dStratified():
                 delta_sl, theta_t0[0], businger,
                 u_o[0], delta_sl_o, SST[0], large_ocean, sf_scheme,
                 Q_sw[0], Q_lw[0],
-                0, True)
+                0)
         import tkeAtm1D
         tke = tkeAtm1D.TkeAtm1D(self, "FD", True,
                 Neutral_case, SL)
@@ -313,7 +313,7 @@ class Atm1dStratified():
             SL: SurfaceLayerData= friction_scales(u_delta, delta_sl,
                     t_delta, businger, u_o[n], delta_sl_o, SST[n],
                     large_ocean, sf_scheme, Q_sw[n], Q_lw[n],
-                    0, True)
+                    0)
             all_u_star += [SL.u_star]
             all_t_star += [SL.t_star]
 
@@ -1014,7 +1014,7 @@ class Atm1dStratified():
         phi_m, phi_h, *_ = businger
         SL = friction_scales(u_const, delta_sl,
                 t_const, businger, u_o, delta_sl_o, t_o,
-                large_ocean, None, Q_sw, Q_lw, k, True)
+                large_ocean, None, Q_sw, Q_lw, k)
         for _ in range(15):
             zeta = delta_sl * SL.inv_L_MO
             phi_0[k] = SL.u_star / self.kappa / \
@@ -1032,7 +1032,7 @@ class Atm1dStratified():
 
             SL = friction_scales(u_delta, delta_sl,
                 t_delta, businger, u_o, delta_sl_o, t_o,
-                large_ocean, None, SL.Q_sw, SL.Q_lw, k, True)
+                large_ocean, None, SL.Q_sw, SL.Q_lw, k)
             # For LES simulation, putting a quadratic profile between
             # the log law and the constant profile :
             def func_z(z):

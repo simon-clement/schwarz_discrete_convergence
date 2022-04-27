@@ -219,7 +219,7 @@ def fig_testBulk():
                 uo_delta, delta_sl_o,
                 to_delta, univ_funcs_o,
                 sf_scheme, Q_sw, Q_lw,
-                k=0, is_atm=True)
+                k=0, absorbed_Qsw_const=False)
             print(f"{stability}: Q_sw={Q_sw}, t_0={SL.t_0} " + \
                     f"instead of {t_expected}")
 

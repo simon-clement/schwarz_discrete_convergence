@@ -171,7 +171,7 @@ class Ocean1dStratified():
                 uo_delta=u_delta, delta_sl_o=delta_sl,
                 to_delta=t_delta, univ_funcs_o=large_ocean,
                 sf_scheme=sf_scheme, Q_sw=Q_sw[0], Q_lw=Q_lw[0],
-                k=k, is_atm=False)
+                k=k)
 
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
 
@@ -209,7 +209,7 @@ class Ocean1dStratified():
                     uo_delta=u_delta, delta_sl_o=delta_sl,
                     to_delta=t_delta, univ_funcs_o=large_ocean,
                     sf_scheme=sf_scheme, Q_sw=Q_sw[n], Q_lw=Q_lw[n],
-                    k=k, is_atm=False)
+                    k=k)
             all_u_star += [SL.u_star]
 
             # Compute viscosities
@@ -358,7 +358,7 @@ class Ocean1dStratified():
                     uo_delta=u_delta, delta_sl_o=delta_sl,
                     to_delta=t_delta, univ_funcs_o=large_ocean,
                     sf_scheme=sf_scheme, Q_sw=Q_sw[n], Q_lw=Q_lw[n],
-                    k=self.M, is_atm=False)
+                    k=self.M)
             all_u_star += [SL.u_star]
 
             # Compute viscosities:
@@ -1053,7 +1053,7 @@ class Ocean1dStratified():
         SL = process_friction_scales_oce(wind10m, delta_sl_a,
                 t10m, businger, u_star, t_star,
                 u_const, delta_sl_o, t_const,
-                large_ocean, sf_scheme, Q_sw, Q_lw, k, False)
+                large_ocean, sf_scheme, Q_sw, Q_lw, k)
         # no loop from here because of prescribed u_star
         zeta = -SL.delta_sl*SL.inv_L_MO
         phi[k] = SL.u_star / self.kappa / \
@@ -1071,7 +1071,7 @@ class Ocean1dStratified():
         SL = process_friction_scales_oce(wind10m, delta_sl_a,
             t10m, businger, u_star, t_star, u_delta,
             delta_sl_o, t_delta,
-            large_ocean, sf_scheme, SL.Q_sw, SL.Q_lw, k, False)
+            large_ocean, sf_scheme, SL.Q_sw, SL.Q_lw, k)
 
         # profiles under MOST : going smoothly to {u,t}_const
         u_km1 = u_delta + (u_const - u_delta) * \
