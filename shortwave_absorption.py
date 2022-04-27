@@ -71,21 +71,24 @@ def integrated_shortwave_frac_sl(z: float, inv_L_MO: float,
         int_z^0 { 1/z'(phi_h(-z'/L_MO) * sum(Ai exp(Ki z'))) dz'}
         returns E(z)
     """
-    if (np.abs(np.asarray(z)) < 1e-5).all():
+    if abs(z) < 1e-5:
         return 0.
     n: int=30
-    zprim = np.linspace(z*1e-5, z, n)
+    zprim = np.linspace(z*1e-7, z, n)
     ki_z = np.squeeze(np.outer(z, k_i))
-    ki_zprim = np.outer(zprim, k_i)
+    ki_zprim = np.outer(zprim, k_i) # note: zprim is 1D here
     ki_z0H = np.minimum(k_i * z0H, 700.) # avoids overflow in exp
     # ki_z0H > 700 only happens when bulk fails and z0H>>1.
     # it is associated with small A_i anyway.
     exp1_m_exp1 = exp1(ki_z0H) - exp1(ki_z0H-ki_z)
     left_part = np.sum(A_i * np.exp(ki_z0H) * exp1_m_exp1, axis=-1)
+    # left part should be roughly equivalent to:
+    # integral betweeen z and 0 of (sum_i A_i e^(k_i z) / (-z+z0H))
+
     right_part = np.sum(A_i * np.exp(ki_zprim), axis=-1)
 
     zet = -zprim*inv_L_MO
-    phi_h = np.select([zet>=0,zet<0], [5*zet+1, np.cbrt(1-25*zet)])
+    phi_h = np.where(zet>=0, 5*zet+1, 1/np.cbrt(1-25*zet))
     right_part *= (1 - phi_h) / (z0H-zprim)
     return left_part - (-z) * np.sum(right_part) / n
 
