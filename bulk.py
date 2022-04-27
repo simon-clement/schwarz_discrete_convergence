@@ -72,34 +72,36 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         zeta_a = np.clip(delta_sl_a*inv_L_a, -50., 50.)
         zeta_o = np.clip(-delta_sl_o*inv_L_o, -50., 50.)
         # Pelletier et al, 2021, equations 31, 32:
-        rhs_31 = np.log(1+delta_sl_a/za_0M) - psim_a(zeta_a) + \
+        rhs_31 = np.log(1+delta_sl_a/za_0M) - \
+                psim_a(np.asarray(zeta_a)) + \
                 lambda_u * (np.log(1-delta_sl_o/zo_0M) - \
-                    psim_o(zeta_o))
+                    psim_o(np.asarray(zeta_o)))
 
         C_D    = (kappa / rhs_31)**2
         # Radiative fluxes:
         QH = to_star * uo_star * rho0 * c_p_oce
-        if abs(QH) > 1e-50:
-            term_lw = 1 + Q_lw / QH
-            term_Qw = Q_sw * integrated_shortwave_frac_sl(\
-                    delta_sl_o, inv_L_o, zo_0H) / QH
-        else:
-            term_lw = term_Qw = 0.
+        term_lw = QH + Q_lw # warning, i'm changing signs
+        term_Qw = Q_sw * integrated_shortwave_frac_sl(\
+                delta_sl_o, inv_L_o, zo_0H)
 
         # Pelletier et al, 2021, equation (43):
-        rhs_32 = np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a) + \
+        rhs_32 = QH * (np.log(1+delta_sl_a/za_0H) - psis_a(np.asarray(zeta_a))) + \
                 lambda_t * term_lw * (np.log(1-delta_sl_o/zo_0M)-\
-                    psis_o(zeta_o)) + lambda_t * term_Qw
-        Ch    = kappa * np.sqrt(C_D) / rhs_32
+                    psis_o(np.asarray(zeta_o))) + lambda_t * term_Qw
+        if abs(rhs_32) < 1e-100:
+            Ch = 0.
+        else:
+            Ch = QH * kappa * np.sqrt(C_D) / rhs_32
 
         previous_u_star, previous_t_star = u_star, t_star
         u_star = np.sqrt(C_D) * np.abs(ua_delta-uo_delta)
         t_star = ( Ch / np.sqrt(C_D)) * \
                 (ta_delta_Kelvin - to_delta_Kelvin)
-    # if abs(previous_u_star - u_star) > 1e-10: # we attained
+
+    # if abs(previous_u_star - u_star) > 1e-6: # we attained
     #     print("bulk convergence not attained (u*): error of",
     #             abs(previous_u_star - u_star))
-    # if abs(previous_t_star - t_star) > 1e-10: # convergence
+    # if abs(previous_t_star - t_star) > 1e-6: # convergence
     #     print("bulk convergence not attained (t*): error of",
     #             abs(previous_t_star - t_star))
 

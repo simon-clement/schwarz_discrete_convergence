@@ -8,81 +8,99 @@ This module defines several universal functions:
     Psi_m, Psi_h are the primitive of psi_m, psi_h.
 """
 import numpy as np
+from numba import jit
 
-def Large_et_al_2019():
-    def phi_m(zeta):
-        Cm = np.cbrt(1-14*zeta)
-        return 5*zeta + 1 if zeta >= 0 else 1/Cm
-    def phi_h(zeta): # warning: there is a duplicate of this function
-        Ch = np.cbrt(1-25*zeta) # in shortwave_absorption.py
-        return 5*zeta + 1 if zeta >= 0 else 1/Ch
-    def psi_m(zeta):
-        Cm = np.cbrt(1-14*zeta)
-        sq3 = np.sqrt(3)
-        return -5*zeta if zeta >=0 else sq3 * np.arctan(sq3) - \
-                sq3 * np.arctan(sq3/3*(2*Cm+1)) + 1.5 * \
-                np.log((Cm**2 + Cm + 1)/3)
-    def psi_h(zeta):
-        sq3 = np.sqrt(3)
-        Ch = np.cbrt(1-25*zeta)
-        return -5*zeta if zeta >=0 else sq3 * np.arctan(sq3) - \
-                sq3 * np.arctan(sq3/3*(2*Ch+1)) + 1.5 * \
-                np.log((Ch**2 + Ch + 1)/3)
-    def Psi_m(zeta):
-        Cm = np.cbrt(1-14*zeta)
-        sq3 = np.sqrt(3)
-        return -5*zeta/2 if zeta >=0 else sq3 * np.arctan(sq3) - \
-                sq3 * np.arctan(sq3/3*(2*Cm+1)) + 1.5 * \
-                np.log((Cm**2 + Cm + 1)/3) - (2*Cm+1)*(Cm-1) / \
-                2/(Cm**2 + Cm + 1)
-    def Psi_h(zeta):
-        sq3 = np.sqrt(3)
-        Ch = np.cbrt(1-25*zeta)
-        return -5*zeta/2 if zeta >=0 else sq3 * np.arctan(sq3) - \
-                sq3 * np.arctan(sq3/3*(2*Ch+1)) + 1.5 * \
-                np.log((Ch**2 + Ch + 1)/3) - (2*Ch+1)*(Ch-1) / \
-                2/(Ch**2 + Ch + 1)
+@jit(nopython=True)
+def large_phi_m(zeta: np.ndarray) -> np.ndarray:
+    Cm = np.cbrt(1-14*zeta)
+    return np.where(zeta>=0, 5*zeta+1, 1/Cm)
+@jit(nopython=True)
+def large_phi_h(zeta: np.ndarray) -> np.ndarray: # warning: there are duplicates of this function
+    Ch = np.cbrt(1-25*zeta) # in shortwave_absorption.py
+    return np.where(zeta>=0, 5*zeta+1, 1/Ch)
+@jit(nopython=True)
+def large_psi_m(zeta: np.ndarray) -> np.ndarray:
+    Cm = np.cbrt(1-14*zeta)
+    sq3 = np.sqrt(3)
+    return np.where(zeta>=0, -5*zeta,
+        sq3 * np.arctan(sq3) - \
+        sq3 * np.arctan(sq3/3*(2*Cm+1)) + 1.5 * \
+        np.log((Cm**2 + Cm + 1)/3))
+@jit(nopython=True)
+def large_psi_h(zeta: np.ndarray) -> np.ndarray:
+    sq3 = np.sqrt(3)
+    Ch = np.cbrt(1-25*zeta)
+    return np.where(zeta>=0, -5*zeta,
+        sq3 * np.arctan(sq3) - \
+            sq3 * np.arctan(sq3/3*(2*Ch+1)) + 1.5 * \
+            np.log((Ch**2 + Ch + 1)/3))
+@jit(nopython=True)
+def large_Psi_m(zeta: np.ndarray) -> np.ndarray:
+    Cm = np.cbrt(1-14*zeta)
+    sq3 = np.sqrt(3)
+    return np.where(zeta>=0, -5*zeta/2,
+            sq3 * np.arctan(sq3) - \
+            sq3 * np.arctan(sq3/3*(2*Cm+1)) + 1.5 * \
+            np.log((Cm**2 + Cm + 1)/3) - (2*Cm+1)*(Cm-1) / \
+            2/(Cm**2 + Cm + 1))
 
-    return (np.vectorize(phi_m, otypes=[float]),
-            np.vectorize(phi_h, otypes=[float]),
-            np.vectorize(psi_m, otypes=[float]),
-            np.vectorize(psi_h, otypes=[float]),
-            np.vectorize(Psi_m, otypes=[float]),
-            np.vectorize(Psi_h, otypes=[float]))
+@jit(nopython=True)
+def large_Psi_h(zeta: np.ndarray) -> np.ndarray:
+    sq3 = np.sqrt(3)
+    Ch = np.cbrt(1-25*zeta)
+    return np.where(zeta>=0, -5*zeta/2,
+            sq3 * np.arctan(sq3) - \
+            sq3 * np.arctan(sq3/3*(2*Ch+1)) + 1.5 * \
+            np.log((Ch**2 + Ch + 1)/3) - (2*Ch+1)*(Ch-1) / \
+            2/(Ch**2 + Ch + 1))
 
-def Businger_et_al_1971():
-    fm = lambda zeta : (1-15*zeta)**(1/4)
-    fh = lambda zeta : (1-9*zeta)**(1/2)
-    # a = 4.7
-    # Pr = 0.74
-    a = 4.8
-    Pr = 4.8/7.8
-    def phi_m(zeta):
-        return a*zeta + 1 if zeta >= 0 else 1/fm(zeta)
-    def phi_h(zeta):
-        return a*zeta/Pr + 1 if zeta >= 0 else 1/fh(zeta)
-    def psi_m(zeta):
-        return -a*zeta if zeta >= 0 else \
-                np.log((1+fm(zeta))**2*(1+fm(zeta)**2)/8) - \
-                2*np.arctan(fm(zeta)) + np.pi/2
-    def psi_h(zeta):
-        return -a*zeta/Pr if zeta >= 0 else 2*np.log((1+fh(zeta))/2)
-    def Psi_m(zeta):
-        if abs(zeta) < 1e-6: # using asymptotics of Nishizawa Kitamura (2018)
-            return -a*zeta/2 if zeta >= 0 else -15*zeta/8
-        else:
-            return -a*zeta/2 if zeta >= 0 else \
-                    np.log((1+fm(zeta))**2*(1+fm(zeta)**2)/8) - \
-                    2*np.arctan(fm(zeta)) + (1-fm(zeta)**3)/12/zeta + np.pi/2 - 1
-    def Psi_h(zeta):
-        if abs(zeta) < 1e-6:
-            return -a*zeta/2/Pr if zeta >= 0 else -9*zeta/4
-        else:
-            return -a*zeta/2/Pr if zeta >= 0 else \
-                    2*np.log((1+fh(zeta))/2) + 2*(1-fh(zeta))/9/zeta - 1
-    return (np.vectorize(phi_m, otypes=[float]),
-            np.vectorize(phi_h, otypes=[float]),
-            np.vectorize(psi_m, otypes=[float]),
-            np.vectorize(psi_h, otypes=[float]),
-            np.vectorize(Psi_m, otypes=[float]),
-            np.vectorize(Psi_h, otypes=[float]))
+# a = 4.7
+# Pr = 0.74
+a = 4.8
+Pr = 4.8/7.8
+@jit(nopython=True)
+def businger_phi_m(zeta: np.ndarray) -> np.ndarray:
+    fm = (1-15*np.minimum(zeta, 0.))**(1/4)
+    return np.where(zeta>=0, a*zeta+1, 1/fm)
+@jit(nopython=True)
+def businger_phi_h(zeta: np.ndarray) -> np.ndarray:
+    fh = (1-9*np.minimum(zeta, 0.))**(1/2)
+    return np.where(zeta>=0, a*zeta/Pr+1, 1/fh)
+@jit(nopython=True)
+def businger_psi_m(zeta: np.ndarray) -> np.ndarray:
+    fm = (1-15*np.minimum(zeta, 0.))**(1/4)
+    zeta_neg = np.log((1+fm)**2*(1+fm**2)/8) - \
+                    2*np.arctan(fm) + np.pi/2
+    return np.where(zeta>=0, -a*zeta, zeta_neg)
+@jit(nopython=True)
+def businger_psi_h(zeta: np.ndarray) -> np.ndarray:
+    fh = (1-9*np.minimum(zeta, 0.))**(1/2)
+    return np.where(zeta>=0, -a*zeta/Pr,
+        2*np.log((1+fh)/2))
+def businger_Psi_m(zeta: np.ndarray) -> np.ndarray:
+    fm = (1-15*np.minimum(zeta, 0.))**(1/4)
+    cond_list = [np.logical_and(zeta>=0, np.abs(zeta)<1e-6),
+            np.logical_and(zeta<0, np.abs(zeta)<1e-6),
+            zeta>=0, zeta<0]
+    choice_list = [-a*zeta/2, -15*zeta/8, -a*zeta/2,
+            np.log((1+fm)**2*(1+fm**2)/8) - \
+            2*np.arctan(fm) + (1-fm**3)/12/zeta + \
+            np.pi/2 - 1]
+    return np.select(cond_list, choice_list)
+def businger_Psi_h(zeta: np.ndarray) -> np.ndarray:
+    fh = (1-9*np.minimum(zeta, 0.))**(1/2)
+    cond_list = [np.logical_and(zeta>=0, np.abs(zeta)<1e-6),
+            np.logical_and(zeta<0, np.abs(zeta)<1e-6),
+            zeta>=0, zeta<0]
+    choice_list = [-a*zeta/2/Pr, -9*zeta/4, -a*zeta/2/Pr,
+            2*np.log((1+fh)/2) + 2*(1-fh)/9/zeta \
+                    - 1 ]
+    return np.select(cond_list, choice_list)
+
+Large_et_al_2019 = (large_phi_m, large_phi_h,
+            large_psi_m, large_psi_h,
+            large_Psi_m, large_Psi_h)
+Businger_et_al_1971 = (businger_phi_m, businger_phi_h,
+            businger_psi_m, businger_psi_h,
+            businger_Psi_m, businger_Psi_h)
+

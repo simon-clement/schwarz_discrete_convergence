@@ -148,8 +148,8 @@ class Atm1dStratified():
 
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         SL: SurfaceLayerData = friction_scales(u_delta,
-                delta_sl, t_delta, businger(),
-                u_o[0], delta_sl_o, SST[0], large_ocean(), sf_scheme,
+                delta_sl, t_delta, businger,
+                u_o[0], delta_sl_o, SST[0], large_ocean, sf_scheme,
                 Q_sw[0], Q_lw[0],
                 k, True)
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
@@ -167,7 +167,7 @@ class Atm1dStratified():
         z_levels_sl[k] = self.z_full[k] if ignore_tke_sl else delta_sl
         l_m, l_eps = self.__mixing_lengths( tke.tke_full,
                 np.abs(phi_t0*phi_t0), 9.81*dz_theta/283.,
-                z_levels_sl, SL, businger())
+                z_levels_sl, SL, businger)
 
         phi, old_phi = phi_t0, np.copy(phi_t0)
         u_current: array = np.copy(u_t0)
@@ -180,8 +180,8 @@ class Atm1dStratified():
         for n in range(1,N+1):
             # Compute friction scales
             SL_nm1, SL = SL, friction_scales(u_delta, delta_sl,
-                    t_delta, businger(), u_o[n], delta_sl_o, SST[n],
-                    large_ocean(), sf_scheme, Q_sw[n], Q_lw[n],
+                    t_delta, businger, u_o[n], delta_sl_o, SST[n],
+                    large_ocean, sf_scheme, Q_sw[n], Q_lw[n],
                     k, True)
             all_u_star += [SL.u_star]
             all_t_star += [SL.t_star]
@@ -192,7 +192,7 @@ class Atm1dStratified():
                     old_phi=old_phi, l_m=l_m, l_eps=l_eps,
                     K_full=Ku_full, tke=tke,
                     dz_theta=dz_theta, Ktheta_full=Ktheta_full,
-                    universal_funcs=businger(),
+                    universal_funcs=businger,
                     ignore_tke_sl=ignore_tke_sl)
 
             old_phi = phi
@@ -285,8 +285,8 @@ class Atm1dStratified():
         forcing_theta = np.zeros_like(forcing[0]) # no temp forcing
         ###### Initialization #####
         SL: SurfaceLayerData = friction_scales(u_t0[0],
-                delta_sl, theta_t0[0], businger(),
-                u_o[0], delta_sl_o, SST[0], large_ocean(), sf_scheme,
+                delta_sl, theta_t0[0], businger,
+                u_o[0], delta_sl_o, SST[0], large_ocean, sf_scheme,
                 Q_sw[0], Q_lw[0],
                 0, True)
         import tkeAtm1D
@@ -311,8 +311,8 @@ class Atm1dStratified():
             t_delta = func_theta(prognostic=theta)
             # Compute friction scales
             SL: SurfaceLayerData= friction_scales(u_delta, delta_sl,
-                    t_delta, businger(), u_o[n], delta_sl_o, SST[n],
-                    large_ocean(), sf_scheme, Q_sw[n], Q_lw[n],
+                    t_delta, businger, u_o[n], delta_sl_o, SST[n],
+                    large_ocean, sf_scheme, Q_sw[n], Q_lw[n],
                     0, True)
             all_u_star += [SL.u_star]
             all_t_star += [SL.t_star]
@@ -322,7 +322,7 @@ class Atm1dStratified():
                     u_current=u_current, old_u=old_u,
                     K_full=Ku_full, tke=tke, theta=theta,
                     Ktheta_full=Ktheta_full, l_m=l_m, l_eps=l_eps,
-                    universal_funcs=businger())
+                    universal_funcs=businger)
 
             # integrate in time momentum
             Y, D, c = self.__matrices_u_FD(Ku_full, forcing_current)
@@ -341,7 +341,7 @@ class Atm1dStratified():
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
                         K_theta=Ktheta_full, forcing=forcing_theta,
-                        universal_funcs=businger())
+                        universal_funcs=businger)
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
@@ -397,7 +397,7 @@ class Atm1dStratified():
         self.__apply_sf_scheme(\
                 func=func_YDc, Y=Y, D=D, c=c, K_u=Ku_full,
                 forcing=forcing, SL=SL, SL_nm1=SL_nm1, Y_nm1=Y_nm1,
-                universal_funcs=businger())
+                universal_funcs=businger)
 
         prognostic = self.__backward_euler(Y=Y, D=D, c=c,
                 u=prognostic, f=self.f, Y_nm1=Y_nm1)
@@ -415,7 +415,7 @@ class Atm1dStratified():
                     prognostic[SL.k+1]/Ku_full[:SL.k], phi))
 
         u_delta: complex = func_un(prognostic=prognostic,
-                SL=SL, universal_funcs=businger())
+                SL=SL, universal_funcs=businger)
 
         return next_u, phi, u_delta
 
@@ -440,7 +440,7 @@ class Atm1dStratified():
                 func=self.dictsf_scheme_theta[SL.sf_scheme][1],
                 Y=Y_theta, D=D_theta, c=c_theta, Y_nm1=Y_nm1,
                 K_theta=Ktheta_full, forcing=forcing_theta,
-                universal_funcs=businger(), SL=SL, SL_nm1=SL_nm1)
+                universal_funcs=businger, SL=SL, SL_nm1=SL_nm1)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
                 Y_nm1=Y_nm1))
@@ -456,7 +456,7 @@ class Atm1dStratified():
                 prognostic_theta[SL.k+1]/Ktheta_full[:SL.k],dz_theta))
         func_theta, _ = self.dictsf_scheme_theta[SL.sf_scheme]
         t_delta: float = func_theta(prognostic=prognostic_theta,
-                universal_funcs=businger(), SL=SL)
+                universal_funcs=businger, SL=SL)
         return next_theta, dz_theta, t_delta
 
     def initialize_theta(self, Neutral_case: bool):
@@ -602,11 +602,11 @@ class Atm1dStratified():
         # we get the MOST profiles)
         z_log: array = np.geomspace(z_min, delta_sl, 20)
 
-        _, _, psi_m, psi_h, *_ = businger()
+        _, _, psi_m, psi_h, *_ = businger
 
         func_un, _ = self.dictsf_scheme[SL.sf_scheme]
         u_delta: complex = func_un(prognostic=prognostic,
-                SL=SL, universal_funcs=businger())
+                SL=SL, universal_funcs=businger)
 
         Pr = 1.# 4.8/7.8
         u_log: complex = u_z0 + u_star/self.kappa * \
@@ -630,7 +630,7 @@ class Atm1dStratified():
             tilde_h = self.z_full[k1+1] - delta_sl
             assert 0 < tilde_h <= self.h_half[k1]
             xi = np.linspace(-tilde_h/2, tilde_h/2, 15)
-            tau_slu, tau_slt = self.__tau_sl(SL, businger())
+            tau_slu, tau_slt = self.__tau_sl(SL, businger)
             alpha_slu = tilde_h/self.h_half[k1] + tau_slu
             alpha_slt = tilde_h/self.h_half[k1] + tau_slt
 
@@ -1011,10 +1011,10 @@ class Atm1dStratified():
         zkp1 = z_levels[k+1]
         z_constant = max(zkp1, z_constant)
         h_tilde = z_levels[k+1] - delta_sl
-        phi_m, phi_h, *_ = businger()
+        phi_m, phi_h, *_ = businger
         SL = friction_scales(u_const, delta_sl,
-                t_const, businger(), u_o, delta_sl_o, t_o,
-                large_ocean(), None, Q_sw, Q_lw, k, True)
+                t_const, businger, u_o, delta_sl_o, t_o,
+                large_ocean, None, Q_sw, Q_lw, k, True)
         for _ in range(15):
             zeta = delta_sl * SL.inv_L_MO
             phi_0[k] = SL.u_star / self.kappa / \
@@ -1031,8 +1031,8 @@ class Atm1dStratified():
                     dz_theta[k+1])
 
             SL = friction_scales(u_delta, delta_sl,
-                t_delta, businger(), u_o, delta_sl_o, t_o,
-                large_ocean(), None, SL.Q_sw, SL.Q_lw, k, True)
+                t_delta, businger, u_o, delta_sl_o, t_o,
+                large_ocean, None, SL.Q_sw, SL.Q_lw, k, True)
             # For LES simulation, putting a quadratic profile between
             # the log law and the constant profile :
             def func_z(z):
@@ -1069,7 +1069,7 @@ class Atm1dStratified():
                     np.concatenate(([t_tilde], t_0[k+1:])),
                     np.concatenate(([h_tilde], self.h_half[k+1:-1])))
 
-        tau_u, tau_t = self.__tau_sl(SL, businger())
+        tau_u, tau_t = self.__tau_sl(SL, businger)
         alpha_u = h_tilde / self.h_half[k] + tau_u
         alpha_t = h_tilde / self.h_half[k] + tau_t
 

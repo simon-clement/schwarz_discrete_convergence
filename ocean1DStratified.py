@@ -166,10 +166,10 @@ class Ocean1dStratified():
 
         SL = process_friction_scales_oce(ua_delta=wind_10m[0],
                 delta_sl_a=delta_sl_a, ta_delta=temp_10m[0],
-                univ_funcs_a=businger(),
+                univ_funcs_a=businger,
                 u_star=u_star[0], t_star=t_star[0],
                 uo_delta=u_delta, delta_sl_o=delta_sl,
-                to_delta=t_delta, univ_funcs_o=large_ocean(),
+                to_delta=t_delta, univ_funcs_o=large_ocean,
                 sf_scheme=sf_scheme, Q_sw=Q_sw[0], Q_lw=Q_lw[0],
                 k=k, is_atm=False)
 
@@ -204,10 +204,10 @@ class Ocean1dStratified():
             SL_nm1 = SL
             SL = process_friction_scales_oce(ua_delta=wind_10m[n],
                     delta_sl_a=delta_sl_a, ta_delta=temp_10m[n],
-                    univ_funcs_a=businger(),
+                    univ_funcs_a=businger,
                     u_star=u_star[n], t_star=t_star[n],
                     uo_delta=u_delta, delta_sl_o=delta_sl,
-                    to_delta=t_delta, univ_funcs_o=large_ocean(),
+                    to_delta=t_delta, univ_funcs_o=large_ocean,
                     sf_scheme=sf_scheme, Q_sw=Q_sw[n], Q_lw=Q_lw[n],
                     k=k, is_atm=False)
             all_u_star += [SL.u_star]
@@ -218,7 +218,7 @@ class Ocean1dStratified():
                     old_phi=old_phi, l_m=l_m, l_eps=l_eps,
                     K_full=Ku_full, tke=tke,
                     dz_theta=dz_theta, Ktheta_full=Ktheta_full,
-                    universal_funcs=large_ocean(),
+                    universal_funcs=large_ocean,
                     ignore_tke_sl=ignore_tke_sl, tau_b=0.,
                     wave_breaking=wave_breaking)
 
@@ -251,9 +251,9 @@ class Ocean1dStratified():
                 theta[SL.k-1:]))
             u_delta = func_un(prognostic=prognostic_u,
                     delta_sl=delta_sl, SL=SL,
-                    universal_funcs=large_ocean())
+                    universal_funcs=large_ocean)
             t_delta = func_theta(prognostic=prognostic_theta, SL=SL,
-                    universal_funcs=large_ocean())
+                    universal_funcs=large_ocean)
             ret_u_delta += [u_delta]
             ret_t_delta += [t_delta]
 
@@ -353,10 +353,10 @@ class Ocean1dStratified():
             t_delta = func_theta(prognostic=theta)
             SL = process_friction_scales_oce(ua_delta=wind_10m[n],
                     delta_sl_a=delta_sl_a, ta_delta=temp_10m[n],
-                    univ_funcs_a=businger(),
+                    univ_funcs_a=businger,
                     u_star=u_star[n], t_star=t_star[n],
                     uo_delta=u_delta, delta_sl_o=delta_sl,
-                    to_delta=t_delta, univ_funcs_o=large_ocean(),
+                    to_delta=t_delta, univ_funcs_o=large_ocean,
                     sf_scheme=sf_scheme, Q_sw=Q_sw[n], Q_lw=Q_lw[n],
                     k=self.M, is_atm=False)
             all_u_star += [SL.u_star]
@@ -366,7 +366,7 @@ class Ocean1dStratified():
                     u_current=u_current, old_u=old_u,
                     K_full=Ku_full, tke=tke, theta=theta,
                     Ktheta_full=Ktheta_full, l_m=l_m, l_eps=l_eps,
-                    universal_funcs=large_ocean(), tau_b=0.,
+                    universal_funcs=large_ocean, tau_b=0.,
                     wave_breaking=wave_breaking)
 
             # integrate in time momentum:
@@ -390,8 +390,8 @@ class Ocean1dStratified():
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
                         K_theta=Ktheta_full, forcing_theta=forcing_theta,
-                        universal_funcs=large_ocean(),
-                        universal_funcs_a=businger())
+                        universal_funcs=large_ocean,
+                        universal_funcs_a=businger)
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
                         D=D_theta, c=c_theta, u=theta, f=0.))
@@ -446,7 +446,7 @@ class Ocean1dStratified():
         self.__apply_sf_scheme(\
                 func=func_YDc, Y=Y, D=D, c=c, K_u=Ku_full,
                 forcing=forcing, SL=SL, SL_nm1=SL_nm1, Y_nm1=Y_nm1,
-                universal_funcs=large_ocean())
+                universal_funcs=large_ocean)
 
         prognostic = self.__backward_euler(Y=Y, D=D, c=c,
                 u=prognostic, f=self.f, Y_nm1=Y_nm1)
@@ -487,8 +487,8 @@ class Ocean1dStratified():
                 func=self.dictsf_scheme_theta[SL.sf_scheme][1],
                 Y=Y_theta, D=D_theta, c=c_theta, Y_nm1=Y_nm1,
                 K_theta=Ktheta_full, forcing_theta=forcing_theta,
-                universal_funcs=large_ocean(),
-                universal_funcs_a=businger(), SL=SL, SL_nm1=SL_nm1)
+                universal_funcs=large_ocean,
+                universal_funcs_a=businger, SL=SL, SL_nm1=SL_nm1)
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
                 Y_nm1=Y_nm1))
@@ -606,15 +606,15 @@ class Ocean1dStratified():
         # we get the MOST profiles)
         z_log: array = np.geomspace(delta_sl, z_max, 20)
 
-        _, phi_h, psi_m, psi_h, *_ = large_ocean()
+        _, phi_h, psi_m, psi_h, *_ = large_ocean
 
         func_un, _ = self.dictsf_scheme[SL.sf_scheme]
         func_theta, _ = self.dictsf_scheme_theta[SL.sf_scheme]
 
         u_delta: complex = func_un(prognostic=prognostic_u,
-                SL=SL, universal_funcs=large_ocean())
+                SL=SL, universal_funcs=large_ocean)
         t_delta: complex = func_theta(prognostic=prognostic_t,
-                SL=SL, universal_funcs=large_ocean())
+                SL=SL, universal_funcs=large_ocean)
 
         abs_uzM_m_uz: array = u_star/self.kappa * \
                 (np.log(1-z_log/SL.z_0M) - psi_m(-z_log*inv_L_MO))
@@ -653,7 +653,7 @@ class Ocean1dStratified():
             tilde_h = delta_sl - self.z_full[k1-1]
             assert 0 < tilde_h <= self.h_half[k1-1]
             xi = np.linspace(-tilde_h/2, tilde_h/2, 15)
-            tau_slu, tau_slt = self.__tau_sl(SL, large_ocean())
+            tau_slu, tau_slt = self.__tau_sl(SL, large_ocean)
             alpha_slu = tilde_h/self.h_half[k1-1] + tau_slu
             alpha_slt = tilde_h/self.h_half[k1-1] + tau_slt
 
@@ -903,7 +903,7 @@ class Ocean1dStratified():
             apdlr = self.__stability_temperature_phi_z(\
                     N2_full, K_full, shear_full)
 
-            phi_m, phi_h, *_ = large_ocean() # for MOST:
+            phi_m, phi_h, *_ = large_ocean # for MOST:
             apdlr[SL.k:] = phi_m(-z_levels[SL.k:]*SL.inv_L_MO) / \
                     phi_h(-z_levels[SL.k:]*SL.inv_L_MO)
 
@@ -1049,11 +1049,11 @@ class Ocean1dStratified():
         u_const, t_const = u_0[k_const], t_0[k_const]
         u_km1, t_km1 = u_0[k-1], t_0[k-1]
         phi, dz_theta = np.zeros(self.M+1) + 0j, np.zeros(self.M+1)
-        phi_m, phi_h, psi_m, psi_h, *_ = large_ocean()
+        phi_m, phi_h, psi_m, psi_h, *_ = large_ocean
         SL = process_friction_scales_oce(wind10m, delta_sl_a,
-                t10m, businger(), u_star, t_star,
+                t10m, businger, u_star, t_star,
                 u_const, delta_sl_o, t_const,
-                large_ocean(), sf_scheme, Q_sw, Q_lw, k, False)
+                large_ocean, sf_scheme, Q_sw, Q_lw, k, False)
         # no loop from here because of prescribed u_star
         zeta = -SL.delta_sl*SL.inv_L_MO
         phi[k] = SL.u_star / self.kappa / \
@@ -1069,9 +1069,9 @@ class Ocean1dStratified():
         t_delta = t_tilde + tilde_h / 6 * (2*dz_theta[k] + \
                 dz_theta[k-1])
         SL = process_friction_scales_oce(wind10m, delta_sl_a,
-            t10m, businger(), u_star, t_star, u_delta,
+            t10m, businger, u_star, t_star, u_delta,
             delta_sl_o, t_delta,
-            large_ocean(), sf_scheme, SL.Q_sw, SL.Q_lw, k, False)
+            large_ocean, sf_scheme, SL.Q_sw, SL.Q_lw, k, False)
 
         # profiles under MOST : going smoothly to {u,t}_const
         u_km1 = u_delta + (u_const - u_delta) * \
@@ -1104,7 +1104,7 @@ class Ocean1dStratified():
                 np.concatenate((self.h_half[:k-1], [tilde_h])))
         # no endloop here because of prescribed u_star
 
-        tau_u, tau_t = self.__tau_sl(SL, large_ocean())
+        tau_u, tau_t = self.__tau_sl(SL, large_ocean)
         alpha_u = tilde_h / self.h_half[k-1] + tau_u
         alpha_t = tilde_h / self.h_half[k-1] + tau_t
         u_0[k-1] = alpha_u * u_tilde + tau_u * tilde_h * \

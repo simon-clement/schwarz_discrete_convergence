@@ -359,7 +359,7 @@ class TkeOcean1D:
             returns (z, tke(z)), the reconstruction
             of the tke.
             SL and l_eps are outputs of the integration in time.
-            universal_funcs can be businger()
+            universal_funcs can be businger
         """
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
         z_min = SL.delta_sl / 2.

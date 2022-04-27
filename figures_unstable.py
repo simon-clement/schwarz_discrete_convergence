@@ -207,7 +207,7 @@ def simulation_FV(sf_scheme: str, z_levels: np.ndarray, dt: float, N: int,
             all_dz_tke[spinup::skip_dt],
             all_SL[spinup::skip_dt], all_leps[spinup::skip_dt]):
         z_tke, tke_fv = simulator.reconstruct_TKE(TKE,
-                dz_tke, SL, sf_scheme, businger(), l_eps)
+                dz_tke, SL, sf_scheme, businger, l_eps)
         z_tke = z_tke[::skip_dx]
         tke_fv = tke_fv[::skip_dx]
         all_tke_fv += [tke_fv]
