@@ -1499,7 +1499,7 @@ class Ocean1dStratified():
         """
             Y = (0     ,    1     )
             D = (K/h^2 , -K/h^2   )
-            c = (  F + (QH + Q_sw + Q_lw) / (h rho cp)   )
+            c = (  F + (QH - Q_lw) / (h rho cp)   )
         """
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0.,), (1.,), ())
@@ -1508,7 +1508,7 @@ class Ocean1dStratified():
             (- K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
         c = (forcing_theta[self.M - 1] + \
-            (QH + SL.Q_sw + SL.Q_lw) / self.rho0 / self.C_p / \
+            (QH - SL.Q_lw) / self.rho0 / self.C_p / \
             self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
@@ -1516,15 +1516,14 @@ class Ocean1dStratified():
         """
             Y = (  0   ,   0  )
             D = ( K/h  , -K/h )
-            c = ( (QH + Q_sw(delta_sl) + Q_lw) / (rho cp) )
+            c = ( (QH - Q_lw) / (rho cp) )
         """
         Y = ((0.,), (0.,), ())
         D = ((K_theta[self.M-1]/self.h_full[self.M-1],),
                 (-K_theta[self.M-1]/self.h_full[self.M-1],),
                 ())
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
-        Q_sw = SL.Q_sw * np.squeeze(shortwave_frac_sl(SL.delta_sl))
-        c = ((QH + Q_sw + SL.Q_lw) / self.rho0 / self.C_p,)
+        c = ((QH - SL.Q_lw) / self.rho0 / self.C_p,)
         return Y, D, c, Y
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL, forcing_theta,
@@ -1542,7 +1541,7 @@ class Ocean1dStratified():
         """
             Y = (0     ,    1     )
             D = (K/h^2 , -K/h^2   )
-            c = (  F + (QH + Q_sw + Q_lw) / (h rho cp)   )
+            c = (  F + (QH - Q_lw) / (h rho cp)   )
         """
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0.,), (1.,), ())
@@ -1551,7 +1550,7 @@ class Ocean1dStratified():
             (- K_theta[self.M-1] / self.h_full[self.M-1] \
                 / self.h_half[self.M-1],), ())
         c = (forcing_theta[self.M - 1] + \
-            (QH + SL.Q_sw + SL.Q_lw) / self.rho0 / self.C_p / \
+            (QH - SL.Q_lw) / self.rho0 / self.C_p / \
             self.h_half[self.M-1] ,)
         return Y, D, c, Y
 
@@ -1564,7 +1563,7 @@ class Ocean1dStratified():
             D = (-K/h , K/h  ,  0)
                 (  0  , - K  ,  0)
             c = (               F                 )
-                (   (QH + Q_sw + Q_lw)/ (rho cp)  )
+                (   (QH - Q_lw)/ (rho cp)  )
         """
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
         Y = ((0., 0.), (0., 0.), (1.,))
@@ -1574,7 +1573,7 @@ class Ocean1dStratified():
                 (K_theta[self.M] / self.h_half[self.M-1], 0))
         # QH: total heat
         # QS: solar part
-        c = (forcing_theta[self.M-1], (QH + SL.Q_sw + \
+        c = (forcing_theta[self.M-1], (QH - \
                 SL.Q_lw)/(self.rho0*self.C_p))
         return Y, D, c, Y
 
@@ -1591,7 +1590,7 @@ class Ocean1dStratified():
 
             c = (         1/h (forcing_{k-1/2} - forcing_{k-3/2})  )
                 ( forcing_{k-1/2} + (partial_t + if) (u(0) (1-a)/a))
-                (          (QH + Q_sw + Q_lw)/ (rho cp)            )
+                (          (QH - Q_lw)/ (rho cp)            )
             after that, the matrices are filled for every M > m > k
             with 0 for Y
             D: (ldiag, diag, udiag) = (ratio_norms, -1, 0)
@@ -1630,14 +1629,13 @@ class Ocean1dStratified():
                     0.))#UPPER DIAG
 
         QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
-        Q_sw = SL.Q_sw * np.squeeze(shortwave_frac_sl(SL.delta_sl))
 
         rhs_n = SL.t_0 * (1 - alpha)/alpha
         rhs_nm1 = SL_nm1.t_0 * (1 - alpha_nm1)/alpha_nm1
         rhs_part_tilde = (rhs_n - rhs_nm1)/self.dt
         c = ( (forcing_theta[k-1] - forcing_theta[k-2])/self.h_full[k-1],
                 forcing_theta[k-1] + rhs_part_tilde,
-                (QH + Q_sw + SL.Q_lw) / self.rho0 / self.C_p)
+                (QH - SL.Q_lw) / self.rho0 / self.C_p)
 
         Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
         Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)
