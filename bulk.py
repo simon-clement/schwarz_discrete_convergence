@@ -63,7 +63,8 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
             np.log(1 + delta_sl_a/.1 ) ) / 3.
     lambda_u = np.sqrt(1/rho0) # u_o* = lambda_u u_a*
     lambda_t = np.sqrt(1./rho0)*c_p_atm/c_p_oce
-    for _ in range(20):
+    NUMBER_IT_MAX = 400 # (we stop when 5% precision reached)
+    for _ in range(NUMBER_IT_MAX):
         uo_star, to_star = lambda_u*u_star, lambda_t*t_star
         inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2
         inv_L_o = 9.81 * kappa * alpha_eos * to_star / uo_star**2
@@ -102,17 +103,17 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         t_star = ( Ch / np.sqrt(C_D)) * \
                 (ta_delta_Kelvin - to_delta_Kelvin)
 
-    # more than 10% of relative error after 20 iterations ?
-    tstar_not_cv = abs(t_star)>1e-8 and \
-            abs((previous_t_star - t_star)/t_star) > 0.1
-    ustar_not_cv = abs(u_star)>1e-8 and \
-            abs((previous_u_star - u_star)/u_star) > 0.1
-
-    if tstar_not_cv or ustar_not_cv:
-        return friction_scales_alternative(ua_delta, delta_sl_a,
-            ta_delta, univ_funcs_a, uo_delta, delta_sl_o,
-            to_delta, univ_funcs_o, sf_scheme, Q_sw, Q_lw,
-            k)
+        tstar_cv = abs(t_star)<1e-8 or \
+                abs((previous_t_star - t_star)/t_star) < 0.05
+        ustar_cv = abs(u_star)<1e-8 or \
+                abs((previous_u_star - u_star)/u_star) < 0.05
+        if tstar_cv and ustar_cv:
+            break
+    else: # Convergence failed !
+        print("convergence not attained after", NUMBER_IT_MAX,
+                "iterations.")
+        print(u_star, t_star)
+        print(previous_u_star, previous_t_star)
 
     uo_star, to_star = lambda_u*u_star, lambda_t*t_star
     inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2
@@ -179,112 +180,3 @@ def process_friction_scales_oce(ua_delta: float, delta_sl_a: float,
     return SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
             inv_L_o, uo_delta, to_delta_Kelvin, u_zM, theta_zM,
             delta_sl_o, k, sf_scheme, Q_sw, Q_lw, SL_a)
-
-
-def friction_scales_alternative(ua_delta: float, delta_sl_a: float,
-        ta_delta: float, univ_funcs_a,
-        uo_delta: float, delta_sl_o: float,
-        to_delta: float, univ_funcs_o,
-        sf_scheme: str, Q_sw: float, Q_lw: float,
-        k: int, nb_it: int=30) -> SurfaceLayerData:
-    """
-    Computes (u*, t*) with a fixed point algorithm.
-    It is the same as friction_scales but
-    Q_sw and Q_lw increase progressively in iterations.
-    """
-    assert nb_it > 16
-    _, _, psim_a, psis_a, _, _, = univ_funcs_a
-    _, _, psim_o, psis_o, _, _, = univ_funcs_o
-    ta_delta_Kelvin = ta_delta
-    to_delta_Kelvin = to_delta
-    ta_delta_Kelvin += 273. if ta_delta < 150 else 0.
-    to_delta_Kelvin += 273. if to_delta < 150 else 0.
-    rho0 = 1024.
-    kappa = 0.4
-    c_p_atm = 1004.
-    c_p_oce = 3985.
-    K_mol_oce = 1e-4
-    mu_m = 6.7e-2
-    alpha_eos = 1.8e-4
-    # ATMOSPHERIC friction scales:
-    t_star: float = (ta_delta_Kelvin-to_delta_Kelvin) * \
-            (0.0180 if ta_delta_Kelvin > to_delta_Kelvin else 0.0327)
-    u_star: float = (kappa *np.abs(ua_delta - uo_delta) / \
-            np.log(1 + delta_sl_a/.1 ) ) / 3.
-    lambda_u = np.sqrt(1/rho0) # u_o* = lambda_u u_a*
-    lambda_t = np.sqrt(1./rho0)*c_p_atm/c_p_oce
-    Q_sw_prog = np.concatenate(([0.] * 4,
-        np.linspace(0., Q_sw, nb_it-16), [Q_sw]*12))
-    Q_lw_prog = np.concatenate(([0.] * 4,
-        np.linspace(0., Q_lw, nb_it-16), [Q_lw]*12))
-    for n in range(nb_it):
-        uo_star, to_star = lambda_u*u_star, lambda_t*t_star
-        inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2
-        inv_L_o = 9.81 * kappa * alpha_eos * to_star / uo_star**2
-        za_0M = za_0H = K_mol_oce / kappa / u_star / mu_m
-        zo_0M = zo_0H = K_mol_oce / kappa / uo_star
-        zeta_a = np.clip(delta_sl_a*inv_L_a, -50., 50.)
-        zeta_o = np.clip(-delta_sl_o*inv_L_o, -50., 50.)
-        # Pelletier et al, 2021, equations 31, 32:
-        rhs_31 = np.log(1+delta_sl_a/za_0M) - psim_a(zeta_a) + \
-                lambda_u * (np.log(1-delta_sl_o/zo_0M) - \
-                    psim_o(zeta_o))
-
-        C_D    = (kappa / rhs_31)**2
-        # Radiative fluxes:
-        QH = to_star * uo_star * rho0 * c_p_oce
-        term_lw = QH - Q_lw_prog[n]
-        term_Qsw = Q_sw_prog[n] * integrated_shortwave_frac_sl(\
-                delta_sl_o, inv_L_o, zo_0H)
-
-        # Pelletier et al, 2021, equation (43):
-        rhs_32 = QH * (np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a)) + \
-                lambda_t * term_lw * (np.log(1-delta_sl_o/zo_0M)-\
-                    psis_o(zeta_o)) - lambda_t * term_Qsw
-        if abs(rhs_32) < 1e-100:
-            Ch = 0.
-        else:
-            Ch = QH * kappa * np.sqrt(C_D) / rhs_32
-
-        previous_u_star, previous_t_star = u_star, t_star
-        u_star = np.sqrt(C_D) * np.abs(ua_delta-uo_delta)
-        t_star = ( Ch / np.sqrt(C_D)) * \
-                (ta_delta_Kelvin - to_delta_Kelvin)
-        ###### RELAXATION STEP ######
-        u_star = (u_star + previous_u_star) / 2.
-        t_star = (t_star + previous_t_star) / 2.
-
-    tstar_not_cv = abs(t_star)>1e-8 and \
-            abs((previous_t_star - t_star)/t_star) > 0.2
-    ustar_not_cv = abs(u_star)>1e-8 and \
-            abs((previous_u_star - u_star)/u_star) > 0.2
-
-    if tstar_not_cv or ustar_not_cv:
-        # more than 20% of relative error after the iterations ?
-        if nb_it < 9e4:
-            return friction_scales_alternative(ua_delta, delta_sl_a,
-                ta_delta, univ_funcs_a, uo_delta, delta_sl_o,
-                to_delta, univ_funcs_o, sf_scheme, Q_sw, Q_lw,
-                k, nb_it=nb_it*5)
-    if nb_it > 3000:
-        print(f"tstars: {t_star} or {previous_t_star}?")
-        print(f"ustars: {u_star} or {previous_u_star}?")
-
-    uo_star, to_star = lambda_u*u_star, lambda_t*t_star
-    inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2
-    inv_L_o = 9.81 * kappa * alpha_eos * to_star / uo_star**2
-    za_0M = za_0H = K_mol_oce / kappa / u_star / mu_m
-    zo_0M = zo_0H = K_mol_oce / kappa / uo_star
-    u_zM: complex = ua_delta - orientation(ua_delta) * u_star \
-            / kappa * (np.log(1+delta_sl_a/za_0M) - \
-            psim_a(delta_sl_a*inv_L_a))
-    # theta_zM does not see radiative fluxes.
-    theta_zM: float = ta_delta_Kelvin - t_star \
-            / kappa * (np.log(1+delta_sl_a/za_0H) - \
-            psis_a(delta_sl_a*inv_L_a))
-    SL_o = SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
-            inv_L_o, uo_delta, to_delta_Kelvin, u_zM, theta_zM,
-            delta_sl_o, None, None, Q_sw, Q_lw, None)
-    return SurfaceLayerData(u_star, t_star, za_0M, za_0H,
-            inv_L_a, ua_delta, ta_delta_Kelvin, u_zM, theta_zM,
-            delta_sl_a, k, sf_scheme, Q_sw, Q_lw, SL_o)
