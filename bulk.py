@@ -53,14 +53,14 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
     kappa = 0.4
     c_p_atm = 1004.
     c_p_oce = 3985.
-    K_mol_oce = 1e-4
+    K_mol_oce = 1e-6
     mu_m = 6.7e-2
     alpha_eos = 1.8e-4
     # ATMOSPHERIC friction scales:
     t_star: float = (ta_delta_Kelvin-to_delta_Kelvin) * \
             (0.0180 if ta_delta_Kelvin > to_delta_Kelvin else 0.0327)
     u_star: float = (kappa *np.abs(ua_delta - uo_delta) / \
-            np.log(1 + delta_sl_a/.1 ) )
+            np.log(1 + delta_sl_a/.1 ) ) / 3.
     lambda_u = np.sqrt(1/rho0) # u_o* = lambda_u u_a*
     lambda_t = np.sqrt(1./rho0)*c_p_atm/c_p_oce
     for _ in range(20):
@@ -101,19 +101,18 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         u_star = np.sqrt(C_D) * np.abs(ua_delta-uo_delta)
         t_star = ( Ch / np.sqrt(C_D)) * \
                 (ta_delta_Kelvin - to_delta_Kelvin)
-    if abs(previous_t_star - t_star) > 0.1 * abs(t_star):
-        # more than 10% of relative error after 30 iterations ?
+
+    # more than 10% of relative error after 20 iterations ?
+    tstar_not_cv = abs(t_star)>1e-8 and \
+            abs((previous_t_star - t_star)/t_star) > 0.1
+    ustar_not_cv = abs(u_star)>1e-8 and \
+            abs((previous_u_star - u_star)/u_star) > 0.1
+
+    if tstar_not_cv or ustar_not_cv:
         return friction_scales_alternative(ua_delta, delta_sl_a,
             ta_delta, univ_funcs_a, uo_delta, delta_sl_o,
             to_delta, univ_funcs_o, sf_scheme, Q_sw, Q_lw,
-            k, absorbed_Qsw_const)
-
-    # if abs(previous_u_star - u_star) > 1e-6: # we attained
-    #     print("bulk convergence not attained (u*): error of",
-    #             abs(previous_u_star - u_star))
-    # if abs(previous_t_star - t_star) > 1e-6: # convergence
-    #     print("bulk convergence not attained (t*): error of",
-    #             abs(previous_t_star - t_star))
+            k)
 
     uo_star, to_star = lambda_u*u_star, lambda_t*t_star
     inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2
@@ -156,7 +155,7 @@ def process_friction_scales_oce(ua_delta: float, delta_sl_a: float,
     kappa = 0.4
     c_p_atm = 1004.
     c_p_oce = 3985.
-    K_mol_oce = 1e-4
+    K_mol_oce = 1e-6
     mu_m = 6.7e-2
     alpha_eos = 1.8e-4
     lambda_u = np.sqrt(1/rho0) # u_o* = lambda_u u_a*
@@ -187,12 +186,13 @@ def friction_scales_alternative(ua_delta: float, delta_sl_a: float,
         uo_delta: float, delta_sl_o: float,
         to_delta: float, univ_funcs_o,
         sf_scheme: str, Q_sw: float, Q_lw: float,
-        k: int, absorbed_Qsw_const: bool) -> SurfaceLayerData:
+        k: int, nb_it: int=30) -> SurfaceLayerData:
     """
     Computes (u*, t*) with a fixed point algorithm.
     It is the same as friction_scales but
     Q_sw and Q_lw increase progressively in iterations.
     """
+    assert nb_it > 16
     _, _, psim_a, psis_a, _, _, = univ_funcs_a
     _, _, psim_o, psis_o, _, _, = univ_funcs_o
     ta_delta_Kelvin = ta_delta
@@ -210,14 +210,13 @@ def friction_scales_alternative(ua_delta: float, delta_sl_a: float,
     t_star: float = (ta_delta_Kelvin-to_delta_Kelvin) * \
             (0.0180 if ta_delta_Kelvin > to_delta_Kelvin else 0.0327)
     u_star: float = (kappa *np.abs(ua_delta - uo_delta) / \
-            np.log(1 + delta_sl_a/.1 ) )
+            np.log(1 + delta_sl_a/.1 ) ) / 3.
     lambda_u = np.sqrt(1/rho0) # u_o* = lambda_u u_a*
     lambda_t = np.sqrt(1./rho0)*c_p_atm/c_p_oce
-    nb_it = 100
     Q_sw_prog = np.concatenate(([0.] * 4,
-        np.linspace(0., Q_sw, nb_it-12), [Q_sw]*8))
+        np.linspace(0., Q_sw, nb_it-16), [Q_sw]*12))
     Q_lw_prog = np.concatenate(([0.] * 4,
-        np.linspace(0., Q_lw, nb_it-12), [Q_lw]*8))
+        np.linspace(0., Q_lw, nb_it-16), [Q_lw]*12))
     for n in range(nb_it):
         uo_star, to_star = lambda_u*u_star, lambda_t*t_star
         inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2
@@ -251,8 +250,25 @@ def friction_scales_alternative(ua_delta: float, delta_sl_a: float,
         u_star = np.sqrt(C_D) * np.abs(ua_delta-uo_delta)
         t_star = ( Ch / np.sqrt(C_D)) * \
                 (ta_delta_Kelvin - to_delta_Kelvin)
-    if abs(previous_t_star - t_star) > 1e0 * abs(t_star):
-        print("bulk error:tstar=", t_star, "? ", previous_t_star, "?")
+        ###### RELAXATION STEP ######
+        u_star = (u_star + previous_u_star) / 2.
+        t_star = (t_star + previous_t_star) / 2.
+
+    tstar_not_cv = abs(t_star)>1e-8 and \
+            abs((previous_t_star - t_star)/t_star) > 0.2
+    ustar_not_cv = abs(u_star)>1e-8 and \
+            abs((previous_u_star - u_star)/u_star) > 0.2
+
+    if tstar_not_cv or ustar_not_cv:
+        # more than 20% of relative error after the iterations ?
+        if nb_it < 9e4:
+            return friction_scales_alternative(ua_delta, delta_sl_a,
+                ta_delta, univ_funcs_a, uo_delta, delta_sl_o,
+                to_delta, univ_funcs_o, sf_scheme, Q_sw, Q_lw,
+                k, nb_it=nb_it*5)
+    if nb_it > 3000:
+        print(f"tstars: {t_star} or {previous_t_star}?")
+        print(f"ustars: {u_star} or {previous_u_star}?")
 
     uo_star, to_star = lambda_u*u_star, lambda_t*t_star
     inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2

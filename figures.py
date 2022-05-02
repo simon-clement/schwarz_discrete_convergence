@@ -58,7 +58,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     time = np.linspace(0, T) # number of time steps is not important
     # because of the projection
     alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
-    Qswmax = 1500.
+    Qswmax = 500.
     Qlw = -np.zeros_like(time) * Qswmax / np.pi
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.26)), 0. ) * \
             Qswmax / (rho0*cp)
@@ -208,11 +208,11 @@ def fig_testBulk():
     univ_funcs_o = large_ocean
     uo_delta= 0.
     sf_scheme = "FV free"
-    t_expectation = {"Unstable": (295.025, 294.975, 294.825),
-            "Stable": (291.03, 290.985, 290.83)}
+    t_expectation = {"Unstable": (294.8, 294.95, 295.025, ),
+            "Stable": (290.8, 290.97, 291.03)}
     for to_delta, stability in zip((295., 291.),
             t_expectation.keys()):
-        for Q_sw, t_expected in zip((0., 100., 300.),
+        for Q_sw, t_expected in zip((300., 100., 0.),
                 t_expectation[stability]):
             SL = friction_scales(ua_delta, delta_sl_a,
                 ta_delta, univ_funcs_a,

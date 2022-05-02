@@ -31,7 +31,7 @@ class Ocean1dStratified():
     def __init__(self, z_levels: array,
             N0: float, alpha: float, dt: float=30.,
             u_geostrophy: float=10.,
-            K_mol: float=1e-4, C_p: float=3985., f: float=1e-4,
+            K_mol: float=1e-6, C_p: float=3985., f: float=1e-4,
             loading_bar: bool=False) -> None:
         """
             z_levels starts at bottom of ocean and contains
