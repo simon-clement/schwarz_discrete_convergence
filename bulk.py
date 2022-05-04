@@ -6,6 +6,7 @@ import numpy as np
 from typing import NamedTuple
 from utils_linalg import orientation
 from shortwave_absorption import integrated_shortwave_frac_sl
+from coare_rad_new import coare_fullsl_rad
 
 class SurfaceLayerData(NamedTuple):
     """
@@ -33,6 +34,62 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         to_delta: float, univ_funcs_o,
         sf_scheme: str, Q_sw: float, Q_lw: float,
         k: int, absorbed_Qsw_const: bool=False) -> SurfaceLayerData:
+    # This functions calls a routine developed by C. Pelletier
+    # for Pelletier et al, 2021.
+    ta_delta += 273. if ta_delta < 150 else 0.
+    to_delta += 273. if to_delta < 150 else 0.
+
+    du_norm = np.abs(ua_delta - uo_delta)
+    du_arg = np.angle(ua_delta - uo_delta)
+    dt = ta_delta - to_delta
+    dq = 0.
+    tatm = ta_delta
+    qatm = 5.e-3
+    zu = zt = zq = delta_sl_a
+    zi = 600.
+    zo1 = delta_sl_o
+    full_sl = delta_sl_o < -1e-10
+    u_star, t_star, *_ = \
+            coare_fullsl_rad(du_norm, du_arg,
+           dt, dq, tatm, qatm, zu, zt, zq,
+           zi, zo1, full_sl, True, not absorbed_Qsw_const,
+           Q_sw, Q_lw, 100)
+
+    rho0 = 1024.
+    kappa = 0.4
+    c_p_atm = 1004.
+    c_p_oce = 3985.
+    K_mol_oce = 1e-6
+    mu_m = 6.7e-2
+    alpha_eos = 1.8e-4
+    lambda_u = np.sqrt(1/rho0) # u_o* = lambda_u u_a*
+    lambda_t = np.sqrt(1./rho0)*c_p_atm/c_p_oce
+    uo_star, to_star = lambda_u*u_star, lambda_t*t_star
+    inv_L_a = 9.81 * kappa * t_star / ta_delta / u_star**2
+    inv_L_o = 9.81 * kappa * alpha_eos * to_star / uo_star**2
+    za_0M = za_0H = K_mol_oce / kappa / u_star / mu_m
+    zo_0M = zo_0H = K_mol_oce / kappa / uo_star
+    _, _, psim_a, psis_a, _, _, = univ_funcs_a
+    u_zM: complex = ua_delta - orientation(ua_delta) * u_star \
+            / kappa * (np.log(1+delta_sl_a/za_0M) - \
+            psim_a(delta_sl_a*inv_L_a))
+    # theta_zM does not see radiative fluxes.
+    theta_zM: float = ta_delta - t_star \
+            / kappa * (np.log(1+delta_sl_a/za_0H) - \
+            psis_a(delta_sl_a*inv_L_a))
+    SL_o = SurfaceLayerData(uo_star, to_star, zo_0M, zo_0H,
+            inv_L_o, uo_delta, to_delta, u_zM, theta_zM,
+            delta_sl_o, None, None, Q_sw, Q_lw, None)
+    return SurfaceLayerData(u_star, t_star, za_0M, za_0H,
+            inv_L_a, ua_delta, ta_delta, u_zM, theta_zM,
+            delta_sl_a, k, sf_scheme, Q_sw, Q_lw, SL_o)
+
+def friction_scales_old(ua_delta: float, delta_sl_a: float,
+        ta_delta: float, univ_funcs_a,
+        uo_delta: float, delta_sl_o: float,
+        to_delta: float, univ_funcs_o,
+        sf_scheme: str, Q_sw: float, Q_lw: float,
+        k: int, absorbed_Qsw_const: bool=False) -> SurfaceLayerData:
     """
     Computes (u*, t*) with a fixed point algorithm.
     returns a SurfaceLayerData containing all the necessary data.
@@ -41,7 +98,6 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
     other parameters are defined in the SurfaceLayerData class.
     It is possible to give to this method
     {u, t}a_delta={u, t}a(z=0) together with delta_sl_a = 0.
-    if is_atm returns SL for atmosphere else returns oceanic SL
     """
     _, _, psim_a, psis_a, _, _, = univ_funcs_a
     _, _, psim_o, psis_o, _, _, = univ_funcs_o
@@ -64,7 +120,7 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
     lambda_u = np.sqrt(1/rho0) # u_o* = lambda_u u_a*
     lambda_t = np.sqrt(1./rho0)*c_p_atm/c_p_oce
     NUMBER_IT_MAX = 400 # (we stop when 5% precision reached)
-    for _ in range(NUMBER_IT_MAX):
+    for n in range(NUMBER_IT_MAX):
         uo_star, to_star = lambda_u*u_star, lambda_t*t_star
         inv_L_a = 9.81 * kappa * t_star / ta_delta_Kelvin / u_star**2
         inv_L_o = 9.81 * kappa * alpha_eos * to_star / uo_star**2
@@ -86,8 +142,9 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
             term_Qsw = Q_sw * (np.log(1-delta_sl_o/zo_0M)-\
                     psis_o(zeta_o))
         else:
-            term_Qsw = Q_sw * integrated_shortwave_frac_sl(\
+            integrated_sw_frac_sl =integrated_shortwave_frac_sl(\
                     delta_sl_o, inv_L_o, zo_0H)
+            term_Qsw = Q_sw * integrated_sw_frac_sl
 
         # Pelletier et al, 2021, equation (43):
         rhs_32 = QH * (np.log(1+delta_sl_a/za_0H) - psis_a(zeta_a)) + \

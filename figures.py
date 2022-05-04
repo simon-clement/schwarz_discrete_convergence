@@ -58,7 +58,7 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
     time = np.linspace(0, T) # number of time steps is not important
     # because of the projection
     alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
-    Qswmax = 500.
+    Qswmax = 1000.
     Qlw = -np.zeros_like(time) * Qswmax / np.pi
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.26)), 0. ) * \
             Qswmax / (rho0*cp)
@@ -231,11 +231,10 @@ def fig_colorplotReconstruction():
     ignore_cached=False
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
-    number_of_days = 3.3
-    number_of_days = 0.3
+    number_of_days = 2.3
     T = 86400 * number_of_days # length of the time window
-    for delta_sl_o, ax, sf_scheme_o in zip((-1., .0),
-            (axes[:, 0], axes[:, 1]), ("FD2", "FD pure")):
+    for delta_sl_o, ax, sf_scheme_o in zip((-.1, .0),
+            (axes[:, 0], axes[:, 1]), ("FD pure", "FD pure")):
         states_atm, states_oce, za, zo = \
             memoised(simulation_coupling, dt_oce, dt_atm, T, True,
                     sf_scheme_a="FD pure", sf_scheme_o=sf_scheme_o,
@@ -244,18 +243,19 @@ def fig_colorplotReconstruction():
         state_atm = states_atm[2]
         state_oce = states_oce[3]
         t = np.linspace(0, number_of_days,
-                states_oce[0].u_delta.shape[0])
-        ax[3].plot(states_atm[1].t_star, label="2nd iteration")
-        ax[2].plot(states_atm[1].u_star, label="2nd iteration")
-        ax[3].plot(states_atm[2].t_star, label="3rd iteration")
-        ax[2].plot(states_atm[2].u_star, label="3rd iteration")
-        ax[3].plot(states_atm[3].t_star, label="4th iteration")
-        ax[2].plot(states_atm[3].u_star, label="4th iteration")
-        ax[3].plot(states_atm[0].t_star, label="1st iteration")
-        ax[2].plot(states_atm[0].u_star, label="1st iteration")
+                states_atm[0].t_star.shape[0])
+        ax[3].plot(t, states_atm[1].t_star, label="2nd iteration")
+        ax[2].plot(t, states_atm[1].u_star, label="2nd iteration")
+        ax[3].plot(t, states_atm[2].t_star, label="3rd iteration")
+        ax[2].plot(t, states_atm[2].u_star, label="3rd iteration")
+        ax[3].plot(t, states_atm[3].t_star, label="4th iteration")
+        ax[2].plot(t, states_atm[3].u_star, label="4th iteration")
+        ax[3].plot(t, states_atm[0].t_star, label="1st iteration")
+        ax[2].plot(t, states_atm[0].u_star, label="1st iteration")
         ax[2].legend()
         ax[2].set_title(r"$u*$")
         ax[3].set_title(r"$t*$, $\delta_o=$"+str(delta_sl_o))
+        ax[3].set_xlabel("days")
         all_u = np.real(np.array(state_atm.other["all_u"]))
         all_tke = np.real(np.array(state_atm.other["all_tke"]))
         all_t = np.array(state_atm.other["all_theta"])

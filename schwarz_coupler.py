@@ -75,7 +75,8 @@ def initialization_ocean(numer_set: NumericalSetting,
     """
     N = int(numer_set.T/simulator_oce.dt) # Number of time steps
     days = np.linspace(0, numer_set.T/86400. , N)
-    t_delta = INIT_THETA_OCE + np.zeros_like(np.cos(2*np.pi*(days-0.26)))
+    t_delta = INIT_THETA_OCE + np.zeros(N)
+    #t_delta = INIT_THETA_OCE + np.cos(2*np.pi*(days-0.26))
     # diurnal activity
     return StateOce(u_delta=np.ones(N+1) * INIT_U_OCE,
             t_delta=t_delta,

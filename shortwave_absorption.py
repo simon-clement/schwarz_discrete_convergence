@@ -90,6 +90,7 @@ def integrated_shortwave_frac_sl(z: float, inv_L_MO: float,
     zet = -zprim*inv_L_MO
     phi_h = np.where(zet>=0, 5*zet+1, 1/np.cbrt(1-25*zet))
     right_part *= (1 - phi_h) / (z0H-zprim)
+
     return left_part - (-z) * np.sum(right_part) / n
 
 def Qsw_E(z: float, SL):
