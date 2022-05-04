@@ -104,7 +104,9 @@ class Atm1dStratified():
                 }
 
     def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
-            dz_theta_t0: array, forcing: array, Q_sw: array,
+            dz_theta_t0: array, forcing: array,
+            forcing_theta: array,
+            Q_sw: array,
             Q_lw: array, u_o: array, SST:array, delta_sl: float,
             delta_sl_o: float,
             sf_scheme: str="FV pure",
@@ -144,7 +146,8 @@ class Atm1dStratified():
             assert abs(delta_sl - self.z_full[1]/2) < 1e-10
         assert turbulence in {"TKE", "KPP"}
         N: int = forcing.shape[0] - 1 # number of time steps
-        forcing_theta = np.zeros_like(forcing[0])
+        if len(forcing_theta.shape) == 1:
+            forcing_theta = [forcing_theta] * N+1
 
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         SL: SurfaceLayerData = friction_scales(u_delta,
@@ -204,7 +207,7 @@ class Atm1dStratified():
             if not Neutral_case:
                 # integrate in time potential temperature
                 theta, dz_theta, t_delta = self.__step_theta(theta,
-                        dz_theta, Ktheta_full, forcing_theta,
+                        dz_theta, Ktheta_full, forcing_theta[n],
                         SL, SL_nm1)
 
             ret_u_delta += [u_delta]
@@ -248,7 +251,8 @@ class Atm1dStratified():
         return ret_dict
 
     def FD(self, u_t0: array, theta_t0: array, Q_sw: array,
-            u_o: array, Q_lw: array, forcing: array, SST:array,
+            u_o: array, Q_lw: array, forcing: array,
+            forcing_theta: array, SST:array,
             delta_sl_o: float,
             turbulence: str="TKE", sf_scheme: str="FD pure",
             Neutral_case: bool=False, store_all: bool=False):
@@ -276,13 +280,15 @@ class Atm1dStratified():
         assert sf_scheme in {"FD2", "FD pure"}
         assert turbulence in {"TKE", "KPP"}
         N: int = forcing.shape[0] - 1 # number of time steps
+        if len(forcing_theta.shape) == 1:
+            forcing_theta = [forcing_theta] * N+1
+
         # methods to get u(delta) and theta(delta):
         func_un, _ = self.dictsf_scheme[sf_scheme]
         func_theta, _ = self.dictsf_scheme_theta[sf_scheme]
         # height of the surface layer:
         delta_sl = self.z_half[0] if sf_scheme == "FD pure" \
                 else self.z_full[1]
-        forcing_theta = np.zeros_like(forcing[0]) # no temp forcing
         ###### Initialization #####
         SL: SurfaceLayerData = friction_scales(u_t0[0],
                 delta_sl, theta_t0[0], businger,
@@ -336,11 +342,12 @@ class Atm1dStratified():
             if not Neutral_case:
                 # integrate in time potential temperature
                 Y_theta, D_theta, c_theta = self.__matrices_theta_FD(
-                        Ktheta_full, np.zeros(self.M))
+                        Ktheta_full, forcing_theta[n])
                 self.__apply_sf_scheme(\
                         func=self.dictsf_scheme_theta[sf_scheme][1],
                         Y=Y_theta, D=D_theta, c=c_theta, SL=SL,
-                        K_theta=Ktheta_full, forcing=forcing_theta,
+                        K_theta=Ktheta_full,
+                        forcing=forcing_theta[n],
                         universal_funcs=businger)
 
                 theta = np.real(self.__backward_euler(Y=Y_theta,
@@ -447,7 +454,7 @@ class Atm1dStratified():
 
         next_theta = theta + self.dt * \
                 np.diff(prognostic_theta[1:] * Ktheta_full) \
-                / self.h_half[:-1]
+                / self.h_half[:-1] + forcing_theta * self.dt
 
         next_theta[:SL.k+1] = prognostic_theta[:SL.k+1]
         dz_theta = prognostic_theta[SL.k+1:]
@@ -941,7 +948,7 @@ class Atm1dStratified():
             (d/dt Y - D) phi = c
         """
         Y_diag: array = np.concatenate(([0, 0.], 2/3*np.ones(self.M-1),
-                                                        [1.]))
+                                                        [0.]))
         Y_udiag: array = np.concatenate(([0, 0.],
             [self.h_half[m]/6./self.h_full[m] for m in range(1, self.M)]))
         Y_ldiag: array =  np.concatenate(([0.],
@@ -951,7 +958,7 @@ class Atm1dStratified():
         D_diag: array = np.concatenate(([0., 0.],
             [-2 * K_full[m] / self.h_half[m] / self.h_half[m-1]
                                         for m in range(1, self.M)],
-            [0.]))
+            [-1.]))
         D_udiag: array = np.concatenate(([0.,  0],
             [K_full[m+1]/self.h_full[m] / self.h_half[m]
                                         for m in range(1, self.M)]))
@@ -1414,11 +1421,12 @@ class Atm1dStratified():
     # Now that Y_n and Y_nm1 can be different,
     # the framework with Y, D and c is far less convenient.
     # I'll change this in a future update.
-    def __sf_YDc_FDpure_theta(self, K_theta, SL, universal_funcs, **_):
+    def __sf_YDc_FDpure_theta(self, K_theta, SL, universal_funcs,
+            forcing, **_):
         """
             Y = (           1         ,   0   )
             D = (-K/h^2 - C_H|ua| / h , K/h^2 )
-            c = ( t_0 * C_H|u| / h )
+            c = ( t_0 * C_H|u| / h  + F)
         """
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
         _, _, _, psi_h, _, _ = universal_funcs
@@ -1429,7 +1437,7 @@ class Atm1dStratified():
         D = ((), (-K_theta[1]/self.h_full[1]/self.h_half[0] - \
                 ch_du /self.h_half[0],),
                 (K_theta[1]/self.h_full[1]/self.h_half[0],))
-        c = (SL.t_0*ch_du / self.h_half[0],)
+        c = (SL.t_0*ch_du / self.h_half[0] + forcing[0],)
         return Y, D, c, Y
 
     def __sf_YDc_FD2_theta(self, K_theta, SL, universal_funcs, **_):
@@ -1448,14 +1456,15 @@ class Atm1dStratified():
         c = (ch_du * SL.t_0,)
         return Y, D, c, Y
 
-    def __sf_YDc_FV1_theta(self, K_theta, SL, universal_funcs, **_):
+    def __sf_YDc_FV1_theta(self, K_theta, SL, universal_funcs,
+            forcing, **_):
         """
             Y = (0     ,    0     , 0 )
                 (1     ,    0     , 0 )
             D = ( -1 ,    K /(C_H|u|),  0  )
                 ( 0  ,     -K/h      , K/h )
             c = (  t_0)
-                (  0  )
+                (  F  )
         """
         _, _, _, psi_h, _, _ = universal_funcs
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
@@ -1466,18 +1475,18 @@ class Atm1dStratified():
         D = ((0.,), (-1, -K_theta[0] / self.h_half[0]),
                 (K_theta[0]/ch_du, K_theta[1]/self.h_half[0]),
                 (0.,))
-        c = (SL.t_0, 0.)
+        c = (SL.t_0, forcing[0])
         return Y, D, c, Y
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL,
-            universal_funcs, **_):
+            universal_funcs, forcing, **_):
         """
             Y = (0     ,    0     , 0 )
                 (1     ,    0     , 0 )
             D = (-1  , -h/24 + K / (C_H|u|) ,   h/24  )
                 ( 0  ,          -K/h        ,    K/h  )
             c = (  t_0 )
-                (   0  )
+                (   F  )
         """
         _, _, _, psi_h, _, _ = universal_funcs
         inv_L_MO = SL.t_star / SL.t_delta / SL.u_star**2 * self.kappa * 9.81
@@ -1489,10 +1498,11 @@ class Atm1dStratified():
                 (K_theta[0]/ch_du-self.h_half[0]/24,
                     K_theta[1]/self.h_half[0]),
                 (self.h_half[0]/24,))
-        c = (SL.t_0, 0.)
+        c = (SL.t_0, forcing[0])
         return Y, D, c, Y
 
-    def __sf_YDc_FV2_theta(self, K_theta, SL, universal_funcs, **_):
+    def __sf_YDc_FV2_theta(self, K_theta, SL, universal_funcs,
+            forcing, **_):
         _, _, _, psi_h, _, Psi_h = universal_funcs
         """
             Y = (0 , 0  , 0 ,  0)
@@ -1503,7 +1513,7 @@ class Atm1dStratified():
                 (0 , 0  ,          -K/h     , K/h )
             c = (  t_0 (R-1) )
                 (     t_0    )
-                (      0     )
+                (      F     )
             where R is the ratio of norms defined by MOST profiles.
             (Bar{u}_{1/2} is overriden so no need to overthink this)
         """
@@ -1524,7 +1534,7 @@ class Atm1dStratified():
                 (-ratio_norms, K_theta[1]/ch_du + \
                         self.h_half[1]/3, K_theta[2]/self.h_half[1]),
                 (0., self.h_half[1]/6))
-        c = (SL.t_0*(ratio_norms-1), SL.t_0, 0.)
+        c = (SL.t_0*(ratio_norms-1), SL.t_0, forcing[1])
         return Y, D, c, Y
 
     def __sf_YDc_FVfree_theta(self, K_theta, universal_funcs, forcing,

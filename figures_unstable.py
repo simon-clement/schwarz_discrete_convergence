@@ -83,6 +83,7 @@ def simulation_FD(sf_scheme: str, z_levels: np.ndarray, dt: float,
             [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
                     for n in range(1, N+1)]))
     ret = simulator.FD(u_t0=u_0, SST=SST,
+            forcing_theta=np.zeros(simulator.M),
             sf_scheme=sf_scheme, forcing=forcing, store_all=True)
     all_u, all_TKE, all_ustar, all_temperature, all_leps = [ret[x] \
             for x in ("all_u", "all_tke", "all_theta", "all_leps")]
@@ -183,6 +184,7 @@ def simulation_FV(sf_scheme: str, z_levels: np.ndarray, dt: float, N: int,
 
     print("Starting the simulation")
     ret = simulator.FV(u_t0=u_0, phi_t0=phi_0,
+                    forcing_theta=np.zeros(simulator.M),
                     SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
                     forcing=forcing, delta_sl=delta_sl, store_all=True)
     all_u, all_phi, all_TKE, all_dz_tke, all_ustar, all_temperature, \

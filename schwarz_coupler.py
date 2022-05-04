@@ -164,6 +164,11 @@ def compute_atmosphere(simulator_atm: Atm1dStratified,
     theta_0 = 280.*np.ones(M)
     dz_theta_0 = np.zeros(M+1)
     forcing = 1j*simulator_atm.f*simulator_atm.u_g*np.ones((N+1, M))
+    forcing_theta = 1.2e-6*np.ones((N+1, M)) # ~ 1 K/day
+    days = np.linspace(0, numer_set.T/86400. , N+1)
+    forcing_theta = np.outer(\
+            np.maximum(np.cos(2*np.pi*(days-0.26)), 0.),
+            1.2e-6*np.ones(M) * np.pi)
 
     delta_sl = numer_set.delta_sl_a
     sf_scheme = numer_set.sf_scheme_a
@@ -186,6 +191,7 @@ def compute_atmosphere(simulator_atm: Atm1dStratified,
     if sf_scheme[:2] == "FV":
         ret = simulator_atm.FV(u_t0=u_i, phi_t0=phi_i,
                         SST=to_delta, sf_scheme=sf_scheme,
+                        forcing_theta=forcing_theta,
                         theta_t0=theta_i, dz_theta_t0=dz_theta_i,
                         u_o=uo_delta, u_delta=u_delta,
                         t_delta=t_delta, Q_sw=Q_sw, Q_lw=Q_lw,
@@ -194,6 +200,7 @@ def compute_atmosphere(simulator_atm: Atm1dStratified,
                         **kwargs)
     elif sf_scheme[:2] == "FD":
         ret = simulator_atm.FD(u_t0=u_i, theta_t0=theta_i,
+                forcing_theta=forcing_theta,
                 delta_sl_o=numer_set.delta_sl_o,
                 Q_sw=Q_sw, Q_lw=Q_lw, u_o=uo_delta,
                 SST=to_delta, forcing=forcing,

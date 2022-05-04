@@ -711,6 +711,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
 
     ret = simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
                     delta_sl_o=0.,
+                    forcing_theta=np.zeros(simulator.M),
                     dz_theta_t0=dz_theta_i, Q_sw=Q_sw, Q_lw=Q_lw,
                     u_o=u_o, SST=SST, sf_scheme=sf_scheme,
                     u_delta=u_delta_i, t_delta=t_delta_i,
@@ -769,6 +770,7 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
     t_0, dz_theta_0 = 265 * np.ones(M), np.zeros(M+1)
     ret = simulator.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=t_0,
                     delta_sl_o=0.,
+                    forcing_theta=np.zeros(simulator.M),
                     dz_theta_t0=dz_theta_0,
                     Q_sw=np.zeros(N+1), Q_lw=np.zeros(N+1),
                     u_o=np.zeros(N+1), Neutral_case=True,
@@ -820,6 +822,7 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
                     for n in range(1, N+1)]))
     theta, _ = simulator.initialize_theta(Neutral_case=False)
     ret = simulator.FD(u_t0=u_0, u_o=np.zeros(N+1),
+            forcing_theta=np.zeros(simulator.M),
             theta_t0=theta, Q_sw=np.zeros(N+1),
             delta_sl_o=0.,
             SST=SST, Q_lw=np.zeros(N+1),
@@ -847,6 +850,7 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
     forcing = 1j*simulator.f * simulator.u_g*np.ones((N+1, M))
     SST = 265. * np.ones(N+1) # Neutral SST with theta=const=265.
     ret = simulator.FD(u_t0=u_0,
+            forcing_theta=np.zeros(simulator.M),
             u_o=np.zeros(N+1),
             delta_sl_o=0.,
             theta_t0=265*np.ones(M), Q_sw=np.zeros(N+1),
