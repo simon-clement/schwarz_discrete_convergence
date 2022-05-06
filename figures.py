@@ -52,7 +52,7 @@ def fig_forcedOcean():
 
 def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str,
-        delta_sl_o: float=None,
+        delta_sl_o: float=None, delta_sl_a: float=None,
         NUMBER_SCHWARZ_ITERATION: int=3, high_res: bool=False):
     f = 1e-4 # Coriolis parameter
     time = np.linspace(0, T) # number of time steps is not important
@@ -85,10 +85,12 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         elif sf_scheme_o in {"FV test", "FD test", "FD pure"}:
             delta_sl_o = 0.
 
-    if sf_scheme_a in {"FV free", "FV test", "FD pure", "FD test"}:
-        delta_sl_a = z_levels_atm[1]/2.
-    else: # sf_scheme_a == "FD2":
-        delta_sl_a = z_levels_atm[1]
+    if delta_sl_a is None:
+        if sf_scheme_a in {"FV free", "FV test",
+                "FD pure", "FD test"}:
+            delta_sl_a = z_levels_atm[1]/2.
+        else: # sf_scheme_a == "FD2":
+            delta_sl_a = z_levels_atm[1]
     assert not (sf_scheme_o == "FV free" and abs(delta_sl_o)<1e-2)
     assert not (sf_scheme_a == "FV free" and abs(delta_sl_a)<1e-2)
 
@@ -156,8 +158,9 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
                 sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
                 ignore_cached=ignore_cached,
+                delta_sl_a=delta_sl_a,
                 delta_sl_o=delta_sl_o, high_res=high_res,
-                NUMBER_SCHWARZ_ITERATION=max(1, ITERATION))
+                NUMBER_SCHWARZ_ITERATION=max(1, ITERATION+1))
     state_atm = states_atm[ITERATION]
     state_oce = states_oce[ITERATION+1]
     all_ua = np.real(np.array(state_atm.other["all_u"]))
@@ -200,9 +203,11 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
             else delta_sl_o
     delta_a = delta_atm[sf_scheme_a] if delta_sl_a is None \
             else delta_sl_a
-    ax.set_title("Atm: " + sf_scheme_a[:2] +r", $\delta_a=$" + \
-            str(delta_a) + "m, ocean: "+ sf_scheme_o[:2] + \
-            r", $\delta_o=$" + str(delta_o)+ "m")
+    title = "Atm: " + sf_scheme_a[:2] +r", $\delta_a=$" + \
+            str(delta_a) +"m"
+    title += ", ocean: "+ sf_scheme_o[:2] + \
+            r", $\delta_o=$" + str(delta_o)+ "m"
+    ax.set_title(title)
     ax.set_yscale("symlog", linthresh=10.)
     return col_a
 
@@ -335,15 +340,62 @@ def fig_compareASLsize():
     fig, axes = plt.subplots(3,1, sharex=True, sharey=True)
     fig.subplots_adjust(hspace=0.67)
     for ax, sf_scheme_a, delta_sl_a in tqdm(zip(axes,
-        ("FD pure", "FV free", "FV free"), (5., 5., 0.1)
+        ("FD pure", "FV free", "FV free"), (5., 5., 1.)
         ), leave=False, total=4):
         fig.colorbar(colorplot_coupling(ax, sf_scheme_a, "FD pure",
-            vmin=278., vmax=281.5, ITERATION=0,
+            vmin=278.9, vmax=281., ITERATION=3,
             delta_sl_a=delta_sl_a), ax=ax)
     for ax in axes:
         ax.set_ylabel("z")
     axes[-1].set_xlabel("days")
-    show_or_save("fig_colorplotCoupling")
+    axes[-1].set_ylim(bottom=-10., top=100.)
+    show_or_save("fig_compareASLsize")
+
+def ustar_comparison(ax, sf_scheme_a: str, sf_scheme_o: str,
+        vmin: float=None, vmax: float=None, delta_sl_o: float=None,
+        delta_sl_a: float=None,
+        ignore_cached: bool=False,
+        ITERATION: int=1, high_res: bool=False):
+    dt_oce = 90. # oceanic time step
+    dt_atm = 30. # atmosphere time step
+    number_of_days = 3.3
+    T = 86400 * number_of_days # length of the time window
+    states_atm, states_oce, za, zo = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
+                ignore_cached=ignore_cached,
+                delta_sl_a=delta_sl_a,
+                delta_sl_o=delta_sl_o, high_res=high_res,
+                NUMBER_SCHWARZ_ITERATION=max(1, ITERATION+1))
+    state_atm = states_atm[ITERATION]
+    N_plot = 400
+    ustar = projection(state_atm.u_star, N_plot)
+    delta_atm = {"FD2": 10.,
+            "FD pure": 5., "FV free" : 5.}
+    delta_oce = {"FD2": -1.,
+            "FD pure": 0., "FV free" : -1., "FV test": 0.}
+    delta_o =  delta_oce[sf_scheme_o] if delta_sl_o is None \
+            else delta_sl_o
+    delta_a = delta_atm[sf_scheme_a] if delta_sl_a is None \
+            else delta_sl_a
+    label = sf_scheme_a[:2] +r", $\delta_{sl}=$" + str(delta_a) + "m"
+    ax.plot(np.linspace(0, number_of_days, N_plot+1), ustar,
+            label=label)
+
+def fig_compareASLsize_ustar():
+    fig, ax = plt.subplots(1,1)
+    fig.subplots_adjust(hspace=0.67)
+    all_sf_scheme = ["FD pure"] + ["FV free"]*5
+    all_delta = (5., 20., 10., 5., 1.,)
+    for sf_scheme_a, delta_sl_a in tqdm(zip(all_sf_scheme, all_delta),
+            leave=False, total=4):
+        ustar_comparison(ax, sf_scheme_a, "FD pure", ITERATION=3,
+            delta_sl_a=delta_sl_a)
+    ax.legend()
+    ax.set_xlabel("days")
+    ax.set_ylabel(r"$u* (m . s^{-1})$")
+    ax.set_ylim(bottom=0., top=0.3)
+    show_or_save("fig_compareASLsize_ustar")
 
 def fig_referenceCoupling():
     fig, axes2D = plt.subplots(4,2, sharex=True, sharey=True)
