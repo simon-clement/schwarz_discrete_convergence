@@ -504,7 +504,6 @@ class Ocean1dStratified():
         if SL.k < self.M: # const flux layer : K[:k] phi[:k] = K[0] phi[0]
             dz_theta = np.concatenate(( dz_theta, Ktheta_full[SL.k]* \
                     prognostic_theta[SL.k]/Ktheta_full[SL.k+1:]))
-        func_theta, _ = self.dictsf_scheme_theta[SL.sf_scheme]
         return next_theta, dz_theta
 
     def __mixing_lengths(self, tke: array, dzu2: array, N2: array,
@@ -533,7 +532,6 @@ class Ocean1dStratified():
         for j in range(1, self.M+1):
             l_down[j] = min(l_down[j-1] + h_half[j-1], mxlm[j])
 
-        g = 9.81
         z_sl = z_levels[SL.k:]
         phi_m, *_ = universal_funcs
         mxlm[SL.k:] = 1/l_down[SL.k:] / tke[SL.k:] * (SL.u_star * \
@@ -779,7 +777,7 @@ class Ocean1dStratified():
     def __matrices_u_FD(self, K_full: array, forcing: array):
         """
             Creates the matrices D, Y, c such that the
-            semi-discrete in space Ekman stratified equation 
+            semi-discrete in space Ekman stratified equation
             for the momentum writes ((d/dt+if) Y - D) u = c
         """
         D_diag: array = np.concatenate((
@@ -862,20 +860,20 @@ class Ocean1dStratified():
             if not ignore_tke_sl:
                 z_levels[k] = delta_sl
             h_half = np.diff(z_levels)
-            phi_prime = phi[1:] * ( \
-                    17./48 + K_full[1:]*self.dt/2/h_half**2 \
-                    ) + phi[:-1] * ( \
-                    7./48 - K_full[:-1]*self.dt/2/h_half**2 \
-                    ) + np.diff(old_phi) / 48
-            phi_second = phi[:-1] * ( \
-                    17./48 + K_full[:-1]*self.dt/2/h_half**2 \
-                    ) + phi[1:] * ( \
-                    7./48 - K_full[1:]*self.dt/2/h_half**2 \
-                    ) - np.diff(old_phi) / 48
+            # phi_prime = phi[1:] * ( \
+            #         17./48 + K_full[1:]*self.dt/2/h_half**2 \
+            #         ) + phi[:-1] * ( \
+            #         7./48 - K_full[:-1]*self.dt/2/h_half**2 \
+            #         ) + np.diff(old_phi) / 48
+            # phi_second = phi[:-1] * ( \
+            #         17./48 + K_full[:-1]*self.dt/2/h_half**2 \
+            #         ) + phi[1:] * ( \
+            #         7./48 - K_full[1:]*self.dt/2/h_half**2 \
+            #         ) - np.diff(old_phi) / 48
 
-            # For energy conservation: shear from Burchard (2002)
-            shear_half = np.abs(K_full[1:] * phi[1:] * phi_prime \
-                        + K_full[:-1] * phi[:-1] * phi_second)
+            # # For energy conservation: shear from Burchard (2002)
+            # shear_half = np.abs(K_full[1:] * phi[1:] * phi_prime \
+            #             + K_full[:-1] * phi[:-1] * phi_second)
 
             # linear equation of state:
             # rho1 = rho0 * (1 - alpha * theta_full - T0)
@@ -1055,7 +1053,7 @@ class Ocean1dStratified():
         u_const, t_const = u_0[k_const], t_0[k_const]
         u_km1, t_km1 = u_0[k-1], t_0[k-1]
         phi, dz_theta = np.zeros(self.M+1) + 0j, np.zeros(self.M+1)
-        phi_m, phi_h, psi_m, psi_h, *_ = large_ocean
+        phi_m, phi_h, *_ = large_ocean
         SL = process_friction_scales_oce(wind10m, delta_sl_a,
                 t10m, businger, u_star, t_star,
                 u_const, delta_sl_o, t_const,
@@ -1125,8 +1123,7 @@ class Ocean1dStratified():
         if SL in self.dict_tau_sl:
             return self.dict_tau_sl[SL]
         delta_sl, inv_L_MO = SL.delta_sl, SL.inv_L_MO
-        Q_sw, Q_lw = SL.Q_sw, SL.Q_lw
-        _, phi_h, psi_m, psi_h, Psi_m, Psi_h = universal_funcs
+        _, _, psi_m, psi_h, Psi_m, Psi_h = universal_funcs
         assert self.z_full[SL.k-1] < delta_sl
         assert delta_sl <= self.z_full[SL.k]
         zk = self.z_full[SL.k]
