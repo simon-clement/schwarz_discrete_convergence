@@ -171,3 +171,15 @@ def orientation(cplx: complex) -> complex:
         returns 1 if cplx == 0
     """
     return np.exp(1j*np.angle(cplx))
+
+def oversample(arr: np.ndarray, n: int) -> np.ndarray:
+    """
+        returns a sorted array containing n times more points
+    """
+    assert n > 1
+    assert arr.shape[0] > 1
+    to_concatenate = [arr]
+    for i in range(1, n):
+        theta = i/n
+        to_concatenate += [theta * arr[1:] + (1-theta) * arr[:-1]]
+    return np.sort(np.concatenate(to_concatenate))

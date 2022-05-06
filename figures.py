@@ -15,7 +15,7 @@ from atm1DStratified import Atm1dStratified
 from ocean1DStratified import Ocean1dStratified
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
-from utils_linalg import solve_linear, full_to_half
+from utils_linalg import solve_linear, full_to_half, oversample
 import figures_unstable
 from fortran.visu import import_data
 from validation_oce1D import fig_comodoParamsConstantCooling
@@ -53,13 +53,13 @@ def fig_forcedOcean():
 def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str,
         delta_sl_o: float=None,
-        NUMBER_SCHWARZ_ITERATION: int=3):
+        NUMBER_SCHWARZ_ITERATION: int=3, high_res: bool=False):
     f = 1e-4 # Coriolis parameter
     time = np.linspace(0, T) # number of time steps is not important
     # because of the projection
     alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
-    Qswmax = 1000.
-    Qlw = -np.zeros_like(time) * Qswmax / np.pi
+    Qswmax = 500.
+    Qlw = -np.ones_like(time) * Qswmax / np.pi
     srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.26)), 0. ) * \
             Qswmax / (rho0*cp)
     Qsw = srflx * rho0*cp
@@ -67,6 +67,9 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         np.linspace(-50., 0., 51)))
     z_levels_atm = np.concatenate((np.linspace(0.,500, 51),
         10*np.linspace(1,15,15)**1.5+500))
+    if high_res:
+        z_levels_oce = oversample(z_levels_oce, 3)
+        z_levels_atm = oversample(z_levels_atm, 3)
     simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
             dt=dt_oce, u_geostrophy=0., f=f, alpha=alpha,
             N0=N0)
@@ -86,6 +89,8 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         delta_sl_a = z_levels_atm[1]/2.
     else: # sf_scheme_a == "FD2":
         delta_sl_a = z_levels_atm[1]
+    assert not (sf_scheme_o == "FV free" and abs(delta_sl_o)<1e-2)
+    assert not (sf_scheme_a == "FV free" and abs(delta_sl_a)<1e-2)
 
     numer_setting = NumericalSetting(T=T,
             sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
@@ -140,17 +145,19 @@ def half_to_full(z_half: np.ndarray, ocean: bool):
 
 def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
         vmin: float=None, vmax: float=None, delta_sl_o: float=None,
+        delta_sl_a: float=None,
         ignore_cached: bool=False,
-        ITERATION: int=1):
+        ITERATION: int=1, high_res: bool=False):
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
     number_of_days = 3.3
-    number_of_days = 0.5
     T = 86400 * number_of_days # length of the time window
     states_atm, states_oce, za, zo = \
         memoised(simulation_coupling, dt_oce, dt_atm, T, True,
                 sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
-                ignore_cached=ignore_cached, delta_sl_o=delta_sl_o)
+                ignore_cached=ignore_cached,
+                delta_sl_o=delta_sl_o, high_res=high_res,
+                NUMBER_SCHWARZ_ITERATION=max(1, ITERATION))
     state_atm = states_atm[ITERATION]
     state_oce = states_oce[ITERATION+1]
     all_ua = np.real(np.array(state_atm.other["all_u"]))
@@ -189,8 +196,10 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
             "FD pure": 5., "FV free" : 5.}
     delta_oce = {"FD2": -1.,
             "FD pure": 0., "FV free" : -1., "FV test": 0.}
-    delta_o = delta_oce[sf_scheme_o]
-    delta_a = delta_atm[sf_scheme_a]
+    delta_o =  delta_oce[sf_scheme_o] if delta_sl_o is None \
+            else delta_sl_o
+    delta_a = delta_atm[sf_scheme_a] if delta_sl_a is None \
+            else delta_sl_a
     ax.set_title("Atm: " + sf_scheme_a[:2] +r", $\delta_a=$" + \
             str(delta_a) + "m, ocean: "+ sf_scheme_o[:2] + \
             r", $\delta_o=$" + str(delta_o)+ "m")
@@ -223,8 +232,6 @@ def fig_testBulk():
             print(f"{stability}: Q_sw={Q_sw}, t_0={SL.t_0} " + \
                     f"instead of {t_expected}")
 
-
-
 def fig_colorplotReconstruction():
     fig, axes = plt.subplots(4,2)
     fig.subplots_adjust(hspace=0.67)
@@ -233,23 +240,23 @@ def fig_colorplotReconstruction():
     dt_atm = 30. # atmosphere time step
     number_of_days = 2.3
     T = 86400 * number_of_days # length of the time window
-    for delta_sl_o, ax, sf_scheme_o in zip((-.1, .0),
-            (axes[:, 0], axes[:, 1]), ("FD pure", "FD pure")):
+    for delta_sl_o, ax, sf_scheme_o in zip((.0, -.5),
+            (axes[:, 0], axes[:, 1]), ("FV test", "FV free")):
         states_atm, states_oce, za, zo = \
             memoised(simulation_coupling, dt_oce, dt_atm, T, True,
                     sf_scheme_a="FD pure", sf_scheme_o=sf_scheme_o,
                     ignore_cached=ignore_cached,
-                    delta_sl_o=delta_sl_o, NUMBER_SCHWARZ_ITERATION=4)
-        state_atm = states_atm[2]
-        state_oce = states_oce[3]
+                    delta_sl_o=delta_sl_o, NUMBER_SCHWARZ_ITERATION=1)
+        state_atm = states_atm[0]
+        state_oce = states_oce[1]
         t = np.linspace(0, number_of_days,
                 states_atm[0].t_star.shape[0])
-        ax[3].plot(t, states_atm[1].t_star, label="2nd iteration")
-        ax[2].plot(t, states_atm[1].u_star, label="2nd iteration")
-        ax[3].plot(t, states_atm[2].t_star, label="3rd iteration")
-        ax[2].plot(t, states_atm[2].u_star, label="3rd iteration")
-        ax[3].plot(t, states_atm[3].t_star, label="4th iteration")
-        ax[2].plot(t, states_atm[3].u_star, label="4th iteration")
+        # ax[3].plot(t, states_atm[1].t_star, label="2nd iteration")
+        # ax[2].plot(t, states_atm[1].u_star, label="2nd iteration")
+        # ax[3].plot(t, states_atm[2].t_star, label="3rd iteration")
+        # ax[2].plot(t, states_atm[2].u_star, label="3rd iteration")
+        # ax[3].plot(t, states_atm[3].t_star, label="4th iteration")
+        # ax[2].plot(t, states_atm[3].u_star, label="4th iteration")
         ax[3].plot(t, states_atm[0].t_star, label="1st iteration")
         ax[2].plot(t, states_atm[0].u_star, label="1st iteration")
         ax[2].legend()
@@ -324,17 +331,49 @@ def fig_colorplotReconstruction():
 
     show_or_save("fig_colorplotParameterizing")
 
+def fig_compareASLsize():
+    fig, axes = plt.subplots(3,1, sharex=True, sharey=True)
+    fig.subplots_adjust(hspace=0.67)
+    for ax, sf_scheme_a, delta_sl_a in tqdm(zip(axes,
+        ("FD pure", "FV free", "FV free"), (5., 5., 0.1)
+        ), leave=False, total=4):
+        fig.colorbar(colorplot_coupling(ax, sf_scheme_a, "FD pure",
+            vmin=278., vmax=281.5, ITERATION=0,
+            delta_sl_a=delta_sl_a), ax=ax)
+    for ax in axes:
+        ax.set_ylabel("z")
+    axes[-1].set_xlabel("days")
+    show_or_save("fig_colorplotCoupling")
+
+def fig_referenceCoupling():
+    fig, axes2D = plt.subplots(4,2, sharex=True, sharey=True)
+    fig.subplots_adjust(hspace=0.67)
+    for axes, high_res in zip((axes2D[:,0], axes2D[:,1]),
+            (True, False)):
+        for ax, sf_scheme_o, delta_sl_o in tqdm(zip(axes,
+            ("FD pure", "FD pure", "FV free", "FV test"),
+            (-.5, 0., -.5, 0.)
+            ), leave=False, total=4):
+            fig.colorbar(colorplot_coupling(ax, "FD pure", sf_scheme_o,
+                vmin=278., vmax=281.5, ITERATION=1,
+                delta_sl_o=delta_sl_o, high_res=high_res), ax=ax)
+    for ax in axes2D[:, 0]:
+        ax.set_ylabel("z")
+    for ax in axes2D[-1, :]:
+        ax.set_xlabel("days")
+    show_or_save("fig_colorplotCoupling")
+
 def fig_colorplotCoupling():
     fig, axes2D = plt.subplots(4,2, sharex=True, sharey=True)
     fig.subplots_adjust(hspace=0.67)
     for axes, iteration in zip((axes2D[:,0], axes2D[:,1]), (0, 1)):
         for ax, sf_scheme_o, delta_sl_o in tqdm(zip(axes,
-            ("FD2", "FD pure", "FV free", "FV test"), # Oce sf scheme
-            (-1., 0., -1., 0.)
+            ("FD pure", "FD pure", "FV free", "FV test"), # Oce sf scheme
+            (-.5, 0., -.5, 0.)
             ), leave=False, total=4):
             fig.colorbar(colorplot_coupling(ax, "FD pure", sf_scheme_o,
                 vmin=278., vmax=281.5, ITERATION=iteration,
-                delta_sl_o=delta_sl_o), ax=ax)
+                delta_sl_o=delta_sl_o, high_res=False), ax=ax)
     for ax in axes2D[:, 0]:
         ax.set_ylabel("z")
     for ax in axes2D[-1, :]:
