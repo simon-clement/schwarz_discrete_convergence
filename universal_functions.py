@@ -84,7 +84,8 @@ def businger_Psi_m(zeta: np.ndarray) -> np.ndarray:
             zeta>=0, zeta<0]
     choice_list = [-a*zeta/2, -15*zeta/8, -a*zeta/2,
             np.log((1+fm)**2*(1+fm**2)/8) - \
-            2*np.arctan(fm) + (1-fm**3)/12/zeta + \
+            2*np.arctan(fm) + \
+            (1-fm**3)/12/np.minimum(zeta, -1e-20) + \
             np.pi/2 - 1]
     return np.select(cond_list, choice_list)
 def businger_Psi_h(zeta: np.ndarray) -> np.ndarray:
@@ -93,7 +94,7 @@ def businger_Psi_h(zeta: np.ndarray) -> np.ndarray:
             np.logical_and(zeta<0, np.abs(zeta)<1e-6),
             zeta>=0, zeta<0]
     choice_list = [-a*zeta/2/Pr, -9*zeta/4, -a*zeta/2/Pr,
-            2*np.log((1+fh)/2) + 2*(1-fh)/9/zeta \
+            2*np.log((1+fh)/2) + 2*(1-fh)/9/np.minimum(zeta, -1e-20) \
                     - 1 ]
     return np.select(cond_list, choice_list)
 
