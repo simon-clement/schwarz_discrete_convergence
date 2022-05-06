@@ -152,7 +152,7 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
     L10= 1e100 if abs(zetu) < 1e-100 else zu/zetu
     bigg_atm = (np.log(zu/zo10)-psiuo(zu/L10))
 
-    usr=ut*von/bigg_atm
+    usr=np.maximum(ut*von/bigg_atm, 1e-8)
 
     tsr=dt*von*fdg/(np.log(zt/zot10)-psit_30(zt/L10))
     qsr=dq*von*fdg/(np.log(zq/zot10)-psit_30(zq/L10))
@@ -190,8 +190,13 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
        
         zo=charn*usr*usr/grav+0.11*nu_atm/usr
         rr=zo*usr/nu_atm
+        rr=charn*usr*usr*usr/grav/nu_atm + 0.11
         L= 1e100 if abs(zet) < 1e-100 else zu/zet
-        zoq=min(1.15e-4,5.5e-5/rr**.6)
+        # zoq=min(1.15e-4,5.5e-5/rr**.6)
+        try:
+            zoq=1.15e-4 if 11.5*rr**.6 < 5.5 else 5.5e-5/rr**.6
+        except:
+            zoq = 1.15e-4
         zot=zoq
         ut = np.sqrt( du_norm**2 + ug**2)
         if(full_sl):
@@ -216,7 +221,7 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
             bigg_atm = np.log(zu/zo)-psiuo(zu/L) \
                        + lambda_u * (np.log(-zo1 / (mu_m * zo / lambda_u )) - psi_om(-zo1 / lobu_oce))
 
-            usr=ut*von/bigg_atm
+            usr=np.maximum(ut*von/bigg_atm, 1e-8)
 
             bracket_temp = np.log(-zo1 / (mu_m * zot / lambda_u )) - psi_oh(-zo1 / lobu_oce)
             dt_eff = dt
@@ -247,7 +252,7 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
             qsr=dq*von*fdg/(np.log(zq/zoq)-psit_30(zq/L) )
         else:
             bigg_atm = np.log(zu/zo)-psiuo(zu/L)
-            usr=ut*von/bigg_atm
+            usr=np.maximum(ut*von/bigg_atm, 1e-8)
             tsr=dt*von*fdg/(np.log(zt/zot)-psit_30(zt/L) )
             qsr=dq*von*fdg/(np.log(zq/zoq)-psit_30(zq/L) )
 
