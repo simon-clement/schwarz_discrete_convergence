@@ -926,6 +926,12 @@ class Ocean1dStratified():
                        phi_h(-SL.delta_sl*SL.inv_L_MO),
                        self.Ktheta_min)
                 assert abs(Ktheta_full_replacement - Ktheta_full[SL.k])<1e-10
+            elif abs(SL.delta_sl) < 1e-2: # if there is no OSL,
+                # there is a numerical problem using the
+                # molecular viscosity; so we impose a viscosity
+                # identical to the first.
+                Ktheta_full[k] = Ktheta_full[k-1]
+                K_full[k] = K_full[k-1]
         else:
             raise NotImplementedError("Wrong turbulence scheme")
 
