@@ -168,7 +168,7 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     all_uo = np.real(np.array(state_oce.other["all_u"]))
     all_to = np.array(state_oce.other["all_theta"])
     N_oce = int(T/dt_oce)
-    N_plot = 400
+    N_plot = 100
     ua = np.zeros((N_plot+1, all_ua.shape[1]))
     ta = np.zeros((N_plot+1, all_ta.shape[1]))
     uo = np.zeros((N_plot+1, all_uo.shape[1]))
@@ -179,6 +179,13 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     for i in range(uo.shape[1]):
         uo[:, i] = projection(all_uo[:, i], N_plot)
         to[:, i] = projection(all_to[:, i], N_plot)
+    if high_res:
+        ua = ua[:, ::3]
+        uo = uo[:, ::3]
+        ta = ta[:, ::3]
+        to = to[:, ::3]
+        za = za[::3]
+        zo = zo[::3]
 
     N_threshold = 0
     T_threshold = T * N_threshold / N_plot
@@ -208,7 +215,7 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     title += ", ocean: "+ sf_scheme_o[:2] + \
             r", $\delta_o=$" + str(delta_o)+ "m"
     ax.set_title(title)
-    ax.set_yscale("symlog", linthresh=10.)
+    ax.set_yscale("symlog", linthresh=1.)
     return col_a
 
 def fig_testBulk():
