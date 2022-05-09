@@ -100,7 +100,8 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
 
     Q_sw = projection(np.asarray(numer_set.Q_sw), N)
     Q_lw = projection(np.asarray(numer_set.Q_lw), N)
-    delta_sl = numer_set.delta_sl_o
+    delta_sl_o = numer_set.delta_sl_o
+    delta_sl_a = numer_set.delta_sl_a
     sf_scheme = numer_set.sf_scheme_o
     wind_10m = projection(atm_state.u_delta, N)
     temp_10m = projection(atm_state.t_delta, N)
@@ -112,10 +113,10 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
                 simulator_oce.initialization(\
                 np.zeros(simulator_oce.M)+0j, # u_0
                 np.copy(theta_0), # theta_0
-                delta_sl, wind_10m[0], temp_10m[0],
+                delta_sl_o, wind_10m[0], temp_10m[0],
                 u_star[0], t_star[0],
                 Q_sw[0], Q_lw[0],
-                10., sf_scheme)
+                delta_sl_a, sf_scheme)
     else:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
                 u_0, phi_0, theta_0, dz_theta_0, 0., T0
@@ -125,7 +126,7 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
                 theta_t0=theta_i, dz_theta_t0=dz_theta_i, Q_sw=Q_sw,
                 Q_lw=Q_lw, delta_sl_a=numer_set.delta_sl_a,
                 u_star=u_star, t_star=t_star,
-                u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl,
+                u_delta=u_delta, t_delta=t_delta, delta_sl=delta_sl_o,
                 wind_10m=wind_10m,
                 temp_10m=temp_10m, sf_scheme=sf_scheme,
                 **kwargs)
