@@ -149,7 +149,8 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
         vmin: float=None, vmax: float=None, delta_sl_o: float=None,
         delta_sl_a: float=None,
         ignore_cached: bool=False,
-        ITERATION: int=1, high_res: bool=False):
+        ITERATION: int=1, high_res: bool=False,
+        label_atm: bool=True):
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
     number_of_days = 3.3
@@ -161,6 +162,12 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
                 delta_sl_a=delta_sl_a,
                 delta_sl_o=delta_sl_o, high_res=high_res,
                 NUMBER_SCHWARZ_ITERATION=max(1, ITERATION+1))
+
+    delta_atm = {"FD2": (za[0] + za[1])/2,
+            "FD pure": za[0], "FV free" : za[0]}
+    delta_oce = {"FD2": -1.,
+            "FD pure": 0., "FV free" : -1., "FV test": 0.}
+
     state_atm = states_atm[ITERATION]
     state_oce = states_oce[ITERATION+1]
     all_ua = np.real(np.array(state_atm.other["all_u"]))
@@ -168,7 +175,7 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     all_uo = np.real(np.array(state_oce.other["all_u"]))
     all_to = np.array(state_oce.other["all_theta"])
     N_oce = int(T/dt_oce)
-    N_plot = 100
+    N_plot = 120
     ua = np.zeros((N_plot+1, all_ua.shape[1]))
     ta = np.zeros((N_plot+1, all_ta.shape[1]))
     uo = np.zeros((N_plot+1, all_uo.shape[1]))
@@ -179,13 +186,6 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     for i in range(uo.shape[1]):
         uo[:, i] = projection(all_uo[:, i], N_plot)
         to[:, i] = projection(all_to[:, i], N_plot)
-    if high_res:
-        ua = ua[:, ::3]
-        uo = uo[:, ::3]
-        ta = ta[:, ::3]
-        to = to[:, ::3]
-        za = za[::3]
-        zo = zo[::3]
 
     N_threshold = 0
     T_threshold = T * N_threshold / N_plot
@@ -199,21 +199,22 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     vmax = max(np.max(ta), np.max(to)) if vmax is None else vmax
 
     col_a = ax.pcolormesh(Ya, Xa, ta[N_threshold:], vmin=vmin,
-            vmax=vmax, cmap="seismic", shading='flat')
+            vmax=vmax, cmap="seismic", shading='flat',
+            rasterized=True)
     ax.pcolormesh(Yo, Xo, to[N_threshold:], vmin=vmin,
-            vmax=vmax, cmap="seismic", shading='flat')
-    delta_atm = {"FD2": 10.,
-            "FD pure": 5., "FV free" : 5.}
-    delta_oce = {"FD2": -1.,
-            "FD pure": 0., "FV free" : -1., "FV test": 0.}
+            vmax=vmax, cmap="seismic", shading='flat',
+            rasterized=True)
     delta_o =  delta_oce[sf_scheme_o] if delta_sl_o is None \
             else delta_sl_o
     delta_a = delta_atm[sf_scheme_a] if delta_sl_a is None \
             else delta_sl_a
-    title = "Atm: " + sf_scheme_a[:2] +r", $\delta_a=$" + \
-            str(delta_a) +"m"
-    title += ", ocean: "+ sf_scheme_o[:2] + \
-            r", $\delta_o=$" + str(delta_o)+ "m"
+    title = ""
+    if label_atm:
+        title = "Atm: " + sf_scheme_a[:2] +r", $\delta_a=$" + \
+                f"{delta_a:.2f}m"
+    else:
+        title += "Ocean: "+ sf_scheme_o[:2] + \
+                r", $\delta_o=$" + f"{delta_o:.2f}m"
     ax.set_title(title)
     ax.set_yscale("symlog", linthresh=1.)
     return col_a
@@ -344,25 +345,44 @@ def fig_colorplotReconstruction():
     show_or_save("fig_colorplotParameterizing")
 
 def fig_compareASLsize():
-    fig, axes = plt.subplots(3,1, sharex=True, sharey=True)
+    fig, axes2D = plt.subplots(3,2, sharex=True, sharey=True)
     fig.subplots_adjust(hspace=0.67)
-    for ax, sf_scheme_a, delta_sl_a in tqdm(zip(axes,
-        ("FD pure", "FV free", "FV free"), (5., 5., 1.)
-        ), leave=False, total=4):
-        fig.colorbar(colorplot_coupling(ax, sf_scheme_a, "FD pure",
-            vmin=278.9, vmax=281., ITERATION=3,
-            delta_sl_a=delta_sl_a), ax=ax)
-    for ax in axes:
+    for axes, high_res in zip((axes2D[:,0], axes2D[:,1]),
+            (True, False)):
+        all_delta_sl = (5./3, 5., 1.) if high_res \
+                else (5., 5., 1.)
+        for ax, sf_scheme_a, delta_sl_a in tqdm(zip(axes,
+            ("FD pure", "FV free", "FV free"),
+            all_delta_sl,
+            ), leave=False, total=4):
+            fig.colorbar(colorplot_coupling(ax, sf_scheme_a,
+                "FD pure",
+                vmin=278., vmax=281.5, ITERATION=1,
+                delta_sl_a=delta_sl_a, high_res=high_res,
+                ignore_cached=False, label_atm=True), ax=ax)
+    for ax in axes2D[:, 0]:
         ax.set_ylabel("z")
-    axes[-1].set_xlabel("days")
-    axes[-1].set_ylim(bottom=-10., top=100.)
+        ax.set_ylim(bottom=-1e2, top=1e3)
+
+    axes2D[-1, 0].set_xlabel("days (high resolution)")
+    axes2D[-1, 1].set_xlabel("days")
     show_or_save("fig_compareASLsize")
 
-def ustar_comparison(ax, sf_scheme_a: str, sf_scheme_o: str,
+def ustar_comparison(*args, **kwargs): # see star_comparison
+    return star_comparison(*args, **kwargs, ustar=True)
+def tstar_comparison(*args, **kwargs): # see star_comparison
+    return star_comparison(*args, **kwargs, ustar=False)
+
+def star_comparison(ax, sf_scheme_a: str, sf_scheme_o: str,
         vmin: float=None, vmax: float=None, delta_sl_o: float=None,
         delta_sl_a: float=None,
         ignore_cached: bool=False,
-        ITERATION: int=1, high_res: bool=False):
+        ITERATION: int=1, high_res: bool=False,
+        ustar:bool=True, style:str=None, label_atm: bool=True):
+    """
+    same arguments as in colorplot_coupling. vmax, vmin are unused.
+    if ustar=True, plots ustar otherwise plot t_star
+    """
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
     number_of_days = 3.3
@@ -376,32 +396,62 @@ def ustar_comparison(ax, sf_scheme_a: str, sf_scheme_o: str,
                 NUMBER_SCHWARZ_ITERATION=max(1, ITERATION+1))
     state_atm = states_atm[ITERATION]
     N_plot = 400
-    ustar = projection(state_atm.u_star, N_plot)
+    friction_scale = projection(
+            state_atm.u_star if ustar else state_atm.t_star,
+            N_plot)
     delta_atm = {"FD2": 10.,
             "FD pure": 5., "FV free" : 5.}
     delta_oce = {"FD2": -1.,
             "FD pure": 0., "FV free" : -1., "FV test": 0.}
+    if high_res:
+        delta_atm = {"FD2": 10./3, "FD pure": 5./3, "FV free" : 5.}
+        delta_oce = {"FD2": -1./3,
+                "FD pure": 0., "FV free" : -1., "FV test": 0.}
+
     delta_o =  delta_oce[sf_scheme_o] if delta_sl_o is None \
             else delta_sl_o
     delta_a = delta_atm[sf_scheme_a] if delta_sl_a is None \
             else delta_sl_a
-    label = sf_scheme_a[:2] +r", $\delta_{sl}=$" + str(delta_a) + "m"
-    ax.plot(np.linspace(0, number_of_days, N_plot+1), ustar,
-            label=label)
+    if label_atm:
+        label = sf_scheme_a[:2] +r", $\delta_{sl}=$" + \
+                  f"{delta_a:.2f}m"
+    else:
+        label = f"{sf_scheme_o[:2]}" +r", $\delta_{o}=$" + \
+                f"{delta_o:.2f}m"
+    if high_res:
+        label += " (high res)"
+    ax.plot(np.linspace(0, number_of_days, N_plot+1), friction_scale,
+            style, label=label)
 
 def fig_compareASLsize_ustar():
-    fig, ax = plt.subplots(1,1)
+    fig, axes = plt.subplots(2,1, sharex=True)
     fig.subplots_adjust(hspace=0.67)
-    all_sf_scheme = ["FD pure"] + ["FV free"]*5
-    all_delta = (5., 20., 10., 5., 1.,)
-    for sf_scheme_a, delta_sl_a in tqdm(zip(all_sf_scheme, all_delta),
-            leave=False, total=4):
-        ustar_comparison(ax, sf_scheme_a, "FD pure", ITERATION=3,
-            delta_sl_a=delta_sl_a)
-    ax.legend()
-    ax.set_xlabel("days")
-    ax.set_ylabel(r"$u* (m . s^{-1})$")
-    ax.set_ylim(bottom=0., top=0.3)
+    colors= {False:["r", "b", "y"],
+            True:["r--", "b--", "y--"],
+            }
+    for high_res in (False, True):
+        all_delta_sl = (5./3, 5., 1.) if high_res \
+                else (5., 5., 1.)
+        for sf_scheme_a, delta_sl_a, style in tqdm(zip(
+            ("FD pure", "FV free", "FV free"),
+            all_delta_sl, colors[high_res]), leave=False, total=4):
+            ustar_comparison(axes[0], sf_scheme_a,
+                "FD pure",
+                vmin=278., vmax=281.5, ITERATION=1,
+                delta_sl_a=delta_sl_a, high_res=high_res,
+                ignore_cached=False, style=style, label_atm=True)
+            tstar_comparison(axes[1], sf_scheme_a,
+                "FD pure",
+                vmin=278., vmax=281.5, ITERATION=1,
+                delta_sl_a=delta_sl_a, high_res=high_res,
+                ignore_cached=False, style=style, label_atm=True)
+
+    axes[0].set_ylim(top=0.223, bottom=0.16)
+    axes[1].set_ylim(top=0.005, bottom=-0.0025)
+    axes[0].set_ylabel("u*")
+    axes[1].set_ylabel(r"$\theta^\star$")
+    axes[1].set_xlabel("days")
+    axes[1].legend()
     show_or_save("fig_compareASLsize_ustar")
 
 def fig_referenceCoupling():
@@ -409,18 +459,53 @@ def fig_referenceCoupling():
     fig.subplots_adjust(hspace=0.67)
     for axes, high_res in zip((axes2D[:,0], axes2D[:,1]),
             (True, False)):
+        all_delta_sl = (-.5/3, 0., -.5, 0.) if high_res \
+                else (-.5, 0., -.5, 0.)
         for ax, sf_scheme_o, delta_sl_o in tqdm(zip(axes,
             ("FD pure", "FD pure", "FV free", "FV test"),
-            (-.5, 0., -.5, 0.)
+            all_delta_sl,
             ), leave=False, total=4):
             fig.colorbar(colorplot_coupling(ax, "FD pure", sf_scheme_o,
                 vmin=278., vmax=281.5, ITERATION=1,
-                delta_sl_o=delta_sl_o, high_res=high_res), ax=ax)
+                delta_sl_o=delta_sl_o, high_res=high_res,
+                ignore_cached=False, label_atm=False), ax=ax)
     for ax in axes2D[:, 0]:
         ax.set_ylabel("z")
-    for ax in axes2D[-1, :]:
-        ax.set_xlabel("days")
-    show_or_save("fig_colorplotCoupling")
+        ax.set_ylim(bottom=-1e2, top=1e3)
+
+    axes2D[-1, 0].set_xlabel("days (high resolution)")
+    axes2D[-1, 1].set_xlabel("days")
+    show_or_save("fig_referenceCoupling")
+
+def fig_referencefrictionScales():
+    fig, axes = plt.subplots(2, sharex=True, sharey=False)
+    fig.subplots_adjust(hspace=0.67)
+    colors= {False:["r", "g", "b", "y"],
+            True:["r--", "g--", "b--", "y--"],
+            }
+    for high_res in (False, True):
+        all_delta_sl = (-.5/3, 0., -.5, 0.) if high_res \
+                else (-.5, 0., -.5, 0.)
+        for sf_scheme_o, delta_sl_o, style in tqdm(zip(\
+            ("FD pure", "FD pure", "FV free", "FV test"),
+            all_delta_sl, colors[high_res]), leave=False, total=4):
+            ustar_comparison(axes[0],
+                "FD pure", sf_scheme_o,
+                vmin=278., vmax=281.5, ITERATION=1,
+                delta_sl_o=delta_sl_o, high_res=high_res,
+                ignore_cached=False, style=style, label_atm=False)
+            tstar_comparison(axes[1],
+                "FD pure", sf_scheme_o,
+                vmin=278., vmax=281.5, ITERATION=1,
+                delta_sl_o=delta_sl_o, high_res=high_res,
+                ignore_cached=False, style=style, label_atm=False)
+    axes[0].set_ylim(top=0.223, bottom=0.205)
+    axes[1].set_ylim(top=0.0077, bottom=-0.0072)
+    axes[0].set_ylabel("u*")
+    axes[1].set_ylabel(r"$\theta^\star$")
+    axes[1].set_xlabel("days")
+    axes[1].legend()
+    show_or_save("fig_referencefrictionScales")
 
 def fig_colorplotCoupling():
     fig, axes2D = plt.subplots(4,2, sharex=True, sharey=True)
@@ -432,7 +517,8 @@ def fig_colorplotCoupling():
             ), leave=False, total=4):
             fig.colorbar(colorplot_coupling(ax, "FD pure", sf_scheme_o,
                 vmin=278., vmax=281.5, ITERATION=iteration,
-                delta_sl_o=delta_sl_o, high_res=False), ax=ax)
+                delta_sl_o=delta_sl_o, high_res=False,
+                label_atm=False), ax=ax)
     for ax in axes2D[:, 0]:
         ax.set_ylabel("z")
     for ax in axes2D[-1, :]:

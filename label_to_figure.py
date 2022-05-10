@@ -13,4 +13,7 @@ FIGURE["4c"] = "fig_colorplots_FDlowres"
 FIGURE["4d"] = "fig_colorplots_FDhighres"
 FIGURE["AMAC_pres1"] = "fig_compareASLsize_ustar"
 FIGURE["AMAC_pres2"] = "fig_compareASLsize"
+
+FIGURE["10mai_1"] = "fig_referencefrictionScales"
+FIGURE["10mai_2"] = "fig_referenceCoupling"
 ALL_LABELS = FIGURE
