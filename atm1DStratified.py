@@ -296,7 +296,7 @@ class Atm1dStratified():
                 Q_sw[0], Q_lw[0],
                 0)
         import tkeAtm1D
-        tke = tkeAtm1D.TkeAtm1D(self, "FD", True,
+        tke = tkeAtm1D.TkeAtm1D(self, "FV", True,
                 Neutral_case, SL)
         theta: array = np.copy(theta_t0)
 

@@ -117,6 +117,17 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
                         all_phi[frame], all_t[frame], all_dzt[frame],
                         all_SL[frame],
                         ignore_loglaw=(sf_scheme_a != "FV free"))
+    elif not store_all and sf_scheme_a[:2] == "FV":
+        for state_atm in states_atm:
+            za, state_atm.last_tstep["u"], \
+                    state_atm.last_tstep["theta"], = \
+                        simulator_atm.reconstruct_FV(\
+                        state_atm.last_tstep["u"],
+                        state_atm.last_tstep["phi"],
+                        state_atm.last_tstep["theta"],
+                        state_atm.last_tstep["dz_theta"],
+                        state_atm.other["SL"],
+                        ignore_loglaw=(sf_scheme_a != "FV free"))
     else:
         za = simulator_atm.z_half[:-1]
 
@@ -134,6 +145,17 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
                         all_SL[frame],
                         ignore_loglaw=(sf_scheme_o != "FV free"))
         print("... Done.")
+    elif not store_all and sf_scheme_o[:2] == "FV":
+        for state_oce in states_oce[1:]:
+            zo, state_oce.last_tstep["u"], \
+                    state_oce.last_tstep["theta"], = \
+                        simulator_oce.reconstruct_FV(\
+                        state_oce.last_tstep["u"],
+                        state_oce.last_tstep["phi"],
+                        state_oce.last_tstep["theta"],
+                        state_oce.last_tstep["dz_theta"],
+                        state_oce.other["SL"],
+                        ignore_loglaw=(sf_scheme_o != "FV free"))
     else:
         zo = simulator_oce.z_half[:-1]
 
@@ -144,6 +166,70 @@ def half_to_full(z_half: np.ndarray, ocean: bool):
     z_max = z_half[-1] + z_half[-1] - z_half[-2] if not ocean else 0.
     return np.concatenate(([z_min], (z_half[1:] + z_half[:-1])/2,
             [z_max]))
+
+
+def endProfile_coupling(axu, axtheta,
+        sf_scheme_a: str, sf_scheme_o: str,
+        delta_sl_o: float=None, delta_sl_a: float=None,
+        ignore_cached: bool=False,
+        ITERATION: int=1, high_res: bool=False, style: str=None,
+        label_atm: bool=True):
+    dt_oce = 90. # oceanic time step
+    dt_atm = 30. # atmosphere time step
+    number_of_days = 3.3
+    T = 86400 * number_of_days # length of the time window
+    states_atm, states_oce, za, zo = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, False,
+                sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
+                ignore_cached=ignore_cached,
+                delta_sl_a=delta_sl_a,
+                delta_sl_o=delta_sl_o, high_res=high_res,
+                NUMBER_SCHWARZ_ITERATION=max(1, ITERATION+1))
+    delta_atm = {"FD2": (za[0] + za[1])/2,
+            "FD pure": za[0], "FV free" : za[0]}
+    delta_oce = {"FD2": -1.,
+            "FD pure": 0., "FV free" : -1., "FV test": 0.}
+    state_atm = states_atm[ITERATION]
+    state_oce = states_oce[ITERATION+1]
+
+    delta_a = delta_atm if delta_sl_a is None else delta_sl_a
+    delta_o = delta_oce if delta_sl_o is None else delta_sl_o
+    if label_atm:
+        label = sf_scheme_a[:2] +r", $\delta_{sl}=$" + \
+                  f"{delta_a:.2f}m"
+    else:
+        label = f"{sf_scheme_o[:2]}" +r", $\delta_{o}=$" + \
+                f"{delta_o:.2f}m"
+    if high_res:
+        label += " (high res)"
+    axu.plot(np.real(state_atm.last_tstep["u"]), za, style, label=label)
+    axu.plot(np.real(state_oce.last_tstep["u"]), zo, style)
+    axtheta.plot(state_atm.last_tstep["theta"], za, style, label=label)
+    axtheta.plot(state_oce.last_tstep["theta"], zo, style)
+
+def fig_endProfile_coupling():
+    fig, axes = plt.subplots(2,1)
+    fig.subplots_adjust(hspace=0.67)
+    colors= {False:["r", "b", "y"],
+            True:["r--", "b--", "y--"],
+            }
+    for high_res in (False, True):
+        all_delta_sl = (5./3, 5., 1.) if high_res \
+                else (5., 5., 1.)
+        for sf_scheme_a, delta_sl_a, style in tqdm(zip(
+            ("FD pure", "FV free", "FV free"),
+            all_delta_sl, colors[high_res]), leave=False, total=4):
+            endProfile_coupling(axes[0], axes[1], sf_scheme_a,
+                "FD pure", ITERATION=1,
+                delta_sl_a=delta_sl_a, high_res=high_res,
+                ignore_cached=False, style=style, label_atm=True)
+
+    axes[0].set_ylabel("z")
+    axes[1].set_ylabel(r"$\theta^\star$")
+    axes[1].set_xlabel(r"$\theta$")
+    axes[0].set_xlabel("u")
+    axes[1].legend()
+    show_or_save("fig_endProfile_coupling")
 
 def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
         vmin: float=None, vmax: float=None, delta_sl_o: float=None,
