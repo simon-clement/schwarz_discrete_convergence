@@ -100,7 +100,7 @@ def forcedOcean(sf_scheme: str):
     return ret, simulator_oce.z_half[:-1]
 
 def fig_animForcedOcean():
-    ret, z = memoised(forcedOcean, "FV free")
+    ret, z = memoised(forcedOcean, "FV Zeng")
     # ret, z = memoised(constantCoolingForAnimation, "FV free")
     fig, axes = plt.subplots(1, 2)
     for u, ud in zip(ret["all_u"], ret["u_delta"]):

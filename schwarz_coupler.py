@@ -108,7 +108,7 @@ def compute_ocean(simulator_oce: Ocean1dStratified,
     u_star = projection(atm_state.u_star, N)
     t_star = projection(atm_state.t_star, N)
 
-    if sf_scheme in {"FV free", "FV2"}:
+    if sf_scheme in {"FV free", "FV2", "FV Zeng"}:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
                 simulator_oce.initialization(\
                 np.zeros(simulator_oce.M)+0j, # u_0

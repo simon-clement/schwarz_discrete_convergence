@@ -94,6 +94,8 @@ class Ocean1dStratified():
                 "FV test" : (self.__sf_udelta_FVtest,
                                 self.__sf_YDc_FVtest),
                 "FV free" : (self.__sf_udelta_FVfree,
+                                self.__sf_YDc_FVfree),
+                "FV Zeng" : (self.__sf_udelta_FVfree,
                                 self.__sf_YDc_FVfree)}
         self.dictsf_scheme_theta = {
                 "FD pure" : (self.__sf_thetadelta_FDpure,
@@ -109,7 +111,9 @@ class Ocean1dStratified():
                 "FV test" : (self.__sf_thetadelta_FVtest,
                                 self.__sf_YDc_FVtest_theta),
                 "FV free" : (self.__sf_thetadelta_FVfree,
-                                self.__sf_YDc_FVfree_theta)
+                                self.__sf_YDc_FVfree_theta),
+                "FV Zeng" : (self.__sf_thetadelta_FVfreeZeng,
+                                self.__sf_YDc_FVfreeZeng_theta)
                 }
 
     def FV(self, u_t0: array, phi_t0: array, theta_t0: array,
@@ -231,7 +235,7 @@ class Ocean1dStratified():
             if not Neutral_case:
                 # integrate in time potential temperature
                 absorption_sl = np.squeeze(shortwave_frac_sl(delta_sl))
-                if sf_scheme != "FV free":
+                if sf_scheme not in {"FV free", "FV Zeng"}:
                     absorption_sl = 1. # for FV pure we want
                     # to have a forcing that takes effect in the SL
                 swr_frac = shortwave_fractional_decay(self.M,
@@ -489,6 +493,7 @@ class Ocean1dStratified():
                 K_theta=Ktheta_full, forcing_theta=forcing_theta,
                 universal_funcs=large_ocean,
                 universal_funcs_a=businger, SL=SL, SL_nm1=SL_nm1)
+        tilde_h = SL.delta_sl - self.z_full[SL.k-1]
         prognostic_theta[:] = np.real(self.__backward_euler(Y=Y_theta,
                 D=D_theta, c=c_theta, u=prognostic_theta, f=0.,
                 Y_nm1=Y_nm1))
@@ -675,6 +680,42 @@ class Ocean1dStratified():
         elif sf_scheme in {"FV2"}: # link log cell with profile
             k2: int = bisect.bisect_left(z_oversampled,
                     self.z_full[k1])
+        elif sf_scheme in {"FV Zeng"}:
+            # between the log profile and the next grid level:
+            tilde_h = delta_sl - self.z_full[k1-1]
+            assert 0 < tilde_h <= self.h_half[k1-1]
+            xi = np.linspace(-tilde_h/2, tilde_h/2, 15)
+            tau_slu, _ = self.__tau_sl(SL, large_ocean)
+            alpha_slu = tilde_h/self.h_half[k1-1] + tau_slu
+
+            u_tilde = 1/alpha_slu * (u_bar[k1-1] - tilde_h * tau_slu * \
+                    (phi[k1]/3 + phi[k1-1]/6) - (1-alpha_slu)*u_zM)
+
+            assert abs(self.z_full[k1]) < 1e-10
+            # it is sometimes computed as hsl = - delta_sl !
+            hsl = self.z_full[k1]-delta_sl
+            h = hsl + tilde_h
+            nu = 1.
+            theta_tilde = prognostic_t[SL.k1 + 1] - (hsl*hsl/h / (nu+1) \
+                    + tilde_h * hsl / 3 / h)* prognostic_t[SL.k1] \
+                    - tilde_h * hsl / 6 / h * prognostic_t[SL.k1-1]
+
+            u_freepart = u_tilde + (phi[k1] + phi[k1-1]) * xi/2 \
+                    + (phi[k1] - phi[k1-1]) / (2 * tilde_h) * \
+                    (xi**2 - tilde_h**2/12)
+
+            theta_freepart = theta_tilde \
+                    + (dz_theta[k1] + dz_theta[k1-1]) * xi/2 \
+                    + (dz_theta[k1] - dz_theta[k1-1]) / (2 * tilde_h)\
+                    * (xi**2 - tilde_h**2/12)
+
+            z_freepart = delta_sl + xi - tilde_h / 2
+            # now we must change theta_log:
+            theta_sl = (prognostic_t[SL.k1+1] * h - \
+                    tilde_h * theta_tilde) / hsl
+            theta_log = theta_sl + hsl/nu*prognostic_t[SL.k1]/(nu+1) \
+                    + hsl/nu * prognostic_t[SL.k1] / hsl**nu \
+                    * z_log**nu
 
         return np.concatenate((z_oversampled[:k2], z_freepart, z_log)), \
                np.concatenate((u_oversampled[:k2], u_freepart, u_log)), \
@@ -910,7 +951,7 @@ class Ocean1dStratified():
             K_full = self.C_m * l_m * np.sqrt(tke.tke_full)
             # NOW we want to compare K_full, Ktheta_full
             # to their MOST equivalent.
-            if SL.sf_scheme == "FV free":
+            if SL.sf_scheme in {"FV free", "FV Zeng"}:
                 # remark that we don't need replacement,
                 # we adjusted l_m, l_eps to ensure this.
                 K_full_replacement = (self.kappa * \
@@ -1113,9 +1154,18 @@ class Ocean1dStratified():
         alpha_t = tilde_h / self.h_half[k-1] + tau_t
         u_0[k-1] = alpha_u * u_tilde + tau_u * tilde_h * \
                 (phi[k]/3 + phi[k-1]/6) + (1-alpha_u)*SL.u_0
-        t_0[k-1] = alpha_t * t_tilde + tau_t * tilde_h * \
-                (dz_theta[k]/3 + dz_theta[k-1]/6) + \
-                (1-alpha_t)*SL.t_0
+        if sf_scheme in {"FV free", "FV2"}:
+            t_0[k-1] = alpha_t * t_tilde + tau_t * tilde_h * \
+                    (dz_theta[k]/3 + dz_theta[k-1]/6) + \
+                    (1-alpha_t)*SL.t_0
+        elif sf_scheme == "FV Zeng":
+            h = -self.z_full[k-1]
+            hsl = - delta_sl_o
+            nu = 1.
+            t_0[k-1] = t_tilde + \
+                    (hsl**2 / h / (nu+1) + hsl*tilde_h/3 / h) * \
+                    dz_theta[k] + hsl*tilde_h/6 / h * dz_theta[k-1]
+
         return u_0, phi, t_0, dz_theta, u_delta, t_delta
 
     def __tau_sl(self, SL: SurfaceLayerData,
@@ -1486,6 +1536,21 @@ class Ocean1dStratified():
                 (prognostic[SL.k] / 3 + prognostic[SL.k-1] / 6)\
                 - (1 - alpha) * SL.t_0)  / alpha
 
+    def __sf_thetadelta_FVfreeZeng(self, prognostic, SL, **_):
+        """
+            t(delta) = ~theta + ~h/3 dzT + ~h/6 dzT
+        """
+        delta_sl, k = SL.delta_sl, SL.k
+        tilde_h = delta_sl - self.z_full[k-1]
+        hsl = self.z_full[k]-delta_sl
+        h = hsl + tilde_h
+        nu = 1.
+        tilde_t = prognostic[SL.k + 1] - (hsl*hsl/h / (nu+1) \
+                + tilde_h * hsl / 3 / h)* prognostic[SL.k] \
+                - tilde_h * hsl / 6 / h * prognostic[SL.k-1]
+        return tilde_t + tilde_h * (prognostic[SL.k] / 3 + \
+                prognostic[SL.k-1] / 6)
+
     ####### DEFINITION OF SF SCHEMES : FIRST LINES OF Y,D,c (theta)
     # each method must return Y_n, D, c, Y_nm1:
     # Y_*: 3-tuple of tuples of sizes (j-1, j, j)
@@ -1662,4 +1727,72 @@ class Ocean1dStratified():
                 np.concatenate((D[3], np.zeros(self.M - k))))
         c = np.concatenate((c, SL.t_0 * \
                 (self.h_half[k:-1] - ratio_norms)))
+        return Y, D, c, Y_nm1
+
+    def __sf_YDc_FVfreeZeng_theta(self, K_theta, SL, SL_nm1,
+            forcing_theta, universal_funcs, **kwargs):
+        """
+            Y  = (h/(6h),(~h+h)/(3h),       ~h/(6h)              , 0 )
+                 ( 0 ,-~h^2 hsl/(6h),-~h hsl/h (hsl/(nu+1)+ ~h/3), ~h)
+                 ( 0 ,    0         ,              0,            , 1 )
+
+            D = (K/h^2,-K(1/h+1/~h)/h,         K/(h~h)      , 0)
+                ( 0   ,      K      ,         -K           , 0)
+                ( 0   ,     -K/h     ,          0           , 0)
+
+            c = (         1/h (forcing_{k-1/2} - forcing_{k-3/2})  )
+                (                   ~h forcing_{k-1/2}             )
+                (((QH - Q_lw)/h   - (Qsw(zk) -Qsw(z{k-1})))/(rho cp))
+            after that, the matrices are filled for every M > m > k
+            with 0 for Y
+            D: (ldiag, diag, udiag) = (ratio_norms, -1, 0)
+            where ratio_norms is given by the log law.
+            this last part is actually overriden in the end so
+            it should not be considered too seriously.
+            the second line was multiplied by hsl to make it
+            more robust.
+        """
+        # Il faut changer ça pour utiliser seulement universal_funcs
+        # Donc enlever CHdu du standalone_chapter à priori,
+        # pour utiliser un truc plus compatible
+        delta_sl, inv_L_MO, k = SL.delta_sl, SL.inv_L_MO, SL.k
+        tilde_h = delta_sl - self.z_full[k-1]
+        hsl = -delta_sl # note that if k<M, the volume k-1/2
+        h = hsl + tilde_h # represents actually the whole OSL
+
+        nu = 1. # linear profile first
+
+        # note that delta_sl is assumed constant here.
+        # its variation would need much more changes.
+        Y = ( (self.h_half[k-2]/6./self.h_full[k-1],
+            - hsl*tilde_h**2 / 6. / h, 0.),# LOWER DIAG
+            ((tilde_h + self.h_half[k-2])/3/self.h_full[k-1],
+            -tilde_h*hsl/h*(hsl/(nu+1) + tilde_h/3), 1.),# DIAG
+            (tilde_h/6./self.h_full[k-1], tilde_h))# UPPER DIAG
+        Y_nm1 = Y
+        D = ((0., -K_theta[k-1] / h),#LLOWER DIAG
+                (K_theta[k-2]/self.h_half[k-2]/self.h_full[k-1],
+                    -K_theta[k-1], 0.),#LOWER DIAG
+                (-K_theta[k-1] / self.h_full[k-1] * \
+                        (1/self.h_half[k-2] + 1/tilde_h),
+                        K_theta[k], 0.),#DIAG
+                (K_theta[k] / tilde_h / self.h_full[k-1],
+                    0.))#UPPER DIAG
+
+        QH = self.rho0 * self.C_p * SL.t_star*SL.u_star
+        frac_zM, frac_zkm1 = shortwave_frac_sl(np.array((0.,
+            self.z_full[k-1])))
+        cMm1 = (QH - SL.Q_lw) / h - SL.Q_sw * (frac_zM-frac_zkm1)
+        c = ( (forcing_theta[k-1] - forcing_theta[k-2])/self.h_full[k-1],
+                tilde_h * forcing_theta[k-1],
+                cMm1 / self.rho0 / self.C_p)
+
+        Y = (np.concatenate((y, np.zeros(self.M - k))) for y in Y)
+        Y_nm1 = (np.concatenate((y, np.zeros(self.M - k))) for y in Y_nm1)
+
+        D = (np.concatenate((D[0], np.zeros(self.M - k))),
+                np.concatenate((D[1], np.zeros(self.M - k))),
+                np.concatenate((D[2], - np.ones(self.M - k))),#DIAG
+                np.concatenate((D[3], np.zeros(self.M - k))))
+        c = np.concatenate((c, np.zeros(self.M - k)))
         return Y, D, c, Y_nm1
