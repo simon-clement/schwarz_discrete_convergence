@@ -995,7 +995,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     z_tke = simulator.z_full
     return z_fv, u_fv, theta_fv, z_tke, tke_full, ustar, l_eps
 
-def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
+def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl, **_):
     """
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
     """
@@ -1003,48 +1003,30 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
     simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=10.,
             K_mol=1e-4, f=1e-4)
-    u_0 = 10.*np.ones(M)
-    phi_0 = np.zeros(M+1)
+    u_0 = 10.*np.ones(M) + 0j
+    phi_0 = np.zeros(M+1) + 0j
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     SST = np.ones(N+1)*265.
-    z_tke = np.copy(simulator.z_full)
     k = bisect.bisect_right(z_levels[1:], delta_sl)
-    z_tke[k] = delta_sl #
     u_deltasl = 10. # first guess before the iterations
+    t_0, dz_theta_0 = 265. * np.ones(M), np.zeros(M+1)
+
     if sf_scheme in {"FV1 free", "FV2 free", "FV free", "FV2"}:
-        zk = z_levels[k]
-        h_tilde = z_levels[k+1] - delta_sl
-        h_kp12 = z_levels[k+1] - z_levels[k]
-        z_0M = 1e-1
-        u_constant = 10.
-        K_mol, kappa = simulator.K_mol, simulator.kappa
-        for _ in range(15):
-            u_star = kappa / np.log(1+delta_sl/z_0M) * np.abs(u_deltasl)
-            z_0M = K_mol / kappa / u_star
+        u_i, phi_i, t_i, dz_theta_i, u_delta_i, _ = \
+                simulator.initialization(u_0, phi_0, t_0, dz_theta_0,
+                        delta_sl, 0., 265., 0., 0.,
+                        z_levels[k+1], 0.)
+    else:
+        u_i, phi_i, t_i, dz_theta_i, u_delta_i = \
+                u_0, phi_0, t_0, dz_theta_0, u_deltasl
 
-            phi_0[k] = u_deltasl / (z_0M+delta_sl) / \
-                    np.log(1+delta_sl/z_0M)
-            # u_tilde + h_tilde (phi_0 / 6 + phi_1 / 3) = u_constant
-            # (subgrid reconstruction at the top of the volume)
-            u_tilde = u_constant - h_tilde/6 * phi_0[k]
-            u_deltasl = u_tilde - h_tilde / 3 * phi_0[k]
-
-        neutral_tau_sl = (delta_sl / (h_kp12))* \
-                (1+z_0M/delta_sl - 1/np.log(1+delta_sl/z_0M) \
-                + (zk - (zk+z_0M)*np.log(1+zk/z_0M)) \
-                / (delta_sl * np.log(1+delta_sl/z_0M)))
-
-        alpha_sl = h_tilde/h_kp12 + neutral_tau_sl
-        u_0[k] = alpha_sl * u_tilde - neutral_tau_sl*h_tilde*phi_0[k]/3
-
-    t_0, dz_theta_0 = 265 * np.ones(M), np.zeros(M+1)
-    ret = simulator.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=t_0,
+    ret = simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
                     delta_sl_o=0.,
                     forcing_theta=np.zeros(simulator.M),
-                    dz_theta_t0=dz_theta_0,
+                    dz_theta_t0=dz_theta_i,
                     Q_sw=np.zeros(N+1), Q_lw=np.zeros(N+1),
                     u_o=np.zeros(N+1), Neutral_case=True,
-                    SST=SST, sf_scheme=sf_scheme, u_delta=u_deltasl,
+                    SST=SST, sf_scheme=sf_scheme, u_delta=u_delta_i,
                     forcing=forcing, delta_sl=delta_sl)
     u, phi, tke_full, u_star, temperature, dz_theta, SL = \
             [ret[x] for x in ("u", "phi", "tke", "all_u_star",
@@ -1148,23 +1130,117 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     axes[2].semilogy(TKE, z_tke, **style, label=name)
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
 
-def fig_neutral_pedagogicalPlot():
-    fig, axes = plt.subplots(1, 2, sharey=True)
-    ##### first: FV free #######
-    sf_scheme = "FV free"
+def memoisable_compute_sfNeutral(sf_scheme, delta_sl, dt, N):
+    return compute_with_sfNeutral(z_levels=IFS_z_levels,
+            sf_scheme=sf_scheme, delta_sl=delta_sl, dt=dt, N=N)
+
+def compute_FD_sfNeutral(sf_scheme, dt, N):
     z_levels = IFS_z_levels
+    M = z_levels.shape[0] - 1
+    simulator = Atm1dStratified(z_levels=z_levels,
+            dt=dt, u_geostrophy=10., K_mol=1e-4, f=1e-4)
+    u_0 = 10*np.ones(M) + 0j
+    forcing = 1j*simulator.f * simulator.u_g*np.ones((N+1, M))
+    SST = 265. * np.ones(N+1) # Neutral SST with theta=const=265.
+    ret = simulator.FD(u_t0=u_0,
+            forcing_theta=np.zeros(simulator.M),
+            u_o=np.zeros(N+1),
+            delta_sl_o=0.,
+            theta_t0=265*np.ones(M), Q_sw=np.zeros(N+1),
+            SST=SST, Q_lw=np.zeros(N+1), Neutral_case=True,
+            sf_scheme=sf_scheme, forcing=forcing)
+    return z_levels, ret['u']
+
+def fig_neutral_comparisonPlot():
+    fig, axes = plt.subplots(2, 1, figsize=(5., 4.), sharey=True)
+    fig.subplots_adjust(right=0.675, hspace = 0.35)
+    T = 3600 * 24
     dt = 30.
-    T = 3600 * 2
     N = int(T/dt)
-    N = 0
-    delta_sl = IFS_z_levels[1]/2
-    print(IFS_z_levels[1])
-    z_fv, u_fv, theta_fv, z_tke, TKE, ustar = \
-            compute_with_sfNeutral(sf_scheme,
-                    z_levels, dt, N, delta_sl)
-    axes[0].semilogy(np.real(u_fv), z_fv)
-    axes[1].semilogy(np.imag(u_fv), z_fv)
-    show_or_save("fig_neutral_pedagogicalPlot")
+
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
+
+    settings_FVfree = {"sf_scheme": "FV free",
+            "delta_sl":IFS_z_levels[1]/2,
+            "linewidth": 1.8,
+            "color": colors[1],
+            "label": "FV free",
+            "linestyle": "dashed"}
+    settings_FV1_bug = {"sf_scheme": "FV1 bug",
+            "linewidth": 1.,
+            "delta_sl":IFS_z_levels[1]/2,
+            "color": colors[4],
+            "label": "FV1, " + r"$K_0=K_{mol}$",
+            "linestyle": "dashed"
+            }
+    settings_FV1 = {"sf_scheme": "FV1",
+            "linewidth": 1.8,
+            "color": colors[2],
+            "delta_sl":IFS_z_levels[1]/2,
+            "label": "FV1"}
+    settings_FVpure = {"sf_scheme": "FV pure",
+            "linewidth": 1.8,
+            "delta_sl":IFS_z_levels[1]/2,
+            "color": colors[3],
+            "label": "FV pure",
+            "linestyle": "dashed"}
+    settings_FV2 = {"sf_scheme": "FV2",
+            "linewidth": 1.8,
+            "color": colors[0],
+            "delta_sl":IFS_z_levels[1],
+            "label": "FV2"}
+
+    all_settings = ( settings_FV1_bug,
+                    settings_FV1,
+                    settings_FVpure,
+                    settings_FV2,
+                    settings_FVfree,
+                    )
+    for settings in all_settings:
+        z_fv, u_fv, _, _, _, _ = \
+                memoised(memoisable_compute_sfNeutral,
+                        sf_scheme=settings["sf_scheme"],
+                        delta_sl=settings["delta_sl"],
+                        dt=dt, N=N)
+        settings.pop("delta_sl")
+        settings.pop("sf_scheme")
+        axes[0].plot(np.abs(u_fv), z_fv, **settings)
+        settings.pop("label")
+        axes[1].plot(np.angle(u_fv), z_fv, **settings)
+
+    # FD PART:
+    z_fd, u_fd = memoised(compute_FD_sfNeutral, "FD pure", dt=dt, N=N)
+    settings_FD = {"label": "Finite Differences",
+            "marker":"o",
+            "color": colors[5],
+            "linewidth": 0.3}
+    axes[0].plot(np.abs(u_fd), full_to_half(z_fd), **settings_FD)
+    settings_FD.pop("label")
+    axes[1].plot(np.angle(u_fd), full_to_half(z_fd), **settings_FD)
+
+    half_levels = full_to_half(IFS_z_levels)
+    axes[0].hlines(half_levels, xmin=0., xmax=10., color="k",
+            linestyle="dashed", linewidth=0.6, label=r"$z_{m+1/2}$")
+    axes[1].hlines(half_levels, xmin=0., xmax=10., color="k",
+            linestyle="dashed", linewidth=0.6)
+
+    axes[0].set_xlim(left=6.1, right=8.4)
+    axes[1].set_xlim(left=0.13, right=.154)
+
+
+    axes[0].set_xlabel(r"$|u(z)| \;({\rm m.s}^{-1})$")
+    axes[1].set_xlabel(r"$\arg(u(z))$")
+    axes[1].set_ylabel(r"$z$ (m)")
+    axes[0].set_ylabel(r"$z$ (m)")
+
+    fig.legend(loc="right")
+    LOGSCALE = False
+    if LOGSCALE:
+        axes[0].set_yscale("log")
+    else:
+        axes[0].set_ylim(bottom=0., top=38.)
+    show_or_save("fig_neutral_comparisonPlot")
 
 
 def fig_consistency_comparison():

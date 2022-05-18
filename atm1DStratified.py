@@ -82,6 +82,8 @@ class Atm1dStratified():
                                 self.__sf_YDc_FVpure),
                 "FV1" : (self.__sf_udelta_FV1,
                                 self.__sf_YDc_FV1),
+                "FV1 bug" : (self.__sf_udelta_FV1,
+                                self.__sf_YDc_FV1),
                 "FV2" : (self.__sf_udelta_FV2,
                                 self.__sf_YDc_FV2),
                 "FV free" : (self.__sf_udelta_FVfree,
@@ -96,6 +98,8 @@ class Atm1dStratified():
                 "FV test" : (self.__sf_thetadelta_FVpure,
                                 self.__sf_YDc_FVpure_theta),
                 "FV1" : (self.__sf_thetadelta_FV1,
+                                self.__sf_YDc_FV1_theta),
+                "FV1 bug" : (self.__sf_thetadelta_FV1,
                                 self.__sf_YDc_FV1_theta),
                 "FV2" : (self.__sf_thetadelta_FV2,
                                 self.__sf_YDc_FV2_theta),
@@ -142,7 +146,7 @@ class Atm1dStratified():
         assert sf_scheme in self.dictsf_scheme
         if sf_scheme in {"FV2",}:
             assert abs(delta_sl - self.z_full[1]) < 1e-10
-        elif sf_scheme in {"FV1", "FV pure"}:
+        elif sf_scheme in {"FV1", "FV pure", "FV1 bug"}:
             assert abs(delta_sl - self.z_full[1]/2) < 1e-10
         assert turbulence in {"TKE", "KPP"}
         N: int = forcing.shape[0] - 1 # number of time steps
@@ -155,7 +159,7 @@ class Atm1dStratified():
                 u_o[0], delta_sl_o, SST[0], large_ocean, sf_scheme,
                 Q_sw[0], Q_lw[0],
                 k)
-        ignore_tke_sl = sf_scheme in {"FV pure", "FV1"}
+        ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV1 bug"}
 
         import tkeAtm1D
         tke = tkeAtm1D.TkeAtm1D(self, "FV",
@@ -281,7 +285,7 @@ class Atm1dStratified():
         assert turbulence in {"TKE", "KPP"}
         N: int = forcing.shape[0] - 1 # number of time steps
         if len(forcing_theta.shape) == 1:
-            forcing_theta = [forcing_theta] * N+1
+            forcing_theta = [forcing_theta] * (N+1)
 
         # methods to get u(delta) and theta(delta):
         func_un, _ = self.dictsf_scheme[sf_scheme]
@@ -573,6 +577,7 @@ class Atm1dStratified():
         z_min = 0.2
         xi = [np.linspace(-h/2, h/2, 15) for h in self.h_half[:-1]]
         xi[1] = np.linspace(-self.h_half[1]/2, self.h_half[1]/2, 40)
+        xi[0] = np.linspace(-self.h_half[0]/2, self.h_half[0]/2, 80)
         sub_discrete: List[array] = [u_bar[m] + (phi[m+1] + phi[m]) * xi[m]/2 \
                 + (phi[m+1] - phi[m]) / (2 * self.h_half[m]) * \
                 (xi[m]**2 - self.h_half[m]**2/12) for m in range(self.M)]
@@ -587,12 +592,13 @@ class Atm1dStratified():
         u_star, t_star, _, _, inv_L_MO, _, _, \
                 u_z0, t_z0, delta_sl, k1, sf_scheme, \
                 Q_sw, Q_lw, SL_o = SL
-        if sf_scheme in {"FV1", "FV pure"} or ignore_loglaw:
+        if sf_scheme in {"FV1 bug", "FV1", "FV pure"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
             k_1m: int = bisect.bisect_right(allxi[0], z_min)
             allxi[0] = allxi[0][k_1m:]
             sub_discrete_theta[0] = sub_discrete_theta[0][k_1m:]
             sub_discrete[0] = sub_discrete[0][k_1m:]
+
             return np.concatenate(allxi), \
                     np.concatenate(sub_discrete), \
                     np.concatenate(sub_discrete_theta), \
@@ -600,7 +606,7 @@ class Atm1dStratified():
 
         if delta_sl is None:
             delta_sl = self.z_half[0] if sf_scheme in\
-                    {"FV pure", "FV1"} else self.z_full[1]
+                    {"FV pure", "FV1", "FV1 bug"} else self.z_full[1]
 
         prognostic: array = np.concatenate((u_bar[:SL.k+1],
             phi[SL.k:]))
@@ -890,11 +896,14 @@ class Atm1dStratified():
                         / phi_h(SL.z_0M*inv_L_MO)
                 K_full[0] = (self.kappa * u_star*(SL.z_0M)\
                         ) / phi_m(SL.z_0M*inv_L_MO)
+                if SL.sf_scheme in {"FV1", "FV pure"}:
                 # since it does not work well, one can replace with:
-                # Ktheta_full[0] = (self.kappa * u_star*(delta_sl+SL.z_0H))\
-                #         / phi_h(delta_sl*inv_L_MO)
-                # K_full[0] = (self.kappa * u_star*(delta_sl+SL.z_0M)\
-                #         ) / phi_m(delta_sl*inv_L_MO)
+                    Ktheta_full[0] = (self.kappa * u_star * \
+                            (delta_sl+SL.z_0H))\
+                            / phi_h(delta_sl*inv_L_MO)
+                    K_full[0] = (self.kappa * u_star * \
+                            (delta_sl+SL.z_0M)\
+                            ) / phi_m(delta_sl*inv_L_MO)
                 # by doing this, phi_0 would not mean correspond
                 # to dzu(z0) neither to dzu(delta_sl)
 
