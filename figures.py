@@ -1053,7 +1053,7 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl):
     z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
             dz_theta, SL=SL)
     z_tke = simulator.z_full
-    return z_fv, u_fv, theta_fv, z_tke, tke_full, ustar
+    return z_fv, u_fv, theta_fv, z_tke, tke_full, ret["all_u_star"]
 
 def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
         z_levels=DEFAULT_z_levels_stratified,
@@ -1147,6 +1147,25 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     axes[1].semilogy(np.imag(u_fv), z_fv, **style)
     axes[2].semilogy(TKE, z_tke, **style, label=name)
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
+
+def fig_neutral_pedagogicalPlot():
+    fig, axes = plt.subplots(1, 2, sharey=True)
+    ##### first: FV free #######
+    sf_scheme = "FV free"
+    z_levels = IFS_z_levels
+    dt = 30.
+    T = 3600 * 2
+    N = int(T/dt)
+    N = 0
+    delta_sl = IFS_z_levels[1]/2
+    print(IFS_z_levels[1])
+    z_fv, u_fv, theta_fv, z_tke, TKE, ustar = \
+            compute_with_sfNeutral(sf_scheme,
+                    z_levels, dt, N, delta_sl)
+    axes[0].semilogy(np.real(u_fv), z_fv)
+    axes[1].semilogy(np.imag(u_fv), z_fv)
+    show_or_save("fig_neutral_pedagogicalPlot")
+
 
 def fig_consistency_comparison():
     """

@@ -147,7 +147,7 @@ class Atm1dStratified():
         assert turbulence in {"TKE", "KPP"}
         N: int = forcing.shape[0] - 1 # number of time steps
         if len(forcing_theta.shape) == 1:
-            forcing_theta = [forcing_theta] * N+1
+            forcing_theta = [forcing_theta] * (N+1)
 
         k = bisect.bisect_right(self.z_full[1:], delta_sl)
         SL: SurfaceLayerData = friction_scales(u_delta,
