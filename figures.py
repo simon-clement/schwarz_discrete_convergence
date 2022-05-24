@@ -305,6 +305,81 @@ def colorplot_coupling(ax, sf_scheme_a: str, sf_scheme_o: str,
     ax.set_yscale("symlog", linthresh=1.)
     return col_a
 
+def fig_mixing_lengths():
+    """
+    return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
+    """
+    sf_scheme: str = "FV free"
+    z_levels: np.nd_array = IFS_z_levels
+    dt: float = 10.
+    N: int = 3240
+    stable: bool = False
+    delta_sl: float = IFS_z_levels_stratified[1]/2.
+    z_constant: float = 2 * delta_sl
+
+    M: int = z_levels.shape[0] - 1
+    simulator: Atm1dStratified = Atm1dStratified(z_levels=z_levels,
+            dt=dt, u_geostrophy=8.,
+            K_mol=1e-4, f=1.39e-4)
+    T0 = 265.
+    u_0 = 8*np.ones(M) + 0j
+    phi_0 = np.zeros(M+1) + 0j
+    t_0, dz_theta_0 = simulator.initialize_theta(Neutral_case=False)
+    forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
+    if stable:
+        SST = np.concatenate(([265],
+            [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
+    else: # diurnal cycle:
+        SST = np.concatenate(([265],
+            [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
+                    for n in range(1, N+1)]))
+
+    z_tke = np.copy(simulator.z_full)
+    k = bisect.bisect_right(z_levels[1:], delta_sl)
+    z_tke[k] = delta_sl
+    u_deltasl = 8. # first guess before the iterations
+    t_deltasl = T0 # first guess before the iterations
+    Q_sw, Q_lw, delta_sl_o = np.zeros(N+1), np.zeros(N+1), 0.
+    u_o, t_o = np.zeros(N+1), SST
+    if sf_scheme in {"FV1 free", "FV2 free", "FV free", "FV2"}:
+        u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
+                simulator.initialization(u_0, phi_0, t_0, dz_theta_0,
+                        delta_sl, u_o[0], t_o[0], Q_sw[0], Q_lw[0],
+                        z_constant, delta_sl_o)
+    else:
+        u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
+                u_0, phi_0, t_0, dz_theta_0, u_deltasl, t_deltasl
+
+    ret = simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
+                    delta_sl_o=0.,
+                    forcing_theta=np.zeros(simulator.M),
+                    dz_theta_t0=dz_theta_i, Q_sw=Q_sw, Q_lw=Q_lw,
+                    u_o=u_o, SST=SST, sf_scheme=sf_scheme,
+                    u_delta=u_delta_i, t_delta=t_delta_i,
+                    forcing=forcing, delta_sl=delta_sl)
+    fig, axes = plt.subplots(1,2, figsize=(6.5, 3.5))
+    fig.subplots_adjust(bottom=0.16, left=0.1)
+    z_levels[0] = delta_sl
+    axes[0].plot(simulator.lD80_copy, z_levels,
+            label=r"$l^\star_{D80}$")
+    axes[0].plot(simulator.lup_copy, z_levels,
+            label=r"$l_{up}$")
+    axes[0].plot(simulator.ldown_copy, z_levels,
+            label=r"$l_{down}$")
+    axes[0].plot(np.sqrt(simulator.lup_copy * simulator.ldown_copy),
+            z_levels, "--", label=r"$l_{m}$")
+    axes[0].set_ylabel("z (m)")
+    axes[0].set_xlabel("Mixing length (m)")
+    axes[0].set_ylim(top=300., bottom=0.)
+    axes[1].set_ylim(top=300., bottom=0.)
+    axes[1].set_xlim(left=0., right=0.12)
+    axes[0].legend()
+
+    axes[1].plot(ret["tke"], z_levels, "k")
+    axes[1].set_xlabel(r"TKE (${\rm m}^2 . {\rm s}^{-2}$)")
+    show_or_save("fig_mixing_lengths")
+
+
 def fig_testBulk():
     from bulk import friction_scales
     ua_delta = 6.

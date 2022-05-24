@@ -41,6 +41,7 @@ class Atm1dStratified():
         # X_full[m] represents in LaTeX $X_m$ whereas
         # X_half[m] represents in LaTeX $X_{m+1/2}$.
         # both have M+1 points (0<=m<=M).
+        self.explicit_ldown = False
         self.z_full: array = np.copy(z_levels)
         self.h_half: array = np.diff(self.z_full,
                 append=2*self.z_full[-1] - self.z_full[-2])
@@ -540,6 +541,8 @@ class Atm1dStratified():
                         /self.c_eps/self.kappa/(z_sl + SL.z_0M) \
                         - g/theta_ref/self.c_eps*SL.t_star) \
                         **2)**(1/3)
+        # saving lD80:
+        self.lD80_copy = np.copy(mxlm)
 
         mxlm[:k_modif] = (ratio/l_up[:k_modif])**(3/5)
         mask_min_is_lup = mxlm[:k_modif]>l_up[:k_modif]
@@ -547,16 +550,20 @@ class Atm1dStratified():
                 (ratio/ l_up[:k_modif]**(5/3))[mask_min_is_lup]
         if (mxlm[:k_modif] < l_up[:k_modif])[mask_min_is_lup].any():
             print("no solution of the link MOST-TKE")
-        # TODO use directly 1/(lup tke) * (Ku_MOST)**2
-        # mxlm[:k_modif] = 1/l_up[:k_modif] / tke[:k_modif] * \
-        #       (SL.u_star * self.kappa * (z_sl + SL.z_0M) \
-        #       / self.C_m / phi_m(z_sl * SL.inv_L_MO))**2
+        if self.explicit_ldown:
+            mxlm[:k_modif] = 1/l_up[:k_modif] / tke[:k_modif] * \
+                  (SL.u_star * self.kappa * (z_sl + SL.z_0M) \
+                  / self.C_m / phi_m(z_sl * SL.inv_L_MO))**2
 
         # limiting l_down with the distance to the bottom:
         l_down[k_modif-1] = z_levels[k_modif-1]
         for j in range(k_modif, self.M+1):
             l_down[j] = min(l_down[j-1] + h_half[j-1], mxlm[j])
         l_down[:k_modif] = mxlm[:k_modif]
+
+        # saving l_up, l_down:
+        self.lup_copy = np.copy(l_up)
+        self.ldown_copy = np.copy(l_down)
 
         l_m = np.maximum(np.sqrt(l_up*l_down), self.lm_min)
         l_eps = np.minimum(l_down, l_up)
