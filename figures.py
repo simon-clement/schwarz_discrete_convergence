@@ -943,10 +943,11 @@ def fig_consistency_comparisonUnstable():
     axes[4].set_ylabel("height (m)")
     show_or_save("fig_consistency_comparisonUnstable")
 
-def ustar_u_low_and_high_res(sf_scheme: str):
-    z_levels: np.ndarray  = oversample(IFS_z_levels_stratified, 3)
+def ustar_u_t_low_and_high_res(sf_scheme: str):
+    z_levels: np.ndarray = oversample(IFS_z_levels_stratified, 3)
+    z_levels: np.ndarray = np.copy(IFS_z_levels_stratified)
     z_levels_high_res: np.ndarray = oversample(z_levels, 3)
-    dt: float = 10.
+    dt: float = 30.
     T: float = 3*24 * 3600.
     N: int = int(T/dt)
     stable: bool = True
@@ -966,7 +967,7 @@ def ustar_u_low_and_high_res(sf_scheme: str):
     z_hr, u_hr, theta_hr, z_tke_hr, TKE_hr, ustar_hr, _ = \
             compute_with_sfStratified(sf_scheme,
                     z_levels_high_res, dt, N, stable, delta_sl_hr)
-    return ustar_lr, z_lr, u_lr, ustar_hr, z_hr, u_hr
+    return ustar_lr, z_lr, u_lr, theta_lr, ustar_hr, z_hr, u_hr, theta_hr
 
 def fig_Stratified():
     """
@@ -974,9 +975,6 @@ def fig_Stratified():
         with TKE turbulence scheme.
     """
     z_levels = oversample(IFS_z_levels_stratified, 3)
-    z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
-    # z_levels_les= np.linspace(0, 400, 651)
-    z_levels_les= oversample(z_levels, 3)
 
     fig, axes = plt.subplots(3,1, figsize=(5.5, 4.5))
     fig.subplots_adjust(hspace=0.7, right=0.666)
@@ -1001,19 +999,19 @@ def fig_Stratified():
     for settings in all_settings:
         sf_scheme = settings.pop("sf_scheme")
         delta_sl = settings.pop("delta_sl")
-        dt: float = 10.
+        dt: float = 30.
         T: float = 3*24 * 3600.
         N: int = int(T/dt)
         hours_simu = np.linspace(0, T/3600, N)
         hours_plot = np.linspace(0, T/3600, 30)
-        ustar_lowres, z_lr, u_lr, _, _, _ = memoised(\
-                ustar_u_low_and_high_res, sf_scheme)
+        ustar_lowres, z_lr, u_lr, t_lr, *_, = memoised(\
+                ustar_u_t_low_and_high_res, sf_scheme)
         # abs plot:
         axes[1].plot(np.abs(u_lr), z_lr, **settings)
         settings.pop("label")
 
-        # angle plot:
-        axes[2].plot(np.angle(u_lr), z_lr, **settings)
+        # temperature plot:
+        axes[2].plot(t_lr, z_lr, **settings)
 
         # ustar plot:
         ustar_lowres = undersample(ustar_lowres, hours_simu, hours_plot)
@@ -1023,7 +1021,7 @@ def fig_Stratified():
     axes[0].set_ylabel(r"$u_\star$")
     axes[1].set_xlabel(r"$|u|$")
     axes[1].set_ylabel(r"$z$ (m)")
-    axes[2].set_xlabel(r"Arg($u$)")
+    axes[2].set_xlabel(r"$\theta$ (K)")
     axes[2].set_ylabel(r"$z$ (m)")
 
     axes[0].set_xlim(left=0., right=72.)
@@ -1032,7 +1030,7 @@ def fig_Stratified():
     axes[1].set_xlim(left=5., right=9.2)
     axes[1].set_ylim(top=200., bottom=0.)
 
-    axes[2].set_xlim(left=-0.035, right=.4)
+    axes[2].set_xlim(left=258., right=268)
     axes[2].set_ylim(top=200., bottom=0.)
 
     fig.legend(loc="center right")
@@ -1044,9 +1042,8 @@ def fig_consistency_comparisonStratified():
         Integrates for 1 day a 1D ekman equation
         with TKE turbulence scheme.
     """
-    z_levels = oversample(IFS_z_levels_stratified, 3)
-    z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
-    # z_levels_les= np.linspace(0, 400, 651)
+    # z_levels = oversample(IFS_z_levels_stratified, 3)
+    z_levels = np.copy(IFS_z_levels_stratified)
     z_levels_les= oversample(z_levels, 3)
 
     fig, axes = plt.subplots(3,1, figsize=(5.5, 4.5))
@@ -1072,26 +1069,23 @@ def fig_consistency_comparisonStratified():
     for settings in all_settings:
         sf_scheme = settings.pop("sf_scheme")
         delta_sl = settings.pop("delta_sl")
-        dt: float = 10.
+        dt: float = 30.
         T: float = 3*24 * 3600.
         N: int = int(T/dt)
         hours_simu = np.linspace(0, T/3600, N)
         hours_plot = np.linspace(0, T/3600, 30)
-        ustar_lowres, z_lr, u_lr, ustar_highres, z_hr, u_hr = memoised(\
-                ustar_u_low_and_high_res, sf_scheme)
+        ustar_lowres, z_lr, u_lr, t_lr, ustar_highres, z_hr, u_hr, \
+                t_hr = memoised(ustar_u_t_low_and_high_res, sf_scheme)
         #projection:
         u_hr = undersample(u_hr, z_hr, z_lr)
+        t_hr = undersample(t_hr, z_hr, z_lr)
         # abs plot:
         axes[1].plot((np.abs(u_lr - u_hr))/np.abs(u_hr),
                 z_lr, **settings)
         settings.pop("label")
 
-        # angle plot:
-        angle_to_plot = np.minimum(np.abs(np.angle(u_lr)-np.angle(u_hr)),
-                np.abs(np.angle(u_lr) - np.angle(u_hr)+2*np.pi))
-        angle_to_plot = np.minimum(angle_to_plot,
-                np.abs(np.angle(u_lr) - np.angle(u_hr)-2*np.pi))
-        axes[2].plot(angle_to_plot, z_lr, **settings)
+        # temperature plot:
+        axes[2].plot(np.abs(t_lr - t_hr), z_lr, **settings)
 
         # ustar plot:
         ustar_highres = undersample(ustar_highres, hours_simu, hours_plot)
@@ -1104,14 +1098,14 @@ def fig_consistency_comparisonStratified():
     axes[0].set_ylabel(r"Relative $u_\star$ difference")
     axes[1].set_xlabel(r"Relative $|u|$ difference")
     axes[1].set_ylabel(r"$z$ (m)")
-    axes[2].set_xlabel(r"Arg($u$) difference")
+    axes[2].set_xlabel(r"$\theta$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
 
-    axes[0].set_ylim(top=0.026, bottom=0.)
-    axes[1].set_ylim(top=75., bottom=0.)
-    axes[1].set_xlim(left=0., right=0.03)
-    axes[2].set_xlim(left=0., right=0.014)
-    axes[2].set_ylim(top=75., bottom=0.)
+    axes[0].set_ylim(top=0.1, bottom=0.)
+    axes[1].set_ylim(top=100., bottom=0.)
+    axes[1].set_xlim(left=0., right=0.09)
+    axes[2].set_xlim(left=0., right=0.45)
+    axes[2].set_ylim(top=100., bottom=0.)
     fig.legend(loc="center right")
 
     show_or_save("fig_consistency_comparisonStratified")
