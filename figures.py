@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from tqdm import tqdm
+from scipy import interpolate
 from matplotlib.animation import FuncAnimation
 from memoisation import memoised
 from atm1DStratified import Atm1dStratified
@@ -883,7 +884,7 @@ def fig_consistency_comparisonUnstable():
     z_levels = IFS_z_levels_stratified
     z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
     # z_levels_les= np.linspace(0, 400, 651)
-    z_levels_les= np.linspace(0, z_levels[-1], 351)
+    z_levels_les= np.linspace(0, z_levels[-1], 151)
     dt = 50.
     N = int(3*24*3600/dt) # 28*3600/10=3240
 
@@ -897,19 +898,19 @@ def fig_consistency_comparisonUnstable():
                 "linewidth":1.5, **kwargs}
     # High resolution:
     plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les, stable=False,
-            name="FD, M=350", style=style(col_FDpure))
+            name="FD, M=150", style=style(col_FDpure))
     # plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
     #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
-    #         name="FV1, M=350", style=style(col_FV1))
+    #         name="FV1, M=150", style=style(col_FV1))
     plot_FVStratified(axes, "FV2", delta_sl=z_levels_les[1],
             N=N, dt=dt, z_levels=z_levels_les, stable=False,
-            name="FV2, M=350", style=style("c"))
+            name="FV2, M=150", style=style("c"))
     # plot_FVStratified(axes, "FV pure", delta_sl=z_levels_les[1]/2,
     #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
-    #         name="FV pure, M=350", style=style("m"))
+    #         name="FV pure, M=150", style=style("m"))
     plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
             N=N, dt=dt, z_levels=z_levels_les, stable=False,
-            name="FV free, M=350", style=style(col_FVfree))
+            name="FV free, M=150", style=style(col_FVfree))
 
     # Low resolution:
     plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
@@ -942,72 +943,177 @@ def fig_consistency_comparisonUnstable():
     axes[4].set_ylabel("height (m)")
     show_or_save("fig_consistency_comparisonUnstable")
 
+def ustar_u_low_and_high_res(sf_scheme: str):
+    z_levels: np.ndarray  = oversample(IFS_z_levels_stratified, 3)
+    z_levels_high_res: np.ndarray = oversample(z_levels, 3)
+    dt: float = 10.
+    T: float = 3*24 * 3600.
+    N: int = int(T/dt)
+    stable: bool = True
+    delta_sl_lr: float = z_levels[1]/2
+    delta_sl_hr: float = z_levels_high_res[1]/2
+    if sf_scheme == "FV free":
+        delta_sl_lr = delta_sl_hr = z_levels[1]/2
+    elif sf_scheme == "FV2":
+        z_levels = np.concatenate(([z_levels[0]], [delta_sl_lr],
+            z_levels[1:]))
+        z_levels_high_res = np.concatenate(([z_levels_high_res[0]],
+            [delta_sl_hr], z_levels_high_res[1:]))
+
+    z_lr, u_lr, theta_lr, z_tke_lr, TKE_lr, ustar_lr, _ = \
+            compute_with_sfStratified(sf_scheme,
+                    z_levels, dt, N, stable, delta_sl_lr)
+    z_hr, u_hr, theta_hr, z_tke_hr, TKE_hr, ustar_hr, _ = \
+            compute_with_sfStratified(sf_scheme,
+                    z_levels_high_res, dt, N, stable, delta_sl_hr)
+    return ustar_lr, z_lr, u_lr, ustar_hr, z_hr, u_hr
+
+def fig_Stratified():
+    """
+        Integrates for 1 day a 1D ekman equation
+        with TKE turbulence scheme.
+    """
+    z_levels = oversample(IFS_z_levels_stratified, 3)
+    z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
+    # z_levels_les= np.linspace(0, 400, 651)
+    z_levels_les= oversample(z_levels, 3)
+
+    fig, axes = plt.subplots(3,1, figsize=(5.5, 4.5))
+    fig.subplots_adjust(hspace=0.7, right=0.666)
+    def style(col, linestyle='solid', **kwargs):
+        return {"color": col, "linestyle": linestyle,
+                "linewidth":1.5, **kwargs}
+
+    def undersample(arr: np.ndarray,
+            z_in: np.ndarray, z_out: np.ndarray) -> np.ndarray:
+        """
+            projection of array (defined on z_in) to z_out
+        """
+        return interpolate.interp1d(z_in, arr,
+                fill_value="extrapolate")(z_out)
+
+    dic_settings = settings_plot_sf_scheme(z_levels)
+    all_settings = ( dic_settings["FV pure"],
+                    dic_settings["FV2"],
+                    dic_settings["FD pure"],
+                    dic_settings["FV free"])
+
+    for settings in all_settings:
+        sf_scheme = settings.pop("sf_scheme")
+        delta_sl = settings.pop("delta_sl")
+        dt: float = 10.
+        T: float = 3*24 * 3600.
+        N: int = int(T/dt)
+        hours_simu = np.linspace(0, T/3600, N)
+        hours_plot = np.linspace(0, T/3600, 30)
+        ustar_lowres, z_lr, u_lr, _, _, _ = memoised(\
+                ustar_u_low_and_high_res, sf_scheme)
+        # abs plot:
+        axes[1].plot(np.abs(u_lr), z_lr, **settings)
+        settings.pop("label")
+
+        # angle plot:
+        axes[2].plot(np.angle(u_lr), z_lr, **settings)
+
+        # ustar plot:
+        ustar_lowres = undersample(ustar_lowres, hours_simu, hours_plot)
+        settings.pop("marker", None)
+        axes[0].plot(hours_plot, ustar_lowres, **settings)
+    axes[0].set_xlabel("Time (hours)")
+    axes[0].set_ylabel(r"$u_\star$")
+    axes[1].set_xlabel(r"$|u|$")
+    axes[1].set_ylabel(r"$z$ (m)")
+    axes[2].set_xlabel(r"Arg($u$)")
+    axes[2].set_ylabel(r"$z$ (m)")
+
+    axes[0].set_xlim(left=0., right=72.)
+    axes[0].set_ylim(top=0.21, bottom=0.15)
+
+    axes[1].set_xlim(left=5., right=9.2)
+    axes[1].set_ylim(top=200., bottom=0.)
+
+    axes[2].set_xlim(left=-0.035, right=.4)
+    axes[2].set_ylim(top=200., bottom=0.)
+
+    fig.legend(loc="center right")
+
+    show_or_save("fig_Stratified")
+
 def fig_consistency_comparisonStratified():
     """
         Integrates for 1 day a 1D ekman equation
         with TKE turbulence scheme.
     """
-    z_levels = DEFAULT_z_levels_stratified
-    z_levels = IFS_z_levels_stratified
+    z_levels = oversample(IFS_z_levels_stratified, 3)
     z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
     # z_levels_les= np.linspace(0, 400, 651)
-    z_levels_les= np.linspace(0, z_levels[-1], 351)
-    dt = 10.
-    N = 5*650 # 28*3600/10=3240
+    z_levels_les= oversample(z_levels, 3)
 
-    fig, axes = plt.subplots(1,5, figsize=(7.5, 3.5))
-    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
-    col_FDpure = "g"
-    col_FV1 = "b"
-    col_FVfree = "r"
+    fig, axes = plt.subplots(3,1, figsize=(5.5, 4.5))
+    fig.subplots_adjust(hspace=0.7, right=0.666)
     def style(col, linestyle='solid', **kwargs):
         return {"color": col, "linestyle": linestyle,
                 "linewidth":1.5, **kwargs}
 
-    # High resolution:
-    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les,
-            name="FD, M=350", style=style(col_FDpure))
-    plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
-            N=N, dt=dt, z_levels=z_levels_les,
-            name="FV1, M=350", style=style(col_FV1))
-    plot_FVStratified(axes, "FV2", delta_sl=z_levels_les[1],
-            N=N, dt=dt, z_levels=z_levels_les,
-            name="FV2, M=350", style=style("c"))
-    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels_les[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels_les,
-    #         name="FV pure, M=350", style=style("m"))
-    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels_les,
-            name="FV free, M=350", style=style(col_FVfree))
+    def undersample(arr: np.ndarray,
+            z_in: np.ndarray, z_out: np.ndarray) -> np.ndarray:
+        """
+            projection of array (defined on z_in) to z_out
+        """
+        return interpolate.interp1d(z_in, arr,
+                fill_value="extrapolate")(z_out)
 
-    # Low resolution:
-    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-            name="FD, M="+str(z_levels.shape[0]), style=style(col_FDpure, "dotted"))
-    plot_FVStratified(axes, "FV1", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels,
-            name=None, style=style(col_FV1, "dotted"))
-    plot_FVStratified(axes, "FV2", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels_FV2,
-            name=None, style=style("c", "dotted"))
-    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels,
-    #         name=None, style=style("m", "dotted"))
-    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels,
-            name=None, style=style(col_FVfree, "dotted"))
+    dic_settings = settings_plot_sf_scheme(z_levels)
+    all_settings = ( dic_settings["FV pure"],
+                    dic_settings["FV2"],
+                    dic_settings["FD pure"],
+                    dic_settings["FV free"])
 
-    axes[0].set_xlabel(r"wind speed ($|u|, m.s^{-1}$)")
-    axes[0].set_ylabel("height (m)")
-    axes[1].set_xlabel(r"Potential Temperature ($\theta$, K)")
-    axes[1].set_ylabel("height (m)")
-    axes[2].set_xlabel("energy (J)")
-    axes[2].set_ylabel("height (m)")
-    axes[2].legend(loc="upper right")
-    axes[3].set_ylim(top=0.28, bottom=0.16)
-    axes[3].set_ylabel("friction velocity (u*, $m.s^{-1}$)")
-    axes[3].set_xlabel("time (s)")
-    axes[4].set_xlabel("mixing length (m)")
-    axes[4].set_ylabel("height (m)")
+    for settings in all_settings:
+        sf_scheme = settings.pop("sf_scheme")
+        delta_sl = settings.pop("delta_sl")
+        dt: float = 10.
+        T: float = 3*24 * 3600.
+        N: int = int(T/dt)
+        hours_simu = np.linspace(0, T/3600, N)
+        hours_plot = np.linspace(0, T/3600, 30)
+        ustar_lowres, z_lr, u_lr, ustar_highres, z_hr, u_hr = memoised(\
+                ustar_u_low_and_high_res, sf_scheme)
+        #projection:
+        u_hr = undersample(u_hr, z_hr, z_lr)
+        # abs plot:
+        axes[1].plot((np.abs(u_lr - u_hr))/np.abs(u_hr),
+                z_lr, **settings)
+        settings.pop("label")
+
+        # angle plot:
+        angle_to_plot = np.minimum(np.abs(np.angle(u_lr)-np.angle(u_hr)),
+                np.abs(np.angle(u_lr) - np.angle(u_hr)+2*np.pi))
+        angle_to_plot = np.minimum(angle_to_plot,
+                np.abs(np.angle(u_lr) - np.angle(u_hr)-2*np.pi))
+        axes[2].plot(angle_to_plot, z_lr, **settings)
+
+        # ustar plot:
+        ustar_highres = undersample(ustar_highres, hours_simu, hours_plot)
+        ustar_lowres = undersample(ustar_lowres, hours_simu, hours_plot)
+        settings.pop("marker", None)
+        axes[0].plot(hours_plot, (np.abs(ustar_lowres - \
+                ustar_highres))/ustar_lowres,
+                **settings)
+    axes[0].set_xlabel("Time (hours)")
+    axes[0].set_ylabel(r"Relative $u_\star$ difference")
+    axes[1].set_xlabel(r"Relative $|u|$ difference")
+    axes[1].set_ylabel(r"$z$ (m)")
+    axes[2].set_xlabel(r"Arg($u$) difference")
+    axes[2].set_ylabel(r"$z$ (m)")
+
+    axes[0].set_ylim(top=0.026, bottom=0.)
+    axes[1].set_ylim(top=75., bottom=0.)
+    axes[1].set_xlim(left=0., right=0.03)
+    axes[2].set_xlim(left=0., right=0.014)
+    axes[2].set_ylim(top=75., bottom=0.)
+    fig.legend(loc="center right")
+
     show_or_save("fig_consistency_comparisonStratified")
 
 def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
@@ -1031,8 +1137,9 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     t_0, dz_theta_0 = simulator.initialize_theta(Neutral_case=False)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     if stable:
+        # we used 1 degrees per 4 hour, now it's 1 degree per 10 hours
         SST = np.concatenate(([265],
-            [265 - 0.25*(dt*(n-1))/3600. for n in range(1, N+1)]))
+            [265 - 0.1*(dt*(n-1))/3600. for n in range(1, N+1)]))
     else: # diurnal cycle:
         SST = np.concatenate(([265],
             [265 + 2.*np.sin((dt*(n-1))/3600. * np.pi / 12.)\
@@ -1054,21 +1161,36 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
         u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
                 u_0, phi_0, t_0, dz_theta_0, u_deltasl, t_deltasl
 
-    ret = simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
-                    delta_sl_o=0.,
-                    forcing_theta=np.zeros(simulator.M),
-                    dz_theta_t0=dz_theta_i, Q_sw=Q_sw, Q_lw=Q_lw,
-                    u_o=u_o, SST=SST, sf_scheme=sf_scheme,
-                    u_delta=u_delta_i, t_delta=t_delta_i,
-                    forcing=forcing, delta_sl=delta_sl)
-    u, phi, tke_full, ustar, temperature, dz_theta, l_eps, SL = \
-            [ret[x] for x in ("u", "phi", "tke", "all_u_star",
-                "theta", "dz_theta", "l_eps", "SL")]
+    if sf_scheme[:2] == "FV":
+        ret = simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
+                        delta_sl_o=0.,
+                        forcing_theta=np.zeros(simulator.M),
+                        dz_theta_t0=dz_theta_i, Q_sw=Q_sw, Q_lw=Q_lw,
+                        u_o=u_o, SST=SST, sf_scheme=sf_scheme,
+                        u_delta=u_delta_i, t_delta=t_delta_i,
+                        forcing=forcing, delta_sl=delta_sl)
+        u, phi, tke_full, ustar, temperature, dz_theta, l_eps, SL = \
+                [ret[x] for x in ("u", "phi", "tke", "all_u_star",
+                    "theta", "dz_theta", "l_eps", "SL")]
 
-    z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
-            dz_theta, SL=SL)
-    z_tke = simulator.z_full
-    return z_fv, u_fv, theta_fv, z_tke, tke_full, ustar, l_eps
+        z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi,
+                temperature, dz_theta, SL=SL)
+        z_tke = simulator.z_full
+        return z_fv, u_fv, theta_fv, z_tke, tke_full, ustar, l_eps
+    else:
+        ret = simulator.FD(u_t0=u_i, theta_t0=t_i,
+                        delta_sl_o=0.,
+                        forcing_theta=np.zeros(simulator.M),
+                        Q_sw=Q_sw, Q_lw=Q_lw,
+                        u_o=u_o, SST=SST, sf_scheme=sf_scheme,
+                        forcing=forcing)
+        u, tke_full, ustar, temperature, l_eps, SL = \
+                [ret[x] for x in ("u", "tke", "all_u_star",
+                    "theta", "l_eps", "SL")]
+        z_tke = simulator.z_full
+        z_fd = simulator.z_half[:-1]
+        return z_fd, u, temperature, z_tke, tke_full, ustar, l_eps
+
 
 def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl, **_):
     """
@@ -1121,7 +1243,8 @@ def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
             compute_with_sfStratified(sf_scheme, z_levels, dt, N,
                     stable, delta_sl)
     axes[0].semilogy(np.abs(u_fv), z_fv, **style)
-    axes[1].semilogy(theta_fv, z_fv, **style)
+    axes[1].semilogy(np.angle(u_fv), z_fv, **style)
+    # axes[1].semilogy(theta_fv, z_fv, **style)
     axes[2].semilogy(TKE, z_tke, **style, label=name)
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
     k = bisect.bisect_right(z_levels[1:], delta_sl)
@@ -1160,7 +1283,8 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
     z_tke[0] = 0.1
 
     axes[0].semilogy(np.abs(u), simulator.z_half[:-1], **style)
-    axes[1].semilogy(temperature, simulator.z_half[:-1], **style)
+    axes[1].semilogy(np.angle(u), simulator.z_half[:-1], **style)
+    # axes[1].semilogy(temperature, simulator.z_half[:-1], **style)
     axes[2].semilogy(TKE, z_tke, **style, label=name)
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
     axes[4].semilogy(l_eps, z_tke, **style)
@@ -1226,25 +1350,24 @@ def compute_FD_sfNeutral(sf_scheme, dt, N):
             sf_scheme=sf_scheme, forcing=forcing)
     return z_levels, ret['u']
 
-def fig_neutral_comparisonPlot():
-    fig, axes = plt.subplots(2, 1, figsize=(5., 4.), sharey=True)
-    fig.subplots_adjust(right=0.675, hspace = 0.35)
-    T = 3600 * 24
-    dt = 30.
-    N = int(T/dt)
-
+def settings_plot_sf_scheme(z_levels: np.ndarray):
+    """
+    Defines the styles for sf schemes comparison figures.
+    It is better to use the same style for all figures
+    to avoir losing people.
+    """
     prop_cycle = plt.rcParams['axes.prop_cycle']
     colors = prop_cycle.by_key()['color']
 
     settings_FVfree = {"sf_scheme": "FV free",
-            "delta_sl":IFS_z_levels[1]/2,
+            "delta_sl":z_levels[1]/2,
             "linewidth": 1.8,
             "color": colors[1],
             "label": "FV free",
             "linestyle": "dashed"}
     settings_FV1_bug = {"sf_scheme": "FV1 bug",
             "linewidth": 1.,
-            "delta_sl":IFS_z_levels[1]/2,
+            "delta_sl":z_levels[1]/2,
             "color": colors[4],
             "label": "FV1, " + r"$K_0=K_{mol}$",
             "linestyle": "dashed"
@@ -1252,26 +1375,48 @@ def fig_neutral_comparisonPlot():
     settings_FV1 = {"sf_scheme": "FV1",
             "linewidth": 1.8,
             "color": colors[2],
-            "delta_sl":IFS_z_levels[1]/2,
+            "delta_sl":z_levels[1]/2,
             "label": "FV1"}
     settings_FVpure = {"sf_scheme": "FV pure",
             "linewidth": 1.8,
-            "delta_sl":IFS_z_levels[1]/2,
+            "delta_sl":z_levels[1]/2,
             "color": colors[3],
             "label": "FV pure",
             "linestyle": "dashed"}
     settings_FV2 = {"sf_scheme": "FV2",
             "linewidth": 1.8,
             "color": colors[0],
-            "delta_sl":IFS_z_levels[1],
+            "delta_sl":z_levels[1],
             "label": "FV2"}
+    settings_FDpure = {"sf_scheme": "FD pure",
+            "label": "Finite Differences",
+            "marker":"o",
+            "delta_sl":z_levels[1]/2,
+            "color": colors[5],
+            "linewidth": 0.3}
+    ret = {"FV1 bug": settings_FV1_bug,
+            "FV1": settings_FV1,
+            "FV pure": settings_FVpure,
+            "FV2": settings_FV2,
+            "FV free": settings_FVfree,
+            "FD pure": settings_FDpure,
+            }
+    return ret
 
-    all_settings = ( settings_FV1_bug,
-                    settings_FV1,
-                    settings_FVpure,
-                    settings_FV2,
-                    settings_FVfree,
-                    )
+def fig_neutral_comparisonPlot():
+    fig, axes = plt.subplots(2, 1, figsize=(5., 4.), sharey=True)
+    fig.subplots_adjust(right=0.675, hspace = 0.35)
+    T = 3600 * 24
+    dt = 30.
+    N = int(T/dt)
+
+    dic_settings = settings_plot_sf_scheme(IFS_z_levels)
+    all_settings = ( dic_settings["FV1 bug"],
+                    dic_settings["FV1"],
+                    dic_settings["FV pure"],
+                    dic_settings["FV2"],
+                    dic_settings["FV free"])
+
     for settings in all_settings:
         z_fv, u_fv, _, _, _, _ = \
                 memoised(memoisable_compute_sfNeutral,
@@ -1286,10 +1431,9 @@ def fig_neutral_comparisonPlot():
 
     # FD PART:
     z_fd, u_fd = memoised(compute_FD_sfNeutral, "FD pure", dt=dt, N=N)
-    settings_FD = {"label": "Finite Differences",
-            "marker":"o",
-            "color": colors[5],
-            "linewidth": 0.3}
+    settings_FD = dic_settings["FD pure"]
+    settings_FD.pop("delta_sl")
+    settings_FD.pop("sf_scheme")
     axes[0].plot(np.abs(u_fd), full_to_half(z_fd), **settings_FD)
     settings_FD.pop("label")
     axes[1].plot(np.angle(u_fd), full_to_half(z_fd), **settings_FD)

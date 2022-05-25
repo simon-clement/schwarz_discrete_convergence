@@ -5,6 +5,8 @@ You can then look for this function name in the file figures.py """
 FIGURE = {}
 FIGURE["chap4_0"] = "fig_neutral_comparisonPlot"
 FIGURE["chap4_5"] = "fig_mixing_lengths"
+FIGURE["chap4_6"] = "fig_Stratified"
+FIGURE["chap4_7"] = "fig_consistency_comparisonStratified"
 FIGURE["0"] = "fig_launchOcean"
 FIGURE["1"] = "fig_consistency_comparison"
 FIGURE["2"] = "fig_consistency_comparisonStratified"
