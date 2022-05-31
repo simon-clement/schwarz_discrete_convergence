@@ -4,22 +4,99 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from atm1DStratified import Atm1dStratified
+from ocean1DStratified import Ocean1dStratified
 from universal_functions import Businger_et_al_1971 as businger
-from utils_linalg import solve_linear
+from utils_linalg import solve_linear, full_to_half, oversample
+from schwarz_coupler import NumericalSetting, schwarz_coupling, projection
 
+def simulation_unstable(dt_atm, T, store_all: bool,
+        sf_scheme_a: str, delta_sl_a: float=None,
+        high_res: bool=False):
+    dt_oce: float = dt_atm
+    sf_scheme_o: str = "FD pure" # this will not be used
+    delta_sl_o: float= 0.
+    NUMBER_SCHWARZ_ITERATION: int=0
+    f = 1e-4 # Coriolis parameter
+    time = np.linspace(0, T) # number of time steps is not important
+    # because of the projection
+    alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
+    Qswmax = 500.
+    Qlw = -np.ones_like(time) * Qswmax / np.pi
+    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.26)), 0. ) * \
+            Qswmax / (rho0*cp)
+    Qsw = srflx * rho0*cp
+    z_levels_oce = np.linspace(-50., 0., 51)
+    z_levels_atm = np.concatenate((np.linspace(0.,500, 51),
+        10*np.linspace(1,15,15)**1.5+500))
+    if high_res:
+        z_levels_atm = oversample(z_levels_atm, 3)
+    simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
+            dt=dt_oce, u_geostrophy=0., f=f, alpha=alpha, N0=N0)
+    mu_m = 6.7e-2 # value of mu_m taken in bulk.py
+    K_mol_a = simulator_oce.K_mol / mu_m
+    simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
+            dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
+
+    if delta_sl_a is None:
+        if sf_scheme_a in {"FV free", "FV test",
+                "FD pure", "FD test"}:
+            delta_sl_a = z_levels_atm[1]/2.
+        else: # sf_scheme_a == "FD2":
+            delta_sl_a = z_levels_atm[1]
+    assert not (sf_scheme_a == "FV free" and abs(delta_sl_a)<1e-2)
+
+    numer_setting = NumericalSetting(T=T,
+            sf_scheme_a=sf_scheme_a, sf_scheme_o=sf_scheme_o,
+            delta_sl_a=delta_sl_a, delta_sl_o=delta_sl_o,
+            Q_lw=Qlw, Q_sw=Qsw)
+    state_atm = schwarz_coupling(simulator_oce,
+            simulator_atm, numer_setting, store_all=store_all,
+            NUMBER_SCHWARZ_ITERATION=NUMBER_SCHWARZ_ITERATION)
+
+    if store_all and sf_scheme_a[:2] == "FV":
+        print("Reconstructing solutions...")
+        all_u = state_atm.other["all_u"]
+        all_phi = state_atm.other["all_phi"]
+        all_t = state_atm.other["all_theta"]
+        all_dzt = state_atm.other["all_dz_theta"]
+        all_SL = state_atm.other["all_SL"]
+        for frame in range(len(all_u)):
+            za, all_u[frame], all_t[frame] = \
+                    simulator_atm.reconstruct_FV(all_u[frame],
+                    all_phi[frame], all_t[frame], all_dzt[frame],
+                    all_SL[frame],
+                    ignore_loglaw=(sf_scheme_a != "FV free"))
+    elif not store_all and sf_scheme_a[:2] == "FV":
+        za, state_atm.last_tstep["u"], \
+                state_atm.last_tstep["theta"], = \
+                    simulator_atm.reconstruct_FV(\
+                    state_atm.last_tstep["u"],
+                    state_atm.last_tstep["phi"],
+                    state_atm.last_tstep["theta"],
+                    state_atm.last_tstep["dz_theta"],
+                    state_atm.other["SL"],
+                    ignore_loglaw=(sf_scheme_a != "FV free"))
+    else:
+        za = simulator_atm.z_half[:-1]
+    return state_atm, za
+#TODO faire marcher le colorplot avec les nouvelles variables
 def colorplot(z_levels: np.ndarray, is_FV: bool,
         sf_scheme: str, delta_sl: float, skip_dx: int):
     z_constant = delta_sl*2
 
     dt = 40.
     N = int(4*24*3600 / dt)
+    T = dt*N
     N_spinup = int(2.25*24*3600 / dt)
     skip_dt = 120
-    z_fv, all_u_fv, all_theta_fv, z_tke, all_tke_fv, all_ustar, \
-            all_leps = simulation(is_FV, sf_scheme, z_levels, dt, N,
-                    stable=False, delta_sl=delta_sl,
-                    z_constant=z_constant, spinup=N_spinup,
-                    skip_dt=skip_dt, skip_dx=skip_dx)
+    state_atm, z_fv = memoised(simulation_unstable, dt, T, True,
+            sf_scheme, delta_sl, high_res=False)
+
+    variables = ("all_u", "all_theta", "z_tke", "all_tke",
+            "all_u_star", "all_leps")
+    all_u_fv, all_theta_fv, z_tke, all_tke_fv, all_ustar, \
+            all_leps = [state_atm.other[x] for x in variables]
+
     fig, axes = plt.subplots(2, 3)
     fig.subplots_adjust(left=0.08, bottom=0.14, wspace=1., right=0.93)
     u_fv, theta_fv = np.array(all_u_fv), np.array(all_theta_fv)

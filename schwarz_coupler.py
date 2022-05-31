@@ -55,9 +55,14 @@ def schwarz_coupling(simulator_oce: Ocean1dStratified,
     """
         computes the coupling between the two models
         Atm1dStratified and Ocean1dStratified.
+        If NUMBER_SCHWARZ_ITERATION is zero,
+        only returns the atmosphere state.
     """
     oce_state, atm_state = [initialization_ocean(parameters,
         simulator_oce)], []
+    if NUMBER_SCHWARZ_ITERATION == 0: # only atmosphere
+        return compute_atmosphere(simulator_atm,
+                oce_state[-1], parameters, **kwargs)
     with tqdm(total=NUMBER_SCHWARZ_ITERATION*2, leave=False) as pbar:
         for _ in range(NUMBER_SCHWARZ_ITERATION):
             atm_state += [compute_atmosphere(simulator_atm,
@@ -75,8 +80,8 @@ def initialization_ocean(numer_set: NumericalSetting,
     """
     N = int(numer_set.T/simulator_oce.dt) # Number of time steps
     days = np.linspace(0, numer_set.T/86400. , N)
-    t_delta = INIT_THETA_OCE + np.zeros(N)
-    #t_delta = INIT_THETA_OCE + np.cos(2*np.pi*(days-0.26))
+    # t_delta = INIT_THETA_OCE + np.zeros(N)
+    t_delta = INIT_THETA_OCE + np.cos(2*np.pi*(days-0.26))
     # diurnal activity
     return StateOce(u_delta=np.ones(N+1) * INIT_U_OCE,
             t_delta=t_delta,
