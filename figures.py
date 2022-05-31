@@ -8,8 +8,8 @@ import bisect
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from typing import Tuple
 from tqdm import tqdm
-from scipy import interpolate
 from matplotlib.animation import FuncAnimation
 from memoisation import memoised
 from atm1DStratified import Atm1dStratified
@@ -17,6 +17,7 @@ from ocean1DStratified import Ocean1dStratified
 from universal_functions import Businger_et_al_1971 as businger
 from universal_functions import Large_et_al_2019 as large_ocean
 from utils_linalg import solve_linear, full_to_half, oversample
+from utils_linalg import undersample
 import figures_unstable
 from fortran.visu import import_data
 from validation_oce1D import fig_comodoParamsConstantCooling
@@ -820,127 +821,99 @@ def fig_launchOcean():
     ax.legend()
     show_or_save("fig_launchOcean")
 
-
-def fig_colorplots_FDlowres():
-    """
-        plots several (2D) variables on a colorplot.
-    """
-    figures_unstable.colorplot(IFS_z_levels_stratified, False,
-            "FD pure", IFS_z_levels_stratified[1]/2, 1)
-    show_or_save("fig_colorplots_FDlowres")
-
-def fig_colorplots_FDhighres():
-    """
-        plots several (2D) variables on a colorplot.
-    """
-    z_levels= np.linspace(0, IFS_z_levels_stratified[-1], 351)
-    figures_unstable.colorplot(z_levels, False, "FD pure",
-            z_levels[1]/2, 3)
-    show_or_save("fig_colorplots_FDhighres")
-
-def fig_colorplots_FVhighres():
-    """
-        plots several (2D) variables on a colorplot.
-    """
-    z_levels= np.linspace(0, IFS_z_levels_stratified[-1], 351)
-    figures_unstable.colorplot(z_levels, True, "FV free",
-            IFS_z_levels_stratified[1]/2, 35)
-    show_or_save("fig_colorplots_FVhighres")
-
-def fig_colorplots_FVlowres():
-    """
-        plots several (2D) variables on a colorplot.
-    """
-    figures_unstable.colorplot(IFS_z_levels_stratified, True,
-            "FV free", IFS_z_levels_stratified[1]/2, 3)
-    show_or_save("fig_colorplots_FVlowres")
-
-def fig_colorplots_FV2highres():
-    """
-        plots several (2D) variables on a colorplot.
-    """
-    z_levels= np.linspace(0, IFS_z_levels_stratified[-1], 351)
-    figures_unstable.colorplot(z_levels, True, "FV2",
-            z_levels[1], 35)
-    show_or_save("fig_colorplots_FVhighres")
-
-def fig_colorplots_FV2lowres():
-    """
-        plots several (2D) variables on a colorplot.
-    """
-    z_levels= IFS_z_levels_stratified
-    z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
-    figures_unstable.colorplot(z_levels_FV2, True,
-            "FV2", z_levels_FV2[1], 3)
-    show_or_save("fig_colorplots_FVlowres")
-
-
 def fig_consistency_comparisonUnstable():
-    """
-        Integrates for 1 day a 1D ekman equation
-        with TKE turbulence scheme.
-    """
-    z_levels = DEFAULT_z_levels_stratified
-    z_levels = IFS_z_levels_stratified
-    z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
-    # z_levels_les= np.linspace(0, 400, 651)
-    z_levels_les= np.linspace(0, z_levels[-1], 151)
-    dt = 50.
-    N = int(3*24*3600/dt) # 28*3600/10=3240
 
-    fig, axes = plt.subplots(1,5, figsize=(7.5, 3.5))
-    fig.subplots_adjust(left=0.08, bottom=0.14, wspace=0.7, right=0.99)
-    col_FDpure = "g"
-    col_FV1 = "b"
-    col_FVfree = "r"
-    def style(col, linestyle='solid', **kwargs):
-        return {"color": col, "linestyle": linestyle,
-                "linewidth":1.5, **kwargs}
-    # High resolution:
-    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels_les, stable=False,
-            name="FD, M=150", style=style(col_FDpure))
-    # plot_FVStratified(axes, "FV1", delta_sl=z_levels_les[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
-    #         name="FV1, M=150", style=style(col_FV1))
-    plot_FVStratified(axes, "FV2", delta_sl=z_levels_les[1],
-            N=N, dt=dt, z_levels=z_levels_les, stable=False,
-            name="FV2, M=150", style=style("c"))
-    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels_les[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels_les, stable=False,
-    #         name="FV pure, M=150", style=style("m"))
-    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels_les, stable=False,
-            name="FV free, M=150", style=style(col_FVfree))
+    setting_FVfree = {'sf_scheme': 'FV free',
+                'delta_sl_lr': 5.,
+                'delta_sl_hr': 5.,
+                }
+    setting_FV2 = {'sf_scheme': 'FV2',
+                'delta_sl_lr': 10.,
+                'delta_sl_hr': 10./3,
+                }
+    setting_FVpure = {'sf_scheme': 'FV pure',
+                'delta_sl_lr': 5.,
+                'delta_sl_hr': 5./3,
+                }
+    setting_FDpure = {'sf_scheme': 'FD pure',
+                'delta_sl_lr': 5.,
+                'delta_sl_hr': 5./3,
+                }
+    settings_plot = settings_plot_sf_scheme(\
+            z_levels=np.array([0,10]))
+    settings = (setting_FVpure, setting_FV2, setting_FDpure,
+            setting_FVfree)
 
-    # Low resolution:
-    plot_FDStratified(axes, "FD pure", N=N, dt=dt, z_levels=z_levels,
-            name="FD, M="+str(z_levels.shape[0]),
-            style=style(col_FDpure, "dotted"), stable=False)
-    # plot_FVStratified(axes, "FV1", delta_sl=z_levels[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels, stable=False,
-    #         name=None, style=style(col_FV1, "dotted"))
-    plot_FVStratified(axes, "FV2", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels_FV2, stable=False,
-            name=None, style=style("c", "dotted"))
-    # plot_FVStratified(axes, "FV pure", delta_sl=z_levels[1]/2,
-    #         N=N, dt=dt, z_levels=z_levels, stable=False,
-    #         name=None, style=style("m", "dotted"))
-    plot_FVStratified(axes, "FV free", delta_sl=z_levels[1]/2,
-            N=N, dt=dt, z_levels=z_levels, stable=False,
-            name=None, style=style(col_FVfree, "dotted"))
+    dt: float = 40.
+    number_of_days = 4.2
+    N: int = int(number_of_days*24*3600 / dt)
+    T: float = dt*N
+    days_simu = np.linspace(0, T/3600/24, N)
+    days_plot = np.linspace(0, T/3600/24, 300)
+    fig, axes = plt.subplots(4, 1, figsize=(5.5, 5.5))
+    fig.subplots_adjust(left=0.145, right=0.7, hspace=0.6, top=0.95)
+    for setting in settings:
+        sf_scheme = setting["sf_scheme"]
+        delta_sl_lr = setting["delta_sl_lr"]
+        delta_sl_hr = setting["delta_sl_hr"]
+        state_atm_lr, z_fv_lr = memoised(\
+                figures_unstable.simulation_unstable, dt, T,
+                False, sf_scheme, delta_sl_lr, high_res=False)
+        state_atm_hr, z_fv_hr = memoised(\
+                figures_unstable.simulation_unstable, dt, T,
+                False, sf_scheme, delta_sl_hr, high_res=True)
 
-    axes[0].set_xlabel(r"wind speed ($|u|, m.s^{-1}$)")
-    axes[0].set_ylabel("height (m)")
-    axes[1].set_xlabel(r"Potential Temperature ($\theta$, K)")
-    axes[1].set_ylabel("height (m)")
-    axes[2].set_xlabel("energy (J)")
-    axes[2].set_ylabel("height (m)")
-    axes[2].legend(loc="upper right")
-    axes[3].set_ylim(top=0.28, bottom=0.16)
-    axes[3].set_ylabel("friction velocity (u*, $m.s^{-1}$)")
-    axes[3].set_xlabel("time (s)")
-    axes[4].set_xlabel("mixing length (m)")
-    axes[4].set_ylabel("height (m)")
+        plot_args = settings_plot[sf_scheme]
+        plot_args.pop("delta_sl")
+        plot_args.pop("sf_scheme")
+
+        u_hr = undersample(state_atm_hr.last_tstep["u"],
+                z_fv_hr, z_fv_lr)
+        t_hr = undersample(state_atm_hr.last_tstep["theta"],
+                z_fv_hr, z_fv_lr)
+        u_lr= state_atm_lr.last_tstep["u"]
+        t_lr= state_atm_lr.last_tstep["theta"]
+
+        ustar_lowres = undersample(state_atm_lr.u_star,
+                days_simu, days_plot)
+        ustar_highres = undersample(state_atm_hr.u_star,
+                days_simu, days_plot)
+
+        tstar_lowres = undersample(state_atm_lr.t_star,
+                days_simu, days_plot)
+        tstar_highres = undersample(state_atm_hr.t_star,
+                days_simu, days_plot)
+
+        diff_ustar = np.abs(ustar_lowres - ustar_highres) / \
+                np.abs(ustar_lowres)
+        diff_tstar = np.abs(tstar_lowres - tstar_highres)
+        axes[3].plot(np.abs(u_lr-u_hr)/np.abs(u_lr),
+                z_fv_lr, **plot_args)
+        plot_args.pop("label")
+        axes[2].plot(np.abs(t_lr-t_hr), z_fv_lr, **plot_args)
+        plot_args.pop("marker", None)
+        axes[0].plot(days_plot, diff_ustar, **plot_args)
+        axes[1].plot(days_plot, diff_tstar, **plot_args)
+
+    axes[0].set_xlim(right=2.2, left=4.2)
+    axes[1].set_xlim(right=2.2, left=4.2)
+    axes[0].set_ylim(bottom=0., top=0.065)
+    axes[1].set_ylim(bottom=0.)
+    axes[1].set_xlabel("Time (days)")
+    axes[0].set_xlabel("Time (days)")
+    axes[0].set_ylabel(r"Relative $u_\star$ difference")
+    axes[1].set_ylabel(r"$t_\star$ difference")
+    axes[2].set_xlabel(r"$\theta$ difference (K)")
+    axes[2].set_ylabel(r"$z$ (m)")
+    axes[2].set_xlim(right=0.16, left=0.)
+    axes[2].set_ylim(top=220., bottom=0.)
+
+    axes[3].set_xlabel(r"Relative $|u|$ difference (K)")
+    axes[3].set_ylabel(r"$z$ (m)")
+    axes[3].set_xlim(right=0.08, left=0.)
+    axes[3].set_ylim(top=220., bottom=0.)
+    fig.legend(loc="center right")
+
     show_or_save("fig_consistency_comparisonUnstable")
 
 def ustar_u_t_low_and_high_res(sf_scheme: str):
@@ -981,14 +954,6 @@ def fig_Stratified():
     def style(col, linestyle='solid', **kwargs):
         return {"color": col, "linestyle": linestyle,
                 "linewidth":1.5, **kwargs}
-
-    def undersample(arr: np.ndarray,
-            z_in: np.ndarray, z_out: np.ndarray) -> np.ndarray:
-        """
-            projection of array (defined on z_in) to z_out
-        """
-        return interpolate.interp1d(z_in, arr,
-                fill_value="extrapolate")(z_out)
 
     dic_settings = settings_plot_sf_scheme(z_levels)
     all_settings = ( dic_settings["FV pure"],
@@ -1051,14 +1016,6 @@ def fig_consistency_comparisonStratified():
     def style(col, linestyle='solid', **kwargs):
         return {"color": col, "linestyle": linestyle,
                 "linewidth":1.5, **kwargs}
-
-    def undersample(arr: np.ndarray,
-            z_in: np.ndarray, z_out: np.ndarray) -> np.ndarray:
-        """
-            projection of array (defined on z_in) to z_out
-        """
-        return interpolate.interp1d(z_in, arr,
-                fill_value="extrapolate")(z_out)
 
     dic_settings = settings_plot_sf_scheme(z_levels)
     all_settings = ( dic_settings["FV pure"],
@@ -1385,6 +1342,7 @@ def settings_plot_sf_scheme(z_levels: np.ndarray):
     settings_FDpure = {"sf_scheme": "FD pure",
             "label": "Finite Differences",
             "marker":"o",
+            "fillstyle":"none",
             "delta_sl":z_levels[1]/2,
             "color": colors[5],
             "linewidth": 0.3}

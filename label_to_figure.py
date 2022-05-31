@@ -7,11 +7,8 @@ FIGURE["chap4_0"] = "fig_neutral_comparisonPlot"
 FIGURE["chap4_5"] = "fig_mixing_lengths"
 FIGURE["chap4_6"] = "fig_Stratified"
 FIGURE["chap4_7"] = "fig_consistency_comparisonStratified"
-FIGURE["3"] = "fig_consistency_comparisonUnstable"
-FIGURE["4a"] = "fig_colorplots_FVlowres"
-FIGURE["4b"] = "fig_colorplots_FVhighres"
-FIGURE["4c"] = "fig_colorplots_FDlowres"
-FIGURE["4d"] = "fig_colorplots_FDhighres"
+FIGURE["chap4_8"] = "fig_consistency_comparisonUnstable"
+
 FIGURE["AMAC_pres1"] = "fig_compareASLsize_ustar"
 FIGURE["AMAC_pres2"] = "fig_compareASLsize"
 

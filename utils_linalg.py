@@ -3,6 +3,7 @@
     by the functions get_Y and get_Y_star.
 """
 import numpy as np
+from scipy import interpolate
 
 def scal_multiply(Y, s):
     """
@@ -183,3 +184,11 @@ def oversample(arr: np.ndarray, n: int) -> np.ndarray:
         theta = i/n
         to_concatenate += [theta * arr[1:] + (1-theta) * arr[:-1]]
     return np.sort(np.concatenate(to_concatenate))
+
+def undersample(arr: np.ndarray,
+        z_in: np.ndarray, z_out: np.ndarray) -> np.ndarray:
+    """
+        projection of array (defined on z_in) to z_out
+    """
+    return interpolate.interp1d(z_in, arr,
+            fill_value="extrapolate")(z_out)

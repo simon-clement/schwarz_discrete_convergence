@@ -3,6 +3,8 @@ import bisect
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from typing import Tuple
+from memoisation import memoised
 from atm1DStratified import Atm1dStratified
 from ocean1DStratified import Ocean1dStratified
 from universal_functions import Businger_et_al_1971 as businger
@@ -79,15 +81,12 @@ def simulation_unstable(dt_atm, T, store_all: bool,
     else:
         za = simulator_atm.z_half[:-1]
     return state_atm, za
-#TODO faire marcher le colorplot avec les nouvelles variables
-def colorplot(z_levels: np.ndarray, is_FV: bool,
-        sf_scheme: str, delta_sl: float, skip_dx: int):
-    z_constant = delta_sl*2
 
-    dt = 40.
+def colorplot(z_levels: np.ndarray, sf_scheme: str,
+        delta_sl: float):
+    dt = 30.
     N = int(4*24*3600 / dt)
     T = dt*N
-    N_spinup = int(2.25*24*3600 / dt)
     skip_dt = 120
     state_atm, z_fv = memoised(simulation_unstable, dt, T, True,
             sf_scheme, delta_sl, high_res=False)
@@ -123,7 +122,7 @@ def colorplot(z_levels: np.ndarray, is_FV: bool,
     fig.colorbar(cmap, ax=axes[1,1], label=r"TKE", location="right")
     axes[1,1].set_xlabel("time (in hours)")
 
-    if is_FV:
+    if sf_scheme[:2] == "FV":
         cmap = axes[1, 2].pcolormesh(x_time, z_levels,
                 np.array(all_leps).T, shading="nearest", cmap="jet",
                 vmin=0., vmax=150.)
