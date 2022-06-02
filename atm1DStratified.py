@@ -163,7 +163,7 @@ class Atm1dStratified():
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV1 bug"}
 
         import tkeAtm1D
-        tke = tkeAtm1D.TkeAtm1D(self, "FV",
+        tke = tkeAtm1D.TkeAtm1D(self, "FD",
                 ignore_tke_sl, Neutral_case, SL)
 
         theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
@@ -301,7 +301,7 @@ class Atm1dStratified():
                 Q_sw[0], Q_lw[0],
                 0)
         import tkeAtm1D
-        tke = tkeAtm1D.TkeAtm1D(self, "FV", True,
+        tke = tkeAtm1D.TkeAtm1D(self, "FD", True,
                 Neutral_case, SL)
         theta: array = np.copy(theta_t0)
 
