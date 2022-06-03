@@ -374,7 +374,7 @@ def fig_mixing_lengths():
     axes[0].set_xlabel("Mixing length (m)")
     axes[0].set_ylim(top=300., bottom=0.)
     axes[1].set_ylim(top=300., bottom=0.)
-    axes[1].set_xlim(left=0., right=0.12)
+    axes[1].set_xlim(left=0., right=0.215)
     axes[0].legend()
 
     axes[1].plot(ret["tke"], z_levels, "k")
@@ -895,9 +895,9 @@ def fig_consistency_comparisonUnstable():
         axes[0].plot(days_plot, diff_ustar, **plot_args)
         axes[1].plot(days_plot, diff_tstar, **plot_args)
 
-    axes[0].set_xlim(right=2.2, left=4.2)
-    axes[1].set_xlim(right=2.2, left=4.2)
-    axes[0].set_ylim(bottom=0., top=0.065)
+    axes[0].set_xlim(left=2.2, right=4.2)
+    axes[1].set_xlim(left=2.2, right=4.2)
+    axes[0].set_ylim(bottom=0., top=0.036)
     axes[1].set_ylim(bottom=0.)
     axes[1].set_xlabel("Time (days)")
     axes[0].set_xlabel("Time (days)")
@@ -905,13 +905,13 @@ def fig_consistency_comparisonUnstable():
     axes[1].set_ylabel(r"$t_\star$ difference")
     axes[2].set_xlabel(r"$\theta$ difference (K)")
     axes[2].set_ylabel(r"$z$ (m)")
-    axes[2].set_xlim(right=0.16, left=0.)
-    axes[2].set_ylim(top=220., bottom=0.)
+    axes[2].set_xlim(right=0.13, left=0.)
+    axes[2].set_ylim(top=300., bottom=0.)
 
     axes[3].set_xlabel(r"Relative $|u|$ difference (K)")
     axes[3].set_ylabel(r"$z$ (m)")
-    axes[3].set_xlim(right=0.08, left=0.)
-    axes[3].set_ylim(top=220., bottom=0.)
+    axes[3].set_xlim(right=0.04, left=0.)
+    axes[3].set_ylim(top=300., bottom=0.)
     fig.legend(loc="center right")
 
     show_or_save("fig_consistency_comparisonUnstable")
@@ -990,13 +990,13 @@ def fig_Stratified():
     axes[2].set_ylabel(r"$z$ (m)")
 
     axes[0].set_xlim(left=0., right=72.)
-    axes[0].set_ylim(top=0.21, bottom=0.15)
+    axes[0].set_ylim(top=0.225, bottom=0.175)
 
     axes[1].set_xlim(left=5., right=9.2)
-    axes[1].set_ylim(top=200., bottom=0.)
+    axes[1].set_ylim(top=280., bottom=0.)
 
     axes[2].set_xlim(left=258., right=268)
-    axes[2].set_ylim(top=200., bottom=0.)
+    axes[2].set_ylim(top=280., bottom=0.)
 
     fig.legend(loc="center right")
 
@@ -1059,10 +1059,10 @@ def fig_consistency_comparisonStratified():
     axes[2].set_ylabel(r"$z$ (m)")
 
     axes[0].set_ylim(top=0.1, bottom=0.)
-    axes[1].set_ylim(top=100., bottom=0.)
+    axes[1].set_ylim(top=220., bottom=0.)
     axes[1].set_xlim(left=0., right=0.09)
-    axes[2].set_xlim(left=0., right=0.45)
-    axes[2].set_ylim(top=100., bottom=0.)
+    axes[2].set_xlim(left=0., right=1.2)
+    axes[2].set_ylim(top=220., bottom=0.)
     fig.legend(loc="center right")
 
     show_or_save("fig_consistency_comparisonStratified")
@@ -1391,13 +1391,13 @@ def fig_neutral_comparisonPlot():
     axes[1].plot(np.angle(u_fd), full_to_half(z_fd), **settings_FD)
 
     half_levels = full_to_half(IFS_z_levels)
-    axes[0].hlines(half_levels, xmin=0., xmax=10., color="k",
+    axes[0].hlines(half_levels, xmin=0., xmax=100., color="k",
             linestyle="dashed", linewidth=0.6, label=r"$z_{m+1/2}$")
     axes[1].hlines(half_levels, xmin=0., xmax=10., color="k",
             linestyle="dashed", linewidth=0.6)
 
-    axes[0].set_xlim(left=6.1, right=8.4)
-    axes[1].set_xlim(left=0.13, right=.154)
+    axes[0].set_xlim(left=4., right=10.)
+    axes[1].set_xlim(left=0., right=.5)
 
 
     axes[0].set_xlabel(r"$|u(z)| \;({\rm m.s}^{-1})$")
@@ -1410,7 +1410,7 @@ def fig_neutral_comparisonPlot():
     if LOGSCALE:
         axes[0].set_yscale("log")
     else:
-        axes[0].set_ylim(bottom=0., top=38.)
+        axes[0].set_ylim(bottom=0., top=100.)
     show_or_save("fig_neutral_comparisonPlot")
 
 
