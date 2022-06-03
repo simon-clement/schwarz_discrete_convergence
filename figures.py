@@ -850,8 +850,11 @@ def fig_consistency_comparisonUnstable():
     T: float = dt*N
     days_simu = np.linspace(0, T/3600/24, N)
     days_plot = np.linspace(0, T/3600/24, 300)
-    fig, axes = plt.subplots(4, 1, figsize=(5.5, 5.5))
-    fig.subplots_adjust(left=0.145, right=0.7, hspace=0.6, top=0.95)
+    fig, axes2D = plt.subplots(4, 2, figsize=(7.5, 5.5))
+    axes = axes2D[:,1]
+    axesAbsolute = axes2D[:,0]
+    fig.subplots_adjust(left=0.108, right=0.78,
+            wspace=0.38, hspace=0.6, top=0.95)
     for setting in settings:
         sf_scheme = setting["sf_scheme"]
         delta_sl_lr = setting["delta_sl_lr"]
@@ -887,13 +890,17 @@ def fig_consistency_comparisonUnstable():
         diff_ustar = np.abs(ustar_lowres - ustar_highres) / \
                 np.abs(ustar_lowres)
         diff_tstar = np.abs(tstar_lowres - tstar_highres)
-        axes[3].plot(np.abs(u_lr-u_hr)/np.abs(u_lr),
+        axes[2].plot(np.abs(u_lr-u_hr)/np.abs(u_lr),
                 z_fv_lr, **plot_args)
         plot_args.pop("label")
-        axes[2].plot(np.abs(t_lr-t_hr), z_fv_lr, **plot_args)
+        axes[3].plot(np.abs(t_lr-t_hr), z_fv_lr, **plot_args)
+        axesAbsolute[2].plot(np.abs(u_lr), z_fv_lr, **plot_args)
+        axesAbsolute[3].plot(t_lr, z_fv_lr, **plot_args)
         plot_args.pop("marker", None)
         axes[0].plot(days_plot, diff_ustar, **plot_args)
         axes[1].plot(days_plot, diff_tstar, **plot_args)
+        axesAbsolute[0].plot(days_plot, ustar_lowres, **plot_args)
+        axesAbsolute[1].plot(days_plot, tstar_lowres, **plot_args)
 
     axes[0].set_xlim(left=2.2, right=4.2)
     axes[1].set_xlim(left=2.2, right=4.2)
@@ -903,16 +910,31 @@ def fig_consistency_comparisonUnstable():
     axes[0].set_xlabel("Time (days)")
     axes[0].set_ylabel(r"Relative $u_\star$ difference")
     axes[1].set_ylabel(r"$t_\star$ difference")
-    axes[2].set_xlabel(r"$\theta$ difference (K)")
-    axes[2].set_ylabel(r"$z$ (m)")
-    axes[2].set_xlim(right=0.13, left=0.)
-    axes[2].set_ylim(top=300., bottom=0.)
-
-    axes[3].set_xlabel(r"Relative $|u|$ difference (K)")
+    axes[3].set_xlabel(r"$\theta$ difference (K)")
     axes[3].set_ylabel(r"$z$ (m)")
-    axes[3].set_xlim(right=0.04, left=0.)
+    axes[3].set_xlim(right=0.13, left=0.)
     axes[3].set_ylim(top=300., bottom=0.)
+
+    axes[2].set_xlabel(r"Relative $|u|$ difference (K)")
+    axes[2].set_ylabel(r"$z$ (m)")
+    axes[2].set_xlim(right=0.04, left=0.)
+    axes[2].set_ylim(top=300., bottom=0.)
     fig.legend(loc="center right")
+
+    ###### axesAbsolute legend, {x,y}lim
+    axesAbsolute[1].set_xlabel("Time (days)")
+    axesAbsolute[0].set_xlabel("Time (days)")
+    axesAbsolute[0].set_ylabel(r"$u_\star$")
+    axesAbsolute[1].set_ylabel(r"$t_\star$")
+    axesAbsolute[3].set_xlabel(r"$\theta$ (K)")
+    axesAbsolute[2].set_ylabel(r"$z$ (m)")
+    axesAbsolute[3].set_ylabel(r"$z$ (m)")
+    axesAbsolute[0].set_xlim(left=2.2, right=4.2)
+    axesAbsolute[0].set_ylim(bottom=0.19, top=0.225)
+    axesAbsolute[1].set_xlim(left=2.2, right=4.2)
+    axesAbsolute[2].set_xlim(left=6., right=8.7)
+    axesAbsolute[2].set_ylim(top=300., bottom=0.)
+    axesAbsolute[3].set_ylim(top=300., bottom=0.)
 
     show_or_save("fig_consistency_comparisonUnstable")
 

@@ -77,7 +77,8 @@ def simulation_unstable(dt_atm, T, store_all: bool,
                     state_atm.last_tstep["theta"],
                     state_atm.last_tstep["dz_theta"],
                     state_atm.other["SL"],
-                    ignore_loglaw=(sf_scheme_a != "FV free"))
+                    ignore_loglaw=(sf_scheme_a not in {"FV free",
+                        "FV2"}))
     else:
         za = simulator_atm.z_half[:-1]
     return state_atm, za
