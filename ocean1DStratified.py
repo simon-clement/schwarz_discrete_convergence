@@ -97,6 +97,8 @@ class Ocean1dStratified():
                                 self.__sf_YDc_FVfree),
                 "FV Zeng" : (self.__sf_udelta_FVfree,
                                 self.__sf_YDc_FVfree)}
+        # Note: to implement FV Nishizawa friction__scales needs
+        # to be prescribed with averaged_oce=True.
         self.dictsf_scheme_theta = {
                 "FD pure" : (self.__sf_thetadelta_FDpure,
                                 self.__sf_YDc_FDpure_theta),

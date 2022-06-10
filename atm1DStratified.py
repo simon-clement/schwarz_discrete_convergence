@@ -164,7 +164,7 @@ class Atm1dStratified():
                 u_o[0], delta_sl_o, SST[0], large_ocean, sf_scheme,
                 Q_sw[0], Q_lw[0],
                 k)
-        ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV1 bug"}
+        ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV1 bug", "FVNishizawa"}
 
         import tkeAtm1D
         tke = tkeAtm1D.TkeAtm1D(self, "FD",
@@ -603,7 +603,7 @@ class Atm1dStratified():
         u_star, t_star, _, _, inv_L_MO, _, _, \
                 u_z0, t_z0, delta_sl, k1, sf_scheme, \
                 Q_sw, Q_lw, SL_o = SL
-        if sf_scheme in {"FV1 bug", "FV1", "FV pure"} or ignore_loglaw:
+        if sf_scheme in {"FV1 bug", "FV1", "FV pure", "FVNishizawa"} or ignore_loglaw:
             allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
             k_1m: int = bisect.bisect_right(allxi[0], z_min)
             allxi[0] = allxi[0][k_1m:]
@@ -907,7 +907,7 @@ class Atm1dStratified():
                         / phi_h(SL.z_0M*inv_L_MO)
                 K_full[0] = (self.kappa * u_star*(SL.z_0M)\
                         ) / phi_m(SL.z_0M*inv_L_MO)
-                if SL.sf_scheme in {"FV1", "FV pure"}:
+                if SL.sf_scheme in {"FV1", "FV pure", "FVNishizawa"}:
                 # since it does not work well, one can replace with:
                     Ktheta_full[0] = (self.kappa * u_star * \
                             (delta_sl+SL.z_0H))\

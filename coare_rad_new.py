@@ -95,7 +95,7 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
     
     beta=1.2
     von=.4
-    fdg = 1. 
+    fdg = 1.
     grav = 9.82
 
 
@@ -150,18 +150,16 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
 
 
     L10= 1e100 if abs(zetu) < 1e-100 else zu/zetu
+    bigg_atm = (np.log(zu/zo10)-psiuo(zu/L10))
     if averaged:
-        bigg_atm = (1+zo10/zu)*np.log(1+zu/zo10) - 1 - \
-                psiuo(zu/L10)
+        bigg_atm -= 1
         tsr=dt*von*fdg/(np.log(zt/zot10)-1-psit_30(zt/L10))
     else:
-        bigg_atm = (np.log(zu/zo10)-psiuo(zu/L10))
         tsr=dt*von*fdg/(np.log(zt/zot10)-psit_30(zt/L10))
 
     usr=np.maximum(ut*von/bigg_atm, 1e-8)
 
     qsr=dq*von*fdg/(np.log(zq/zot10)-psit_30(zq/L10))
-    
 
     # charnock constant - lin par morceau - constant
     if (ut<=10.):
@@ -232,7 +230,7 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
 
             if averaged:
                 bigg_atm -= 1
-            if averaged_oce:
+            if averaged_oce and abs(zo1) > 1e-2:
                 bigg_atm -= lambda_u
                 bracket_temp -= 1
 

@@ -1338,6 +1338,12 @@ def settings_plot_sf_scheme(z_levels: np.ndarray):
             "color": colors[1],
             "label": "FV free",
             "linestyle": "dashed"}
+    settings_FVNishizawa = {"sf_scheme": "FVNishizawa",
+            "delta_sl":z_levels[1]*0.99999,
+            "linewidth": 1.8,
+            "color": colors[6],
+            "label": "FV Nishizawa",
+            "linestyle": "dashed"}
     settings_FV1_bug = {"sf_scheme": "FV1 bug",
             "linewidth": 1.,
             "delta_sl":z_levels[1]/2,
@@ -1373,6 +1379,7 @@ def settings_plot_sf_scheme(z_levels: np.ndarray):
             "FV pure": settings_FVpure,
             "FV2": settings_FV2,
             "FV free": settings_FVfree,
+            "FVNishizawa": settings_FVNishizawa,
             "FD pure": settings_FDpure,
             }
     return ret
@@ -1385,9 +1392,11 @@ def fig_neutral_comparisonPlot():
     N = int(T/dt)
 
     dic_settings = settings_plot_sf_scheme(IFS_z_levels)
-    all_settings = ( dic_settings["FV1 bug"],
+    all_settings = (
+                    dic_settings["FV1 bug"],
                     dic_settings["FV1"],
                     dic_settings["FV pure"],
+                    dic_settings["FVNishizawa"],
                     dic_settings["FV2"],
                     dic_settings["FV free"])
 
