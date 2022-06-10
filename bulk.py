@@ -33,7 +33,8 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
         uo_delta: float, delta_sl_o: float,
         to_delta: float, univ_funcs_o,
         sf_scheme: str, Q_sw: float, Q_lw: float,
-        k: int, absorbed_Qsw_const: bool=False) -> SurfaceLayerData:
+        k: int, absorbed_Qsw_const: bool=False,
+        averaged_oce: bool=False) -> SurfaceLayerData:
     # This functions calls a routine developed by C. Pelletier
     # for Pelletier et al, 2021.
     ta_delta += 273. if ta_delta < 150 else 0.
@@ -53,7 +54,8 @@ def friction_scales(ua_delta: float, delta_sl_a: float,
             coare_fullsl_rad(du_norm, du_arg,
            dt, dq, tatm, qatm, zu, zt, zq,
            zi, zo1, full_sl, True, not absorbed_Qsw_const,
-           Q_sw, Q_lw, 100)
+           Q_sw, Q_lw, 100, averaged=(sf_scheme=="FVNishizawa"),
+           averaged_oce=averaged_oce)
 
     rho0 = 1024.
     kappa = 0.4

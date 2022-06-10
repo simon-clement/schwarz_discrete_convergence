@@ -87,6 +87,8 @@ class Atm1dStratified():
                                 self.__sf_YDc_FV1),
                 "FV2" : (self.__sf_udelta_FV2,
                                 self.__sf_YDc_FV2),
+                "FVNishizawa" : (self.__sf_udelta_FV1,
+                                self.__sf_YDc_FV1),
                 "FV free" : (self.__sf_udelta_FVfree,
                                 self.__sf_YDc_FVfree)}
         self.dictsf_scheme_theta = {
@@ -101,6 +103,8 @@ class Atm1dStratified():
                 "FV1" : (self.__sf_thetadelta_FV1,
                                 self.__sf_YDc_FV1_theta),
                 "FV1 bug" : (self.__sf_thetadelta_FV1,
+                                self.__sf_YDc_FV1_theta),
+                "FVNishizawa" : (self.__sf_thetadelta_FV1,
                                 self.__sf_YDc_FV1_theta),
                 "FV2" : (self.__sf_thetadelta_FV2,
                                 self.__sf_YDc_FV2_theta),
