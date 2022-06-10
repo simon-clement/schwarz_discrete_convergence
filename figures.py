@@ -1385,8 +1385,8 @@ def settings_plot_sf_scheme(z_levels: np.ndarray):
     return ret
 
 def fig_neutral_comparisonPlot():
-    fig, axes = plt.subplots(2, 1, figsize=(5., 4.), sharey=True)
-    fig.subplots_adjust(right=0.675, hspace = 0.35)
+    fig, axes = plt.subplots(1, 2, figsize=(6., 4.))
+    fig.subplots_adjust(right=0.675, wspace=0.29)
     T = 3600 * 24
     dt = 30.
     N = int(T/dt)
@@ -1428,20 +1428,31 @@ def fig_neutral_comparisonPlot():
             linestyle="dashed", linewidth=0.6)
 
     axes[0].set_xlim(left=4., right=10.)
-    axes[1].set_xlim(left=0., right=.5)
+    axes[1].set_xlim(left=0.2, right=.5)
 
 
     axes[0].set_xlabel(r"$|u(z)| \;({\rm m.s}^{-1})$")
-    axes[1].set_xlabel(r"$\arg(u(z))$")
-    axes[1].set_ylabel(r"$z$ (m)")
+    axes[1].set_xlabel(r"$\arg(u(z)) \;({\rm rad})$")
+    # now we want to set ticks labels for $z_{1/2}$, ...
+    z_half = full_to_half(z_fd)
+
+    ticks = np.concatenate((z_half[:4], [0, 100]))
+    axes[1].set_yticks(ticks)
+    labels = [r"$z_\frac{1}{2}$",
+            r"$z_\frac{3}{2}$", r"$z_\frac{5}{2}$",
+            r"$z_\frac{7}{2}$", "$0$", "$100$"]
+    axes[1].set_yticklabels(labels)
+
     axes[0].set_ylabel(r"$z$ (m)")
 
     fig.legend(loc="right")
     LOGSCALE = False
     if LOGSCALE:
         axes[0].set_yscale("log")
+        axes[1].set_yscale("log")
     else:
         axes[0].set_ylim(bottom=0., top=100.)
+        axes[1].set_ylim(bottom=0., top=100.)
     show_or_save("fig_neutral_comparisonPlot")
 
 
