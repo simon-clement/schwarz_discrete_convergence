@@ -688,6 +688,22 @@ def fig_colorplotCoupling():
         ax.set_xlabel("days")
     show_or_save("fig_colorplotCoupling")
 
+def fig_alpha_sl():
+    fig, ax = plt.subplots(figsize=(3.5, 1.5))
+    fig.subplots_adjust(left=0.182, bottom=0.32, right=0.65)
+    h_1_2 = 200
+    for z_u_exp in (-1, -2, -3, -4):
+        z_u = 10**(z_u_exp)
+        delta_sl = np.linspace(1e-10, h_1_2)
+        log = np.log(1+delta_sl/z_u)
+        alpha_sl = ((h_1_2 + z_u) * log - delta_sl) / log / h_1_2
+        ax.plot(delta_sl/h_1_2, alpha_sl,
+                label=r"$z_u=10^{"+str(z_u_exp)+r"}$")
+    ax.set_xlabel(r"$\delta_{sl} / z_1$")
+    ax.set_ylabel(r"$\alpha_{sl}$")
+    fig.legend(loc="center right")
+    show_or_save("fig_alpha_sl")
+
 def fig_animCoupling():
     dt_oce = 90. # oceanic time step
     dt_atm = 30. # atmosphere time step
