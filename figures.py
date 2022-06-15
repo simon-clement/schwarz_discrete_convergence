@@ -693,7 +693,7 @@ def fig_alpha_sl():
     fig, ax = plt.subplots(figsize=(3.5, 1.5))
     fig.subplots_adjust(left=0.182, bottom=0.32, right=0.65)
     h_1_2 = 200
-    for z_u_exp in (-1, -2, -3, -4):
+    for z_u_exp in (-4, -3, -2, -1):
         z_u = 10**(z_u_exp)
         delta_sl = np.linspace(1e-10, h_1_2)
         log = np.log(1+delta_sl/z_u)
