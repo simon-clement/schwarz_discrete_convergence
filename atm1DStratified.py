@@ -1024,14 +1024,14 @@ class Atm1dStratified():
 
     def initialization(self, u_0, phi_0, t_0, dz_theta,
             delta_sl, u_o, t_o, Q_sw, Q_lw, z_constant,
-            delta_sl_o=0.):
+            delta_sl_o=0., u_G=8.):
         """
             initialize for FV free scheme. If this is not used,
             the continuity of the reconstruction cannot be
             guaranteed.
         """
         z_levels = self.z_full
-        u_kp1 = u_const = 8.
+        u_kp1 = u_const = u_G
         k = bisect.bisect_right(z_levels[1:], delta_sl)
         k_constant = bisect.bisect_right(z_levels[1:], z_constant)
         t_kp1 = t_const = t_0[k_constant]

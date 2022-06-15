@@ -315,16 +315,17 @@ def fig_mixing_lengths():
     z_levels: np.nd_array = IFS_z_levels
     dt: float = 10.
     N: int = 3240
+    u_G=8.
     stable: bool = False
     delta_sl: float = IFS_z_levels_stratified[1]/2.
     z_constant: float = 2 * delta_sl
 
     M: int = z_levels.shape[0] - 1
     simulator: Atm1dStratified = Atm1dStratified(z_levels=z_levels,
-            dt=dt, u_geostrophy=8.,
+            dt=dt, u_geostrophy=u_G,
             K_mol=1e-4, f=1.39e-4)
     T0 = 265.
-    u_0 = 8*np.ones(M) + 0j
+    u_0 = u_G*np.ones(M) + 0j
     phi_0 = np.zeros(M+1) + 0j
     t_0, dz_theta_0 = simulator.initialize_theta(Neutral_case=False)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
@@ -339,7 +340,7 @@ def fig_mixing_lengths():
     z_tke = np.copy(simulator.z_full)
     k = bisect.bisect_right(z_levels[1:], delta_sl)
     z_tke[k] = delta_sl
-    u_deltasl = 8. # first guess before the iterations
+    u_deltasl = u_G # first guess before the iterations
     t_deltasl = T0 # first guess before the iterations
     Q_sw, Q_lw, delta_sl_o = np.zeros(N+1), np.zeros(N+1), 0.
     u_o, t_o = np.zeros(N+1), SST
@@ -347,7 +348,7 @@ def fig_mixing_lengths():
         u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
                 simulator.initialization(u_0, phi_0, t_0, dz_theta_0,
                         delta_sl, u_o[0], t_o[0], Q_sw[0], Q_lw[0],
-                        z_constant, delta_sl_o)
+                        z_constant, delta_sl_o, u_G)
     else:
         u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
                 u_0, phi_0, t_0, dz_theta_0, u_deltasl, t_deltasl
@@ -964,7 +965,7 @@ def fig_consistency_comparisonUnstable():
 
     show_or_save("fig_consistency_comparisonUnstable")
 
-def ustar_u_t_low_and_high_res(sf_scheme: str):
+def ustar_u_t_low_and_high_res(sf_scheme: str, u_G: float):
     z_levels: np.ndarray = np.copy(IFS_z_levels_stratified)
     z_levels_high_res: np.ndarray = oversample(z_levels, 3)
     dt: float = 30.
@@ -984,10 +985,11 @@ def ustar_u_t_low_and_high_res(sf_scheme: str):
 
     z_lr, u_lr, theta_lr, z_tke_lr, TKE_lr, ustar_lr, _ = \
             compute_with_sfStratified(sf_scheme,
-                    z_levels, dt, N, stable, delta_sl_lr)
+                    z_levels, dt, N, stable, delta_sl_lr, u_G)
     z_hr, u_hr, theta_hr, z_tke_hr, TKE_hr, ustar_hr, _ = \
             compute_with_sfStratified(sf_scheme,
-                    z_levels_high_res, dt, N, stable, delta_sl_hr)
+                    z_levels_high_res, dt, N, stable,
+                    delta_sl_hr, u_G)
     return ustar_lr, z_lr, u_lr, theta_lr, ustar_hr, z_hr, u_hr, theta_hr
 
 def fig_sensitivity_delta_sl():
@@ -1000,6 +1002,7 @@ def fig_Stratified():
         Integrates for 1 day a 1D ekman equation
         with TKE turbulence scheme.
     """
+    u_G = 8.
     z_levels = oversample(IFS_z_levels_stratified, 3)
 
     fig, axd = plt.subplot_mosaic([['ustar', 'u', 'theta'],
@@ -1030,7 +1033,7 @@ def fig_Stratified():
         hours_simu = np.linspace(0, T/3600, N)
         hours_plot = np.linspace(0, T/3600, 30)
         ustar_lowres, z_lr, u_lr, t_lr, *_, = memoised(\
-                ustar_u_t_low_and_high_res, sf_scheme)
+                ustar_u_t_low_and_high_res, sf_scheme, u_G)
         # abs plot:
         axes[1].plot(np.abs(u_lr), z_lr, **settings)
         settings.pop("label")
@@ -1067,6 +1070,7 @@ def fig_consistency_comparisonStratified():
         Integrates for 1 day a 1D ekman equation
         with TKE turbulence scheme.
     """
+    u_G = 8.
     z_levels = np.copy(IFS_z_levels_stratified)
     z_levels_les= oversample(z_levels, 3)
 
@@ -1097,7 +1101,7 @@ def fig_consistency_comparisonStratified():
         hours_simu = np.linspace(0, T/3600, N)
         hours_plot = np.linspace(0, T/3600, 30)
         ustar_lowres, z_lr, u_lr, t_lr, ustar_highres, z_hr, u_hr, \
-                t_hr = memoised(ustar_u_t_low_and_high_res, sf_scheme)
+                t_hr = memoised(ustar_u_t_low_and_high_res, sf_scheme, u_G)
         #projection:
         u_hr = undersample(u_hr, z_hr, z_lr)
         t_hr = undersample(t_hr, z_hr, z_lr)
@@ -1133,7 +1137,7 @@ def fig_consistency_comparisonStratified():
     show_or_save("fig_consistency_comparisonStratified")
 
 def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
-        stable=True, delta_sl=None, z_constant=None):
+        stable=True, delta_sl=None, z_constant=None, u_G=8.):
     """
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
     """
@@ -1145,10 +1149,10 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
 
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
-            dt=dt, u_geostrophy=8.,
+            dt=dt, u_geostrophy=u_G,
             K_mol=1e-4, f=1.39e-4)
     T0 = 265.
-    u_0 = 8*np.ones(M) + 0j
+    u_0 = u_G*np.ones(M) + 0j
     phi_0 = np.zeros(M+1) + 0j
     t_0, dz_theta_0 = simulator.initialize_theta(Neutral_case=False)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
@@ -1164,7 +1168,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     z_tke = np.copy(simulator.z_full)
     k = bisect.bisect_right(z_levels[1:], delta_sl)
     z_tke[k] = delta_sl #
-    u_deltasl = 8. # first guess before the iterations
+    u_deltasl = u_G # first guess before the iterations
     t_deltasl = T0 # first guess before the iterations
     Q_sw, Q_lw, delta_sl_o = np.zeros(N+1), np.zeros(N+1), 0.
     u_o, t_o = np.zeros(N+1), SST
@@ -1172,7 +1176,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
         u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
                 simulator.initialization(u_0, phi_0, t_0, dz_theta_0,
                         delta_sl, u_o[0], t_o[0], Q_sw[0], Q_lw[0],
-                        z_constant, delta_sl_o)
+                        z_constant, delta_sl_o, u_G)
     else:
         u_i, phi_i, t_i, dz_theta_i, u_delta_i, t_delta_i = \
                 u_0, phi_0, t_0, dz_theta_0, u_deltasl, t_deltasl
@@ -1208,27 +1212,28 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
         return z_fd, u, temperature, z_tke, tke_full, ustar, l_eps
 
 
-def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl, **_):
+def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl,
+        u_G=8., **_):
     """
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
     """
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
-            dt=dt, u_geostrophy=10.,
+            dt=dt, u_geostrophy=u_G,
             K_mol=1e-4, f=1e-4)
-    u_0 = 10.*np.ones(M) + 0j
+    u_0 = u_G*np.ones(M) + 0j
     phi_0 = np.zeros(M+1) + 0j
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     SST = np.ones(N+1)*265.
     k = bisect.bisect_right(z_levels[1:], delta_sl)
-    u_deltasl = 10. # first guess before the iterations
+    u_deltasl = u_G # first guess before the iterations
     t_0, dz_theta_0 = 265. * np.ones(M), np.zeros(M+1)
 
     if sf_scheme in {"FV1 free", "FV2 free", "FV free", "FV2"}:
         u_i, phi_i, t_i, dz_theta_i, u_delta_i, _ = \
                 simulator.initialization(u_0, phi_0, t_0, dz_theta_0,
                         delta_sl, 0., 265., 0., 0.,
-                        z_levels[k+1], 0.)
+                        z_levels[k+1], 0., u_G)
     else:
         u_i, phi_i, t_i, dz_theta_i, u_delta_i = \
                 u_0, phi_0, t_0, dz_theta_0, u_deltasl
