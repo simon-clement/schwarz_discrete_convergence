@@ -48,7 +48,36 @@ def intg_phi_exp(rad_ai, rad_ki, zet1, zet2, lobu, zor):
 
     return intg
 
-    
+def Psiuo(zet):
+    zet_to_avg = np.linspace(0., zet)
+    if (zet<0):
+        x=(1.-15.*zet_to_avg)**.25
+        psik=2.*np.log((1.+x)/2.)+np.log((1.+x*x)/2.)-2.*np.arctan(x)+2.*np.arctan(1.)
+        x=(1.-10.15*zet_to_avg)**.3333
+        psic=1.5*np.log((1.+x+x*x)/3.)-np.sqrt(3.)*np.arctan((1.+2.*x)/np.sqrt(3.))+4.*np.arctan(1.)/np.sqrt(3.)
+        f=zet_to_avg*zet_to_avg/(1+zet_to_avg*zet_to_avg)
+        psiuo=np.average((1-f)*psik+f*psic)
+    else:
+        c=np.minimum(50.,.35*zet_to_avg)
+        psiuo=-np.average((1+1.0*zet_to_avg)**1.0
+            +.667*(zet_to_avg-14.28)/np.exp(c)+8.525, returned=False)
+    return psiuo
+      
+def Psit_30(zet):
+    zet_to_avg = np.linspace(0., zet)
+    if(zet<0):
+        x=(1.-(15*zet_to_avg))**.5
+        psik=2*np.log((1+x)/2)
+        x=(1.-(34.15*zet_to_avg))**.3333
+        psic=1.5*np.log((1.+x+x*x)/3.)-np.sqrt(3.)*np.arctan((1.+2.*x)/np.sqrt(3.))+4.*np.arctan(1.)/np.sqrt(3.)
+        f=zet_to_avg*zet_to_avg/(1+zet_to_avg*zet_to_avg)
+        psit_30=np.average((1-f)*psik+f*psic)
+    else:
+        c=np.minimum(50.,.35*zet_to_avg)
+        psit_30=-np.average((1.+2./3.*zet_to_avg)**1.5
+                +.6667*(zet_to_avg-14.28)/np.exp(c)+8.525, returned=False)
+    return psit_30
+
 def psit_30(zet):
     if(zet<0):
         x=(1.-(15*zet))**.5 
@@ -63,7 +92,7 @@ def psit_30(zet):
         psit_30=-((1.+2./3.*zet)**1.5+.6667*(zet-14.28)/np.exp(c)+8.525)
 
     return psit_30
-      
+
 def psiuo(zet):
     if (zet<0):
         x=(1.-15.*zet)**.25
@@ -150,11 +179,11 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
 
 
     L10= 1e100 if abs(zetu) < 1e-100 else zu/zetu
-    bigg_atm = (np.log(zu/zo10)-psiuo(zu/L10))
     if averaged:
-        bigg_atm -= 1
-        tsr=dt*von*fdg/(np.log(zt/zot10)-1-psit_30(zt/L10))
+        bigg_atm = np.log(zu/zo10)-1-Psiuo(zu/L10)
+        tsr=dt*von*fdg/(np.log(zt/zot10)-1-Psit_30(zt/L10))
     else:
+        bigg_atm = np.log(zu/zo10)-psiuo(zu/L10)
         tsr=dt*von*fdg/(np.log(zt/zot10)-psit_30(zt/L10))
 
     usr=np.maximum(ut*von/bigg_atm, 1e-8)
@@ -229,7 +258,7 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
                     psi_oh(-zo1 / lobu_oce)
 
             if averaged:
-                bigg_atm -= 1
+                bigg_atm -= 1 -psiuo(zu/L) + Psiuo(zu/L)
             if averaged_oce and abs(zo1) > 1e-2:
                 bigg_atm -= lambda_u
                 bracket_temp -= 1
@@ -262,15 +291,16 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
             tsr= dt_eff*von*fdg/( np.log(zt/zot)-psit_30(zt/L) \
                              + lambda_t * bracket_temp )
             if averaged:
-                tsr= dt_eff*von*fdg/( np.log(zt/zot)-1-psit_30(zt/L) \
+                tsr= dt_eff*von*fdg/( np.log(zt/zot)-1-Psit_30(zt/L) \
                                  + lambda_t * bracket_temp )
             qsr=dq*von*fdg/(np.log(zq/zoq)-psit_30(zq/L) )
         else:
-            bigg_atm = np.log(zu/zo)-psiuo(zu/L)
-            tsr=dt*von*fdg/(np.log(zt/zot)-psit_30(zt/L) )
             if averaged:
-                bigg_atm -= 1
-                tsr=dt*von*fdg/(np.log(zt/zot)-1-psit_30(zt/L) )
+                bigg_atm = np.log(zu/zo)-1-Psiuo(zu/L)
+                tsr=dt*von*fdg/(np.log(zt/zot)-1-Psit_30(zt/L) )
+            else:
+                bigg_atm = np.log(zu/zo)-psiuo(zu/L)
+                tsr=dt*von*fdg/(np.log(zt/zot)-psit_30(zt/L) )
 
             usr=np.maximum(ut*von/bigg_atm, 1e-8)
             qsr=dq*von*fdg/(np.log(zq/zoq)-psit_30(zq/L) )

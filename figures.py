@@ -843,6 +843,10 @@ def fig_consistency_comparisonUnstable():
                 'delta_sl_lr': 5.,
                 'delta_sl_hr': 5.,
                 }
+    setting_FVNishizawa = {'sf_scheme': 'FVNishizawa',
+                'delta_sl_lr': 9.999,
+                'delta_sl_hr': 9.999/3,
+                }
     setting_FV2 = {'sf_scheme': 'FV2',
                 'delta_sl_lr': 10.,
                 'delta_sl_hr': 10./3,
@@ -857,7 +861,8 @@ def fig_consistency_comparisonUnstable():
                 }
     settings_plot = settings_plot_sf_scheme(\
             z_levels=np.array([0,10]))
-    settings = (setting_FVpure, setting_FV2, setting_FDpure,
+    settings = (setting_FVpure, setting_FVNishizawa,
+            setting_FV2, setting_FDpure,
             setting_FVfree)
 
     dt: float = 40.
@@ -866,11 +871,15 @@ def fig_consistency_comparisonUnstable():
     T: float = dt*N
     days_simu = np.linspace(0, T/3600/24, N)
     days_plot = np.linspace(0, T/3600/24, 300)
-    fig, axes2D = plt.subplots(4, 2, figsize=(7.5, 5.5))
-    axes = axes2D[:,1]
-    axesAbsolute = axes2D[:,0]
-    fig.subplots_adjust(left=0.108, right=0.78,
-            wspace=0.38, hspace=0.6, top=0.95)
+    fig, axd = plt.subplot_mosaic([['ustar', 'u', 'theta'],
+                                   ['tstar', 'u', 'theta'],
+                           ['ustar-diff', 'u-diff', 'theta-diff'],
+                           ['tstar-diff', 'u-diff', 'theta-diff']],
+            figsize=(7.5, 6.5))
+    axesAbsolute = [axd[k] for k in ('ustar', 'tstar', 'u', 'theta')]
+    axes = [axd[k] for k in ('ustar-diff', 'tstar-diff', 'u-diff', 'theta-diff')]
+    fig.subplots_adjust(left=0.108, right=0.9,
+            wspace=0.55, hspace=0.68, top=0.95)
     for setting in settings:
         sf_scheme = setting["sf_scheme"]
         delta_sl_lr = setting["delta_sl_lr"]
@@ -906,10 +915,10 @@ def fig_consistency_comparisonUnstable():
         diff_ustar = np.abs(ustar_lowres - ustar_highres) / \
                 np.abs(ustar_lowres)
         diff_tstar = np.abs(tstar_lowres - tstar_highres)
-        axes[2].plot(np.abs(u_lr-u_hr)/np.abs(u_lr),
+        axes[2].semilogx(np.abs(u_lr-u_hr)/np.abs(u_lr),
                 z_fv_lr, **plot_args)
         plot_args.pop("label")
-        axes[3].plot(np.abs(t_lr-t_hr), z_fv_lr, **plot_args)
+        axes[3].semilogx(np.abs(t_lr-t_hr), z_fv_lr, **plot_args)
         axesAbsolute[2].plot(np.abs(u_lr), z_fv_lr, **plot_args)
         axesAbsolute[3].plot(t_lr, z_fv_lr, **plot_args)
         plot_args.pop("marker", None)
@@ -928,14 +937,14 @@ def fig_consistency_comparisonUnstable():
     axes[1].set_ylabel(r"$t_\star$ difference")
     axes[3].set_xlabel(r"$\theta$ difference (K)")
     axes[3].set_ylabel(r"$z$ (m)")
-    axes[3].set_xlim(right=0.13, left=0.)
+    axes[3].set_xlim(right=0.13, left=1e-4)
     axes[3].set_ylim(top=300., bottom=0.)
 
-    axes[2].set_xlabel(r"Relative $|u|$ difference (K)")
+    axes[2].set_xlabel(r"Relative $|u|$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
-    axes[2].set_xlim(right=0.04, left=0.)
+    axes[2].set_xlim(right=0.04, left=1e-3)
     axes[2].set_ylim(top=300., bottom=0.)
-    fig.legend(loc="center right")
+    fig.legend(loc=(0.78, 0.65))
 
     ###### axesAbsolute legend, {x,y}lim
     axesAbsolute[1].set_xlabel("Time (days)")
@@ -943,6 +952,7 @@ def fig_consistency_comparisonUnstable():
     axesAbsolute[0].set_ylabel(r"$u_\star$")
     axesAbsolute[1].set_ylabel(r"$t_\star$")
     axesAbsolute[3].set_xlabel(r"$\theta$ (K)")
+    axesAbsolute[2].set_xlabel(r"$|u| \;({\rm m}.{\rm s}^{-1})$")
     axesAbsolute[2].set_ylabel(r"$z$ (m)")
     axesAbsolute[3].set_ylabel(r"$z$ (m)")
     axesAbsolute[0].set_xlim(left=2.2, right=4.2)
@@ -955,7 +965,6 @@ def fig_consistency_comparisonUnstable():
     show_or_save("fig_consistency_comparisonUnstable")
 
 def ustar_u_t_low_and_high_res(sf_scheme: str):
-    z_levels: np.ndarray = oversample(IFS_z_levels_stratified, 3)
     z_levels: np.ndarray = np.copy(IFS_z_levels_stratified)
     z_levels_high_res: np.ndarray = oversample(z_levels, 3)
     dt: float = 30.
@@ -967,10 +976,11 @@ def ustar_u_t_low_and_high_res(sf_scheme: str):
     if sf_scheme == "FV free":
         delta_sl_lr = delta_sl_hr = z_levels[1]/2
     elif sf_scheme == "FV2":
-        z_levels = np.concatenate(([z_levels[0]], [delta_sl_lr],
-            z_levels[1:]))
-        z_levels_high_res = np.concatenate(([z_levels_high_res[0]],
-            [delta_sl_hr], z_levels_high_res[1:]))
+        delta_sl_lr: float = z_levels[1]
+        delta_sl_hr: float = z_levels_high_res[1]
+    elif sf_scheme == "FVNishizawa":
+        delta_sl_lr: float = z_levels[1]*0.999
+        delta_sl_hr: float = z_levels_high_res[1]*0.999
 
     z_lr, u_lr, theta_lr, z_tke_lr, TKE_lr, ustar_lr, _ = \
             compute_with_sfStratified(sf_scheme,
@@ -980,6 +990,11 @@ def ustar_u_t_low_and_high_res(sf_scheme: str):
                     z_levels_high_res, dt, N, stable, delta_sl_hr)
     return ustar_lr, z_lr, u_lr, theta_lr, ustar_hr, z_hr, u_hr, theta_hr
 
+def fig_sensitivity_delta_sl():
+    fig, axes = plt.subplots(1,1, figsize=(3.5, 3.5))
+    z_levels = IFS_z_levels_stratified
+
+
 def fig_Stratified():
     """
         Integrates for 1 day a 1D ekman equation
@@ -987,14 +1002,21 @@ def fig_Stratified():
     """
     z_levels = oversample(IFS_z_levels_stratified, 3)
 
-    fig, axes = plt.subplots(3,1, figsize=(5.5, 4.5))
-    fig.subplots_adjust(hspace=0.7, right=0.666)
+    fig, axd = plt.subplot_mosaic([['ustar', 'u', 'theta'],
+                                    ['.',    'u', 'theta']],
+            figsize=(7.5, 4.5))
+    axes = [axd[k] for k in ('ustar', 'u', 'theta')]
+
+
+    fig.subplots_adjust(hspace=0., right=0.95, top=0.95,
+            wspace=0.57)
     def style(col, linestyle='solid', **kwargs):
         return {"color": col, "linestyle": linestyle,
                 "linewidth":1.5, **kwargs}
 
     dic_settings = settings_plot_sf_scheme(z_levels)
     all_settings = ( dic_settings["FV pure"],
+                    dic_settings["FVNishizawa"],
                     dic_settings["FV2"],
                     dic_settings["FD pure"],
                     dic_settings["FV free"])
@@ -1028,7 +1050,7 @@ def fig_Stratified():
     axes[2].set_ylabel(r"$z$ (m)")
 
     axes[0].set_xlim(left=0., right=72.)
-    axes[0].set_ylim(top=0.225, bottom=0.175)
+    axes[0].set_ylim(top=0.24, bottom=0.172)
 
     axes[1].set_xlim(left=5., right=9.2)
     axes[1].set_ylim(top=280., bottom=0.)
@@ -1036,7 +1058,7 @@ def fig_Stratified():
     axes[2].set_xlim(left=258., right=268)
     axes[2].set_ylim(top=280., bottom=0.)
 
-    fig.legend(loc="center right")
+    fig.legend(loc=(0.12,0.12))
 
     show_or_save("fig_Stratified")
 
@@ -1045,18 +1067,23 @@ def fig_consistency_comparisonStratified():
         Integrates for 1 day a 1D ekman equation
         with TKE turbulence scheme.
     """
-    # z_levels = oversample(IFS_z_levels_stratified, 3)
     z_levels = np.copy(IFS_z_levels_stratified)
     z_levels_les= oversample(z_levels, 3)
 
-    fig, axes = plt.subplots(3,1, figsize=(5.5, 4.5))
-    fig.subplots_adjust(hspace=0.7, right=0.666)
+    fig, axd = plt.subplot_mosaic([['ustar', 'u', 'theta'],
+                                    ['.',    'u', 'theta']],
+            figsize=(7.5, 4.5))
+    axes = [axd[k] for k in ('ustar', 'u', 'theta')]
+
+    fig.subplots_adjust(hspace=0., right=0.95, top=0.95,
+            wspace=0.57)
     def style(col, linestyle='solid', **kwargs):
         return {"color": col, "linestyle": linestyle,
                 "linewidth":1.5, **kwargs}
 
     dic_settings = settings_plot_sf_scheme(z_levels)
     all_settings = ( dic_settings["FV pure"],
+                    dic_settings["FVNishizawa"],
                     dic_settings["FV2"],
                     dic_settings["FD pure"],
                     dic_settings["FV free"])
@@ -1075,12 +1102,12 @@ def fig_consistency_comparisonStratified():
         u_hr = undersample(u_hr, z_hr, z_lr)
         t_hr = undersample(t_hr, z_hr, z_lr)
         # abs plot:
-        axes[1].plot((np.abs(u_lr - u_hr))/np.abs(u_hr),
+        axes[1].semilogx((np.abs(u_lr - u_hr))/np.abs(u_hr),
                 z_lr, **settings)
         settings.pop("label")
 
         # temperature plot:
-        axes[2].plot(np.abs(t_lr - t_hr), z_lr, **settings)
+        axes[2].semilogx(np.abs(t_lr - t_hr), z_lr, **settings)
 
         # ustar plot:
         ustar_highres = undersample(ustar_highres, hours_simu, hours_plot)
@@ -1096,13 +1123,13 @@ def fig_consistency_comparisonStratified():
     axes[2].set_xlabel(r"$\theta$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
 
-    axes[0].set_ylim(top=0.1, bottom=0.)
+    axes[0].set_ylim(top=0.125, bottom=0.)
     axes[1].set_ylim(top=220., bottom=0.)
-    axes[1].set_xlim(left=0., right=0.09)
-    axes[2].set_xlim(left=0., right=1.2)
-    axes[2].set_ylim(top=220., bottom=0.)
-    fig.legend(loc="center right")
+    axes[1].set_xlim(left=9e-4, right=0.09)
+    axes[2].set_xlim(left=1e-4, right=1.4)
+    axes[2].set_ylim(top=220., bottom=0.01)
 
+    fig.legend(loc=(0.12, 0.12))
     show_or_save("fig_consistency_comparisonStratified")
 
 def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
