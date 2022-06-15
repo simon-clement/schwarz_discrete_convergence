@@ -944,7 +944,7 @@ def fig_consistency_comparisonUnstable():
     axes[3].set_xlim(right=0.13, left=1e-4)
     axes[3].set_ylim(top=300., bottom=0.)
 
-    axes[2].set_xlabel(r"Relative $|u|$ difference")
+    axes[2].set_xlabel(r"Relative $||u||$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
     axes[2].set_xlim(right=0.04, left=1e-3)
     axes[2].set_ylim(top=300., bottom=0.)
@@ -956,7 +956,7 @@ def fig_consistency_comparisonUnstable():
     axesAbsolute[0].set_ylabel(r"$u_\star$")
     axesAbsolute[1].set_ylabel(r"$t_\star$")
     axesAbsolute[3].set_xlabel(r"$\theta$ (K)")
-    axesAbsolute[2].set_xlabel(r"$|u| \;({\rm m}.{\rm s}^{-1})$")
+    axesAbsolute[2].set_xlabel(r"$||u|| \;({\rm m}.{\rm s}^{-1})$")
     axesAbsolute[2].set_ylabel(r"$z$ (m)")
     axesAbsolute[3].set_ylabel(r"$z$ (m)")
     axesAbsolute[0].set_xlim(left=2.2, right=4.2)
@@ -1007,17 +1007,17 @@ def fig_sensitivity_delta_sl():
                     "linewidth": 1.8,
                     "color": colors[0],
                     "label": r"$\delta_{sl} = 5 \;{\rm m}$",
-                    "linestyle": "dashed"},
+                    },
             {'delta_sl': 10.,
                     "linewidth": 1.8,
                     "color": colors[1],
                     "label": r"$\delta_{sl} = 10 \;{\rm m}$",
-                    "linestyle": "dashed"},
+                    },
             {'delta_sl': 20.,
                     "linewidth": 1.8,
                     "color": colors[2],
                     "label": r"$\delta_{sl} = 20 \;{\rm m}$",
-                    "linestyle": "dashed"},
+                    },
             )
     fig, axd = plt.subplot_mosaic([['.', 'abs', 'angle', '.'],
                                 ['abs_low', '.', '.', 'angle_low']],
@@ -1037,7 +1037,7 @@ def fig_sensitivity_delta_sl():
         axes_zoom[0].plot(np.abs(u_fv), z_fv, **settings)
         axes[1].plot(np.angle(u_fv), z_fv, **settings)
         axes_zoom[1].plot(np.angle(u_fv), z_fv, **settings)
-    axes[0].set_xlabel(r"$|u|\;({\rm m})$")
+    axes[0].set_xlabel(r"$||u||\;({\rm m})$")
     axes[1].set_xlabel(r"Arg$(u)$ (rad)")
     axes[0].set_ylabel(r"$z\;({\rm m})$")
     # axes[1].set_ylabel(r"$z\;({\rm m})$")
@@ -1048,7 +1048,7 @@ def fig_sensitivity_delta_sl():
     axes[1].set_xlim(right=0.42, left=-0.05)
 
     # axes zoom:
-    axes_zoom[0].set_xlabel(r"$|u|\;({\rm m})$")
+    axes_zoom[0].set_xlabel(r"$||u||\;({\rm m})$")
     axes_zoom[1].set_xlabel(r"Arg$(u)$ (rad)")
     axes_zoom[0].set_ylabel(r"$z\;({\rm m})$")
     axes_zoom[1].set_ylabel(r"$z\;({\rm m})$")
@@ -1110,7 +1110,7 @@ def fig_Stratified():
         axes[0].plot(hours_plot, ustar_lowres, **settings)
     axes[0].set_xlabel("Time (hours)")
     axes[0].set_ylabel(r"$u_\star$")
-    axes[1].set_xlabel(r"$|u|$")
+    axes[1].set_xlabel(r"$||u||$")
     axes[1].set_ylabel(r"$z$ (m)")
     axes[2].set_xlabel(r"$\theta$ (K)")
     axes[2].set_ylabel(r"$z$ (m)")
@@ -1185,7 +1185,7 @@ def fig_consistency_comparisonStratified():
                 **settings)
     axes[0].set_xlabel("Time (hours)")
     axes[0].set_ylabel(r"Relative $u_\star$ difference")
-    axes[1].set_xlabel(r"Relative $|u|$ difference")
+    axes[1].set_xlabel(r"Relative $||u||$ difference")
     axes[1].set_ylabel(r"$z$ (m)")
     axes[2].set_xlabel(r"$\theta$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
