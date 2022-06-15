@@ -163,9 +163,10 @@ def compute_atmosphere(simulator_atm: Atm1dStratified,
     """
         Integrator in time of the atmosphere
     """
+    u_G = simulator_atm.u_g
     N = int(numer_set.T/simulator_atm.dt) # Number of time steps
     M = simulator_atm.M # Number of grid points
-    u_0 = 8.*np.ones(M) + 0j
+    u_0 = u_G*np.ones(M) + 0j
     phi_0 = np.zeros(M+1) + 0j
     theta_0 = 280.*np.ones(M)
     dz_theta_0 = np.zeros(M+1)
@@ -189,7 +190,7 @@ def compute_atmosphere(simulator_atm: Atm1dStratified,
                 simulator_atm.initialization(\
                 u_0, phi_0, theta_0, dz_theta_0, delta_sl,
                 uo_delta[0], to_delta[0], Q_sw[0], Q_lw[0],
-                z_constant, numer_set.delta_sl_o)
+                z_constant, numer_set.delta_sl_o, u_G)
     else:
         u_i, phi_i, theta_i, dz_theta_i, u_delta, t_delta = \
                 u_0, phi_0, theta_0, dz_theta_0, u_0[0], theta_0[0]

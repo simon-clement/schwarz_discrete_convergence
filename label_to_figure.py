@@ -6,9 +6,10 @@ FIGURE = {}
 FIGURE["4.6"] = "fig_alpha_sl"
 FIGURE["4.7"] = "fig_neutral_comparisonPlot"
 FIGURE["4.9"] = "fig_mixing_lengths"
-FIGURE["4.10"] = "fig_Stratified"
-FIGURE["4.11"] = "fig_consistency_comparisonStratified"
-FIGURE["4.12"] = "fig_consistency_comparisonUnstable"
+FIGURE["4.10"] = "fig_sensitivity_delta_sl"
+FIGURE["4.12"] = "fig_Stratified"
+FIGURE["4.13"] = "fig_consistency_comparisonStratified"
+FIGURE["4.14"] = "fig_consistency_comparisonUnstable"
 
 FIGURE["AMAC_pres1"] = "fig_compareASLsize_ustar"
 FIGURE["AMAC_pres2"] = "fig_compareASLsize"

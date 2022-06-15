@@ -13,7 +13,7 @@ from schwarz_coupler import NumericalSetting, schwarz_coupling, projection
 
 def simulation_unstable(dt_atm, T, store_all: bool,
         sf_scheme_a: str, delta_sl_a: float=None,
-        high_res: bool=False):
+        high_res: bool=False, u_G: float=8.):
     dt_oce: float = dt_atm
     sf_scheme_o: str = "FD pure" # this will not be used
     delta_sl_o: float= 0.
@@ -37,7 +37,7 @@ def simulation_unstable(dt_atm, T, store_all: bool,
     mu_m = 6.7e-2 # value of mu_m taken in bulk.py
     K_mol_a = simulator_oce.K_mol / mu_m
     simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
-            dt=dt_atm, u_geostrophy=8., K_mol=K_mol_a, f=f)
+            dt=dt_atm, u_geostrophy=u_G, K_mol=K_mol_a, f=f)
 
     if delta_sl_a is None:
         if sf_scheme_a in {"FV free", "FV test",

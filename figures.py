@@ -868,6 +868,7 @@ def fig_consistency_comparisonUnstable():
 
     dt: float = 40.
     number_of_days = 4.2
+    u_G: float = 8.
     N: int = int(number_of_days*24*3600 / dt)
     T: float = dt*N
     days_simu = np.linspace(0, T/3600/24, N)
@@ -887,10 +888,12 @@ def fig_consistency_comparisonUnstable():
         delta_sl_hr = setting["delta_sl_hr"]
         state_atm_lr, z_fv_lr = memoised(\
                 figures_unstable.simulation_unstable, dt, T,
-                False, sf_scheme, delta_sl_lr, high_res=False)
+                False, sf_scheme, delta_sl_lr, high_res=False,
+                u_G=u_G)
         state_atm_hr, z_fv_hr = memoised(\
                 figures_unstable.simulation_unstable, dt, T,
-                False, sf_scheme, delta_sl_hr, high_res=True)
+                False, sf_scheme, delta_sl_hr, high_res=True,
+                u_G=u_G)
 
         plot_args = settings_plot[sf_scheme]
         plot_args.pop("delta_sl")
@@ -993,8 +996,68 @@ def ustar_u_t_low_and_high_res(sf_scheme: str, u_G: float):
     return ustar_lr, z_lr, u_lr, theta_lr, ustar_hr, z_hr, u_hr, theta_hr
 
 def fig_sensitivity_delta_sl():
-    fig, axes = plt.subplots(1,1, figsize=(3.5, 3.5))
-    z_levels = IFS_z_levels_stratified
+    # simulation neutre avec plusieurs delta_sl différents
+    T = 3600 * 24
+    dt = 30.
+    N = int(T/dt)
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
+    all_settings = (
+            {'delta_sl': 5.,
+                    "linewidth": 1.8,
+                    "color": colors[0],
+                    "label": r"$\delta_{sl} = 5 \;{\rm m}$",
+                    "linestyle": "dashed"},
+            {'delta_sl': 10.,
+                    "linewidth": 1.8,
+                    "color": colors[1],
+                    "label": r"$\delta_{sl} = 10 \;{\rm m}$",
+                    "linestyle": "dashed"},
+            {'delta_sl': 20.,
+                    "linewidth": 1.8,
+                    "color": colors[2],
+                    "label": r"$\delta_{sl} = 20 \;{\rm m}$",
+                    "linestyle": "dashed"},
+            )
+    fig, axd = plt.subplot_mosaic([['.', 'abs', 'angle', '.'],
+                                ['abs_low', '.', '.', 'angle_low']],
+            figsize=(7.5, 3.5))
+    fig.subplots_adjust(hspace=0.27, right=0.98, top=0.95,
+            left=0.07, wspace=0.038, bottom=0.12)
+    axes = [axd[k] for k in ('abs', 'angle')]
+    axes_zoom = [axd[k] for k in ('abs_low', 'angle_low')]
+    for settings in all_settings:
+        z_fv, u_fv, _, _, _, _ = \
+                memoised(memoisable_compute_sfNeutral,
+                        sf_scheme="FV free",
+                        delta_sl=settings.pop("delta_sl"),
+                        dt=dt, N=N)
+        axes[0].plot(np.abs(u_fv), z_fv, **settings)
+        settings.pop("label")
+        axes_zoom[0].plot(np.abs(u_fv), z_fv, **settings)
+        axes[1].plot(np.angle(u_fv), z_fv, **settings)
+        axes_zoom[1].plot(np.angle(u_fv), z_fv, **settings)
+    axes[0].set_xlabel(r"$|u|\;({\rm m})$")
+    axes[1].set_xlabel(r"Arg$(u)$ (rad)")
+    axes[0].set_ylabel(r"$z\;({\rm m})$")
+    # axes[1].set_ylabel(r"$z\;({\rm m})$")
+    axes[1].tick_params('y', labelleft=False)
+    axes[0].set_ylim(top=200, bottom=30.)
+    axes[1].set_ylim(top=200, bottom=30.)
+    axes[0].set_xlim(left=5.48, right=8.82)
+    axes[1].set_xlim(right=0.42, left=-0.05)
+
+    # axes zoom:
+    axes_zoom[0].set_xlabel(r"$|u|\;({\rm m})$")
+    axes_zoom[1].set_xlabel(r"Arg$(u)$ (rad)")
+    axes_zoom[0].set_ylabel(r"$z\;({\rm m})$")
+    axes_zoom[1].set_ylabel(r"$z\;({\rm m})$")
+    axes_zoom[0].set_ylim(top=30, bottom=0.)
+    axes_zoom[1].set_ylim(top=30, bottom=0.)
+    axes_zoom[0].set_xlim(right=6., left=3.25)
+    axes_zoom[1].set_xlim(right=0.455, left=0.42)
+    fig.legend(loc=(0.45, 0.2))
+    show_or_save("fig_sensitivity_delta_sl")
 
 
 def fig_Stratified():
