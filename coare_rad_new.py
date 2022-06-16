@@ -219,17 +219,17 @@ def coare_fullsl_rad(du_norm,du_arg,dt,dq, \
     for i in range(0,nits):
         prev_usr, prev_tsr = usr, tsr
         zet=von*grav*zu/tatm*(tsr*(1+0.61*qatm)+.61*tatm*qsr)/(usr*usr)/(1+0.61*qatm)
-       
-        zo=charn*usr*usr/grav+0.11*nu_atm/usr
-        rr=zo*usr/nu_atm
-        rr=charn*usr*usr*usr/grav/nu_atm + 0.11
         L= 1e100 if abs(zet) < 1e-100 else zu/zet
-        # zoq=min(1.15e-4,5.5e-5/rr**.6)
-        try:
-            zoq=1.15e-4 if 11.5*rr**.6 < 5.5 else 5.5e-5/rr**.6
-        except:
-            zoq = 1.15e-4
-        zot=zoq
+        # zo=charn*usr*usr/grav+0.11*nu_atm/usr
+        # # rr= zo*usr/nu_atm
+        # rr=charn*usr*usr*usr/grav/nu_atm + 0.11
+        # # zoq=min(1.15e-4,5.5e-5/rr**.6)
+        # try:
+        #     zoq=1.15e-4 if 11.5*rr**.6 < 5.5 else 5.5e-5/rr**.6
+        # except:
+        #     zoq = 1.15e-4
+        # zot=zoq
+        zot = zoq = zo = nu_atm / usr / von
         ut = np.sqrt( du_norm**2 + ug**2)
         if(full_sl):
             if(inc_rad):

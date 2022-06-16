@@ -26,7 +26,7 @@ class Atm1dStratified():
     """
     def __init__(self, z_levels: array, dt: float=1.,
             u_geostrophy: float=10., default_h_cl: float=1e4,
-            K_mol: float=1e-7, C_D: float=1e-3, f: float=1e-4) -> None:
+            K_mol: float=1.5e-5, C_D: float=1e-3, f: float=1e-4) -> None:
         """
             z_levels starts at 0 and contains all the full levels $z_m$.
             h_cl is the default height of the planetary boundary layer if f=0;

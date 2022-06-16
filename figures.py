@@ -323,7 +323,7 @@ def fig_mixing_lengths():
     M: int = z_levels.shape[0] - 1
     simulator: Atm1dStratified = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=u_G,
-            K_mol=1e-4, f=1.39e-4)
+            K_mol=1.5e-5, f=1.39e-4)
     T0 = 265.
     u_0 = u_G*np.ones(M) + 0j
     phi_0 = np.zeros(M+1) + 0j
@@ -960,7 +960,7 @@ def fig_consistency_comparisonUnstable():
     axesAbsolute[2].set_ylabel(r"$z$ (m)")
     axesAbsolute[3].set_ylabel(r"$z$ (m)")
     axesAbsolute[0].set_xlim(left=2.2, right=4.2)
-    axesAbsolute[0].set_ylim(bottom=0.19, top=0.225)
+    axesAbsolute[0].set_ylim(bottom=0.20, top=0.24)
     axesAbsolute[1].set_xlim(left=2.2, right=4.2)
     axesAbsolute[2].set_xlim(left=6., right=8.7)
     axesAbsolute[2].set_ylim(top=300., bottom=0.)
@@ -1071,7 +1071,7 @@ def fig_sensitivity_delta_sl():
     axes[0].set_ylim(top=200, bottom=30.)
     axes[1].set_ylim(top=200, bottom=30.)
     axes[0].set_xlim(left=5.48, right=8.82)
-    axes[1].set_xlim(right=0.42, left=-0.05)
+    axes[1].set_xlim(right=0.47, left=-0.05)
 
     # axes zoom:
     axes_zoom[0].set_xlabel(r"$||u||\;({\rm m})$")
@@ -1081,7 +1081,7 @@ def fig_sensitivity_delta_sl():
     axes_zoom[0].set_ylim(top=30, bottom=0.)
     axes_zoom[1].set_ylim(top=30, bottom=0.)
     axes_zoom[0].set_xlim(right=6., left=3.25)
-    axes_zoom[1].set_xlim(right=0.455, left=0.42)
+    axes_zoom[1].set_xlim(right=0.493, left=0.46)
     fig.legend(loc=(0.45, 0.2))
     show_or_save("fig_sensitivity_delta_sl")
 
@@ -1151,7 +1151,7 @@ def fig_consistency_comparisonNeutral():
     axes[0].set_ylim(top=0.125, bottom=0.)
     axes[1].set_ylim(top=220., bottom=0.)
     axes[2].set_ylim(top=220., bottom=0.)
-    axes[2].set_xlim(left=3e-4, right=0.09)
+    axes[2].set_xlim(left=3e-4, right=0.11)
     # axes[2].set_xlim(left=1e-4, right=1.4)
 
     fig.legend(loc=(0.12, 0.12))
@@ -1310,7 +1310,7 @@ def compute_with_sfStratified(sf_scheme, z_levels, dt=10., N=3240,
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=u_G,
-            K_mol=1e-4, f=1.39e-4)
+            K_mol=1.5e-5, f=1.39e-4)
     T0 = 265.
     u_0 = u_G*np.ones(M) + 0j
     phi_0 = np.zeros(M+1) + 0j
@@ -1380,7 +1380,7 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl,
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=u_G,
-            K_mol=1e-4, f=1e-4)
+            K_mol=1.5e-5, f=1e-4)
     u_0 = u_G*np.ones(M) + 0j
     phi_0 = np.zeros(M+1) + 0j
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
@@ -1454,7 +1454,7 @@ def plot_FDStratified(axes, sf_scheme, dt=10., N=3240,
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
-            K_mol=1e-4, f=1.39e-4)
+            K_mol=1.5e-5, f=1.39e-4)
     u_0 = 8*np.ones(M)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     if stable:
@@ -1489,7 +1489,7 @@ def plot_FD(axes, sf_scheme, dt=60., N=1680,
         name = sf_scheme
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
-            dt=dt, u_geostrophy=10., K_mol=1e-4, f=1e-4)
+            dt=dt, u_geostrophy=10., K_mol=1.5e-5, f=1e-4)
 
     u_0 = 10*np.ones(M)
     forcing = 1j*simulator.f * simulator.u_g*np.ones((N+1, M))
@@ -1531,7 +1531,7 @@ def compute_FD_sfNeutral(sf_scheme, dt, N):
     z_levels = IFS_z_levels
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
-            dt=dt, u_geostrophy=10., K_mol=1e-4, f=1e-4)
+            dt=dt, u_geostrophy=10., K_mol=1.5e-5, f=1e-4)
     u_0 = 10*np.ones(M) + 0j
     forcing = 1j*simulator.f * simulator.u_g*np.ones((N+1, M))
     SST = 265. * np.ones(N+1) # Neutral SST with theta=const=265.
@@ -1619,7 +1619,9 @@ def fig_neutral_comparisonPlot():
                     dic_settings["FV pure"],
                     dic_settings["FVNishizawa"],
                     dic_settings["FV2"],
-                    dic_settings["FV free"])
+                    dic_settings["FD pure"],
+                    dic_settings["FV free"],
+                    )
 
     for settings in all_settings:
         z_fv, u_fv, _, _, _, _ = \
@@ -1633,29 +1635,21 @@ def fig_neutral_comparisonPlot():
         settings.pop("label")
         axes[1].plot(np.angle(u_fv), z_fv, **settings)
 
-    # FD PART:
-    z_fd, u_fd = memoised(compute_FD_sfNeutral, "FD pure", dt=dt, N=N)
-    settings_FD = dic_settings["FD pure"]
-    settings_FD.pop("delta_sl")
-    settings_FD.pop("sf_scheme")
-    axes[0].plot(np.abs(u_fd), full_to_half(z_fd), **settings_FD)
-    settings_FD.pop("label")
-    axes[1].plot(np.angle(u_fd), full_to_half(z_fd), **settings_FD)
-
     half_levels = full_to_half(IFS_z_levels)
     axes[0].hlines(half_levels, xmin=0., xmax=100., color="k",
-            linestyle="dotted", linewidth=0.6, label=r"$z_{m+1/2}$")
+            linestyle="dotted", linewidth=0.6)
+    #, label=r"$z_{m+1/2}$")
     axes[1].hlines(half_levels, xmin=0., xmax=10., color="k",
             linestyle="dotted", linewidth=0.6)
 
-    axes[0].set_xlim(left=4., right=10.)
-    axes[1].set_xlim(left=0.2, right=.5)
+    axes[0].set_xlim(left=2.5, right=8.5)
+    axes[1].set_xlim(left=0.2, right=.54)
 
 
     axes[0].set_xlabel(r"$||u(z)|| \;({\rm m.s}^{-1})$")
     axes[1].set_xlabel(r"$\arg(u(z)) \;({\rm rad})$")
     # now we want to set ticks labels for $z_{1/2}$, ...
-    z_half = full_to_half(z_fd)
+    z_half = full_to_half(IFS_z_levels)
 
     ticks = np.concatenate((z_half[:4], [0, 100]))
     axes[1].set_yticks(ticks)

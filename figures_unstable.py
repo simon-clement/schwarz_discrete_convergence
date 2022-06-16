@@ -149,7 +149,7 @@ def simulation_FD(sf_scheme: str, z_levels: np.ndarray, dt: float,
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
-            K_mol=1e-4, f=1.39e-4)
+            K_mol=1.5e-5, f=1.39e-4)
     u_0 = 8*np.ones(M)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
     if stable:
@@ -186,7 +186,7 @@ def simulation_FV(sf_scheme: str, z_levels: np.ndarray, dt: float, N: int,
     M = z_levels.shape[0] - 1
     simulator = Atm1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=8.,
-            K_mol=1e-4, f=1.39e-4)
+            K_mol=1.5e-5, f=1.39e-4)
     u_0 = 8*np.ones(M)
     phi_0 = np.zeros(M+1)
     forcing = 1j*simulator.f*simulator.u_g*np.ones((N+1, M))
