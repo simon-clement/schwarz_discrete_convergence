@@ -919,8 +919,8 @@ def fig_consistency_comparisonUnstable():
         diff_ustar = np.abs(ustar_lowres - ustar_highres) / \
                 np.abs(ustar_lowres)
         diff_tstar = np.abs(tstar_lowres - tstar_highres)
-        axes[2].semilogx(np.abs(u_lr-u_hr)/np.abs(u_lr),
-                z_fv_lr, **plot_args)
+        axes[2].semilogx(np.abs(u_lr - u_hr) / \
+                            np.abs(u_lr), z_fv_lr, **plot_args)
         plot_args.pop("label")
         axes[3].semilogx(np.abs(t_lr-t_hr), z_fv_lr, **plot_args)
         axesAbsolute[2].plot(np.abs(u_lr), z_fv_lr, **plot_args)
@@ -944,7 +944,7 @@ def fig_consistency_comparisonUnstable():
     axes[3].set_xlim(right=0.13, left=1e-4)
     axes[3].set_ylim(top=300., bottom=0.)
 
-    axes[2].set_xlabel(r"Relative $||u||$ difference")
+    axes[2].set_xlabel(r"Relative $u$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
     axes[2].set_xlim(right=0.04, left=1e-3)
     axes[2].set_ylim(top=300., bottom=0.)
@@ -967,6 +967,32 @@ def fig_consistency_comparisonUnstable():
     axesAbsolute[3].set_ylim(top=300., bottom=0.)
 
     show_or_save("fig_consistency_comparisonUnstable")
+
+def ustar_u_low_and_high_res_neutral(sf_scheme: str, u_G: float):
+    z_levels: np.ndarray = np.copy(IFS_z_levels_stratified)
+    z_levels_high_res: np.ndarray = oversample(z_levels, 3)
+    dt: float = 30.
+    T: float = 24 * 3600.
+    N: int = int(T/dt)
+    delta_sl_lr: float = z_levels[1]/2
+    delta_sl_hr: float = z_levels_high_res[1]/2
+    if sf_scheme == "FV free":
+        delta_sl_lr = delta_sl_hr = z_levels[1]/2
+    elif sf_scheme == "FV2":
+        delta_sl_lr: float = z_levels[1]
+        delta_sl_hr: float = z_levels_high_res[1]
+    elif sf_scheme == "FVNishizawa":
+        delta_sl_lr: float = z_levels[1]*0.999
+        delta_sl_hr: float = z_levels_high_res[1]*0.999
+
+    z_lr, u_lr, _, z_tke_lr, TKE_lr, ustar_lr = \
+            compute_with_sfNeutral(sf_scheme,
+                    z_levels, dt, N, delta_sl_lr, u_G)
+    z_hr, u_hr, _, z_tke_hr, TKE_hr, ustar_hr = \
+            compute_with_sfNeutral(sf_scheme,
+                    z_levels_high_res, dt, N,
+                    delta_sl_hr, u_G)
+    return ustar_lr, z_lr, u_lr, ustar_hr, z_hr, u_hr
 
 def ustar_u_t_low_and_high_res(sf_scheme: str, u_G: float):
     z_levels: np.ndarray = np.copy(IFS_z_levels_stratified)
@@ -1059,6 +1085,77 @@ def fig_sensitivity_delta_sl():
     fig.legend(loc=(0.45, 0.2))
     show_or_save("fig_sensitivity_delta_sl")
 
+def fig_consistency_comparisonNeutral():
+    """
+        Integrates for 1 day a 1D ekman equation
+        with TKE turbulence scheme.
+    """
+    u_G = 8.
+
+    fig, axd = plt.subplot_mosaic([['ustar', 'u', 'u-diff'],
+                                    ['.',    'u', 'u-diff']],
+            figsize=(7.5, 4.5))
+    axes = [axd[k] for k in ('ustar', 'u', 'u-diff')]
+
+    fig.subplots_adjust(hspace=0., right=0.95, top=0.95,
+            wspace=0.57)
+    def style(col, linestyle='solid', **kwargs):
+        return {"color": col, "linestyle": linestyle,
+                "linewidth":1.5, **kwargs}
+
+    z_levels = np.copy(IFS_z_levels_stratified)
+    dic_settings = settings_plot_sf_scheme(z_levels)
+    all_settings = ( dic_settings["FV pure"],
+                    dic_settings["FVNishizawa"],
+                    dic_settings["FV2"],
+                    dic_settings["FD pure"],
+                    dic_settings["FV free"])
+
+    for settings in all_settings:
+        sf_scheme = settings.pop("sf_scheme")
+        delta_sl = settings.pop("delta_sl")
+        dt: float = 30.
+        T: float = 24 * 3600.
+        N: int = int(T/dt)
+        hours_simu = np.linspace(0, T/3600, N)
+        hours_plot = np.linspace(0, T/3600, 30)
+        ustar_lowres, z_lr, u_lr, ustar_highres, z_hr, u_hr = \
+                memoised(ustar_u_low_and_high_res_neutral,
+                        sf_scheme, u_G)
+        #projection:
+        u_hr = undersample(u_hr, z_hr, z_lr)
+        # abs plot:
+        axes[2].semilogx((np.abs(u_lr - u_hr))/np.abs(u_hr),
+                z_lr, **settings)
+        settings.pop("label")
+
+        # temperature plot:
+        axes[1].plot(np.abs(u_lr), z_lr, **settings)
+
+        # ustar plot:
+        ustar_highres = undersample(ustar_highres, hours_simu,
+                hours_plot)
+        ustar_lowres = undersample(ustar_lowres, hours_simu,
+                hours_plot)
+        settings.pop("marker", None)
+        axes[0].plot(hours_plot, (np.abs(ustar_lowres - \
+                ustar_highres))/ustar_lowres,
+                **settings)
+    axes[0].set_xlabel("Time (hours)")
+    axes[0].set_ylabel(r"Relative $u_\star$ difference")
+    axes[1].set_xlabel(r"$||u||$")
+    axes[1].set_ylabel(r"$z$ (m)")
+    axes[2].set_xlabel(r"Relative $u$ difference")
+    axes[2].set_ylabel(r"$z$ (m)")
+
+    axes[0].set_ylim(top=0.125, bottom=0.)
+    axes[1].set_ylim(top=220., bottom=0.)
+    axes[2].set_ylim(top=220., bottom=0.)
+    axes[2].set_xlim(left=3e-4, right=0.09)
+    # axes[2].set_xlim(left=1e-4, right=1.4)
+
+    fig.legend(loc=(0.12, 0.12))
+    show_or_save("fig_consistency_comparisonNeutral")
 
 def fig_Stratified():
     """
@@ -1169,8 +1266,8 @@ def fig_consistency_comparisonStratified():
         u_hr = undersample(u_hr, z_hr, z_lr)
         t_hr = undersample(t_hr, z_hr, z_lr)
         # abs plot:
-        axes[1].semilogx((np.abs(u_lr - u_hr))/np.abs(u_hr),
-                z_lr, **settings)
+        axes[1].semilogx(np.abs(u_lr - u_hr) / \
+                                np.abs(u_hr), z_lr, **settings)
         settings.pop("label")
 
         # temperature plot:
@@ -1185,7 +1282,7 @@ def fig_consistency_comparisonStratified():
                 **settings)
     axes[0].set_xlabel("Time (hours)")
     axes[0].set_ylabel(r"Relative $u_\star$ difference")
-    axes[1].set_xlabel(r"Relative $||u||$ difference")
+    axes[1].set_xlabel(r"Relative $u$ difference")
     axes[1].set_ylabel(r"$z$ (m)")
     axes[2].set_xlabel(r"$\theta$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
@@ -1194,7 +1291,7 @@ def fig_consistency_comparisonStratified():
     axes[1].set_ylim(top=220., bottom=0.)
     axes[1].set_xlim(left=9e-4, right=0.09)
     axes[2].set_xlim(left=1e-4, right=1.4)
-    axes[2].set_ylim(top=220., bottom=0.01)
+    axes[2].set_ylim(top=220., bottom=0.)
 
     fig.legend(loc=(0.12, 0.12))
     show_or_save("fig_consistency_comparisonStratified")
@@ -1301,22 +1398,35 @@ def compute_with_sfNeutral(sf_scheme, z_levels, dt, N, delta_sl,
         u_i, phi_i, t_i, dz_theta_i, u_delta_i = \
                 u_0, phi_0, t_0, dz_theta_0, u_deltasl
 
-    ret = simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
-                    delta_sl_o=0.,
-                    forcing_theta=np.zeros(simulator.M),
-                    dz_theta_t0=dz_theta_i,
-                    Q_sw=np.zeros(N+1), Q_lw=np.zeros(N+1),
-                    u_o=np.zeros(N+1), Neutral_case=True,
-                    SST=SST, sf_scheme=sf_scheme, u_delta=u_delta_i,
-                    forcing=forcing, delta_sl=delta_sl)
-    u, phi, tke_full, u_star, temperature, dz_theta, SL = \
-            [ret[x] for x in ("u", "phi", "tke", "all_u_star",
-                "theta", "dz_theta", "SL")]
+    if sf_scheme[:2] == "FV":
+        ret = simulator.FV(u_t0=u_i, phi_t0=phi_i, theta_t0=t_i,
+                        delta_sl_o=0.,
+                        forcing_theta=np.zeros(simulator.M),
+                        dz_theta_t0=dz_theta_i,
+                        Q_sw=np.zeros(N+1), Q_lw=np.zeros(N+1),
+                        u_o=np.zeros(N+1), Neutral_case=True,
+                        SST=SST, sf_scheme=sf_scheme, u_delta=u_delta_i,
+                        forcing=forcing, delta_sl=delta_sl)
+        u, phi, tke_full, u_star, temperature, dz_theta, SL = \
+                [ret[x] for x in ("u", "phi", "tke", "all_u_star",
+                    "theta", "dz_theta", "SL")]
 
-    z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
-            dz_theta, SL=SL)
-    z_tke = simulator.z_full
-    return z_fv, u_fv, theta_fv, z_tke, tke_full, ret["all_u_star"]
+        z_fv, u_fv, theta_fv = simulator.reconstruct_FV(u, phi, temperature,
+                dz_theta, SL=SL)
+        z_tke = simulator.z_full
+        return z_fv, u_fv, theta_fv, z_tke, tke_full, ret["all_u_star"]
+    else:
+        ret = simulator.FD(u_t0=u_i, theta_t0=t_i,
+                        delta_sl_o=0.,
+                        forcing_theta=np.zeros(simulator.M),
+                        Q_sw=np.zeros(N+1), Q_lw=np.zeros(N+1),
+                        u_o=np.zeros(N+1), SST=SST, Neutral_case=True,
+                        sf_scheme=sf_scheme, forcing=forcing)
+        u, tke_full, ustar, temperature = \
+                [ret[x] for x in ("u", "tke", "all_u_star", "theta")]
+        z_tke = simulator.z_full
+        z_fd = simulator.z_half[:-1]
+        return z_fd, u, temperature, z_tke, tke_full, ustar
 
 def plot_FVStratified(axes, sf_scheme, dt=10., N=3240,
         z_levels=DEFAULT_z_levels_stratified,
@@ -1472,7 +1582,7 @@ def settings_plot_sf_scheme(z_levels: np.ndarray):
             "delta_sl":z_levels[1]/2,
             "color": colors[3],
             "label": "FV pure",
-            "linestyle": "dashed"}
+            "linestyle": (0, (5, 10))}
     settings_FV2 = {"sf_scheme": "FV2",
             "linewidth": 1.8,
             "color": colors[0],
@@ -1534,15 +1644,15 @@ def fig_neutral_comparisonPlot():
 
     half_levels = full_to_half(IFS_z_levels)
     axes[0].hlines(half_levels, xmin=0., xmax=100., color="k",
-            linestyle="dashed", linewidth=0.6, label=r"$z_{m+1/2}$")
+            linestyle="dotted", linewidth=0.6, label=r"$z_{m+1/2}$")
     axes[1].hlines(half_levels, xmin=0., xmax=10., color="k",
-            linestyle="dashed", linewidth=0.6)
+            linestyle="dotted", linewidth=0.6)
 
     axes[0].set_xlim(left=4., right=10.)
     axes[1].set_xlim(left=0.2, right=.5)
 
 
-    axes[0].set_xlabel(r"$|u(z)| \;({\rm m.s}^{-1})$")
+    axes[0].set_xlabel(r"$||u(z)|| \;({\rm m.s}^{-1})$")
     axes[1].set_xlabel(r"$\arg(u(z)) \;({\rm rad})$")
     # now we want to set ticks labels for $z_{1/2}$, ...
     z_half = full_to_half(z_fd)
