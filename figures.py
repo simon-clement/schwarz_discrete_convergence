@@ -32,6 +32,12 @@ mpl.rcParams["axes.grid"] = True
 mpl.rcParams["grid.linestyle"] = ':'
 mpl.rcParams["grid.alpha"] = '0.7'
 mpl.rcParams["grid.linewidth"] = '0.5'
+def palette():
+    """returns an array of colors"""
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    DEFAULT_mpl = prop_cycle.by_key()['color']
+    return ['#d84f37', '#6588cd', '#94b927', '#8033ac',
+            '#00a9b2', '#c65c8a', '#e3a21a']
 
 DEFAULT_z_levels = np.linspace(0, 1500, 41)
 DEFAULT_z_levels_stratified = np.linspace(0, 400, 65)
@@ -319,6 +325,7 @@ def fig_mixing_lengths():
     stable: bool = False
     delta_sl: float = IFS_z_levels_stratified[1]/2.
     z_constant: float = 2 * delta_sl
+    colors = palette()
 
     M: int = z_levels.shape[0] - 1
     simulator: Atm1dStratified = Atm1dStratified(z_levels=z_levels,
@@ -364,13 +371,13 @@ def fig_mixing_lengths():
     fig.subplots_adjust(bottom=0.16, left=0.1)
     z_levels[0] = delta_sl
     axes[0].plot(simulator.lD80_copy, z_levels,
-            label=r"$l^\star_{D80}$")
+            label=r"$l^\star_{D80}$", color=colors[0])
     axes[0].plot(simulator.lup_copy, z_levels,
-            label=r"$l_{up}$")
+            label=r"$l_{up}$", color=colors[1])
     axes[0].plot(simulator.ldown_copy, z_levels,
-            label=r"$l_{down}$")
+            label=r"$l_{down}$", color=colors[2])
     axes[0].plot(np.sqrt(simulator.lup_copy * simulator.ldown_copy),
-            z_levels, "--", label=r"$l_{m}$")
+            z_levels, "--", label=r"$l_{m}$", color=colors[3])
     axes[0].set_ylabel("z (m)")
     axes[0].set_xlabel("Mixing length (m)")
     axes[0].set_ylim(top=300., bottom=0.)
@@ -608,12 +615,12 @@ def fig_alpha_sl():
     fig, ax = plt.subplots(figsize=(3.5, 1.5))
     fig.subplots_adjust(left=0.182, bottom=0.32, right=0.65)
     h_1_2 = 200
-    for z_u_exp in (-4, -3, -2, -1):
+    for z_u_exp, color in zip((-4, -3, -2, -1), palette()):
         z_u = 10**(z_u_exp)
         delta_sl = np.linspace(1e-10, h_1_2)
         log = np.log(1+delta_sl/z_u)
         alpha_sl = ((h_1_2 + z_u) * log - delta_sl) / log / h_1_2
-        ax.plot(delta_sl/h_1_2, alpha_sl,
+        ax.plot(delta_sl/h_1_2, alpha_sl, color=color,
                 label=r"$z_u=10^{"+str(z_u_exp)+r"}$")
     ax.set_xlabel(r"$\delta_{sl} / z_1$")
     ax.set_ylabel(r"$\alpha_{sl}$")
@@ -808,8 +815,7 @@ def fig_sensitivity_delta_sl():
     T = 3600 * 24
     dt = 30.
     N = int(T/dt)
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color']
+    colors = palette()
     all_settings = (
             {'delta_sl': 5.,
                     "linewidth": 1.8,
@@ -1332,8 +1338,7 @@ def settings_plot_sf_scheme(z_levels: np.ndarray):
     It is better to use the same style for all figures
     to avoir losing people.
     """
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color']
+    colors = palette()
 
     settings_FVfree = {"sf_scheme": "FV free",
             "delta_sl":z_levels[1]/2,
@@ -1364,7 +1369,7 @@ def settings_plot_sf_scheme(z_levels: np.ndarray):
             "delta_sl":z_levels[1]/2,
             "color": colors[3],
             "label": "FV pure",
-            "linestyle": (0, (5, 10))}
+            "linestyle": (0, (4, 4))}
     settings_FV2 = {"sf_scheme": "FV2",
             "linewidth": 1.8,
             "color": colors[0],
