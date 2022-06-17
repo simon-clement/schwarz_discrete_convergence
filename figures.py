@@ -508,30 +508,6 @@ def fig_colorplotReconstruction():
 
     show_or_save("fig_colorplotParameterizing")
 
-def fig_compareASLsize():
-    fig, axes2D = plt.subplots(3,2, sharex=True, sharey=True)
-    fig.subplots_adjust(hspace=0.67)
-    for axes, high_res in zip((axes2D[:,0], axes2D[:,1]),
-            (True, False)):
-        all_delta_sl = (5./3, 5., 1.) if high_res \
-                else (5., 5., 1.)
-        for ax, sf_scheme_a, delta_sl_a in tqdm(zip(axes,
-            ("FD pure", "FV free", "FV free"),
-            all_delta_sl,
-            ), leave=False, total=4):
-            fig.colorbar(colorplot_coupling(ax, sf_scheme_a,
-                "FD pure",
-                vmin=278., vmax=281.5, ITERATION=1,
-                delta_sl_a=delta_sl_a, high_res=high_res,
-                ignore_cached=False, label_atm=True), ax=ax)
-    for ax in axes2D[:, 0]:
-        ax.set_ylabel("z")
-        ax.set_ylim(bottom=-1e2, top=1e3)
-
-    axes2D[-1, 0].set_xlabel("days (high resolution)")
-    axes2D[-1, 1].set_xlabel("days")
-    show_or_save("fig_compareASLsize")
-
 def ustar_comparison(*args, **kwargs): # see star_comparison
     return star_comparison(*args, **kwargs, ustar=True)
 def tstar_comparison(*args, **kwargs): # see star_comparison
@@ -587,37 +563,6 @@ def star_comparison(ax, sf_scheme_a: str, sf_scheme_o: str,
     ax.plot(np.linspace(0, number_of_days, N_plot+1), friction_scale,
             style, label=label)
 
-def fig_compareASLsize_ustar():
-    fig, axes = plt.subplots(2,1, sharex=True)
-    fig.subplots_adjust(hspace=0.67)
-    colors= {False:["r", "b", "y"],
-            True:["r--", "b--", "y--"],
-            }
-    for high_res in (False, True):
-        all_delta_sl = (5./3, 5., 1.) if high_res \
-                else (5., 5., 1.)
-        for sf_scheme_a, delta_sl_a, style in tqdm(zip(
-            ("FD pure", "FV free", "FV free"),
-            all_delta_sl, colors[high_res]), leave=False, total=4):
-            ustar_comparison(axes[0], sf_scheme_a,
-                "FD pure",
-                vmin=278., vmax=281.5, ITERATION=1,
-                delta_sl_a=delta_sl_a, high_res=high_res,
-                ignore_cached=False, style=style, label_atm=True)
-            tstar_comparison(axes[1], sf_scheme_a,
-                "FD pure",
-                vmin=278., vmax=281.5, ITERATION=1,
-                delta_sl_a=delta_sl_a, high_res=high_res,
-                ignore_cached=False, style=style, label_atm=True)
-
-    axes[0].set_ylim(top=0.223, bottom=0.16)
-    axes[1].set_ylim(top=0.005, bottom=-0.0025)
-    axes[0].set_ylabel("u*")
-    axes[1].set_ylabel(r"$\theta^\star$")
-    axes[1].set_xlabel("days")
-    axes[1].legend()
-    show_or_save("fig_compareASLsize_ustar")
-
 def fig_referenceCoupling():
     fig, axes2D = plt.subplots(4,2, sharex=True, sharey=True)
     fig.subplots_adjust(hspace=0.67)
@@ -640,36 +585,6 @@ def fig_referenceCoupling():
     axes2D[-1, 0].set_xlabel("days (high resolution)")
     axes2D[-1, 1].set_xlabel("days")
     show_or_save("fig_referenceCoupling")
-
-def fig_referencefrictionScales():
-    fig, axes = plt.subplots(2, sharex=True, sharey=False)
-    fig.subplots_adjust(hspace=0.67)
-    colors= {False:["r", "g", "b", "y"],
-            True:["r--", "g--", "b--", "y--"],
-            }
-    for high_res in (False, True):
-        all_delta_sl = (-.5/3, 0., -.5, 0.) if high_res \
-                else (-.5, 0., -.5, 0.)
-        for sf_scheme_o, delta_sl_o, style in tqdm(zip(\
-            ("FD pure", "FD pure", "FV free", "FV test"),
-            all_delta_sl, colors[high_res]), leave=False, total=4):
-            ustar_comparison(axes[0],
-                "FD pure", sf_scheme_o,
-                vmin=278., vmax=281.5, ITERATION=1,
-                delta_sl_o=delta_sl_o, high_res=high_res,
-                ignore_cached=False, style=style, label_atm=False)
-            tstar_comparison(axes[1],
-                "FD pure", sf_scheme_o,
-                vmin=278., vmax=281.5, ITERATION=1,
-                delta_sl_o=delta_sl_o, high_res=high_res,
-                ignore_cached=False, style=style, label_atm=False)
-    axes[0].set_ylim(top=0.223, bottom=0.205)
-    axes[1].set_ylim(top=0.0077, bottom=-0.0072)
-    axes[0].set_ylabel("u*")
-    axes[1].set_ylabel(r"$\theta^\star$")
-    axes[1].set_xlabel("days")
-    axes[1].legend()
-    show_or_save("fig_referencefrictionScales")
 
 def fig_colorplotCoupling():
     fig, axes2D = plt.subplots(4,2, sharex=True, sharey=True)
@@ -704,139 +619,6 @@ def fig_alpha_sl():
     ax.set_ylabel(r"$\alpha_{sl}$")
     fig.legend(loc="center right")
     show_or_save("fig_alpha_sl")
-
-def fig_animCoupling():
-    dt_oce = 90. # oceanic time step
-    dt_atm = 30. # atmosphere time step
-    number_of_days = 3.3
-    # TODO radiation is not working well:
-    # changing delta_sl changes *everything* when Qswmax is
-    # increased
-    T = 86400 * number_of_days # length of the time window
-    states_atmFD, states_oceFD, _, _ = \
-        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
-                sf_scheme_a="FD2", sf_scheme_o="FD2"
-                , ignore_cached=True)
-    states_atm, states_oce, za, zo = \
-        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
-                sf_scheme_a="FV free", sf_scheme_o="FV free",
-                ignore_cached=True)
-    state_atm = states_atm[-1]
-    state_oce = states_oce[-1]
-    state_atmFD = states_atmFD[-1]
-    state_oceFD = states_oceFD[-1]
-    fig, axes = plt.subplots(2, 2)
-    all_ua = np.real(np.array(state_atm.other["all_u"]))
-    all_uo = np.real(np.array(state_oce.other["all_u"]))
-    all_ta = np.array(state_atm.other["all_theta"])
-    all_to = np.array(state_oce.other["all_theta"])
-    all_uaFD = np.real(np.array(state_atmFD.other["all_u"]))
-    all_uoFD = np.real(np.array(state_oceFD.other["all_u"]))
-    all_taFD = np.array(state_atmFD.other["all_theta"])
-    all_toFD = np.array(state_oceFD.other["all_theta"])
-    line_ua, = axes[0, 0].plot(all_ua[-1], za)
-    line_ta, = axes[0, 1].plot(all_ta[-1], za)
-    line_uo, = axes[1, 0].plot(all_uo[-1], zo)
-    line_to, = axes[1, 1].plot(all_to[-1], zo)
-    line_uaFD, = axes[0, 0].plot(all_uaFD[-1], za)
-    line_taFD, = axes[0, 1].plot(all_taFD[-1], za)
-    line_uoFD, = axes[1, 0].plot(all_uoFD[-1], zo)
-    line_toFD, = axes[1, 1].plot(all_toFD[-1], zo)
-    axes[0,0].set_yscale("symlog", linthresh=1.)
-    axes[0,1].set_yscale("symlog", linthresh=1.)
-    axes[1,0].set_yscale("symlog", linthresh=0.1)
-    axes[1,1].set_yscale("symlog", linthresh=0.1)
-
-    def init():
-        axes[1, 1].set_xlim(270., 290.)
-        axes[0, 1].set_xlim(270., 290.)
-        axes[0, 0].set_xlim(-4., 15.)
-        axes[1, 0].set_xlim(-4., 15.)
-        axes[0, 0].set_ylim(za[0], za[-1])
-        axes[0, 1].set_ylim(za[0], za[-1])
-        axes[1, 0].set_ylim(zo[0], zo[-1])
-        axes[1, 1].set_ylim(zo[0], zo[-1])
-        return line_ua, line_ta, line_uo, line_to, \
-            line_uaFD, line_taFD, line_uoFD, line_toFD
-    N_oce = int(T/dt_oce)
-
-    uaFD = np.zeros((N_oce+1, all_ua.shape[1]))
-    taFD = np.zeros((N_oce+1, all_ta.shape[1]))
-    ua = np.zeros((N_oce+1, all_ua.shape[1]))
-    ta = np.zeros((N_oce+1, all_ta.shape[1]))
-    for i in range(all_ua.shape[1]):
-        ua[:, i] = projection(all_ua[:, i], N_oce)
-        ta[:, i] = projection(all_ta[:, i], N_oce)
-        uaFD[:, i] = projection(all_uaFD[:, i], N_oce)
-        taFD[:, i] = projection(all_taFD[:, i], N_oce)
-    def update(frame):
-        line_ua.set_data(ua[frame], za)
-        line_ta.set_data(ta[frame], za)
-        line_uo.set_data(all_uo[frame], zo)
-        line_to.set_data(all_to[frame], zo)
-
-        line_uaFD.set_data(uaFD[frame], za)
-        line_taFD.set_data(taFD[frame], za)
-        line_uoFD.set_data(all_uoFD[frame], zo)
-        line_toFD.set_data(all_toFD[frame], zo)
-        return line_ua, line_ta, line_uo, line_to, \
-            line_uaFD, line_taFD, line_uoFD, line_toFD
-    ani = FuncAnimation(fig, update,
-            frames=range(0, N_oce, 1),
-                    init_func=init, blit=True)
-
-    show_or_save("fig_animCoupling")
-
-def fig_launchOcean():
-    PLOT_FOR = True
-    dt = 30.
-    f = 0.
-    T0, alpha, N0 = 16., 0.0002, 0.01
-    z_levels_oce = np.concatenate((-np.linspace(30,0,31)**1.5-50,
-        np.linspace(-50., 0., 51)))
-    simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
-            dt=dt, u_geostrophy=0., f=f, alpha=alpha,
-            N0=N0)
-
-    N_FOR = nb_steps = 3600
-    N = N_FOR + 1
-    time = dt * np.arange(N+1)
-    rho0, cp, Qswmax = 1024., 3985., 0.
-    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.5)), 0. ) * \
-            Qswmax / (rho0*cp)
-    Qsw, Qlw = srflx * rho0*cp, np.zeros_like(srflx)
-    u_0 = np.zeros(simulator_oce.M)
-    phi_0 = np.zeros(simulator_oce.M+1)
-    theta_0 = T0 - N0**2 * np.abs(simulator_oce.z_half[:-1]) / alpha / 9.81
-    dz_theta_0 = np.ones(simulator_oce.M+1) * N0**2 / alpha / 9.81
-    wind_10m = np.ones(N+1) * 2. + 0j
-    temp_10m = np.ones(N+1) * 240
-
-    ret = simulator_oce.FV(u_t0=u_0, phi_t0=phi_0, theta_t0=theta_0,
-            dz_theta_t0=dz_theta_0, Q_sw=Qsw, Q_lw=Qlw,
-            u_star=np.ones(N+1)*0.01,
-            t_star=np.ones(N+1)*1e-6,
-            delta_sl_a=10.,
-            u_delta=0., t_delta=240.,
-            wind_10m=wind_10m,
-            temp_10m=temp_10m, sf_scheme="FV test")
-    u_current, phi, theta, dz_theta, SL = [ret[x] for x in \
-            ("u", "phi", "theta", "dz_theta", "SL")]
-
-    zFV, uFV, thetaFV = simulator_oce.reconstruct_FV(u_current,
-            phi, theta, dz_theta, SL, ignore_loglaw=True)
-
-    #### Getting fortran part ####
-    name_file = "fortran/t_final_tke.out"
-    ret_for, z_for = import_data(name_file)
-
-    #### Plotting both #####
-    fig, ax = plt.subplots(1, 1)
-    if PLOT_FOR:
-        ax.plot(ret_for, z_for, label="Fortran")
-    ax.plot(thetaFV, zFV, "--", label="Python")
-    ax.legend()
-    show_or_save("fig_launchOcean")
 
 def fig_consistency_comparisonUnstable():
 
@@ -1063,7 +845,7 @@ def fig_sensitivity_delta_sl():
         axes_zoom[0].plot(np.abs(u_fv), z_fv, **settings)
         axes[1].plot(np.angle(u_fv), z_fv, **settings)
         axes_zoom[1].plot(np.angle(u_fv), z_fv, **settings)
-    axes[0].set_xlabel(r"$||u||\;({\rm m})$")
+    axes[0].set_xlabel(r"$||u||\;({\rm m}.{\rm s}^{-1})$")
     axes[1].set_xlabel(r"Arg$(u)$ (rad)")
     axes[0].set_ylabel(r"$z\;({\rm m})$")
     # axes[1].set_ylabel(r"$z\;({\rm m})$")
@@ -1074,7 +856,7 @@ def fig_sensitivity_delta_sl():
     axes[1].set_xlim(right=0.47, left=-0.05)
 
     # axes zoom:
-    axes_zoom[0].set_xlabel(r"$||u||\;({\rm m})$")
+    axes_zoom[0].set_xlabel(r"$||u||\;({\rm m}.{\rm s}^{-1})$")
     axes_zoom[1].set_xlabel(r"Arg$(u)$ (rad)")
     axes_zoom[0].set_ylabel(r"$z\;({\rm m})$")
     axes_zoom[1].set_ylabel(r"$z\;({\rm m})$")
@@ -1143,7 +925,7 @@ def fig_consistency_comparisonNeutral():
                 **settings)
     axes[0].set_xlabel("Time (hours)")
     axes[0].set_ylabel(r"Relative $u_\star$ difference")
-    axes[1].set_xlabel(r"$||u||$")
+    axes[1].set_xlabel(r"$||u||\;({\rm m}.{\rm s}^{-1})$")
     axes[1].set_ylabel(r"$z$ (m)")
     axes[2].set_xlabel(r"Relative $u$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
@@ -1207,7 +989,7 @@ def fig_Stratified():
         axes[0].plot(hours_plot, ustar_lowres, **settings)
     axes[0].set_xlabel("Time (hours)")
     axes[0].set_ylabel(r"$u_\star$")
-    axes[1].set_xlabel(r"$||u||$")
+    axes[1].set_xlabel(r"$||u||\;({\rm m}.{\rm s}^{-1})$")
     axes[1].set_ylabel(r"$z$ (m)")
     axes[2].set_xlabel(r"$\theta$ (K)")
     axes[2].set_ylabel(r"$z$ (m)")
