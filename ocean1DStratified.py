@@ -541,9 +541,10 @@ class Ocean1dStratified():
 
         z_sl = z_levels[SL.k:]
         phi_m, *_ = universal_funcs
-        mxlm[SL.k:] = 1/l_down[SL.k:] / tke[SL.k:] * (SL.u_star * \
+        mxlm[SL.k:] = np.sqrt(1/ tke[SL.k:] \
+                * (SL.u_star * \
                 self.kappa * (-z_sl + SL.z_0M) / self.C_m / \
-                phi_m(-z_sl * SL.inv_L_MO))**2
+                phi_m(-z_sl * SL.inv_L_MO))**2)
         # surface wave breaking parameterization:
         if wave_breaking:
             mxl0 = 0.04
@@ -555,8 +556,8 @@ class Ocean1dStratified():
         for j in range(SL.k - 1, -1, -1):
             l_up[j] = min(l_up[j+1] + h_half[j], mxlm[j])
 
-        l_m = np.sqrt(l_up*l_down)
-        l_eps = np.minimum(l_down, l_up)
+        l_eps = np.sqrt(l_up*l_down)
+        l_m = np.minimum(l_down, l_up)
         return l_m, l_eps
 
 

@@ -44,7 +44,7 @@ DEFAULT_z_levels_stratified = np.linspace(0, 400, 65)
 IFS_z_levels = np.flipud(np.array((1600.04, 1459.58, 1328.43,
     1206.21, 1092.54, 987.00, 889.17, 798.62, 714.94, 637.70,
     566.49, 500.91, 440.58, 385.14, 334.22, 287.51, 244.68,
-    205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
+    205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.,
     10.00))) - 10. # Not really IFS levels, since the list here
 # is actually z_half. So the correct way would be to add 0
 # and to take the middle of all space step here
@@ -318,7 +318,7 @@ def fig_mixing_lengths():
     return z_fv, u_fv, theta_fv, z_tke, TKE, ustar
     """
     sf_scheme: str = "FV free"
-    z_levels: np.nd_array = IFS_z_levels
+    z_levels: np.nd_array = np.copy(IFS_z_levels)
     dt: float = 10.
     N: int = 3240
     u_G=8.
@@ -377,12 +377,13 @@ def fig_mixing_lengths():
     axes[0].plot(simulator.ldown_copy, z_levels,
             label=r"$l_{down}$", color=colors[2])
     axes[0].plot(np.sqrt(simulator.lup_copy * simulator.ldown_copy),
-            z_levels, "--", label=r"$l_{m}$", color=colors[3])
+            z_levels, "--", label=r"$l_{\epsilon}$",
+            color=colors[3])
     axes[0].set_ylabel("z (m)")
     axes[0].set_xlabel("Mixing length (m)")
     axes[0].set_ylim(top=300., bottom=0.)
     axes[1].set_ylim(top=300., bottom=0.)
-    axes[1].set_xlim(left=0., right=0.215)
+    axes[1].set_xlim(left=0., right=0.255)
     axes[0].legend()
 
     axes[1].plot(ret["tke"], z_levels, "k")
@@ -869,7 +870,7 @@ def fig_sensitivity_delta_sl():
     axes_zoom[0].set_ylim(top=30, bottom=0.)
     axes_zoom[1].set_ylim(top=30, bottom=0.)
     axes_zoom[0].set_xlim(right=6., left=3.25)
-    axes_zoom[1].set_xlim(right=0.493, left=0.46)
+    axes_zoom[1].set_xlim(right=0.5001, left=0.467)
     fig.legend(loc=(0.45, 0.2))
     show_or_save("fig_sensitivity_delta_sl")
 
@@ -939,7 +940,7 @@ def fig_consistency_comparisonNeutral():
     axes[0].set_ylim(top=0.125, bottom=0.)
     axes[1].set_ylim(top=220., bottom=0.)
     axes[2].set_ylim(top=220., bottom=0.)
-    axes[2].set_xlim(left=3e-4, right=0.11)
+    axes[2].set_xlim(left=3e-4, right=0.14)
     # axes[2].set_xlim(left=1e-4, right=1.4)
 
     fig.legend(loc=(0.12, 0.12))
@@ -1312,7 +1313,7 @@ def plot_FV(axes, sf_scheme, delta_sl, dt=60., N=1680,
     axes[3].plot(dt*np.array(range(len(ustar))), ustar, **style)
 
 def memoisable_compute_sfNeutral(sf_scheme, delta_sl, dt, N):
-    return compute_with_sfNeutral(z_levels=IFS_z_levels,
+    return compute_with_sfNeutral(z_levels=np.copy(IFS_z_levels),
             sf_scheme=sf_scheme, delta_sl=delta_sl, dt=dt, N=N)
 
 def compute_FD_sfNeutral(sf_scheme, dt, N):
@@ -1464,7 +1465,7 @@ def fig_consistency_comparison():
         with TKE turbulence scheme.
     """
     z_levels= np.linspace(0, 1500, 41)
-    z_levels= IFS_z_levels
+    z_levels= np.copy(IFS_z_levels)
     z_levels_les= np.linspace(0, IFS_z_levels[-1], 401)
     z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
     # for FV with FV interpretation of sf scheme,

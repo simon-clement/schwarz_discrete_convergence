@@ -548,16 +548,19 @@ class Atm1dStratified():
         # saving lD80:
         self.lD80_copy = np.copy(mxlm)
 
-        mxlm[:k_modif] = (ratio/l_up[:k_modif])**(3/5)
+        mxlm[:k_modif] = (ratio/np.cbrt(l_up[:k_modif]))**(3/7)
         mask_min_is_lup = mxlm[:k_modif]>l_up[:k_modif]
         mxlm[:k_modif][mask_min_is_lup] = \
-                (ratio/ l_up[:k_modif]**(5/3))[mask_min_is_lup]
+                np.cbrt(ratio/ l_up[:k_modif]**(7/3))[mask_min_is_lup]
+        explicit_ldown = self.explicit_ldown
         if (mxlm[:k_modif] < l_up[:k_modif])[mask_min_is_lup].any():
             print("no solution of the link MOST-TKE")
-        if self.explicit_ldown:
-            mxlm[:k_modif] = 1/l_up[:k_modif] / tke[:k_modif] * \
+            mxlm[:k_modif] = (ratio/np.cbrt(l_up[:k_modif]))**(3/7)
+
+        if explicit_ldown:
+            mxlm[:k_modif] = np.sqrt(1 / tke[:k_modif] * \
                   (SL.u_star * self.kappa * (z_sl + SL.z_0M) \
-                  / self.C_m / phi_m(z_sl * SL.inv_L_MO))**2
+                  / self.C_m / phi_m(z_sl * SL.inv_L_MO))**2)
 
         # limiting l_down with the distance to the bottom:
         l_down[k_modif-1] = z_levels[k_modif-1]
@@ -569,8 +572,8 @@ class Atm1dStratified():
         self.lup_copy = np.copy(l_up)
         self.ldown_copy = np.copy(l_down)
 
-        l_m = np.maximum(np.sqrt(l_up*l_down), self.lm_min)
-        l_eps = np.minimum(l_down, l_up)
+        l_eps = np.maximum(np.sqrt(l_up*l_down), self.lm_min)
+        l_m = np.minimum(l_down, l_up)
         return l_m, l_eps
 
     def reconstruct_FV(self, u_bar: array, phi: array, theta: array,
@@ -875,10 +878,11 @@ class Atm1dStratified():
             N2_full[:k+1] = g/theta_ref * SL.t_star * phi_h(\
                 z_levels[:k+1] * SL.inv_L_MO) / self.kappa / \
                 (z_levels[:k+1] + SL.z_0H)
-            dzu2_full = np.concatenate((\
-                    [np.abs(phi[0] * phi_second[0])],
-                np.abs(phi[1:-1]*(phi_prime[:-1]+phi_second[1:])),
-                [np.abs(phi[-1] * phi_prime[-1])]))
+            # dzu2_full = np.concatenate((\
+            #         [np.abs(phi[0] * phi_second[0])],
+            #     np.abs(phi[1:-1]*(phi_prime[:-1]+phi_second[1:])),
+            #     [np.abs(phi[-1] * phi_prime[-1])]))
+            dzu2_full = np.abs(phi*phi)
             # MOST profiles cause troubles with FV free (high res):
             # dzu2_full[:k+1] = SL.u_star**2 * \
             #         phi_m(z_levels[:k+1]*SL.inv_L_MO)**2 / \
@@ -917,7 +921,20 @@ class Atm1dStratified():
                             ) / phi_m(delta_sl*inv_L_MO)
                 # by doing this, phi_0 would not mean correspond
                 # to dzu(z0) neither to dzu(delta_sl)
-
+            else:
+                Ktheta_full_replacement = \
+                        (self.kappa * u_star*(delta_sl + \
+                        SL.z_0M)) / phi_h((delta_sl) * \
+                        inv_L_MO)
+                K_full_replacement = \
+                        (self.kappa * u_star*(delta_sl + \
+                        SL.z_0M)) / phi_m((delta_sl) * \
+                        inv_L_MO)
+                if abs(K_full_replacement - K_full[SL.k])>1e-10:
+                    # print(SL.sf_scheme,
+                    #       K_full_replacement, K_full[SL.k])
+                    pass
+                # assert abs(K_full_replacement - K_full[SL.k])<1e-1
 
         else:
             raise NotImplementedError("Wrong turbulence scheme")
