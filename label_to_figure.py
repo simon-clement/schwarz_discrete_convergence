@@ -11,5 +11,6 @@ FIGURE["4.12"] = "fig_consistency_comparisonNeutral"
 FIGURE["4.13"] = "fig_Stratified"
 FIGURE["4.14"] = "fig_consistency_comparisonStratified"
 FIGURE["4.15"] = "fig_consistency_comparisonUnstable"
+FIGURE["4.17"] = "fig_consistency_comparisonCoupled"
 
 ALL_LABELS = FIGURE

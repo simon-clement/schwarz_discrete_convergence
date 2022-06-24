@@ -95,9 +95,9 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
 
     if delta_sl_a is None:
         if sf_scheme_a in {"FV free", "FV test",
-                "FD pure", "FD test"}:
+                "FD pure", "FD test", "FV1"}:
             delta_sl_a = z_levels_atm[1]/2.
-        else: # sf_scheme_a == "FD2":
+        else: # sf_scheme_a == "FD2", "FV2", "FVNishizawa":
             delta_sl_a = z_levels_atm[1]
     assert not (sf_scheme_o == "FV free" and abs(delta_sl_o)<1e-2)
     assert not (sf_scheme_a == "FV free" and abs(delta_sl_a)<1e-2)
@@ -135,7 +135,8 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
                         state_atm.last_tstep["theta"],
                         state_atm.last_tstep["dz_theta"],
                         state_atm.other["SL"],
-                        ignore_loglaw=(sf_scheme_a != "FV free"))
+                        ignore_loglaw=(sf_scheme_a not in \
+                                {"FV free", "FV2"}))
     else:
         za = simulator_atm.z_half[:-1]
 
@@ -656,7 +657,7 @@ def fig_consistency_comparisonUnstable():
             setting_FV2, setting_FDpure,
             setting_FVfree)
 
-    dt: float = 40.
+    dt: float = 30.
     number_of_days = 4.2
     u_G: float = 8.
     N: int = int(number_of_days*24*3600 / dt)
@@ -757,6 +758,141 @@ def fig_consistency_comparisonUnstable():
     axesAbsolute[3].set_ylim(top=300., bottom=0.)
 
     show_or_save("fig_consistency_comparisonUnstable")
+
+def fig_consistency_comparisonCoupled():
+
+    setting_FVfree = {'sf_scheme': 'FV free',
+                'delta_sl_lr': 5.,
+                'delta_sl_hr': 5.,
+                }
+    setting_FVNishizawa = {'sf_scheme': 'FVNishizawa',
+                'delta_sl_lr': 9.999,
+                'delta_sl_hr': 9.999/3,
+                }
+    setting_FV2 = {'sf_scheme': 'FV2',
+                'delta_sl_lr': 10.,
+                'delta_sl_hr': 10./3,
+                }
+    setting_FVpure = {'sf_scheme': 'FV pure',
+                'delta_sl_lr': 5.,
+                'delta_sl_hr': 5./3,
+                }
+    setting_FDpure = {'sf_scheme': 'FD pure',
+                'delta_sl_lr': 5.,
+                'delta_sl_hr': 5./3,
+                }
+    settings_plot = settings_plot_sf_scheme(\
+            z_levels=np.array([0,10]))
+    settings = (setting_FVpure, setting_FVNishizawa,
+            setting_FV2, setting_FDpure,
+            setting_FVfree)
+
+    dt: float = 30.
+    number_of_days = 4.
+    u_G: float = 8.
+    N: int = int(number_of_days*24*3600 / dt)
+    T: float = dt*N
+    days_simu = np.linspace(0, T/3600/24, N)
+    days_plot = np.linspace(0, T/3600/24, 300)
+    fig, axd = plt.subplot_mosaic([['ustar', 'u', 'theta'],
+                                   ['tstar', 'u', 'theta'],
+                           ['ustar-diff', 'u-diff', 'theta-diff'],
+                           ['tstar-diff', 'u-diff', 'theta-diff']],
+            figsize=(7.5, 6.5))
+    axesAbsolute = [axd[k] for k in ('ustar', 'tstar', 'u', 'theta')]
+    axes = [axd[k] for k in ('ustar-diff', 'tstar-diff', 'u-diff', 'theta-diff')]
+    fig.subplots_adjust(left=0.108, right=0.9,
+            wspace=0.55, hspace=0.68, top=0.95)
+
+    for setting in settings:
+        sf_scheme = setting["sf_scheme"]
+        delta_sl_lr = setting["delta_sl_lr"]
+        delta_sl_hr = setting["delta_sl_hr"]
+        state_atm_lr, _, z_fv_lr, _ = memoised(\
+                simulation_coupling, dt, dt, T,
+                False, sf_scheme, "FD pure", 0., delta_sl_lr,
+                high_res=False)
+        state_atm_hr, _, z_fv_hr, _ = memoised(\
+                simulation_coupling, dt, dt, T,
+                False, sf_scheme, "FD pure", 0., delta_sl_hr,
+                high_res=True)
+        state_atm_lr = state_atm_lr[-1]
+        state_atm_hr = state_atm_hr[-1]
+
+        plot_args = settings_plot[sf_scheme]
+        plot_args.pop("delta_sl")
+        plot_args.pop("sf_scheme")
+
+        u_hr = undersample(state_atm_hr.last_tstep["u"],
+                z_fv_hr, z_fv_lr)
+        t_hr = undersample(state_atm_hr.last_tstep["theta"],
+                z_fv_hr, z_fv_lr)
+        u_lr= state_atm_lr.last_tstep["u"]
+        t_lr= state_atm_lr.last_tstep["theta"]
+
+        ustar_lowres = undersample(state_atm_lr.u_star,
+                days_simu, days_plot)
+        ustar_highres = undersample(state_atm_hr.u_star,
+                days_simu, days_plot)
+
+        tstar_lowres = undersample(state_atm_lr.t_star,
+                days_simu, days_plot)
+        tstar_highres = undersample(state_atm_hr.t_star,
+                days_simu, days_plot)
+
+        diff_ustar = np.abs(ustar_lowres - ustar_highres) / \
+                np.abs(ustar_lowres)
+        diff_tstar = np.abs(tstar_lowres - tstar_highres)
+        axes[2].semilogx(np.abs(u_lr - u_hr) / \
+                            np.abs(u_lr), z_fv_lr, **plot_args)
+        plot_args.pop("label")
+        axes[3].plot(np.abs(t_lr-t_hr), z_fv_lr, **plot_args)
+        axesAbsolute[2].plot(np.abs(u_lr), z_fv_lr, **plot_args)
+        axesAbsolute[3].plot(t_lr, z_fv_lr, **plot_args)
+        plot_args.pop("marker", None)
+        axes[0].plot(days_plot, diff_ustar, **plot_args)
+        axes[1].plot(days_plot, diff_tstar, **plot_args)
+        axesAbsolute[0].plot(days_plot, ustar_lowres, **plot_args)
+        axesAbsolute[1].plot(days_plot, tstar_lowres, **plot_args)
+
+    axes[0].set_xlim(left=2.2, right=4.)
+    axes[1].set_xlim(left=2.2, right=4.)
+    axes[0].set_ylim(bottom=0., top=0.036)
+    axes[1].set_ylim(bottom=0., top=0.0005)
+    axes[1].set_xlabel("Time (days)")
+    axes[0].set_xlabel("Time (days)")
+    axes[0].set_ylabel(r"Relative $u_\star$ difference")
+    axes[1].set_ylabel(r"$t_\star$ difference")
+    axes[3].set_xlabel(r"$\theta$ difference (K)")
+    axes[3].set_ylabel(r"$z$ (m)")
+    axes[3].set_xlim(right=0.075, left=0.)
+    axes[3].set_ylim(top=300., bottom=0.)
+
+    axes[2].set_xlabel(r"Relative $u$ difference")
+    axes[2].set_ylabel(r"$z$ (m)")
+    axes[2].set_xlim(right=0.14, left=2e-3)
+    axes[2].set_ylim(top=300., bottom=0.)
+    fig.legend(loc=(0.78, 0.65))
+
+    ###### axesAbsolute legend, {x,y}lim
+    axesAbsolute[1].set_xlabel("Time (days)")
+    axesAbsolute[0].set_xlabel("Time (days)")
+    axesAbsolute[0].set_ylabel(r"$u_\star$")
+    axesAbsolute[1].set_ylabel(r"$t_\star$")
+    axesAbsolute[3].set_xlabel(r"$\theta$ (K)")
+    axesAbsolute[2].set_xlabel(r"$||u|| \;({\rm m}.{\rm s}^{-1})$")
+    axesAbsolute[2].set_ylabel(r"$z$ (m)")
+    axesAbsolute[3].set_ylabel(r"$z$ (m)")
+    axesAbsolute[0].set_xlim(left=2.2, right=4.)
+    axesAbsolute[0].set_ylim(bottom=0.205, top=0.22)
+    axesAbsolute[1].set_xlim(left=2.2, right=4.)
+    axesAbsolute[1].set_ylim(bottom=-0.003, top=0.005)
+    axesAbsolute[2].set_xlim(left=4., right=9.1)
+    axesAbsolute[2].set_ylim(top=300., bottom=0.)
+    axesAbsolute[3].set_ylim(top=300., bottom=0.)
+
+    show_or_save("fig_consistency_comparisonCoupled")
+
 
 def ustar_u_low_and_high_res_neutral(sf_scheme: str, u_G: float):
     z_levels: np.ndarray = np.copy(IFS_z_levels_stratified)
