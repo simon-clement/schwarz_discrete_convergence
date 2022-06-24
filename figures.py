@@ -61,7 +61,10 @@ def fig_forcedOcean():
 def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str,
         delta_sl_o: float=None, delta_sl_a: float=None,
-        NUMBER_SCHWARZ_ITERATION: int=3, high_res: bool=False):
+        NUMBER_SCHWARZ_ITERATION: int=3, high_res: bool=False,
+        high_res_o: bool=None):
+    if high_res_o is None:
+        high_res_o= high_res
     f = 1e-4 # Coriolis parameter
     time = np.linspace(0, T) # number of time steps is not important
     # because of the projection
@@ -75,8 +78,9 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         np.linspace(-50., 0., 51)))
     z_levels_atm = np.concatenate((np.linspace(0.,500, 51),
         10*np.linspace(1,15,15)**1.5+500))
-    if high_res:
+    if high_res_o:
         z_levels_oce = oversample(z_levels_oce, 3)
+    if high_res:
         z_levels_atm = oversample(z_levels_atm, 3)
     simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
             dt=dt_oce, u_geostrophy=0., f=f, alpha=alpha,
@@ -713,7 +717,7 @@ def fig_consistency_comparisonUnstable():
         axes[2].semilogx(np.abs(u_lr - u_hr) / \
                             np.abs(u_lr), z_fv_lr, **plot_args)
         plot_args.pop("label")
-        axes[3].semilogx(np.abs(t_lr-t_hr), z_fv_lr, **plot_args)
+        axes[3].plot(t_lr-t_hr, z_fv_lr, **plot_args)
         axesAbsolute[2].plot(np.abs(u_lr), z_fv_lr, **plot_args)
         axesAbsolute[3].plot(t_lr, z_fv_lr, **plot_args)
         plot_args.pop("marker", None)
@@ -732,7 +736,7 @@ def fig_consistency_comparisonUnstable():
     axes[1].set_ylabel(r"$t_\star$ difference")
     axes[3].set_xlabel(r"$\theta$ difference (K)")
     axes[3].set_ylabel(r"$z$ (m)")
-    axes[3].set_xlim(right=0.13, left=1e-4)
+    axes[3].set_xlim(right=0.09, left=0.)
     axes[3].set_ylim(top=300., bottom=0.)
 
     axes[2].set_xlabel(r"Relative $u$ difference")
@@ -815,7 +819,7 @@ def fig_consistency_comparisonCoupled():
         state_atm_hr, _, z_fv_hr, _ = memoised(\
                 simulation_coupling, dt, dt, T,
                 False, sf_scheme, "FD pure", 0., delta_sl_hr,
-                high_res=True)
+                high_res=True, high_res_o=False)
         state_atm_lr = state_atm_lr[-1]
         state_atm_hr = state_atm_hr[-1]
 
