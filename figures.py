@@ -741,7 +741,7 @@ def fig_consistency_comparisonUnstable():
 
     axes[2].set_xlabel(r"Relative $u$ difference")
     axes[2].set_ylabel(r"$z$ (m)")
-    axes[2].set_xlim(right=0.04, left=1e-3)
+    axes[2].set_xlim(right=0.14, left=2e-3)
     axes[2].set_ylim(top=300., bottom=0.)
     fig.legend(loc=(0.78, 0.65))
 
