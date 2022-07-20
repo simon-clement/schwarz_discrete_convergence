@@ -174,6 +174,38 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
 
     return states_atm, states_oce, za, zo
 
+def fig_schwarzConvergence():
+    dt_oce = 90. # oceanic time step
+    dt_atm = 30. # atmosphere time step
+    number_of_days = 1.
+    NUMBER_ITERATIONS = 8
+    T = 86400 * number_of_days # length of the time window
+    states_atm_pure, _, _, _ = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                sf_scheme_a="FD pure", sf_scheme_o="FD pure",
+                NUMBER_SCHWARZ_ITERATION=NUMBER_ITERATIONS)
+    states_atm_free, _, _, _ = \
+        memoised(simulation_coupling, dt_oce, dt_atm, T, True,
+                sf_scheme_a="FV free", sf_scheme_o="FD pure",
+                NUMBER_SCHWARZ_ITERATION=NUMBER_ITERATIONS)
+    # we now extract the surface $u$
+    all_u_interface_pure = []
+    all_u_interface_free = []
+    for state_atm in states_atm_pure:
+        all_u_interface_pure += [np.array(state_atm.other["all_u"])[:, 0]]
+    for state_atm in states_atm_free:
+        all_u_interface_free += [np.array(state_atm.other["all_u"])[:, 0]]
+    # for state_atm in states_atm:
+    #     all_u_interface += [np.array(state_atm.other["all_u_star"])]
+    all_du_interface_pure = np.array(all_u_interface_pure) - \
+            all_u_interface_pure[-1]
+    all_du_interface_free = np.array(all_u_interface_free) - \
+            all_u_interface_free[-1]
+    fig, ax = plt.subplots(1,1)
+    ax.semilogy(np.linalg.norm(all_du_interface_pure, axis=-1)[:-1], label="FD pure")
+    ax.semilogy(np.linalg.norm(all_du_interface_free, axis=-1)[:-1], label="FV free")
+    show_or_save("fig_schwarzConvergence")
+
 def half_to_full(z_half: np.ndarray, ocean: bool):
     z_min = z_half[0] + z_half[0] - z_half[1] if ocean else 0.
     z_max = z_half[-1] + z_half[-1] - z_half[-2] if not ocean else 0.
