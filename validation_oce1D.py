@@ -185,7 +185,7 @@ def fig_constantCooling():
     f = 1e-2
     alpha = 0.0002
     N0 = np.sqrt(alpha*9.81* 0.1)
-    T0 = 16.
+    T0 = 279+16.
     z_levels = np.linspace(-50., 0., 51)
     simulator_oce = Ocean1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,
@@ -290,7 +290,7 @@ def fig_constantCooling():
 def fig_windInduced():
     dt = 30.
     f = 1e-2
-    T0, alpha, N0 = 16., 0.0002, 0.01
+    T0, alpha, N0 = 279+16., 0.0002, 0.01
     z_levels = np.linspace(-50., 0., 51)
     simulator_oce = Ocean1dStratified(z_levels=z_levels,
             dt=dt, u_geostrophy=0., f=f, alpha=alpha,

@@ -58,6 +58,104 @@ def fig_forcedOcean():
     from validation_oce1D import forcedOcean
     return forcedOcean("FD2")
 
+def fig_ZengAgainstOthers():
+    dt_oce = 30.
+    dt_atm = 10.
+    T = 24*60*60.
+    delta_sl_o = None
+
+    def simu_coupled(sf_o: str, delta_o: float, high_res_o: bool,
+            ignore_cached: bool=False):
+        sf_scheme_a = "FV free"
+        delta_sl_a = None
+        store_all = False
+        NUMBER_IT = 2
+        _, states, _, zo = memoised(simulation_coupling, dt_oce,
+                dt_atm, T, store_all, sf_scheme_a, sf_o,
+                delta_o, delta_sl_a, NUMBER_IT,
+                False, high_res_o, ignore_cached=ignore_cached)
+        return states[-1], zo
+
+    def simu_forced(sf_o: str, delta_o: float, high_res_o: bool,
+            ignore_cached: bool=False):
+        sf_scheme_a = "FV free"
+        delta_sl_a = None
+        # harmonizing on FV Zeng so that
+        # it is forced with the same u*, t*
+        store_all = False
+        NUMBER_IT = 2
+        _, states, _, zo = memoised(simulation_coupling, dt_oce,
+                dt_atm, T, store_all, sf_scheme_a, sf_o,
+                delta_o, delta_sl_a, NUMBER_IT,
+                False, high_res_o, ignore_cached=ignore_cached)
+        return states[1], zo
+
+    colors=palette()
+    setting_FDpure = {'sf_scheme': 'FD pure',
+                'delta_sl_lr': -.5,
+                'delta_sl_hr': -.5/3,
+                'col': colors[0],
+                }
+    setting_FVpure = {'sf_scheme': 'FV test',
+                'delta_sl_lr': -.5,
+                'delta_sl_hr': -.5/3,
+                'col': colors[1],
+                }
+    setting_FVpure_nodelta = {'sf_scheme': 'FV test',
+                'delta_sl_lr': -.0,
+                'delta_sl_hr': -.0,
+                'col': colors[3],
+                }
+    setting_FVZeng = {'sf_scheme': 'FV Zeng',
+                'delta_sl_lr': -.5/3,
+                'delta_sl_hr': -.5/3,
+                'col': colors[2],
+                }
+    settings = (setting_FDpure, setting_FVpure, setting_FVpure_nodelta,
+            setting_FVZeng)
+    fig, axes = plt.subplots(1,2, sharey=True)
+    fig.subplots_adjust(right=0.67)
+
+    for setting in settings:
+        sf_scheme_o = setting["sf_scheme"]
+        delta_lr = setting["delta_sl_lr"]
+        state_lr, z_lr = simu_forced(sf_scheme_o, delta_lr, False,
+                ignore_cached=False)
+        delta_hr = setting["delta_sl_hr"]
+        state_hr, z_hr = simu_forced(sf_scheme_o, delta_hr, True)
+
+        axes[1].plot(np.abs(state_hr.last_tstep["theta"]), z_hr, "--",
+                color=setting["col"])
+        axes[1].plot(np.abs(state_lr.last_tstep["theta"]), z_lr,
+                color=setting["col"])
+        axes[0].plot(np.abs(state_hr.last_tstep["u"]), z_hr, "--",
+                color=setting["col"], label=sf_scheme_o+ " HR")
+        axes[0].plot(np.abs(state_lr.last_tstep["u"]), z_lr,
+                color=setting["col"],
+                label=sf_scheme_o+ " LR")
+        axes[1].set_yscale("symlog", linthresh=.02)
+        axes[0].set_yscale("symlog", linthresh=.02)
+        axes[0].set_xlabel(r"$u$ (${\rm m}.{\rm s}^{-1}$)")
+        axes[1].set_xlabel(r"$\theta$ (${\rm K}$)")
+        axes[1].set_xlim(left=279.8, right=280.1)
+    fig.legend(loc="center right")
+
+    show_or_save("fig_ZengAgainstOthers")
+
+
+def fig_compare_two_sided_one_sided():
+    dt_oce = 30.
+    dt_atm = 10.
+    T = 24*60*60. # one day
+    states_aOS, states_oOS, za, zo = simulation_coupling(dt_oce,
+            dt_atm, T, False, "FV free", "FD pure", delta_sl_o=0.)
+    states_aTS, states_oTS, _, _ = simulation_coupling(dt_oce,
+            dt_atm, T, False, "FV free", "FD pure", delta_sl_o=-.5)
+    state_aTS = states_aTS[-1]
+    state_oTS = states_oTS[-1]
+    # TODO compare the profiles in the two cases.
+# TODO another figure for the implicit profile: see Charles' ?
+
 def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str,
         delta_sl_o: float=None, delta_sl_a: float=None,
@@ -156,7 +254,8 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
                         simulator_oce.reconstruct_FV(all_u[frame],
                         all_phi[frame], all_t[frame], all_dzt[frame],
                         all_SL[frame],
-                        ignore_loglaw=(sf_scheme_o != "FV free"))
+                        ignore_loglaw=(sf_scheme_o not in
+                            {"FV free", "FV Zeng"}))
         print("... Done.")
     elif not store_all and sf_scheme_o[:2] == "FV":
         for state_oce in states_oce[1:]:
@@ -168,7 +267,8 @@ def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
                         state_oce.last_tstep["theta"],
                         state_oce.last_tstep["dz_theta"],
                         state_oce.other["SL"],
-                        ignore_loglaw=(sf_scheme_o != "FV free"))
+                        ignore_loglaw=(sf_scheme_o not in
+                            {"FV free", "FV Zeng"}))
     else:
         zo = simulator_oce.z_half[:-1]
 
