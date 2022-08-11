@@ -180,20 +180,16 @@ class Ocean1dStratified():
                 k=k)
 
         ignore_tke_sl = sf_scheme in {"FV pure", "FV1", "FV test"}
-
         import tkeOcean1D
         wave_breaking = False
         tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
                 ignore_sl=ignore_tke_sl,
                 wave_breaking=wave_breaking)
-
         theta, dz_theta = np.copy(theta_t0), np.copy(dz_theta_t0)
 
         Ku_full: array = self.Ku_min + np.zeros(self.M+1)
         Ktheta_full: array = self.Ktheta_min + np.zeros(self.M+1)
 
-        z_levels_sl = np.copy(self.z_full)
-        z_levels_sl[k] = self.z_full[k] if ignore_tke_sl else delta_sl
         l_m = self.mxl_min*np.ones(self.M+1)
         l_eps = self.mxl_min*np.ones(self.M+1)
 
@@ -236,12 +232,15 @@ class Ocean1dStratified():
 
             if not Neutral_case:
                 # integrate in time potential temperature
-                absorption_sl = np.squeeze(shortwave_frac_sl(delta_sl))
-                if sf_scheme not in {"FV free", "FV Zeng"}:
-                    absorption_sl = 1. # for FV pure we want
-                    # to have a forcing that takes effect in the SL
+                z_levels_sw = np.copy(self.z_full)
+                if sf_scheme in {"FV free", "FV Zeng"}:
+                    z_levels_sw[k] = delta_sl
+                    absorption_sl = np.squeeze(shortwave_frac_sl(\
+                            delta_sl))
+                else: # for other sf schemes we want to have a forcing
+                    absorption_sl = 1. # that takes effect in the SL
                 swr_frac = shortwave_fractional_decay(self.M,
-                        np.diff(z_levels_sl)) * absorption_sl
+                        np.diff(z_levels_sw)) * absorption_sl
                 forcing_theta = -np.diff(swr_frac * Q_sw[n] \
                         / self.rho0 / self.C_p) / self.h_half[:-1]
                 theta, dz_theta = self.__step_theta(theta,
@@ -340,6 +339,7 @@ class Ocean1dStratified():
         import tkeOcean1D
         wave_breaking = False
         tke = tkeOcean1D.TkeOcean1D(self.M, "FD",
+                ignore_sl=True,
                 wave_breaking=wave_breaking)
         theta: array = np.copy(theta_t0)
         # Initializing viscosities and mixing lengths:
@@ -961,13 +961,13 @@ class Ocean1dStratified():
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
                        phi_m(-SL.delta_sl*SL.inv_L_MO)
-                assert abs(K_full_replacement - K_full[SL.k])<1e-10
+                # assert abs(K_full_replacement - K_full[SL.k])<1e-10
                 Ktheta_full_replacement = np.maximum((self.kappa * \
                         SL.u_star*(-SL.delta_sl \
                        + SL.z_0M)) / \
                        phi_h(-SL.delta_sl*SL.inv_L_MO),
                        self.Ktheta_min)
-                assert abs(Ktheta_full_replacement - Ktheta_full[SL.k])<1e-10
+                # assert abs(Ktheta_full_replacement - Ktheta_full[SL.k])<1e-10
             elif abs(SL.delta_sl) < 1e-2: # if there is no OSL,
                 # there is a numerical problem using the
                 # molecular viscosity; so we impose a viscosity
@@ -1599,12 +1599,12 @@ class Ocean1dStratified():
 
     def __sf_YDc_FVpure_theta(self, K_theta, SL, forcing_theta,
             **kwargs):
-        assert NotImplementedError("Please do not use FV pure" + \
+        raise NotImplementedError("Please do not use FV pure" + \
                 " surface flux scheme in ocean")
 
     def __sf_YDc_FV1_theta(self, K_theta, SL, forcing_theta,
             **kwargs):
-        assert NotImplementedError("Please do not use FV1" + \
+        raise NotImplementedError("Please do not use FV1" + \
                 " surface flux scheme in ocean")
 
     def __sf_YDc_FDtest_theta(self, K_theta, SL,
