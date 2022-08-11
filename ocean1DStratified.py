@@ -687,7 +687,7 @@ class Ocean1dStratified():
             # between the log profile and the next grid level:
             tilde_h = delta_sl - self.z_full[k1-1]
             assert 0 < tilde_h <= self.h_half[k1-1]
-            xi = np.linspace(-tilde_h/2, tilde_h/2, 15)
+            freeXi = np.linspace(-tilde_h/2, tilde_h/2, 15)
             tau_slu, _ = self.__tau_sl(SL, large_ocean)
             alpha_slu = tilde_h/self.h_half[k1-1] + tau_slu
 
@@ -695,31 +695,29 @@ class Ocean1dStratified():
                     (phi[k1]/3 + phi[k1-1]/6) - (1-alpha_slu)*u_zM)
 
             assert abs(self.z_full[k1]) < 1e-10
-            # it is sometimes computed as hsl = - delta_sl !
+            # hsl can be computed as hsl = - delta_sl !
             hsl = self.z_full[k1]-delta_sl
             h = hsl + tilde_h
             nu = 1.
-            theta_tilde = prognostic_t[SL.k1 + 1] - (hsl*hsl/h / (nu+1) \
-                    + tilde_h * hsl / 3 / h)* prognostic_t[SL.k1] \
-                    - tilde_h * hsl / 6 / h * prognostic_t[SL.k1-1]
+            theta_tilde = prognostic_t[SL.k + 1] - (hsl*hsl/h / (nu+1) \
+                    + tilde_h * hsl / 3 / h)* prognostic_t[SL.k] \
+                    - tilde_h * hsl / 6 / h * prognostic_t[SL.k-1]
 
-            u_freepart = u_tilde + (phi[k1] + phi[k1-1]) * xi/2 \
+            u_freepart = u_tilde + (phi[k1] + phi[k1-1]) * freeXi/2 \
                     + (phi[k1] - phi[k1-1]) / (2 * tilde_h) * \
-                    (xi**2 - tilde_h**2/12)
+                    (freeXi**2 - tilde_h**2/12)
 
             theta_freepart = theta_tilde \
-                    + (dz_theta[k1] + dz_theta[k1-1]) * xi/2 \
+                    + (dz_theta[k1] + dz_theta[k1-1]) * freeXi/2 \
                     + (dz_theta[k1] - dz_theta[k1-1]) / (2 * tilde_h)\
-                    * (xi**2 - tilde_h**2/12)
-
-            z_freepart = delta_sl + xi - tilde_h / 2
+                    * (freeXi**2 - tilde_h**2/12)
+            z_freepart = delta_sl + freeXi - tilde_h / 2
             # now we must change theta_log:
-            theta_sl = (prognostic_t[SL.k1+1] * h - \
+            theta_sl = (prognostic_t[SL.k+1] * h - \
                     tilde_h * theta_tilde) / hsl
-            theta_log = theta_sl + hsl/nu*prognostic_t[SL.k1]/(nu+1) \
-                    + hsl/nu * prognostic_t[SL.k1] / hsl**nu \
+            theta_log = theta_sl + hsl/nu*prognostic_t[SL.k]/(nu+1) \
+                    + hsl/nu * prognostic_t[SL.k] / hsl**nu \
                     * z_log**nu
-
         return np.concatenate((z_oversampled[:k2], z_freepart, z_log)), \
                np.concatenate((u_oversampled[:k2], u_freepart, u_log)), \
                 np.concatenate((theta_oversampled[:k2],
@@ -901,9 +899,11 @@ class Ocean1dStratified():
         elif turbulence == "TKE":
             k = SL.k
             z_levels = np.copy(self.z_full)
-            if not ignore_tke_sl:
-                z_levels[k] = delta_sl
-            h_half = np.diff(z_levels)
+            # note: if z_levels[M] =0 and delta_sl != 0
+            # a problem appears in the mixing lengths.
+            z_levels[k] = delta_sl
+
+            # h_half = np.diff(z_levels)
             # phi_prime = phi[1:] * ( \
             #         17./48 + K_full[1:]*self.dt/2/h_half**2 \
             #         ) + phi[:-1] * ( \
