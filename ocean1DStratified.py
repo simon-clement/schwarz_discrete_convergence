@@ -586,12 +586,13 @@ class Ocean1dStratified():
                 delta_sl, k1, sf_scheme, Q_sw, Q_lw, _ = SL
         if sf_scheme in {"FV1", "FV pure", "FV test"} \
                 or ignore_loglaw or delta_sl >= z_max:
-            allxi = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
-            k_1m: int = bisect.bisect_left(allxi[-1], z_max)
-            allxi[-1] = allxi[-1][:k_1m]
-            sub_discrete_theta[-1] = sub_discrete_theta[-1][:k_1m]
-            sub_discrete[-1] = sub_discrete[-1][:k_1m]
-            return np.concatenate(allxi), \
+            all_z = [np.array(xi[m]) + self.z_half[m] for m in range(self.M)]
+            k_1m: int = bisect.bisect_left(all_z[-1], z_max)
+            all_z[-1] = all_z[-1][:k_1m+1]
+            all_z[-1][-1] = z_max
+            sub_discrete_theta[-1] = sub_discrete_theta[-1][:k_1m+1]
+            sub_discrete[-1] = sub_discrete[-1][:k_1m+1]
+            return np.concatenate(all_z), \
                     np.concatenate(sub_discrete), \
                     np.concatenate(sub_discrete_theta), \
 
@@ -627,8 +628,10 @@ class Ocean1dStratified():
         abs_uzM_m_udelta: array = u_star/self.kappa * \
                 (np.log(1-delta_sl/SL.z_0M) - \
                 psi_m(-delta_sl*inv_L_MO))
-        u_log: array = u_zM - abs_uzM_m_uz / abs_uzM_m_udelta * \
-                (u_zM - u_delta)
+        # u_log: array = u_zM - abs_uzM_m_uz / abs_uzM_m_udelta * \
+        #         (u_zM - u_delta)
+        u_log = u_delta+ (abs_uzM_m_udelta - abs_uzM_m_uz) * \
+                orientation(u_delta)
 
         def QHtzM_m_t(z: float):
             """

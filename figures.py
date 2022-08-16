@@ -58,103 +58,251 @@ def fig_forcedOcean():
     from validation_oce1D import forcedOcean
     return forcedOcean("FD2")
 
-def fig_ZengAgainstOthers():
+def simu_oce_coupled(sf_o: str, delta_o: float, high_res_o: bool,
+        ignore_cached: bool=False):
     dt_oce = 30.
     dt_atm = 10.
     T = 24*60*60.
-    delta_sl_o = None
+    sf_scheme_a = "FV free"
+    delta_sl_a = None
+    store_all = False
+    NUMBER_IT = 3
+    states_atm, states_oce, za, zo = memoised(simulation_coupling,
+            dt_oce, dt_atm, T, store_all, sf_scheme_a, sf_o,
+            delta_o, delta_sl_a, NUMBER_IT,
+            False, high_res_o, ignore_cached=ignore_cached)
+    return states_atm[-1], states_oce[-1], za, zo
 
-    def simu_coupled(sf_o: str, delta_o: float, high_res_o: bool,
-            ignore_cached: bool=False):
-        sf_scheme_a = "FV free"
-        delta_sl_a = None
-        store_all = False
-        NUMBER_IT = 2
-        _, states, _, zo = memoised(simulation_coupling, dt_oce,
-                dt_atm, T, store_all, sf_scheme_a, sf_o,
-                delta_o, delta_sl_a, NUMBER_IT,
-                False, high_res_o, ignore_cached=ignore_cached)
-        return states[-1], zo
+def simu_oce_forced(sf_o: str, delta_o: float, high_res_o: bool,
+        ignore_cached: bool=False):
+    dt_oce = 30.
+    dt_atm = 10.
+    T = 24*60*60.
+    state, zo = memoised(simulation_oceForced, dt_oce,
+            T, sf_o, delta_o, high_res_o,
+            ignore_cached=ignore_cached)
+    return state, zo
 
-    def simu_forced(sf_o: str, delta_o: float, high_res_o: bool,
-            ignore_cached: bool=False):
-        sf_scheme_a = "FV free"
-        delta_sl_a = None
-        # harmonizing on FV Zeng so that
-        # it is forced with the same u*, t*
-        store_all = False
-        NUMBER_IT = 2
-        _, states, _, zo = memoised(simulation_coupling, dt_oce,
-                dt_atm, T, store_all, sf_scheme_a, sf_o,
-                delta_o, delta_sl_a, NUMBER_IT,
-                False, high_res_o, ignore_cached=ignore_cached)
-        return states[1], zo
-
+def fig_oce_Forced():
     colors=palette()
-    setting_FDpure = {'sf_scheme': 'FD pure',
-                'delta_sl_lr': -.5,
-                'delta_sl_hr': -.5/3,
-                'col': colors[0],
-                }
-    setting_FVpure = {'sf_scheme': 'FV test',
-                'delta_sl_lr': -.5,
-                'delta_sl_hr': -.5/3,
-                'col': colors[1],
-                }
-    setting_FVpure_nodelta = {'sf_scheme': 'FV test',
-                'delta_sl_lr': -.0,
-                'delta_sl_hr': -.0,
-                'col': colors[3],
-                }
-    setting_FVZeng = {'sf_scheme': 'FV Zeng',
-                'delta_sl_lr': -.5/3,
-                'delta_sl_hr': -.5/3,
-                'col': colors[2],
-                }
-    settings = (setting_FDpure, setting_FVpure, setting_FVpure_nodelta,
-            setting_FVZeng)
+    all_settings = settings_plot_oce_sf_scheme()
+    settings = (all_settings["FD delta"],
+            all_settings["FV delta"], all_settings["FV nodelta"],
+            all_settings["FV Zeng"])
     fig, axes = plt.subplots(1,2, sharey=True)
-    fig.subplots_adjust(right=0.67)
+    fig.subplots_adjust(right=0.70)
 
     for setting in settings:
-        sf_scheme_o = setting["sf_scheme"]
-        delta_lr = setting["delta_sl_lr"]
-        state_lr, z_lr = simu_forced(sf_scheme_o, delta_lr, False,
-                ignore_cached=False)
-        delta_hr = setting["delta_sl_hr"]
-        state_hr, z_hr = simu_forced(sf_scheme_o, delta_hr, True)
+        sf_scheme_o = setting.pop("sf_scheme")
+        delta_lr = setting.pop("delta_sl_lr")
+        state_lr, z_lr = simu_oce_forced(sf_scheme_o, delta_lr,
+                False, ignore_cached=False)
+        delta_hr = setting.pop("delta_sl_hr")
+        state_hr, z_hr = simu_oce_forced(sf_scheme_o, delta_hr,
+                True, ignore_cached=False)
 
-        axes[1].plot(np.abs(state_hr.last_tstep["theta"]), z_hr, "--",
-                color=setting["col"])
-        axes[1].plot(np.abs(state_lr.last_tstep["theta"]), z_lr,
-                color=setting["col"])
-        axes[0].plot(np.abs(state_hr.last_tstep["u"]), z_hr, "--",
-                color=setting["col"], label=sf_scheme_o+ " HR")
         axes[0].plot(np.abs(state_lr.last_tstep["u"]), z_lr,
-                color=setting["col"],
-                label=sf_scheme_o+ " LR")
+                **setting)
+        setting.pop("label", None)
+        axes[1].plot(np.abs(state_hr.last_tstep["theta"]), z_hr,
+                "--", **setting)
+        axes[1].plot(np.abs(state_lr.last_tstep["theta"]), z_lr,
+                **setting)
+        axes[0].plot(np.abs(state_hr.last_tstep["u"]), z_hr, "--",
+                **setting)
         axes[1].set_yscale("symlog", linthresh=.02)
         axes[0].set_yscale("symlog", linthresh=.02)
         axes[0].set_xlabel(r"$u$ (${\rm m}.{\rm s}^{-1}$)")
         axes[1].set_xlabel(r"$\theta$ (${\rm K}$)")
-        axes[1].set_xlim(left=279.8, right=280.1)
+        axes[0].set_ylabel(r"$z$ (${\rm m}$)")
+        axes[1].set_xlim(left=279.7, right=280.1)
+        axes[0].set_ylim(top=-0.03, bottom=-50)
     fig.legend(loc="center right")
+    show_or_save("fig_oce_Forced")
 
-    show_or_save("fig_ZengAgainstOthers")
+def fig_oce_Coupled():
+    all_settings = settings_plot_oce_sf_scheme()
+    settings = (all_settings["FD delta"],
+            all_settings["FV delta"], all_settings["FV nodelta"],
+            all_settings["FV Zeng"])
+    fig, axes = plt.subplots(1,2, sharey=True)
+    fig.subplots_adjust(right=0.70)
+    for setting in settings:
+        sf_scheme_o = setting.pop("sf_scheme")
+        delta_lr = setting.pop("delta_sl_lr")
+        state_atm_lr, state_lr, za_lr, z_lr = \
+                simu_oce_coupled(sf_scheme_o, delta_lr, False,
+                ignore_cached=False)
+        delta_hr = setting.pop("delta_sl_hr")
+        state_atm_hr, state_hr, za_hr, z_hr = \
+                simu_oce_coupled(sf_scheme_o, delta_hr, True)
 
+        ####### PLOTTING THE OCEAN: #########
+        z_lr_atm = np.concatenate(([0], za_lr))
+        z_hr_atm = np.concatenate(([0], za_hr))
+        u_hr_atm = np.concatenate(([state_hr.other["SL"].u_0],
+            state_atm_hr.last_tstep["u"]))
+        theta_hr_atm = np.concatenate(([state_hr.other["SL"].t_0],
+            state_atm_hr.last_tstep["theta"]))
+        u_lr_atm = np.concatenate(([state_lr.other["SL"].u_0],
+            state_atm_lr.last_tstep["u"]))
+        theta_lr_atm = np.concatenate(([state_lr.other["SL"].t_0],
+            state_atm_lr.last_tstep["theta"]))
+
+        axes[0].plot(np.abs(state_lr.last_tstep["u"]), z_lr,
+                **setting)
+        setting.pop("label", None)
+        axes[0].plot(np.abs(state_hr.last_tstep["u"]), z_hr, "--",
+                **setting)
+        axes[1].plot(state_lr.last_tstep["theta"], z_lr, **setting)
+        axes[1].plot(state_hr.last_tstep["theta"], z_hr, "--",
+                **setting)
+        setting.pop("marker", None)
+        setting["linewidth"] = 1.3
+
+        axes[1].plot(theta_hr_atm, z_hr_atm, "--",
+             **setting)
+        axes[0].plot(np.abs(u_lr_atm), z_lr_atm, **setting)
+        axes[1].plot(np.abs(theta_lr_atm), z_lr_atm, **setting)
+
+        axes[1].plot(theta_lr_atm, z_lr_atm, **setting)
+        axes[0].plot(np.abs(u_hr_atm), z_hr_atm, "--",
+             **setting)
+
+        axes[1].set_yscale("symlog", linthresh=5)
+        axes[0].set_yscale("symlog", linthresh=5)
+        axes[0].set_xlabel(r"$u$ (${\rm m}.{\rm s}^{-1}$)")
+        axes[1].set_xlabel(r"$\theta$ (${\rm K}$)")
+        axes[1].set_xlim(left=279.8, right=280.15)
+        axes[0].set_xlim(left=3e-2, right=9)
+        axes[0].set_ylim(top=500, bottom=-12)
+        axes[0].set_xscale("log")
+    axes[0].set_ylabel(r"$z$ (${\rm m}$)")
+    axes[0].hlines(0, xmin=0., xmax=100, linestyle="dashed", color="k")
+    axes[1].hlines(0, xmin=270., xmax=290,
+            linestyle="dashed", color="k")
+    fig.legend(loc="center right")
+    show_or_save("fig_oce_Coupled")
 
 def fig_compare_two_sided_one_sided():
-    dt_oce = 30.
-    dt_atm = 10.
-    T = 24*60*60. # one day
-    states_aOS, states_oOS, za, zo = simulation_coupling(dt_oce,
-            dt_atm, T, False, "FV free", "FD pure", delta_sl_o=0.)
-    states_aTS, states_oTS, _, _ = simulation_coupling(dt_oce,
-            dt_atm, T, False, "FV free", "FD pure", delta_sl_o=-.5)
-    state_aTS = states_aTS[-1]
-    state_oTS = states_oTS[-1]
-    # TODO compare the profiles in the two cases.
-# TODO another figure for the implicit profile: see Charles' ?
+    all_settings = settings_plot_oce_sf_scheme()
+    settings = all_settings["FD delta"], all_settings["FD nodelta"]
+    fig, axes = plt.subplots(1,2, sharey=True)
+    fig.subplots_adjust(right=0.70)
+
+    for setting in settings:
+        sf_scheme_o = setting.pop("sf_scheme")
+        delta_lr = setting.pop("delta_sl_lr")
+        setting.pop("delta_sl_hr", None)
+        state_atm_lr, state_lr, za_lr, z_lr = \
+                simu_oce_coupled(sf_scheme_o, delta_lr, False,
+                ignore_cached=False)
+
+        ####### PLOTTING THE OCEAN: #########
+        z_lr_atm = np.concatenate(([0], za_lr))
+        u_lr_atm = np.concatenate(([state_lr.other["SL"].u_0],
+            state_atm_lr.last_tstep["u"]))
+        theta_lr_atm = np.concatenate(([state_lr.other["SL"].t_0],
+            state_atm_lr.last_tstep["theta"]))
+
+
+        axes[0].plot(np.abs(state_lr.last_tstep["u"]), z_lr,
+                **setting)
+        setting.pop("label", None)
+        axes[1].plot(state_lr.last_tstep["theta"], z_lr, **setting)
+        setting.pop("marker", None)
+        setting["linewidth"] = 1.3
+        axes[0].plot(np.abs(u_lr_atm), z_lr_atm, **setting)
+        axes[1].plot(np.abs(theta_lr_atm), z_lr_atm, **setting)
+
+        axes[1].set_yscale("symlog", linthresh=5)
+        axes[0].set_yscale("symlog", linthresh=5)
+        axes[0].set_xlabel(r"$u$ (${\rm m}.{\rm s}^{-1}$)")
+        axes[1].set_xlabel(r"$\theta$ (${\rm K}$)")
+        axes[1].set_xlim(left=279.8, right=280.15)
+        axes[0].set_xlim(left=3e-2, right=9)
+        axes[0].set_ylim(top=500)
+        axes[0].set_xscale("log")
+    axes[0].set_ylabel(r"$z$ (${\rm m}$)")
+    axes[0].hlines(0, xmin=0., xmax=100, linestyle="dashed", color="k")
+    axes[1].hlines(0, xmin=270., xmax=290,
+            linestyle="dashed", color="k")
+    fig.legend(loc="center right")
+    show_or_save("fig_compare_two_sided_one_sided")
+
+def simulation_oceForced(dt_oce, T, sf_scheme_o: str,
+        delta_sl_o: float=None, high_res_o: bool=None):
+
+    f = 1e-4 # Coriolis parameter
+    time = np.linspace(0, T) # number of time steps is not important
+    # because of the projection
+    alpha, N0, rho0, cp = 0.0002, 0.01, 1024., 3985.
+    Qswmax = 500.
+    Qlw = -np.ones_like(time) * Qswmax / np.pi
+    srflx = np.maximum(np.cos(2.*np.pi*(time/86400. - 0.26)), 0. ) * \
+            Qswmax / (rho0*cp)
+    Qsw = srflx * rho0*cp
+    z_levels_oce = np.concatenate((-np.linspace(30,1,30)**1.5-50,
+        np.linspace(-50., 0., 51)))
+
+    if high_res_o:
+        z_levels_oce = oversample(z_levels_oce, 3)
+    simulator_oce = Ocean1dStratified(z_levels=z_levels_oce,
+            dt=dt_oce, u_geostrophy=0., f=f, alpha=alpha,
+            N0=N0)
+    mu_m = 6.7e-2 # value of mu_m taken in bulk.py
+    K_mol_a = simulator_oce.K_mol / mu_m
+    if delta_sl_o is None:
+        if sf_scheme_o == "FV free":
+            delta_sl_o = z_levels_oce[-2]
+        elif sf_scheme_o == "FD2":
+            delta_sl_o = z_levels_oce[-2]
+        elif sf_scheme_o in {"FV test", "FD test", "FD pure"}:
+            delta_sl_o = 0.
+
+
+    ######## Atm part: to compute the state_atm used afterward
+    from schwarz_coupler import compute_atmosphere
+    from schwarz_coupler import initialization_ocean
+    z_levels_atm = np.concatenate((np.linspace(0.,500, 51),
+        10*np.linspace(1,15,15)**1.5+500))
+    # creating simulator_oce and settings (dt_atm=dt_oce)
+    simulator_atm = Atm1dStratified(z_levels=z_levels_atm,
+            dt=dt_oce, u_geostrophy=8., K_mol=K_mol_a, f=f)
+    settings_nodelta = NumericalSetting(T=T,
+            sf_scheme_a="FD pure", sf_scheme_o="FD pure",
+            delta_sl_a=z_levels_atm[1]/2,
+            delta_sl_o=-0., # note the delta_sl_o=0 for equality
+            Q_lw=Qlw, Q_sw=Qsw) # of u*, t* between cases
+    # Atmosphere simulation with a SST=cosinus
+    atm_state = compute_atmosphere(simulator_atm,
+            initialization_ocean(settings_nodelta, simulator_oce),
+                settings_nodelta)
+    ######## End of Atm part ###########
+
+    from schwarz_coupler import compute_ocean
+    numer_settings = NumericalSetting(T=T,
+            sf_scheme_a="FD pure", sf_scheme_o=sf_scheme_o,
+            delta_sl_a=z_levels_atm[1]/2, delta_sl_o=delta_sl_o,
+            Q_lw=Qlw, Q_sw=Qsw)
+    # Ocean simulation with previously computed u*:
+    state_oce = compute_ocean(simulator_oce,
+            atm_state, numer_settings)
+
+    if sf_scheme_o[:2] == "FV":
+        zo, state_oce.last_tstep["u"], \
+                state_oce.last_tstep["theta"], = \
+                    simulator_oce.reconstruct_FV(\
+                    state_oce.last_tstep["u"],
+                    state_oce.last_tstep["phi"],
+                    state_oce.last_tstep["theta"],
+                    state_oce.last_tstep["dz_theta"],
+                    state_oce.other["SL"],
+                    ignore_loglaw=(sf_scheme_o not in
+                        {"FV free", "FV Zeng"}))
+    else:
+        zo = simulator_oce.z_half[:-1]
+    return state_oce, zo
 
 def simulation_coupling(dt_oce, dt_atm, T, store_all: bool,
         sf_scheme_a: str, sf_scheme_o: str,
@@ -1604,6 +1752,62 @@ def compute_FD_sfNeutral(sf_scheme, dt, N):
             SST=SST, Q_lw=np.zeros(N+1), Neutral_case=True,
             sf_scheme=sf_scheme, forcing=forcing)
     return z_levels, ret['u']
+
+def settings_plot_oce_sf_scheme():
+    """
+    Defines the styles for sf schemes comparison figures.
+    It is better to use the same style for all figures
+    to avoir losing people.
+    """
+    colors = palette()
+    settings_FDpure = {'sf_scheme': 'FD pure',
+                'delta_sl_lr': -.5,
+                'delta_sl_hr': -.5/3,
+                'color': colors[5],
+                'label': r"FD, $\delta_o=z_{-\frac{1}{2}}$",
+                "marker":"o",
+                "fillstyle":"none",
+                "linewidth": 0.3,
+                }
+
+    settings_FDpure_nodelta = {'sf_scheme': 'FD pure',
+                'delta_sl_lr': -.0,
+                'delta_sl_hr': -.0,
+                'color': colors[4],
+                'label': r"FD, $\delta_o=0$",
+                "marker":"o",
+                "fillstyle":"none",
+                "linewidth": 0.3,
+                }
+    settings_FVpure = {'sf_scheme': 'FV test',
+                'delta_sl_lr': -.5,
+                'delta_sl_hr': -.5/3,
+                'color': colors[2],
+                'label': r"FV pure, $\delta_o=z_{-\frac{1}{2}}$",
+                "linewidth": 1.3,
+                }
+    settings_FVpure_nodelta = {'sf_scheme': 'FV test',
+                'delta_sl_lr': -.0,
+                'delta_sl_hr': -.0,
+                'color': colors[3],
+                'label': r"FV pure, $\delta_o=0$",
+                "linewidth": 1.3,
+                }
+    settings_FVZeng = {'sf_scheme': 'FV Zeng',
+                'delta_sl_lr': -.5/3,
+                'delta_sl_hr': -.5/3,
+                'color': colors[1],
+                'label': r"FV free, $\delta_o=-0.17$",
+                "linewidth": 1.3,
+                }
+
+    ret = {"FV Zeng": settings_FVZeng,
+            "FV nodelta": settings_FVpure_nodelta,
+            "FV delta": settings_FVpure,
+            "FD nodelta": settings_FDpure_nodelta,
+            "FD delta": settings_FDpure,
+            }
+    return ret
 
 def settings_plot_sf_scheme(z_levels: np.ndarray):
     """
