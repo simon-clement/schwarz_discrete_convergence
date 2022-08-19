@@ -3,13 +3,12 @@
     by the functions get_Y and get_Y_star.
 """
 import numpy as np
+from scipy import interpolate
 
 def scal_multiply(Y, s):
     """
         Returns "Y * s", Y being a tuple of np arrays
     """
-    s = float(s)
-    assert type(s) == float
     ret_list = []
     for element in Y:
         ret_list += [element * s]
@@ -20,12 +19,18 @@ def add_banded(Y1, Y2):
     """
         Returns "Y1 + Y2", Y1 and Y2 being tuples of ndarrays of the same size
     """
-    assert len(Y1) == len(Y2)
-    ret_list = []
-    for y1, y2 in zip(Y1, Y2):
+    if Y1[0].shape[0] > Y2[0].shape[0]:
+        Y1, Y2 = Y2, Y1 # now Y1[0].shape[0] <= Y2[0].shape[0]
+    k = Y2[0].shape[0] - Y1[0].shape[0] # Y1 has some lower diagonals
+    ret_list = [y1 for y1 in Y1[:k]]
+    for y1, y2 in zip(Y1[k:], Y2):
         assert y1.ndim == y2.ndim
         assert y1.shape[0] == y2.shape[0]
         ret_list += [y1 + y2]
+    for i in range(len(Y2), len(Y1[k:])): # if Y1 has more upper diagonals
+        ret_list += [Y1[k+i]]
+    for i in range(len(Y1[k:]), len(Y2)): # if Y2 has more upper diagonals
+        ret_list += [Y2[i]]
     return tuple(ret_list)
 
 def multiply(Y, u):
@@ -44,9 +49,9 @@ def multiply(Y, u):
 
 def multiply_interior(Y, u):
     """
-        Returns "Y * u"
+        Returns "Y * u" without the first and last values
         equivalent code :
-        return (np.diag(Y[1])+np.diag(Y[0], k=-1) + np.diag(Y[2], k=1)) @ u
+        return Y[0] * u[:-2] + Y[1] * u[1:-1] + Y[2] * u[2:]
         Y is a tridiagonal matrix returned by get_Y or get_Y_star
     """
     assert len(Y) == 3
@@ -55,6 +60,39 @@ def multiply_interior(Y, u):
     return Y[0] * u[:-2] + Y[1] * u[1:-1] + Y[2] * u[2:]
 
 def solve_linear(Y, f):
+    """
+        solve linear system in the form:
+        (lower diagonal, diagonal, upper diagonal)
+        there can be additional upper or lower diagonal
+        the position of diagonal is diagnosed from the shape
+        of the numpy arrays
+    """
+    k = 0
+    for i in range(1, len(Y)):
+        if Y[i].shape[0] > Y[i-1].shape[0]:
+            k = i
+
+    # k is the index of the main diag: it means that
+    # there is k diagonals at the left of the main diag,
+    # and len(Y)-k-1 diagonals at the right of it
+
+    Y_to_stack = [] # creating future scipy banded matrix
+
+    for i in range(len(Y)-1, k, -1): # adding upper diagonals
+        Y_to_stack += [np.concatenate(([0] * (i-k), Y[i]))]
+    
+    Y_to_stack += [Y[k]] # adding diagonal to the stackable array
+
+    for i in range(k-1, -1, -1): # adding subdiagonals
+        Y_to_stack += [np.concatenate((Y[i], [0] * (k-i)))]
+
+    Y = np.vstack(Y_to_stack)
+
+    from scipy.linalg import solve_banded
+    return solve_banded((k, len(Y) - k - 1), Y, f)
+
+
+def solve_linear_tridiag(Y, f):
     """
         Solve the linear TRIDIAGONAL system Yu = f and returns u.
         Y can have an additional (and only one) upper diagonal
@@ -123,3 +161,34 @@ def solve_linear_with_ultra_right(Y, f):
     Y = np.vstack((Y_3, Y_2, Y_1, Y_0))
     from scipy.linalg import solve_banded
     return solve_banded((1, 2), Y, f)
+
+def full_to_half(var_full: np.ndarray):
+    return (var_full[1:] + var_full[:-1])/2
+
+def orientation(cplx: complex) -> complex:
+    """
+        returns the complex number of modulus 1 and
+        of same angle.
+        returns 1 if cplx == 0
+    """
+    return np.exp(1j*np.angle(cplx))
+
+def oversample(arr: np.ndarray, n: int) -> np.ndarray:
+    """
+        returns a sorted array containing n times more points
+    """
+    assert n > 1
+    assert arr.shape[0] > 1
+    to_concatenate = [arr]
+    for i in range(1, n):
+        theta = i/n
+        to_concatenate += [theta * arr[1:] + (1-theta) * arr[:-1]]
+    return np.sort(np.concatenate(to_concatenate))
+
+def undersample(arr: np.ndarray,
+        z_in: np.ndarray, z_out: np.ndarray) -> np.ndarray:
+    """
+        projection of array (defined on z_in) to z_out
+    """
+    return interpolate.interp1d(z_in, arr,
+            fill_value="extrapolate")(z_out)
