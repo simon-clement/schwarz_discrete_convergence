@@ -1,34 +1,15 @@
-# Schwarz TBC finder
+# Numerical analysis for the reconciliation of the discretizations of the air-sea exchanges and their parameterization
 
-This repository is the main code of my MCS thesis, where the aim is to analyze transparent boundary conditions
-(TBC) of a coupled system formed by 1D diffusion equations.
-The diffusion equations may have variable coefficients (in space) and non-uniform discretization.
-
-### Install the repository:
-```
-    git clone --recursive https://github.com/simon-clement/schwarz_tbc_finder
-```
-You can check your install is correct:
-```
-    ./main.py test
-```
-
-You may need to install scipy to make it work:
-```
-    pip3 install scipy
-```
-Or simply (Ubuntu systems):
-```
-    ./setup.py
-```
-You may be asked for sudo password because of the multiples installations.
+This repository is the main code of my PhD thesis, where the aim is to analyze air-sea exchanges
+and Schwarz methods on the ocean-atmosphere coupled system.
+The code of Figures in the manuscript can be found in some of the branches of this repository.
 
 The script can be launched with
 ```
     ./main.py [ARG]
 ```
 
-Where ARG is one of the arguments {test, figure, figsave, figname, clean}.
+Where ARG is one of the arguments {figure, figsave, figname, clean}.
 
 ### Use the code
 To make a figure that is inside the pdf, just use the argument figure:
@@ -55,11 +36,4 @@ Almost every computation goes to a persistent cache on the disk. If you change s
     ./main.py clean
 ```
 
-
-### Dependencies for the fast versions
-There is an accelerated version written in Rust in a submodule. The accelerated part should only work on unix systems and has additional dependencies: everything works without it, but the pure Python version is ~10 times slower. The results with the rust version appear to have a greater variance. It may be better to avoid using it. 
-All dependencies can be satisfied with the setup script (Ubuntu systems):
-```
-    ./setup.py
-```
-You may be asked for sudo password because of the multiples installation
+A accelerated version of the code (in Rust) can be found but it was eventually not used in the manuscript.
