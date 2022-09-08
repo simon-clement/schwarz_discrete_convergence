@@ -8,6 +8,8 @@ import bisect
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
 from typing import Tuple
 from tqdm import tqdm
 from matplotlib.animation import FuncAnimation
@@ -53,6 +55,71 @@ IFS_z_levels_stratified = np.flipud(np.array((500.91, 440.58, 385.14,
     334.22, 287.51, 244.68,
     205.44, 169.50, 136.62, 106.54, 79.04, 53.92, 30.96,
     10.00))) - 10. # less levels in the stratified case
+
+def fig_stabilityfunctions():
+    colors = palette()
+    fig, axes = plt.subplots(1,2, figsize=(6.5, 2.))
+    fig.subplots_adjust(wspace=0.05, bottom=0.26, left=0.12,
+            right=0.7)
+    phi_m, phi_h, psi_m, psi_h, *_, = businger
+    zeta = np.linspace(0, 3)
+    linestyle_m = (0, (5,5))
+    linestyle_h = (2, (1,2))
+    axes[0].semilogx(phi_m(zeta), zeta, linestyle=linestyle_m,
+            color=colors[0])
+    axes[0].semilogx(phi_m(-zeta), zeta, linestyle=linestyle_m,
+            color=colors[1])
+    axes[0].vlines(ymin=0, ymax=3, x=[1], linestyle=linestyle_m,
+            color=colors[2])
+    axes[1].plot(psi_m(zeta), zeta, linestyle=linestyle_m,
+            color=colors[0])
+    axes[1].plot(psi_m(-zeta), zeta, linestyle=linestyle_m,
+            color=colors[1])
+    axes[1].vlines(ymin=0, ymax=3, x=[0], linestyle=linestyle_m,
+            color=colors[2])
+
+    axes[0].semilogx(phi_h(zeta), zeta, linestyle=linestyle_h,
+            color=colors[0])
+    axes[0].semilogx(phi_h(-zeta), zeta, linestyle=linestyle_h,
+            color=colors[1])
+    axes[0].vlines(ymin=0, ymax=3, x=[1], linestyle=linestyle_h,
+            color=colors[2])
+    axes[1].plot(psi_h(zeta), zeta, linestyle=linestyle_h,
+            color=colors[0])
+    axes[1].plot(psi_h(-zeta), zeta, linestyle=linestyle_h,
+            color=colors[1])
+    axes[1].vlines(ymin=0, ymax=3, x=[0], linestyle=linestyle_h,
+            color=colors[2])
+    axes[0].set_yticks([0,1, 2, 3])
+    axes[0].set_yticklabels(['0', r'$\left|L_{\rm MO}\right|$',
+        r'$2 \left|L_{\rm MO}\right|$', r'$\delta_{\rm sl}$'])
+    axes[0].set_ylabel(r'${z}$')
+    axes[0].set_ylim(bottom=0, top=3)
+    axes[1].set_ylim(bottom=0, top=3)
+    axes[1].set_yticks([0,1,2,3])
+    axes[1].set_yticklabels(['', '', '', ''])
+    # axes[1].set_ylabel(r'$\left|\frac{z}{L_{\rm MO}}\right|$')
+    axes[1].set_xlim(left=-10, right=2.5)
+
+    stable_patch = mpatches.Patch(color=colors[0],
+            label=r'$L_{\rm MO}>0$ (stable)')
+    unstable_patch = mpatches.Patch(color=colors[1],
+            label=r'$L_{\rm MO}<0$ (unstable)')
+    neutral_patch = mpatches.Patch(color=colors[2],
+            label=r'$L_{\rm MO} \rightarrow 0$ (neutral)')
+    
+    m_line = mlines.Line2D([], [], color='k',
+            linestyle=linestyle_m,
+            label=r'$\phi_m, \psi_m ~~(x=m)$')
+    h_line = mlines.Line2D([], [], color='k',
+            linestyle=linestyle_h,
+            label=r'$\phi_h, \psi_h ~~~(x=h)$')
+    handles = [unstable_patch, neutral_patch, stable_patch,
+            m_line, h_line]
+    axes[0].set_xlabel(r"$\phi_x$")
+    axes[1].set_xlabel(r"$\psi_x$")
+    fig.legend(loc="right", handles=handles)
+    show_or_save("fig_stabilityfunctions")
 
 def fig_forcedOcean():
     from validation_oce1D import forcedOcean
