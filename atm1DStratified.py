@@ -554,7 +554,7 @@ class Atm1dStratified():
                 np.cbrt(ratio/ l_up[:k_modif]**(7/3))[mask_min_is_lup]
         explicit_ldown = self.explicit_ldown
         if (mxlm[:k_modif] < l_up[:k_modif])[mask_min_is_lup].any():
-            print("no solution of the link MOST-TKE")
+            # print("no solution of the link MOST-TKE")
             mxlm[:k_modif] = (ratio/np.cbrt(l_up[:k_modif]))**(3/7)
 
         if explicit_ldown:

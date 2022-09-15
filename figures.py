@@ -92,7 +92,7 @@ def fig_stabilityfunctions():
             color=colors[2])
     axes[0].set_yticks([0,1, 2, 3])
     axes[0].set_yticklabels(['0', r'$\left|L_{\rm MO}\right|$',
-        r'$2 \left|L_{\rm MO}\right|$', r'$\delta_{\rm sl}$'])
+        r'$2 \left|L_{\rm MO}\right|$', r'$\delta_{\rm a}$'])
     axes[0].set_ylabel(r'${z}$')
     axes[0].set_ylim(bottom=0, top=3)
     axes[1].set_ylim(bottom=0, top=3)
@@ -555,7 +555,7 @@ def endProfile_coupling(axu, axtheta,
     delta_a = delta_atm if delta_sl_a is None else delta_sl_a
     delta_o = delta_oce if delta_sl_o is None else delta_sl_o
     if label_atm:
-        label = sf_scheme_a[:2] +r", $\delta_{sl}=$" + \
+        label = sf_scheme_a[:2] +r", $\delta_{a}=$" + \
                   f"{delta_a:.2f}m"
     else:
         label = f"{sf_scheme_o[:2]}" +r", $\delta_{o}=$" + \
@@ -913,7 +913,7 @@ def star_comparison(ax, sf_scheme_a: str, sf_scheme_o: str,
     delta_a = delta_atm[sf_scheme_a] if delta_sl_a is None \
             else delta_sl_a
     if label_atm:
-        label = sf_scheme_a[:2] +r", $\delta_{sl}=$" + \
+        label = sf_scheme_a[:2] +r", $\delta_{a}=$" + \
                   f"{delta_a:.2f}m"
     else:
         label = f"{sf_scheme_o[:2]}" +r", $\delta_{o}=$" + \
@@ -975,8 +975,8 @@ def fig_alpha_sl():
         alpha_sl = ((h_1_2 + z_u) * log - delta_sl) / log / h_1_2
         ax.plot(delta_sl/h_1_2, alpha_sl, color=color,
                 label=r"$z_u=10^{"+str(z_u_exp)+r"}$")
-    ax.set_xlabel(r"$\delta_{sl} / z_1$")
-    ax.set_ylabel(r"$\alpha_{sl}$")
+    ax.set_xlabel(r"$\delta_{a} / z_1$")
+    ax.set_ylabel(r"$\alpha_{a}$")
     fig.legend(loc="center right")
     show_or_save("fig_alpha_sl")
 
@@ -1308,17 +1308,17 @@ def fig_sensitivity_delta_sl():
             {'delta_sl': 5.,
                     "linewidth": 1.8,
                     "color": colors[0],
-                    "label": r"$\delta_{sl} = 5 \;{\rm m}$",
+                    "label": r"$\delta_{a} = 5 \;{\rm m}$",
                     },
             {'delta_sl': 10.,
                     "linewidth": 1.8,
                     "color": colors[1],
-                    "label": r"$\delta_{sl} = 10 \;{\rm m}$",
+                    "label": r"$\delta_{a} = 10 \;{\rm m}$",
                     },
             {'delta_sl': 20.,
                     "linewidth": 1.8,
                     "color": colors[2],
-                    "label": r"$\delta_{sl} = 20 \;{\rm m}$",
+                    "label": r"$\delta_{a} = 20 \;{\rm m}$",
                     },
             )
     fig, axd = plt.subplot_mosaic([['.', 'abs', 'angle', '.'],
@@ -2013,7 +2013,7 @@ def fig_consistency_comparison():
     z_levels_FV2 = np.concatenate(([0., z_levels[1]/2], z_levels[1:]))
     # for FV with FV interpretation of sf scheme,
     # the first grid level is divided by 2 so that
-    # delta_{sl} is the same in all the schemes.
+    # delta_{a} is the same in all the schemes.
     dt = 60.
     N = 1680 # 28*60=1680
 

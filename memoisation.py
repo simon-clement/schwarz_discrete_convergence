@@ -76,9 +76,10 @@ def memoised(func_to_memoise, *args_mem, ignore_cached=False, **kwargs_mem):
                 print("That is strange, we have a None result... " +
                       "Let's compute it again.")
             else:
-                print("Found value for " + fun.__name__ + " in cache. " +
-                      "If you changed anything in the function, " +
-                      "run \"./main.py clean\"")
+                print("Used cached value.")
+                # print("Found value for " + fun.__name__ + " in cache. " +
+                #       "If you changed anything in the function, " +
+                #       "run \"./main.py clean\"")
                 return res
         except IOError:
             print("A file in the memoisation index doesn't exist.")

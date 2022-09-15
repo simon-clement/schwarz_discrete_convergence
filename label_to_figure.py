@@ -16,6 +16,5 @@ FIGURE["4.17"] = "fig_consistency_comparisonCoupled"
 FIGURE["5.2"] = "fig_compare_two_sided_one_sided"
 FIGURE["5.4"] = "fig_oce_Forced"
 FIGURE["5.5"] = "fig_oce_Coupled"
-FIGURE["6.8"] = "fig_schwarzConvergence"
 
 ALL_LABELS = FIGURE
